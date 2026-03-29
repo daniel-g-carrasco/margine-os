@@ -1,0 +1,15 @@
+# Supporto toolkit e portal per app GTK e Qt su Hyprland.
+# Qui entrano solo i componenti che ha senso rendere espliciti.
+# Non duplico dipendenze transitive come `gtk3`, `gtk4` o `libadwaita`:
+# quelle arriveranno gia' dagli applicativi.
+
+adwaita-icon-theme
+hyprland-qt-support
+nwg-look
+qt5-wayland
+qt5ct
+qt6-wayland
+qt6ct
+xdg-desktop-portal
+xdg-desktop-portal-gtk
+xdg-desktop-portal-hyprland

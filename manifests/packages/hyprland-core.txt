@@ -2,19 +2,19 @@
 # Nota:
 # - screenshot e recording stanno sullo stack ufficiale `grim + slurp + satty +
 #   wf-recorder`;
-# - launcher/menu di fallback ufficiale: `fuzzel`;
-# - `walker` resta valutazione separata come eccezione AUR opzionale.
+# - launcher predefinito: `hyprlauncher`;
+# - launcher secondario opzionale: `walker` (AUR).
 
 bluetui
 bluez
 bluez-utils
 brightnessctl
 cliphist
-fuzzel
 fzf
 grim
 hypridle
 hyprland
+hyprlauncher
 hyprlock
 hyprpaper
 iwd
@@ -40,5 +40,3 @@ wf-recorder
 wireguard-tools
 wireplumber
 wl-clipboard
-xdg-desktop-portal-gtk
-xdg-desktop-portal-hyprland

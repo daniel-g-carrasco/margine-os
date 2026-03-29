@@ -3,10 +3,8 @@
 # Approvate per requisito esplicito:
 
 davinci-resolve
-gapless
 koofr-desktop-bin
 
-# Valutazioni ancora aperte:
-# `walker` piace come UX, ma `Margine v1` puo' vivere anche con `fuzzel`
-# ufficiale. Per ora lo teniamo separato.
+# Seconda scelta / opzionali consapevoli:
+# `walker` resta disponibile come launcher secondario.
 walker

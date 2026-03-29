@@ -24,10 +24,12 @@ Struttura iniziale:
 - `packages/hardware-framework13-amd.txt`
 - `packages/security-and-recovery.txt`
 - `packages/hyprland-core.txt`
+- `packages/toolkit-gtk-qt.txt`
 - `packages/desktop-integration.txt`
 - `packages/apps-core.txt`
 - `packages/apps-photo-audio-video.txt`
 - `packages/fonts.txt`
 - `packages/aur-exceptions.txt`
 - `packages/open-questions.md`
+- `flatpaks/apps.txt`
 - `storage-subvolumes.txt`

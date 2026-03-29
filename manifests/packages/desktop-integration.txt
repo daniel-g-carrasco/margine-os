@@ -1,6 +1,7 @@
 # Integrazione desktop volutamente limitata.
 # Si tengono componenti utili al workflow senza trascinarsi GNOME Shell.
 
+flatpak
 gvfs
 gvfs-afc
 gvfs-gphoto2
