@@ -9,6 +9,11 @@ target_root="/mnt"
 repo_source="$(cd "${script_dir}/.." && pwd)"
 repo_dest="/root/margine-os"
 hostname=""
+username=""
+real_name=""
+user_shell="/bin/bash"
+extra_groups=""
+user_password_hash=""
 run_chroot=0
 confirm_destroy=0
 crypt_name="cryptroot"
@@ -28,6 +33,11 @@ Options:
   --repo-source PATH             Repo locale da copiare nel target
   --repo-dest PATH               Destinazione assoluta nel target (default: /root/margine-os)
   --hostname NAME                Hostname da passare alla fase chroot
+  --username NAME                Utente amministrativo da creare
+  --real-name NAME               Nome reale/commento dell'utente
+  --shell PATH                   Shell login dell'utente (default: /bin/bash)
+  --extra-groups CSV             Gruppi aggiuntivi separati da virgola
+  --user-password-hash HASH      Hash password per l'utente amministrativo
   --run-chroot                   Avvia subito la fase 2 via arch-chroot
   --crypt-name NAME              Nome mapper LUKS (default: cryptroot)
   --esp-size-mib NUM             Dimensione ESP in MiB (default: 4096)
@@ -75,6 +85,31 @@ parse_args() {
       --hostname)
         [[ $# -ge 2 ]] || die "missing value for --hostname"
         hostname="$2"
+        shift 2
+        ;;
+      --username)
+        [[ $# -ge 2 ]] || die "missing value for --username"
+        username="$2"
+        shift 2
+        ;;
+      --real-name)
+        [[ $# -ge 2 ]] || die "missing value for --real-name"
+        real_name="$2"
+        shift 2
+        ;;
+      --shell)
+        [[ $# -ge 2 ]] || die "missing value for --shell"
+        user_shell="$2"
+        shift 2
+        ;;
+      --extra-groups)
+        [[ $# -ge 2 ]] || die "missing value for --extra-groups"
+        extra_groups="$2"
+        shift 2
+        ;;
+      --user-password-hash)
+        [[ $# -ge 2 ]] || die "missing value for --user-password-hash"
+        user_password_hash="$2"
         shift 2
         ;;
       --run-chroot)
@@ -135,6 +170,7 @@ ensure_prereqs() {
 
 validate_inputs() {
   [[ -n "$disk" ]] || die "--disk is required"
+  [[ -n "$username" ]] || die "--username is required"
   (( confirm_destroy )) || die "refusing to continue without --yes-really-destroy-disk"
   [[ "$target_root" = /* ]] || die "--target-root must be an absolute path"
   [[ "$target_root" != "/" ]] || die "--target-root must not be /"
@@ -167,9 +203,14 @@ run_bootstrap_phase() {
     --target-root "$target_root"
     --repo-source "$repo_source"
     --repo-dest "$repo_dest"
+    --username "$username"
+    --shell "$user_shell"
   )
 
   [[ -n "$hostname" ]] && args+=(--hostname "$hostname")
+  [[ -n "$real_name" ]] && args+=(--real-name "$real_name")
+  [[ -n "$extra_groups" ]] && args+=(--extra-groups "$extra_groups")
+  [[ -n "$user_password_hash" ]] && args+=(--user-password-hash "$user_password_hash")
   (( run_chroot )) && args+=(--run-chroot)
   (( dry_run )) && args+=(--dry-run)
 

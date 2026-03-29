@@ -9,6 +9,12 @@ Struttura prevista:
 - `home/` per file utente da distribuire nella home
 - `esp/` per file destinati alla EFI System Partition
 
+Esempi già presenti:
+
+- `etc/snap-pac.ini`
+- `etc/snapper/configs/root`
+- `etc/sudoers.d/10-margine-wheel`
+
 Regola:
 
 - nessun file qui dentro deve essere "misterioso";

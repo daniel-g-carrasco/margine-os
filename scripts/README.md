@@ -29,6 +29,8 @@ Primo script operativo:
 - `provision-secure-boot`: gestisce il bootstrap iniziale di `sbctl`,
   l'enrollment delle chiavi nel firmware e, opzionalmente, il primo refresh
   della trust chain EFI.
+- `provision-system-user`: crea o riallinea l'utente amministrativo,
+  installa il drop-in `sudoers` e inizializza le directory utente.
 - `install-from-manifests`: installa i layer definiti nei manifest, separando
   repo ufficiali, AUR e Flatpak tramite flag espliciti.
 - `provision-storage`: prepara disco, `LUKS2`, `Btrfs` e subvolumi dalla live ISO.

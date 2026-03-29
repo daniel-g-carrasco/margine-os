@@ -14,5 +14,6 @@ linux-headers
 man-db
 pacman-contrib
 sof-firmware
+sudo
 wget
 zram-generator

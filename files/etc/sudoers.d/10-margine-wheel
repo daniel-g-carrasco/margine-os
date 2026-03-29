@@ -1,0 +1,7 @@
+# Gestito da Margine.
+# Regola prudente:
+# - gli utenti amministrativi stanno nel gruppo wheel;
+# - sudo richiede password;
+# - nessun NOPASSWD di default in v1.
+
+%wheel ALL=(ALL:ALL) ALL

@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+sudoers_template="${repo_root}/files/etc/sudoers.d/10-margine-wheel"
+
+dry_run=0
+username=""
+real_name=""
+user_shell="/bin/bash"
+extra_groups=""
+user_password_hash=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-system-user --username NAME [options]
+
+Options:
+  --username NAME              Utente amministrativo da creare o riallineare
+  --real-name NAME             Nome reale/commento dell'utente
+  --shell PATH                 Shell login dell'utente (default: /bin/bash)
+  --extra-groups CSV           Gruppi aggiuntivi separati da virgola
+  --user-password-hash HASH    Hash password da passare a usermod -p
+  --dry-run                    Mostra il piano senza eseguirlo
+  --help                       Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --username)
+        [[ $# -ge 2 ]] || die "missing value for --username"
+        username="$2"
+        shift 2
+        ;;
+      --real-name)
+        [[ $# -ge 2 ]] || die "missing value for --real-name"
+        real_name="$2"
+        shift 2
+        ;;
+      --shell)
+        [[ $# -ge 2 ]] || die "missing value for --shell"
+        user_shell="$2"
+        shift 2
+        ;;
+      --extra-groups)
+        [[ $# -ge 2 ]] || die "missing value for --extra-groups"
+        extra_groups="$2"
+        shift 2
+        ;;
+      --user-password-hash)
+        [[ $# -ge 2 ]] || die "missing value for --user-password-hash"
+        user_password_hash="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-system-user must run as root"
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in id install useradd usermod getent grep sort tr cut awk paste chown visudo runuser; do
+    if have_cmd "$cmd"; then
+      continue
+    fi
+
+    if (( dry_run )); then
+      warn "command not found during dry-run: $cmd"
+    else
+      die "required command not found: $cmd"
+    fi
+  done
+
+  [[ -f "$sudoers_template" ]] || die "sudoers template not found: $sudoers_template"
+}
+
+validate_inputs() {
+  [[ -n "$username" ]] || die "--username is required"
+  [[ "$user_shell" = /* ]] || die "--shell must be an absolute path"
+
+  if [[ -z "$real_name" ]]; then
+    real_name="$username"
+  fi
+
+  if [[ -x "$user_shell" ]]; then
+    :
+  elif (( dry_run )); then
+    warn "shell not found during dry-run: $user_shell"
+  else
+    die "shell not found: $user_shell"
+  fi
+}
+
+build_group_csv() {
+  local raw="$extra_groups"
+  local entry=""
+
+  {
+    printf '%s\n' "wheel"
+    printf '%s' "$raw" | tr ',' '\n'
+  } | while IFS= read -r entry; do
+    entry="$(printf '%s' "$entry" | awk '{$1=$1; print}')"
+    [[ -n "$entry" ]] || continue
+    printf '%s\n' "$entry"
+  done | sort -u | paste -sd, -
+}
+
+validate_groups() {
+  local groups_csv="$1"
+  local group_name=""
+
+  while IFS= read -r group_name; do
+    [[ -n "$group_name" ]] || continue
+
+    if getent group "$group_name" >/dev/null 2>&1; then
+      continue
+    fi
+
+    if (( dry_run )); then
+      warn "group not found during dry-run: $group_name"
+    else
+      die "group not found: $group_name"
+    fi
+  done < <(printf '%s' "$groups_csv" | tr ',' '\n')
+}
+
+install_sudoers_dropin() {
+  local target="/etc/sudoers.d/10-margine-wheel"
+
+  log
+  log "==> Install sudoers drop-in"
+  run_cmd install -Dm440 "$sudoers_template" "$target"
+
+  if (( dry_run )); then
+    printf '[dry-run] visudo -cf %s\n' "$target"
+    return 0
+  fi
+
+  visudo -cf "$target" >/dev/null
+}
+
+ensure_user_account() {
+  local groups_csv="$1"
+  local home_dir="/home/${username}"
+
+  log
+  log "==> Provision admin user"
+
+  if id -u "$username" >/dev/null 2>&1; then
+    run_cmd usermod -c "$real_name" -s "$user_shell" -aG "$groups_csv" "$username"
+  else
+    run_cmd useradd -m -c "$real_name" -s "$user_shell" -G "$groups_csv" "$username"
+  fi
+
+  run_cmd install -d -m 700 -o "$username" -g "$username" "$home_dir"
+
+  if [[ -n "$user_password_hash" ]]; then
+    run_cmd usermod -p "$user_password_hash" "$username"
+  else
+    warn "no password hash supplied; password will not be set by this script"
+  fi
+}
+
+initialize_user_dirs() {
+  if ! have_cmd xdg-user-dirs-update; then
+    warn "xdg-user-dirs-update not found; skipping home directory initialization"
+    return 0
+  fi
+
+  log
+  log "==> Initialize XDG user directories"
+
+  if (( dry_run )); then
+    printf '[dry-run] runuser -l %s -c xdg-user-dirs-update\n' "$username"
+    return 0
+  fi
+
+  runuser -l "$username" -c 'xdg-user-dirs-update'
+}
+
+print_next_steps() {
+  [[ -n "$user_password_hash" ]] && return 0
+
+  log
+  log "Passo manuale ancora richiesto:"
+  printf '  passwd %s\n' "$username"
+}
+
+main() {
+  local groups_csv=""
+
+  parse_args "$@"
+  require_root
+  ensure_prereqs
+  validate_inputs
+  groups_csv="$(build_group_csv)"
+  validate_groups "$groups_csv"
+
+  log "=== Provision system user Margine ==="
+  (( dry_run )) && log "Modalita': dry-run"
+
+  install_sudoers_dropin
+  ensure_user_account "$groups_csv"
+  initialize_user_dirs
+  print_next_steps
+
+  log
+  log "=== FINITO ==="
+}
+
+main "$@"
