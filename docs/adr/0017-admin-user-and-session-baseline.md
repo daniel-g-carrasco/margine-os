@@ -50,20 +50,31 @@ L'utente creato da questo flow è un utente amministrativo moderno:
 
 ## Regola gruppi
 
-La baseline non aggiunge in automatico gruppi storici come:
-
-- `audio`;
-- `video`;
-- `network`;
-- `storage`.
-
-Questi gruppi spesso vengono trascinati per abitudine, non per necessità reale.
+La baseline non copia i gruppi dell'utente corrente alla cieca.
 
 In `Margine v1` la baseline amministrativa è:
 
 - `wheel`
+- `video`
+- `render`
 
 Più eventuali gruppi espliciti passati via argomento.
+
+Motivazione:
+
+- `wheel` serve all'amministrazione via `sudo`;
+- `video` e `render` sono una baseline sensata per il profilo AMD/ROCm/OpenCL
+  di `Margine`.
+
+Non entrano di default:
+
+- `audio`
+- `kvm`
+- `libvirt`
+- `colord`
+- gruppi storici come `network` o `storage`
+
+perché richiedono una giustificazione più specifica di layer o workflow.
 
 ## Regola password
 

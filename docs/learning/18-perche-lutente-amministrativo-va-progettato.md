@@ -23,7 +23,15 @@ L'errore classico è questo:
 Per `Margine v1` partiamo da una regola severa:
 
 - l'utente amministrativo sta in `wheel`;
-- altri gruppi entrano solo se giustificati.
+- il profilo grafico AMD/OpenCL aggiunge `video` e `render`;
+- gli altri gruppi entrano solo se giustificati.
+
+Questo significa anche saper dire dei no:
+
+- `audio` non entra di default;
+- `kvm` non entra di default;
+- `libvirt` non entra di default;
+- `colord` non entra di default.
 
 Questo è più didattico e più pulito.
 

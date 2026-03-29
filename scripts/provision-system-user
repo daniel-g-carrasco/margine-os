@@ -11,6 +11,11 @@ real_name=""
 user_shell="/bin/bash"
 extra_groups=""
 user_password_hash=""
+default_admin_groups=(
+  wheel
+  video
+  render
+)
 
 usage() {
   cat <<'EOF'
@@ -142,15 +147,18 @@ validate_inputs() {
 build_group_csv() {
   local raw="$extra_groups"
   local entry=""
+  local default_group=""
 
   {
-    printf '%s\n' "wheel"
+    for default_group in "${default_admin_groups[@]}"; do
+      printf '%s\n' "$default_group"
+    done
     printf '%s' "$raw" | tr ',' '\n'
   } | while IFS= read -r entry; do
     entry="$(printf '%s' "$entry" | awk '{$1=$1; print}')"
     [[ -n "$entry" ]] || continue
     printf '%s\n' "$entry"
-  done | sort -u | paste -sd, -
+  done | awk '!seen[$0]++' | paste -sd, -
 }
 
 validate_groups() {
