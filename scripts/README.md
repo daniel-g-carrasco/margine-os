@@ -26,3 +26,6 @@ Primo script operativo:
   preventivo dei file sovrascritti.
 - `refresh-efi-trust`: calcola l'hash di `limine.conf`, esegue
   `limine enroll-config` e firma la catena EFI con `sbctl`.
+- `provision-secure-boot`: gestisce il bootstrap iniziale di `sbctl`,
+  l'enrollment delle chiavi nel firmware e, opzionalmente, il primo refresh
+  della trust chain EFI.

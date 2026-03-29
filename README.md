@@ -53,11 +53,12 @@ Il progetto ha già fissato le fondamenta:
 - layout storage target;
 - separazione tra boot `prod` e `recovery`;
 - primo template versionato di `limine.conf`;
-- primo modello completo di deploy e refresh della trust chain EFI.
+- primo modello completo di deploy e refresh della trust chain EFI;
+- primo modello di bootstrap iniziale di Secure Boot con `sbctl`.
 
 ## Prossimo passo
 
 1. Generare blocchi recovery da snapshot reali di `Snapper`.
-2. Definire il provisioning iniziale di `sbctl` e Secure Boot.
-3. Disegnare gli hook di rigenerazione `UKI`, deploy e rifirma.
-4. Costruire i primi manifest di pacchetti.
+2. Disegnare gli hook di rigenerazione `UKI`, deploy e rifirma.
+3. Costruire i primi manifest di pacchetti.
+4. Fissare il bootstrap iniziale di installazione.

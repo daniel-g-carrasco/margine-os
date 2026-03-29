@@ -1,0 +1,257 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+use_microsoft=1
+keys_only=0
+esp_path=""
+export_keys_dir=""
+limine_tool=""
+main_uki=""
+fallback_uki=""
+recovery_uki=""
+sbctl_keys_dir="${SBCTL_KEYS_DIR:-/var/lib/sbctl/keys}"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-secure-boot [options]
+
+Options:
+  --dry-run               Mostra i comandi senza eseguirli
+  --keys-only             Esegue solo create-keys/enroll-keys, senza refresh EFI
+  --no-microsoft          Non aggiunge i certificati Microsoft durante l'enrollment
+  --esp-path PATH         Mountpoint della EFI System Partition
+  --export-keys PATH      Export esplicito delle chiavi create da sbctl
+  --limine-tool PATH      Path esplicito al tool host `limine`
+  --main-uki PATH         Path esplicito UKI principale gia' deployata
+  --fallback-uki PATH     Path esplicito UKI fallback gia' deployata
+  --recovery-uki PATH     Path esplicito UKI recovery gia' deployata
+  --help                  Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --keys-only)
+        keys_only=1
+        shift
+        ;;
+      --no-microsoft)
+        use_microsoft=0
+        shift
+        ;;
+      --esp-path)
+        [[ $# -ge 2 ]] || die "missing value for --esp-path"
+        esp_path="$2"
+        shift 2
+        ;;
+      --export-keys)
+        [[ $# -ge 2 ]] || die "missing value for --export-keys"
+        export_keys_dir="$2"
+        shift 2
+        ;;
+      --limine-tool)
+        [[ $# -ge 2 ]] || die "missing value for --limine-tool"
+        limine_tool="$2"
+        shift 2
+        ;;
+      --main-uki)
+        [[ $# -ge 2 ]] || die "missing value for --main-uki"
+        main_uki="$2"
+        shift 2
+        ;;
+      --fallback-uki)
+        [[ $# -ge 2 ]] || die "missing value for --fallback-uki"
+        fallback_uki="$2"
+        shift 2
+        ;;
+      --recovery-uki)
+        [[ $# -ge 2 ]] || die "missing value for --recovery-uki"
+        recovery_uki="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+ensure_command() {
+  local cmd="$1"
+
+  if have_cmd "$cmd"; then
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "command not found during dry-run: $cmd"
+    return 0
+  fi
+
+  die "required command not found: $cmd"
+}
+
+keys_already_exist() {
+  [[ -f "${sbctl_keys_dir}/PK/PK.pem" ]] \
+    && [[ -f "${sbctl_keys_dir}/KEK/KEK.pem" ]] \
+    && [[ -f "${sbctl_keys_dir}/db/db.pem" ]]
+}
+
+status_json() {
+  if have_cmd sbctl; then
+    sbctl status --json
+    return 0
+  fi
+
+  if (( dry_run )); then
+    cat <<'EOF'
+{"installed":true,"guid":"<owner-guid>","setup_mode":true,"secure_boot":false}
+EOF
+    return 0
+  fi
+
+  die "sbctl not found"
+}
+
+status_field_is_true() {
+  local field="$1"
+  local json="$2"
+
+  grep -q "\"${field}\":[[:space:]]*true" <<<"$json"
+}
+
+run_create_keys() {
+  local args=()
+
+  if keys_already_exist; then
+    log "Chiavi sbctl gia' presenti, salto create-keys."
+    return 0
+  fi
+
+  if [[ -n "$export_keys_dir" ]]; then
+    run_cmd mkdir -p "$export_keys_dir"
+    args+=(--export "$export_keys_dir")
+  fi
+
+  log
+  log "==> Create Secure Boot keys"
+  run_cmd sudo sbctl create-keys "${args[@]}"
+}
+
+run_enroll_keys() {
+  local args=()
+
+  if (( use_microsoft )); then
+    args+=(-m)
+  fi
+
+  log
+  log "==> Enroll Secure Boot keys"
+  run_cmd sudo sbctl enroll-keys "${args[@]}"
+}
+
+run_refresh_boot_trust() {
+  local refresh_script="${repo_root}/scripts/refresh-efi-trust"
+  local args=()
+
+  (( keys_only )) && return 0
+
+  [[ -n "$esp_path" ]] || die "--esp-path is required unless --keys-only is used"
+  [[ -x "$refresh_script" ]] || die "refresh script not executable: $refresh_script"
+
+  args+=(--esp-path "$esp_path")
+
+  if [[ -n "$limine_tool" ]]; then
+    args+=(--limine-tool "$limine_tool")
+  fi
+  if [[ -n "$main_uki" ]]; then
+    args+=(--main-uki "$main_uki")
+  fi
+  if [[ -n "$fallback_uki" ]]; then
+    args+=(--fallback-uki "$fallback_uki")
+  fi
+  if [[ -n "$recovery_uki" ]]; then
+    args+=(--recovery-uki "$recovery_uki")
+  fi
+
+  (( dry_run )) && args=(--dry-run "${args[@]}")
+
+  log
+  log "==> Refresh EFI trust chain"
+  run_cmd "$refresh_script" "${args[@]}"
+}
+
+main() {
+  local json=""
+
+  parse_args "$@"
+
+  ensure_command sbctl
+  ensure_command grep
+
+  json="$(status_json)"
+
+  log "=== Provision Secure Boot ==="
+  log "Stato iniziale:"
+  printf '%s\n' "$json"
+
+  if ! status_field_is_true "installed" "$json"; then
+    die "sbctl risulta non installato o non inizializzato correttamente"
+  fi
+
+  if ! status_field_is_true "setup_mode" "$json"; then
+    die "firmware non in Setup Mode; entra nel firmware, porta Secure Boot in Setup Mode e riprova"
+  fi
+
+  run_create_keys
+  run_enroll_keys
+  run_refresh_boot_trust
+
+  log
+  log "==> Stato finale atteso"
+  run_cmd sbctl status
+
+  log
+  log "Passo successivo: riavvia e verifica che Secure Boot sia attivo fuori da Setup Mode."
+}
+
+main "$@"

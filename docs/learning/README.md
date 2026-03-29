@@ -17,6 +17,7 @@ Argomenti previsti:
 - ragionamento dell'orchestratore update-all
 - deploy sicuro sulla ESP
 - enrollment della config Limine e firma EFI
+- bootstrap iniziale di Secure Boot
 - snapshot e rollback
 - pacman, hook e manutenzione
 - Hyprland e componenti del desktop
