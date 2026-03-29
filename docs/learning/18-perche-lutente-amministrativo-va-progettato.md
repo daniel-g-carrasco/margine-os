@@ -20,20 +20,23 @@ L'errore classico è questo:
 
 ## La scelta di Margine
 
-Per `Margine v1` partiamo da una regola severa:
+Per `Margine v1` non usiamo né la baseline minima assoluta né il copia-incolla
+cieco della macchina corrente.
 
-- l'utente amministrativo sta in `wheel`;
-- il profilo grafico AMD/OpenCL aggiunge `video` e `render`;
-- gli altri gruppi entrano solo se giustificati.
+Scegliamo invece una baseline da workstation personale:
 
-Questo significa anche saper dire dei no:
+- `wheel` per l'amministrazione;
+- `audio` per evitare attriti con il sottosistema sonoro;
+- `video` e `render` per GPU, ROCm e OpenCL;
+- `kvm` e `libvirt` perché il progetto vuole essere pronto anche per VM e
+  container;
+- `colord` perché `Margine` nasce con un orientamento forte verso fotografia e
+  gestione colore.
 
-- `audio` non entra di default;
-- `kvm` non entra di default;
-- `libvirt` non entra di default;
-- `colord` non entra di default.
+La regola didattica non cambia:
 
-Questo è più didattico e più pulito.
+- ogni gruppo deve avere un motivo chiaro;
+- se un gruppo entra di default, va scritto e spiegato.
 
 ## Perché usiamo un file sudoers versionato
 
@@ -59,6 +62,7 @@ L'hash è un compromesso tecnico ragionevole:
 
 ## La regola mentale da ricordare
 
-Un buon utente amministrativo non nasce da privilegi accumulati.
+Un buon utente amministrativo non nasce da privilegi buttati a caso.
 
-Nasce da una baseline minima, chiara e intenzionale.
+Nasce da una baseline intenzionale, spiegata e adatta allo scopo della
+macchina.

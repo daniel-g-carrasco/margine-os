@@ -27,8 +27,10 @@ networkmanager-openvpn
 openvpn
 otf-font-awesome
 pavucontrol
+alsa-utils
 pipewire
 pipewire-alsa
+pipewire-audio
 pipewire-jack
 pipewire-pulse
 polkit-gnome

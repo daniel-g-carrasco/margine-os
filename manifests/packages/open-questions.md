@@ -45,3 +45,17 @@ Il pacchetto e' deciso.
 Manca ancora la parte piu' importante:
 
 - definire il layer di configurazione enforced ma non invasivo.
+
+### EasyEffects per Framework 13
+
+I pacchetti base per il profilo altoparlanti sono stati chiariti:
+
+- `easyeffects`
+- `calf`
+- `lsp-plugins-lv2`
+
+Resta da chiudere il layer di provisioning:
+
+- import del preset `fw13-easy-effects`;
+- attivazione di default sull'output analogico interno;
+- documentazione del comportamento atteso e del rollback.
