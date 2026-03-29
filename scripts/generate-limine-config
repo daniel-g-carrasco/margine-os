@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+template_path="${repo_root}/files/esp/EFI/BOOT/limine.conf.template"
+output_path=""
+root_uuid=""
+luks_uuid=""
+recovery_entries_path=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  generate-limine-config --root-uuid UUID --luks-uuid UUID [options]
+
+Options:
+  --template PATH          Template da usare
+  --output PATH            File di output; se omesso scrive su stdout
+  --root-uuid UUID         UUID del filesystem root Btrfs
+  --luks-uuid UUID         UUID del contenitore LUKS2
+  --recovery-entries PATH  File con entry recovery da inserire tra i marker
+  --help                   Mostra questo aiuto
+EOF
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+escape_sed_replacement() {
+  printf '%s' "$1" | sed -e 's/[\/&]/\\&/g'
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --template)
+        [[ $# -ge 2 ]] || die "missing value for --template"
+        template_path="$2"
+        shift 2
+        ;;
+      --output)
+        [[ $# -ge 2 ]] || die "missing value for --output"
+        output_path="$2"
+        shift 2
+        ;;
+      --root-uuid)
+        [[ $# -ge 2 ]] || die "missing value for --root-uuid"
+        root_uuid="$2"
+        shift 2
+        ;;
+      --luks-uuid)
+        [[ $# -ge 2 ]] || die "missing value for --luks-uuid"
+        luks_uuid="$2"
+        shift 2
+        ;;
+      --recovery-entries)
+        [[ $# -ge 2 ]] || die "missing value for --recovery-entries"
+        recovery_entries_path="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+replace_recovery_block() {
+  local rendered_template="$1"
+  local recovery_entries_file="$2"
+  local rendered_entries
+
+  rendered_entries="$(
+    sed \
+      -e "s/@ROOT_UUID@/$(escape_sed_replacement "$root_uuid")/g" \
+      -e "s/@LUKS_UUID@/$(escape_sed_replacement "$luks_uuid")/g" \
+      "$recovery_entries_file"
+  )"
+
+  awk -v block="$rendered_entries" '
+    BEGIN {
+      in_generated = 0
+    }
+    /^# BEGIN MARGINE GENERATED RECOVERY ENTRIES$/ {
+      print
+      if (length(block) > 0) {
+        printf "%s", block
+        if (substr(block, length(block), 1) != "\n") {
+          printf "\n"
+        }
+      }
+      in_generated = 1
+      next
+    }
+    /^# END MARGINE GENERATED RECOVERY ENTRIES$/ {
+      in_generated = 0
+      print
+      next
+    }
+    !in_generated {
+      print
+    }
+  ' <<< "$rendered_template"
+}
+
+main() {
+  parse_args "$@"
+
+  [[ -n "$root_uuid" ]] || die "--root-uuid is required"
+  [[ -n "$luks_uuid" ]] || die "--luks-uuid is required"
+  [[ -f "$template_path" ]] || die "template not found: $template_path"
+
+  if [[ -n "$recovery_entries_path" ]]; then
+    [[ -f "$recovery_entries_path" ]] || die "recovery entries file not found: $recovery_entries_path"
+  fi
+
+  local rendered_template
+  rendered_template="$(
+    sed \
+      -e "s/@ROOT_UUID@/$(escape_sed_replacement "$root_uuid")/g" \
+      -e "s/@LUKS_UUID@/$(escape_sed_replacement "$luks_uuid")/g" \
+      "$template_path"
+  )"
+
+  if [[ -n "$recovery_entries_path" ]]; then
+    rendered_template="$(replace_recovery_block "$rendered_template" "$recovery_entries_path")"
+  fi
+
+  if [[ -n "$output_path" ]]; then
+    mkdir -p "$(dirname "$output_path")"
+    printf '%s\n' "$rendered_template" > "$output_path"
+  else
+    printf '%s\n' "$rendered_template"
+  fi
+}
+
+main "$@"

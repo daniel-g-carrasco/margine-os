@@ -12,6 +12,7 @@ Argomenti previsti:
 - separazione tra boot normale e recovery
 - modello di integrazione con Arch rolling
 - lettura del template Limine
+- funzionamento del generatore Limine
 - snapshot e rollback
 - pacman, hook e manutenzione
 - Hyprland e componenti del desktop

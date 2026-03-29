@@ -15,3 +15,8 @@ Regola:
 - script piccoli;
 - idempotenti quando possibile;
 - leggibili prima che "furbi".
+
+Primo script operativo:
+
+- `generate-limine-config`: renderizza `limine.conf` dal template versionato e
+  dai dati macchina minimi.
