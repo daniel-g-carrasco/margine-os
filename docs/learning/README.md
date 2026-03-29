@@ -13,6 +13,7 @@ Argomenti previsti:
 - modello di integrazione con Arch rolling
 - lettura del template Limine
 - funzionamento del generatore Limine
+- policy snapshot e limiti della recovery
 - snapshot e rollback
 - pacman, hook e manutenzione
 - Hyprland e componenti del desktop
