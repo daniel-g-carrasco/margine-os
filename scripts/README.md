@@ -20,3 +20,5 @@ Primo script operativo:
 
 - `generate-limine-config`: renderizza `limine.conf` dal template versionato e
   dai dati macchina minimi.
+- `update-all`: orchestratore del ciclo di update, con supporto `dry-run` e
+  distinzione tra layer core e accessori.

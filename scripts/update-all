@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+use_aur=1
+use_flatpak=1
+use_fwupd=1
+use_boot=1
+root_uuid=""
+luks_uuid=""
+limine_output=""
+soft_failures=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  update-all [options]
+
+Options:
+  --dry-run              Mostra i comandi senza eseguirli
+  --no-aur               Salta il layer AUR
+  --no-flatpak           Salta il layer Flatpak
+  --no-fwupd             Salta il layer firmware
+  --no-boot              Salta la fase di rigenerazione boot
+  --root-uuid UUID       UUID del filesystem root Btrfs
+  --luks-uuid UUID       UUID del contenitore LUKS2
+  --limine-output PATH   Dove renderizzare limine.conf
+  --help                 Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+run_shell() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    bash -lc "$*"
+  fi
+}
+
+run_optional() {
+  local label="$1"
+  shift
+
+  if ! run_cmd "$@"; then
+    warn "${label} failed"
+    soft_failures=1
+  fi
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --no-aur)
+        use_aur=0
+        shift
+        ;;
+      --no-flatpak)
+        use_flatpak=0
+        shift
+        ;;
+      --no-fwupd)
+        use_fwupd=0
+        shift
+        ;;
+      --no-boot)
+        use_boot=0
+        shift
+        ;;
+      --root-uuid)
+        [[ $# -ge 2 ]] || die "missing value for --root-uuid"
+        root_uuid="$2"
+        shift 2
+        ;;
+      --luks-uuid)
+        [[ $# -ge 2 ]] || die "missing value for --luks-uuid"
+        luks_uuid="$2"
+        shift 2
+        ;;
+      --limine-output)
+        [[ $# -ge 2 ]] || die "missing value for --limine-output"
+        limine_output="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+run_pacman_update() {
+  log
+  log "==> 1) Pacman"
+  run_cmd sudo pacman -Syu
+}
+
+run_aur_update() {
+  (( use_aur )) || return 0
+
+  log
+  log "==> 2) AUR"
+
+  if have_cmd yay; then
+    run_optional "AUR update via yay" yay -Syu
+  elif have_cmd paru; then
+    run_optional "AUR update via paru" paru -Syu
+  else
+    log "AUR helper non trovato, salto."
+  fi
+}
+
+run_flatpak_update() {
+  (( use_flatpak )) || return 0
+
+  log
+  log "==> 3) Flatpak"
+
+  if have_cmd flatpak; then
+    run_optional "flatpak update" flatpak update
+    run_optional "flatpak uninstall --unused" flatpak uninstall --unused
+  else
+    log "flatpak non trovato, salto."
+  fi
+}
+
+run_fwupd_update() {
+  (( use_fwupd )) || return 0
+
+  log
+  log "==> 4) Firmware"
+
+  if have_cmd fwupdmgr; then
+    run_optional "fwupdmgr refresh" sudo fwupdmgr refresh --force
+    run_optional "fwupdmgr update" sudo fwupdmgr update
+  else
+    log "fwupdmgr non trovato, salto."
+  fi
+}
+
+render_limine_config() {
+  local generator="${repo_root}/scripts/generate-limine-config"
+  local output_path="$limine_output"
+
+  [[ -x "$generator" ]] || die "generator not executable: $generator"
+  [[ -n "$root_uuid" ]] || die "--root-uuid is required for boot phase"
+  [[ -n "$luks_uuid" ]] || die "--luks-uuid is required for boot phase"
+
+  if [[ -z "$output_path" ]]; then
+    output_path="${repo_root}/build/limine.conf"
+  fi
+
+  run_cmd "$generator" \
+    --root-uuid "$root_uuid" \
+    --luks-uuid "$luks_uuid" \
+    --output "$output_path"
+}
+
+run_boot_regeneration() {
+  (( use_boot )) || return 0
+
+  log
+  log "==> 5) Artefatti di boot"
+
+  if have_cmd mkinitcpio; then
+    run_cmd sudo mkinitcpio -P
+  else
+    warn "mkinitcpio non trovato, salto rigenerazione UKI"
+    soft_failures=1
+  fi
+
+  if [[ -n "$root_uuid" || -n "$luks_uuid" || -n "$limine_output" ]]; then
+    render_limine_config
+  else
+    log "UUID non forniti, salto rendering limine.conf."
+  fi
+}
+
+run_final_verification() {
+  log
+  log "==> 6) Verifiche finali"
+
+  if have_cmd sbctl; then
+    run_cmd sudo sbctl verify
+  else
+    log "sbctl non trovato, salto verifica Secure Boot."
+  fi
+}
+
+main() {
+  parse_args "$@"
+
+  log "=== Aggiornamento Margine ==="
+  if (( dry_run )); then
+    log "Modalita': dry-run"
+  fi
+
+  run_pacman_update
+  run_aur_update
+  run_flatpak_update
+  run_fwupd_update
+  run_boot_regeneration
+  run_final_verification
+
+  log
+  if (( soft_failures )); then
+    warn "update-all ha completato il core con alcuni warning nei layer opzionali"
+  else
+    log "=== FINITO ==="
+  fi
+}
+
+main "$@"

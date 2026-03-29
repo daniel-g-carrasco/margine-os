@@ -14,6 +14,7 @@ Argomenti previsti:
 - lettura del template Limine
 - funzionamento del generatore Limine
 - policy snapshot e limiti della recovery
+- ragionamento dell'orchestratore update-all
 - snapshot e rollback
 - pacman, hook e manutenzione
 - Hyprland e componenti del desktop
