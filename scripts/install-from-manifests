@@ -1,0 +1,256 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+include_aur=0
+include_flatpak=0
+packages_dir="${repo_root}/manifests/packages"
+flatpaks_file="${repo_root}/manifests/flatpaks/apps.txt"
+aur_manifest="${repo_root}/manifests/packages/aur-exceptions.txt"
+aur_helper=""
+declare -a requested_layers=()
+
+default_layers=(
+  base-system
+  hardware-framework13-amd
+  security-and-recovery
+  hyprland-core
+  toolkit-gtk-qt
+  desktop-integration
+  apps-core
+  apps-photo-audio-video
+  fonts
+)
+
+usage() {
+  cat <<'EOF'
+Usage:
+  install-from-manifests [options]
+
+Options:
+  --dry-run               Mostra il piano senza eseguire installazioni
+  --layer NAME            Installa solo il layer indicato; ripetibile
+  --include-aur           Include il manifest AUR
+  --include-flatpak       Include il manifest Flatpak
+  --aur-helper NAME       Forza `yay` o `paru`
+  --list-layers           Mostra i layer disponibili ed esce
+  --help                  Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+list_layers() {
+  log "Layer ufficiali disponibili:"
+  for layer in "${default_layers[@]}"; do
+    printf '  - %s\n' "$layer"
+  done
+  log
+  log "Layer opzionali:"
+  log "  - aur-exceptions (via --include-aur)"
+  log "  - flatpaks/apps.txt (via --include-flatpak)"
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --layer)
+        [[ $# -ge 2 ]] || die "missing value for --layer"
+        requested_layers+=("$2")
+        shift 2
+        ;;
+      --include-aur)
+        include_aur=1
+        shift
+        ;;
+      --include-flatpak)
+        include_flatpak=1
+        shift
+        ;;
+      --aur-helper)
+        [[ $# -ge 2 ]] || die "missing value for --aur-helper"
+        aur_helper="$2"
+        shift 2
+        ;;
+      --list-layers)
+        list_layers
+        exit 0
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+ensure_layer_exists() {
+  local layer="$1"
+  local path="${packages_dir}/${layer}.txt"
+  [[ -f "$path" ]] || die "layer not found: ${layer}"
+}
+
+read_manifest_lines() {
+  local file="$1"
+  grep -hvE '^[[:space:]]*(#|$)' "$file"
+}
+
+resolve_layers() {
+  if (( ${#requested_layers[@]} == 0 )); then
+    requested_layers=("${default_layers[@]}")
+  fi
+
+  for layer in "${requested_layers[@]}"; do
+    ensure_layer_exists "$layer"
+  done
+}
+
+choose_aur_helper() {
+  if [[ -n "$aur_helper" ]]; then
+    have_cmd "$aur_helper" || die "AUR helper not found: $aur_helper"
+    return 0
+  fi
+
+  if have_cmd yay; then
+    aur_helper="yay"
+    return 0
+  fi
+
+  if have_cmd paru; then
+    aur_helper="paru"
+    return 0
+  fi
+
+  die "no supported AUR helper found; install yay or paru, or pass --aur-helper"
+}
+
+ensure_flathub_remote() {
+  if flatpak remotes --columns=name | rg -qx 'flathub'; then
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "flathub remote not found during dry-run"
+    return 0
+  fi
+
+  die "flathub remote not configured; add it before using --include-flatpak"
+}
+
+install_official_layers() {
+  local -a packages=()
+  local -A seen=()
+  local layer=""
+  local package=""
+
+  log "Layer ufficiali selezionati:"
+  for layer in "${requested_layers[@]}"; do
+    printf '  - %s\n' "$layer"
+    while IFS= read -r package; do
+      [[ -n "$package" ]] || continue
+      if [[ -z "${seen[$package]+x}" ]]; then
+        packages+=("$package")
+        seen["$package"]=1
+      fi
+    done < <(read_manifest_lines "${packages_dir}/${layer}.txt")
+  done
+
+  (( ${#packages[@]} > 0 )) || die "no official packages resolved from selected layers"
+
+  log
+  log "Pacchetti ufficiali risolti: ${#packages[@]}"
+  run_cmd sudo pacman -S --needed --asexplicit "${packages[@]}"
+}
+
+install_aur_layer() {
+  local -a packages=()
+  local package=""
+
+  (( include_aur )) || return 0
+
+  [[ -f "$aur_manifest" ]] || die "AUR manifest not found: $aur_manifest"
+  choose_aur_helper
+
+  while IFS= read -r package; do
+    [[ -n "$package" ]] || continue
+    packages+=("$package")
+  done < <(read_manifest_lines "$aur_manifest")
+
+  (( ${#packages[@]} > 0 )) || return 0
+
+  log
+  log "Manifest AUR incluso: ${#packages[@]} pacchetti"
+  run_cmd "$aur_helper" -S --needed "${packages[@]}"
+}
+
+install_flatpak_layer() {
+  local -a apps=()
+  local app=""
+
+  (( include_flatpak )) || return 0
+
+  have_cmd flatpak || die "flatpak not found; add it to the system before using --include-flatpak"
+  [[ -f "$flatpaks_file" ]] || die "Flatpak manifest not found: $flatpaks_file"
+  ensure_flathub_remote
+
+  while IFS= read -r app; do
+    [[ -n "$app" ]] || continue
+    apps+=("$app")
+  done < <(read_manifest_lines "$flatpaks_file")
+
+  (( ${#apps[@]} > 0 )) || return 0
+
+  log
+  log "Manifest Flatpak incluso: ${#apps[@]} app"
+  run_cmd flatpak install flathub "${apps[@]}"
+}
+
+main() {
+  parse_args "$@"
+  resolve_layers
+
+  log "=== Installazione guidata dai manifest ==="
+  (( dry_run )) && log "Modalita': dry-run"
+
+  install_official_layers
+  install_aur_layer
+  install_flatpak_layer
+
+  log
+  log "=== FINITO ==="
+}
+
+main "$@"

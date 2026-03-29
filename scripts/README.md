@@ -29,3 +29,5 @@ Primo script operativo:
 - `provision-secure-boot`: gestisce il bootstrap iniziale di `sbctl`,
   l'enrollment delle chiavi nel firmware e, opzionalmente, il primo refresh
   della trust chain EFI.
+- `install-from-manifests`: installa i layer definiti nei manifest, separando
+  repo ufficiali, AUR e Flatpak tramite flag espliciti.
