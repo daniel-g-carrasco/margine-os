@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+packages_dir="${repo_root}/manifests/packages"
+
+dry_run=0
+target_root=""
+repo_source="${repo_root}"
+repo_dest="/root/margine-os"
+hostname=""
+run_chroot=0
+
+stage1_layers=(
+  base-system
+  hardware-framework13-amd
+  security-and-recovery
+)
+
+usage() {
+  cat <<'EOF'
+Usage:
+  bootstrap-live-iso --target-root PATH [options]
+
+Options:
+  --target-root PATH      Mountpoint del sistema target, per esempio /mnt
+  --repo-source PATH      Repo locale da copiare nel target
+  --repo-dest PATH        Destinazione assoluta nel target (default: /root/margine-os)
+  --hostname NAME         Hostname da passare alla fase chroot
+  --run-chroot            Avvia subito la fase 2 via arch-chroot
+  --dry-run               Mostra il piano senza eseguirlo
+  --help                  Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --target-root)
+        [[ $# -ge 2 ]] || die "missing value for --target-root"
+        target_root="$2"
+        shift 2
+        ;;
+      --repo-source)
+        [[ $# -ge 2 ]] || die "missing value for --repo-source"
+        repo_source="$2"
+        shift 2
+        ;;
+      --repo-dest)
+        [[ $# -ge 2 ]] || die "missing value for --repo-dest"
+        repo_dest="$2"
+        shift 2
+        ;;
+      --hostname)
+        [[ $# -ge 2 ]] || die "missing value for --hostname"
+        hostname="$2"
+        shift 2
+        ;;
+      --run-chroot)
+        run_chroot=1
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in pacstrap genfstab arch-chroot mountpoint rsync install grep; do
+    if have_cmd "$cmd"; then
+      continue
+    fi
+
+    if (( dry_run )); then
+      warn "command not found during dry-run: $cmd"
+    else
+      die "required command not found: $cmd"
+    fi
+  done
+}
+
+ensure_layer_exists() {
+  local layer="$1"
+  local path="${packages_dir}/${layer}.txt"
+  [[ -f "$path" ]] || die "missing manifest layer: ${layer}"
+}
+
+read_manifest_lines() {
+  local file="$1"
+  grep -hvE '^[[:space:]]*(#|$)' "$file"
+}
+
+resolve_stage1_packages() {
+  local -A seen=()
+  local -a packages=()
+  local layer=""
+  local package=""
+
+  for layer in "${stage1_layers[@]}"; do
+    ensure_layer_exists "$layer"
+    while IFS= read -r package; do
+      [[ -n "$package" ]] || continue
+      if [[ -z "${seen[$package]+x}" ]]; then
+        packages+=("$package")
+        seen["$package"]=1
+      fi
+    done < <(read_manifest_lines "${packages_dir}/${layer}.txt")
+  done
+
+  printf '%s\n' "${packages[@]}"
+}
+
+ensure_target_root() {
+  [[ -n "$target_root" ]] || die "--target-root is required"
+  [[ -d "$target_root" ]] || die "target root not found: $target_root"
+
+  if mountpoint -q "$target_root"; then
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "target root is not a mountpoint during dry-run: $target_root"
+    return 0
+  fi
+
+  die "target root is not a mountpoint: $target_root"
+}
+
+ensure_repo_paths() {
+  [[ -d "$repo_source" ]] || die "repo source not found: $repo_source"
+  [[ "$repo_dest" = /* ]] || die "--repo-dest must be an absolute path inside the target"
+}
+
+run_pacstrap_phase() {
+  local -a packages=()
+
+  mapfile -t packages < <(resolve_stage1_packages)
+  (( ${#packages[@]} > 0 )) || die "no stage1 packages resolved"
+
+  log
+  log "==> Stage 1 pacstrap"
+  log "Layer inclusi:"
+  printf '  - %s\n' "${stage1_layers[@]}"
+  log "Pacchetti stage1: ${#packages[@]}"
+  run_cmd pacstrap -K "$target_root" "${packages[@]}"
+}
+
+generate_fstab() {
+  local fstab_path="${target_root}/etc/fstab"
+  local temp_fstab="${target_root}/etc/fstab.margine.new"
+
+  log
+  log "==> Generate fstab"
+
+  if (( dry_run )); then
+    printf '[dry-run] genfstab -U %s > %s\n' "$target_root" "$fstab_path"
+    return 0
+  fi
+
+  install -Dm644 /dev/null "$temp_fstab"
+  genfstab -U "$target_root" > "$temp_fstab"
+  install -Dm644 "$temp_fstab" "$fstab_path"
+  rm -f "$temp_fstab"
+}
+
+copy_repo_into_target() {
+  local destination="${target_root}${repo_dest}"
+
+  log
+  log "==> Copy repo into target"
+  run_cmd install -d "$destination"
+  run_cmd rsync -a "$repo_source/" "$destination/"
+}
+
+run_chroot_handoff() {
+  local phase2_script="${repo_dest}/scripts/bootstrap-in-chroot"
+  local -a args=()
+
+  (( run_chroot )) || return 0
+
+  if [[ -n "$hostname" ]]; then
+    args+=(--hostname "$hostname")
+  fi
+
+  log
+  log "==> Run chroot handoff"
+  run_cmd arch-chroot "$target_root" "$phase2_script" "${args[@]}"
+}
+
+print_next_step() {
+  local command="arch-chroot ${target_root} ${repo_dest}/scripts/bootstrap-in-chroot"
+
+  if [[ -n "$hostname" ]]; then
+    command+=" --hostname ${hostname}"
+  fi
+
+  log
+  log "Prossimo passo consigliato:"
+  printf '  %s\n' "$command"
+}
+
+main() {
+  parse_args "$@"
+  ensure_prereqs
+  ensure_target_root
+  ensure_repo_paths
+
+  log "=== Bootstrap live ISO Margine ==="
+  (( dry_run )) && log "Modalita': dry-run"
+
+  run_pacstrap_phase
+  generate_fstab
+  copy_repo_into_target
+
+  if (( run_chroot )); then
+    run_chroot_handoff
+  else
+    print_next_step
+  fi
+
+  log
+  log "=== FINITO ==="
+}
+
+main "$@"

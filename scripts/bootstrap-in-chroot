@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+hostname=""
+timezone="Europe/Rome"
+locale_line="it_IT.UTF-8 UTF-8"
+lang="it_IT.UTF-8"
+include_aur=0
+include_flatpak=0
+
+phase2_layers=(
+  hyprland-core
+  toolkit-gtk-qt
+  desktop-integration
+  apps-core
+  apps-photo-audio-video
+  fonts
+)
+
+usage() {
+  cat <<'EOF'
+Usage:
+  bootstrap-in-chroot [options]
+
+Options:
+  --hostname NAME        Hostname del sistema target
+  --timezone ZONE        Timezone (default: Europe/Rome)
+  --locale-line LINE     Riga da abilitare in /etc/locale.gen
+  --lang LANG            LANG finale (default: it_IT.UTF-8)
+  --include-aur          Include il manifest AUR
+  --include-flatpak      Include il manifest Flatpak
+  --dry-run              Mostra il piano senza eseguirlo
+  --help                 Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --hostname)
+        [[ $# -ge 2 ]] || die "missing value for --hostname"
+        hostname="$2"
+        shift 2
+        ;;
+      --timezone)
+        [[ $# -ge 2 ]] || die "missing value for --timezone"
+        timezone="$2"
+        shift 2
+        ;;
+      --locale-line)
+        [[ $# -ge 2 ]] || die "missing value for --locale-line"
+        locale_line="$2"
+        shift 2
+        ;;
+      --lang)
+        [[ $# -ge 2 ]] || die "missing value for --lang"
+        lang="$2"
+        shift 2
+        ;;
+      --include-aur)
+        include_aur=1
+        shift
+        ;;
+      --include-flatpak)
+        include_flatpak=1
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "bootstrap-in-chroot must run as root"
+}
+
+enable_locale_line() {
+  local file="/etc/locale.gen"
+  local escaped_line=""
+
+  log
+  log "==> Configure locale"
+
+  if (( dry_run )); then
+    printf '[dry-run] enable locale line in %s: %s\n' "$file" "$locale_line"
+    printf '[dry-run] locale-gen\n'
+    printf '[dry-run] write /etc/locale.conf with LANG=%s\n' "$lang"
+    return 0
+  fi
+
+  escaped_line="$(printf '%s\n' "$locale_line" | sed 's/[.[\\*^$()+?{|]/\\&/g')"
+  sed -i "s/^#\\s*${escaped_line}\$/${locale_line}/" "$file"
+  if ! grep -qxF "$locale_line" "$file"; then
+    printf '%s\n' "$locale_line" >> "$file"
+  fi
+
+  locale-gen
+  printf 'LANG=%s\n' "$lang" > /etc/locale.conf
+}
+
+configure_timezone() {
+  log
+  log "==> Configure timezone"
+
+  if (( dry_run )); then
+    printf '[dry-run] ln -sf /usr/share/zoneinfo/%s /etc/localtime\n' "$timezone"
+    printf '[dry-run] hwclock --systohc\n'
+    return 0
+  fi
+
+  [[ -e "/usr/share/zoneinfo/${timezone}" ]] || die "timezone not found: ${timezone}"
+  ln -sf "/usr/share/zoneinfo/${timezone}" /etc/localtime
+  hwclock --systohc
+}
+
+configure_hostname() {
+  [[ -n "$hostname" ]] || return 0
+
+  log
+  log "==> Configure hostname"
+
+  if (( dry_run )); then
+    printf '[dry-run] write /etc/hostname: %s\n' "$hostname"
+    return 0
+  fi
+
+  printf '%s\n' "$hostname" > /etc/hostname
+}
+
+run_manifest_installer() {
+  local installer="${repo_root}/scripts/install-from-manifests"
+  local -a args=()
+  local layer=""
+
+  [[ -x "$installer" ]] || die "manifest installer not executable: $installer"
+
+  for layer in "${phase2_layers[@]}"; do
+    args+=(--layer "$layer")
+  done
+  (( include_aur )) && args+=(--include-aur)
+  (( include_flatpak )) && args+=(--include-flatpak)
+  (( dry_run )) && args+=(--dry-run)
+
+  log
+  log "==> Install phase2 layers"
+  run_cmd "$installer" "${args[@]}"
+}
+
+enable_base_services() {
+  local -a services=(
+    NetworkManager.service
+    bluetooth.service
+    power-profiles-daemon.service
+    fstrim.timer
+  )
+
+  log
+  log "==> Enable base services"
+  run_cmd systemctl enable "${services[@]}"
+}
+
+main() {
+  parse_args "$@"
+  require_root
+
+  log "=== Bootstrap in chroot Margine ==="
+  (( dry_run )) && log "Modalita': dry-run"
+
+  configure_timezone
+  enable_locale_line
+  configure_hostname
+  run_manifest_installer
+  enable_base_services
+
+  log
+  log "=== FINITO ==="
+}
+
+main "$@"
