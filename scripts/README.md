@@ -22,3 +22,5 @@ Primo script operativo:
   dai dati macchina minimi.
 - `update-all`: orchestratore del ciclo di update, con supporto `dry-run` e
   distinzione tra layer core e accessori.
+- `deploy-boot-artifacts`: installa su `ESP` gli artefatti generati, con backup
+  preventivo dei file sovrascritti.

@@ -9,9 +9,17 @@ use_aur=1
 use_flatpak=1
 use_fwupd=1
 use_boot=1
+deploy_boot=0
 root_uuid=""
 luks_uuid=""
 limine_output=""
+rendered_limine_output=""
+esp_path=""
+deploy_backup_dir=""
+limine_binary=""
+main_uki=""
+fallback_uki=""
+recovery_uki=""
 soft_failures=0
 
 usage() {
@@ -25,6 +33,13 @@ Options:
   --no-flatpak           Salta il layer Flatpak
   --no-fwupd             Salta il layer firmware
   --no-boot              Salta la fase di rigenerazione boot
+  --deploy-boot          Esegue il deploy degli artefatti sulla ESP
+  --esp-path PATH        Mountpoint della EFI System Partition
+  --backup-dir PATH      Directory backup per il deploy su ESP
+  --limine-binary PATH   Binario EFI di Limine da deployare
+  --main-uki PATH        UKI principale da deployare
+  --fallback-uki PATH    UKI fallback da deployare
+  --recovery-uki PATH    UKI recovery da deployare
   --root-uuid UUID       UUID del filesystem root Btrfs
   --luks-uuid UUID       UUID del contenitore LUKS2
   --limine-output PATH   Dove renderizzare limine.conf
@@ -97,6 +112,46 @@ parse_args() {
       --no-boot)
         use_boot=0
         shift
+        ;;
+      --deploy-boot)
+        deploy_boot=1
+        shift
+        ;;
+      --esp-path)
+        [[ $# -ge 2 ]] || die "missing value for --esp-path"
+        esp_path="$2"
+        deploy_boot=1
+        shift 2
+        ;;
+      --backup-dir)
+        [[ $# -ge 2 ]] || die "missing value for --backup-dir"
+        deploy_backup_dir="$2"
+        deploy_boot=1
+        shift 2
+        ;;
+      --limine-binary)
+        [[ $# -ge 2 ]] || die "missing value for --limine-binary"
+        limine_binary="$2"
+        deploy_boot=1
+        shift 2
+        ;;
+      --main-uki)
+        [[ $# -ge 2 ]] || die "missing value for --main-uki"
+        main_uki="$2"
+        deploy_boot=1
+        shift 2
+        ;;
+      --fallback-uki)
+        [[ $# -ge 2 ]] || die "missing value for --fallback-uki"
+        fallback_uki="$2"
+        deploy_boot=1
+        shift 2
+        ;;
+      --recovery-uki)
+        [[ $# -ge 2 ]] || die "missing value for --recovery-uki"
+        recovery_uki="$2"
+        deploy_boot=1
+        shift 2
         ;;
       --root-uuid)
         [[ $# -ge 2 ]] || die "missing value for --root-uuid"
@@ -185,10 +240,50 @@ render_limine_config() {
     output_path="${repo_root}/build/limine.conf"
   fi
 
+  rendered_limine_output="$output_path"
+
   run_cmd "$generator" \
     --root-uuid "$root_uuid" \
     --luks-uuid "$luks_uuid" \
     --output "$output_path"
+}
+
+deploy_boot_phase() {
+  local deploy_script="${repo_root}/scripts/deploy-boot-artifacts"
+  local effective_limine_binary="$limine_binary"
+  local args=()
+
+  [[ -x "$deploy_script" ]] || die "deploy script not executable: $deploy_script"
+  [[ -n "$esp_path" ]] || die "--esp-path is required when deploy is enabled"
+
+  if [[ -z "$effective_limine_binary" && -f /usr/share/limine/BOOTX64.EFI ]]; then
+    effective_limine_binary="/usr/share/limine/BOOTX64.EFI"
+  fi
+
+  args+=(--esp-path "$esp_path")
+
+  if [[ -n "$deploy_backup_dir" ]]; then
+    args+=(--backup-dir "$deploy_backup_dir")
+  fi
+  if [[ -n "$effective_limine_binary" ]]; then
+    args+=(--limine-binary "$effective_limine_binary")
+  fi
+  if [[ -n "$rendered_limine_output" ]]; then
+    args+=(--limine-config "$rendered_limine_output")
+  fi
+  if [[ -n "$main_uki" ]]; then
+    args+=(--main-uki "$main_uki")
+  fi
+  if [[ -n "$fallback_uki" ]]; then
+    args+=(--fallback-uki "$fallback_uki")
+  fi
+  if [[ -n "$recovery_uki" ]]; then
+    args+=(--recovery-uki "$recovery_uki")
+  fi
+
+  (( dry_run )) && args=(--dry-run "${args[@]}")
+
+  run_cmd "$deploy_script" "${args[@]}"
 }
 
 run_boot_regeneration() {
@@ -209,6 +304,10 @@ run_boot_regeneration() {
   else
     log "UUID non forniti, salto rendering limine.conf."
   fi
+
+  if (( deploy_boot )); then
+    deploy_boot_phase
+  fi
 }
 
 run_final_verification() {
@@ -224,6 +323,10 @@ run_final_verification() {
 
 main() {
   parse_args "$@"
+
+  if (( !use_boot && deploy_boot )); then
+    die "--deploy-boot requires boot phase enabled"
+  fi
 
   log "=== Aggiornamento Margine ==="
   if (( dry_run )); then

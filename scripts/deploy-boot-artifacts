@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+esp_path=""
+backup_dir=""
+limine_binary=""
+limine_config=""
+main_uki=""
+fallback_uki=""
+recovery_uki=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  deploy-boot-artifacts --esp-path PATH [options]
+
+Options:
+  --dry-run             Mostra i comandi senza eseguirli
+  --esp-path PATH       Mountpoint della EFI System Partition
+  --backup-dir PATH     Dove salvare i backup dei file sovrascritti
+  --limine-binary PATH  Binario EFI di Limine da installare come BOOTX64.EFI
+  --limine-config PATH  limine.conf gia' renderizzato da installare
+  --main-uki PATH       UKI principale da installare come margine-linux.efi
+  --fallback-uki PATH   UKI fallback da installare come margine-linux-fallback.efi
+  --recovery-uki PATH   UKI recovery da installare come margine-recovery.efi
+  --help                Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --esp-path)
+        [[ $# -ge 2 ]] || die "missing value for --esp-path"
+        esp_path="$2"
+        shift 2
+        ;;
+      --backup-dir)
+        [[ $# -ge 2 ]] || die "missing value for --backup-dir"
+        backup_dir="$2"
+        shift 2
+        ;;
+      --limine-binary)
+        [[ $# -ge 2 ]] || die "missing value for --limine-binary"
+        limine_binary="$2"
+        shift 2
+        ;;
+      --limine-config)
+        [[ $# -ge 2 ]] || die "missing value for --limine-config"
+        limine_config="$2"
+        shift 2
+        ;;
+      --main-uki)
+        [[ $# -ge 2 ]] || die "missing value for --main-uki"
+        main_uki="$2"
+        shift 2
+        ;;
+      --fallback-uki)
+        [[ $# -ge 2 ]] || die "missing value for --fallback-uki"
+        fallback_uki="$2"
+        shift 2
+        ;;
+      --recovery-uki)
+        [[ $# -ge 2 ]] || die "missing value for --recovery-uki"
+        recovery_uki="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+ensure_source_exists() {
+  local path="$1"
+  if [[ -f "$path" ]]; then
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "source file not found during dry-run: $path"
+    return 0
+  fi
+
+  die "source file not found: $path"
+}
+
+init_backup_dir() {
+  if [[ -z "$backup_dir" ]]; then
+    backup_dir="${repo_root}/build/backups/boot-$(date +%Y%m%d-%H%M%S)"
+  fi
+}
+
+backup_if_present() {
+  local target="$1"
+  local backup_target="$2"
+
+  if [[ -e "$target" ]]; then
+    run_cmd mkdir -p "$(dirname "$backup_target")"
+    run_cmd sudo cp -f "$target" "$backup_target"
+  fi
+}
+
+install_file() {
+  local source="$1"
+  local target="$2"
+  local mode="$3"
+  local relative_target
+  local backup_target
+
+  ensure_source_exists "$source"
+
+  relative_target="${target#${esp_path}/}"
+  backup_target="${backup_dir}/${relative_target}"
+
+  backup_if_present "$target" "$backup_target"
+  run_cmd sudo install -Dm"${mode}" "$source" "$target"
+}
+
+main() {
+  parse_args "$@"
+
+  [[ -n "$esp_path" ]] || die "--esp-path is required"
+  [[ -d "$esp_path" ]] || die "ESP path not found or not mounted: $esp_path"
+
+  if [[ -z "$limine_binary" && -z "$limine_config" && -z "$main_uki" && -z "$fallback_uki" && -z "$recovery_uki" ]]; then
+    die "no artifacts provided"
+  fi
+
+  init_backup_dir
+
+  log "=== Deploy artefatti boot su ESP ==="
+  log "ESP: ${esp_path}"
+  log "Backup: ${backup_dir}"
+
+  if [[ -n "$limine_binary" ]]; then
+    log
+    log "==> Limine EFI binary"
+    install_file "$limine_binary" "${esp_path}/EFI/BOOT/BOOTX64.EFI" 755
+  fi
+
+  if [[ -n "$limine_config" ]]; then
+    log
+    log "==> limine.conf"
+    install_file "$limine_config" "${esp_path}/EFI/BOOT/limine.conf" 644
+  fi
+
+  if [[ -n "$main_uki" ]]; then
+    log
+    log "==> UKI principale"
+    install_file "$main_uki" "${esp_path}/EFI/Linux/margine-linux.efi" 644
+  fi
+
+  if [[ -n "$fallback_uki" ]]; then
+    log
+    log "==> UKI fallback"
+    install_file "$fallback_uki" "${esp_path}/EFI/Linux/margine-linux-fallback.efi" 644
+  fi
+
+  if [[ -n "$recovery_uki" ]]; then
+    log
+    log "==> UKI recovery"
+    install_file "$recovery_uki" "${esp_path}/EFI/Linux/margine-recovery.efi" 644
+  fi
+
+  log
+  log "=== Deploy completato ==="
+}
+
+main "$@"

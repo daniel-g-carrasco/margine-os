@@ -15,6 +15,7 @@ Argomenti previsti:
 - funzionamento del generatore Limine
 - policy snapshot e limiti della recovery
 - ragionamento dell'orchestratore update-all
+- deploy sicuro sulla ESP
 - snapshot e rollback
 - pacman, hook e manutenzione
 - Hyprland e componenti del desktop
