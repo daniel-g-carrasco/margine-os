@@ -55,7 +55,6 @@ La baseline non copia i gruppi dell'utente corrente alla cieca.
 In `Margine v1` la baseline amministrativa è:
 
 - `wheel`
-- `audio`
 - `video`
 - `render`
 - `kvm`
@@ -67,12 +66,19 @@ Più eventuali gruppi espliciti passati via argomento.
 Motivazione:
 
 - `wheel` serve all'amministrazione via `sudo`;
-- `audio`, `video` e `render` coprono la baseline workstation per audio, GPU e
-  stack AMD/ROCm/OpenCL;
+- `video` e `render` coprono la baseline workstation per GPU e stack
+  AMD/ROCm/OpenCL;
 - `kvm` e `libvirt` evitano che il primo uso di VM e virtualizzazione cada su
   problemi di permessi inutili;
 - `colord` è coerente con un profilo macchina orientato anche a fotografia e
   gestione colore.
+
+`audio` non entra di default:
+
+- sulla macchina di riferimento il sottosistema audio funziona già tramite ACL
+  moderne su `/dev/snd`;
+- aggiungerlo senza necessità reale allargherebbe la baseline senza un guadagno
+  concreto.
 
 Non entrano comunque di default gruppi storici come `network` o `storage`,
 perché qui non aggiungono un vantaggio chiaro.

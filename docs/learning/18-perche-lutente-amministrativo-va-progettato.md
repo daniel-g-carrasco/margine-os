@@ -26,7 +26,6 @@ cieco della macchina corrente.
 Scegliamo invece una baseline da workstation personale:
 
 - `wheel` per l'amministrazione;
-- `audio` per evitare attriti con il sottosistema sonoro;
 - `video` e `render` per GPU, ROCm e OpenCL;
 - `kvm` e `libvirt` perché il progetto vuole essere pronto anche per VM e
   container;
@@ -37,6 +36,11 @@ La regola didattica non cambia:
 
 - ogni gruppo deve avere un motivo chiaro;
 - se un gruppo entra di default, va scritto e spiegato.
+
+Per questo `audio` resta fuori:
+
+- sul sistema reale di partenza non è richiesto per far funzionare PipeWire;
+- oggi l'accesso ai device audio passa normalmente da ACL dinamiche.
 
 ## Perché usiamo un file sudoers versionato
 

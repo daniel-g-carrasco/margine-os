@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+username=""
+home_dir=""
+
+preset_source="${repo_root}/files/home/.local/share/easyeffects/output/fw13-easy-effects.json"
+ir_source="${repo_root}/files/home/.local/share/easyeffects/irs/IR_22ms_27dB_5t_15s_0c.irs"
+service_script_source="${repo_root}/files/home/.local/bin/margine-framework-audio-service"
+service_unit_source="${repo_root}/files/home/.config/systemd/user/margine-framework-audio.service"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-framework-audio --username NAME [options]
+
+Options:
+  --username NAME   Utente target che ricevera' preset e servizio
+  --dry-run         Mostra il piano senza eseguirlo
+  --help            Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --username)
+        [[ $# -ge 2 ]] || die "missing value for --username"
+        username="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-framework-audio must run as root"
+}
+
+ensure_sources() {
+  local source=""
+
+  for source in \
+    "$preset_source" \
+    "$ir_source" \
+    "$service_script_source" \
+    "$service_unit_source"; do
+    [[ -f "$source" ]] || die "required source file not found: $source"
+  done
+}
+
+resolve_home_dir() {
+  home_dir="$(getent passwd "$username" | cut -d: -f6)"
+  [[ -n "$home_dir" ]] || die "could not resolve home for user: $username"
+}
+
+is_framework_laptop13() {
+  local vendor=""
+  local product=""
+
+  vendor="$(cat /sys/devices/virtual/dmi/id/sys_vendor 2>/dev/null || true)"
+  product="$(cat /sys/devices/virtual/dmi/id/product_name 2>/dev/null || true)"
+
+  [[ "$vendor" == "Framework" && "$product" == Laptop\ 13* ]]
+}
+
+copy_payload() {
+  log
+  log "==> Install Framework audio payload"
+
+  run_cmd install -Dm755 \
+    "$service_script_source" \
+    "${home_dir}/.local/bin/margine-framework-audio-service"
+  run_cmd install -Dm644 \
+    "$service_unit_source" \
+    "${home_dir}/.config/systemd/user/margine-framework-audio.service"
+  run_cmd install -Dm644 \
+    "$preset_source" \
+    "${home_dir}/.local/share/easyeffects/output/fw13-easy-effects.json"
+  run_cmd install -Dm644 \
+    "$ir_source" \
+    "${home_dir}/.local/share/easyeffects/irs/IR_22ms_27dB_5t_15s_0c.irs"
+}
+
+enable_user_unit() {
+  local wants_dir="${home_dir}/.config/systemd/user/default.target.wants"
+  local link_path="${wants_dir}/margine-framework-audio.service"
+
+  log
+  log "==> Enable user service"
+
+  run_cmd install -d "$wants_dir"
+
+  if (( dry_run )); then
+    printf '[dry-run] ln -sfn ../margine-framework-audio.service %s\n' "$link_path"
+    return 0
+  fi
+
+  ln -sfn ../margine-framework-audio.service "$link_path"
+}
+
+fix_ownership() {
+  log
+  log "==> Fix ownership"
+
+  run_cmd chown -R \
+    "${username}:${username}" \
+    "${home_dir}/.local/bin" \
+    "${home_dir}/.local/share/easyeffects" \
+    "${home_dir}/.config/systemd/user"
+}
+
+main() {
+  parse_args "$@"
+  require_root
+
+  [[ -n "$username" ]] || die "--username is required"
+
+  ensure_sources
+  resolve_home_dir
+
+  if ! is_framework_laptop13; then
+    log "Hardware non compatibile: provisioning audio Framework saltato."
+    return 0
+  fi
+
+  copy_payload
+  enable_user_unit
+  fix_ownership
+
+  log
+  log "Framework audio payload installato."
+  log "Il servizio utente partira' al login e generera' l'autoload solo per gli altoparlanti interni."
+}
+
+main "$@"

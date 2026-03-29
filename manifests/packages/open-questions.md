@@ -48,14 +48,15 @@ Manca ancora la parte piu' importante:
 
 ### EasyEffects per Framework 13
 
-I pacchetti base per il profilo altoparlanti sono stati chiariti:
+Il layer base e' ormai chiaro:
 
-- `easyeffects`
-- `calf`
-- `lsp-plugins-lv2`
+- preset ufficiale `fw13-easy-effects` versionato nel progetto;
+- IR del convolver versionato nel progetto;
+- provisioning condizionale solo su `Framework Laptop 13`;
+- autoload generato a runtime per gli altoparlanti interni, non in modo
+  globale e cieco.
 
-Resta da chiudere il layer di provisioning:
+Resta solo da vedere, piu' avanti, se vorremo aggiungere:
 
-- import del preset `fw13-easy-effects`;
-- attivazione di default sull'output analogico interno;
-- documentazione del comportamento atteso e del rollback.
+- un eventuale toggle utente piu' comodo;
+- profili separati per cuffie o output esterni.

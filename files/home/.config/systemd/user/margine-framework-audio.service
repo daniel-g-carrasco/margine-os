@@ -1,0 +1,13 @@
+[Unit]
+Description=Margine Framework 13 speaker tuning
+After=pipewire.service wireplumber.service
+Wants=pipewire.service wireplumber.service
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/margine-framework-audio-service
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

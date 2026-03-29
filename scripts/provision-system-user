@@ -13,7 +13,6 @@ extra_groups=""
 user_password_hash=""
 default_admin_groups=(
   wheel
-  audio
   video
   render
   kvm

@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dry_run=0
+start_easyeffects=1
+preset_name="fw13-easy-effects"
+ir_name="IR_22ms_27dB_5t_15s_0c.irs"
+
+data_root="${XDG_DATA_HOME:-${HOME}/.local/share}/easyeffects"
+autoload_dir="${data_root}/autoload/output"
+output_dir="${data_root}/output"
+irs_dir="${data_root}/irs"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  margine-framework-audio-service [options]
+
+Options:
+  --dry-run    Mostra il piano senza eseguirlo
+  --no-start   Prepara solo l'autoload senza avviare EasyEffects
+  --help       Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --no-start)
+        start_easyeffects=0
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        warn "argomento sconosciuto ignorato: $1"
+        shift
+        ;;
+    esac
+  done
+}
+
+is_framework_laptop13() {
+  local vendor=""
+  local product=""
+
+  vendor="$(cat /sys/devices/virtual/dmi/id/sys_vendor 2>/dev/null || true)"
+  product="$(cat /sys/devices/virtual/dmi/id/product_name 2>/dev/null || true)"
+
+  [[ "$vendor" == "Framework" && "$product" == Laptop\ 13* ]]
+}
+
+wait_for_pactl() {
+  local attempt=0
+
+  if (( dry_run )); then
+    return 0
+  fi
+
+  have_cmd pactl || {
+    warn "pactl non trovato; salto provisioning audio Framework"
+    return 1
+  }
+
+  for attempt in $(seq 1 30); do
+    if pactl info >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  warn "PipeWire/PulseAudio non pronto; salto provisioning audio Framework"
+  return 1
+}
+
+resolve_speaker_target() {
+  python - <<'PY'
+import json
+import subprocess
+import sys
+
+try:
+    raw = subprocess.check_output(["pactl", "-f", "json", "list", "sinks"], text=True)
+except Exception:
+    sys.exit(1)
+
+try:
+    sinks = json.loads(raw)
+except json.JSONDecodeError:
+    sys.exit(1)
+
+for sink in sinks:
+    name = sink.get("name") or ""
+    if not name.startswith("alsa_output."):
+        continue
+
+    ports = sink.get("ports") or []
+    speaker_port = None
+    for port in ports:
+        if port.get("name") == "analog-output-speaker":
+            speaker_port = port
+            break
+
+    if speaker_port is None:
+        continue
+
+    description = sink.get("description") or name
+    profile = speaker_port.get("description") or "Speakers"
+
+    print(name)
+    print(description)
+    print(profile)
+    sys.exit(0)
+
+sys.exit(1)
+PY
+}
+
+ensure_payload_present() {
+  [[ -f "${output_dir}/${preset_name}.json" ]] || {
+    warn "preset non trovato: ${output_dir}/${preset_name}.json"
+    return 1
+  }
+
+  [[ -f "${irs_dir}/${ir_name}" ]] || {
+    warn "IR del convolver non trovato: ${irs_dir}/${ir_name}"
+    return 1
+  }
+}
+
+write_autoload_profile() {
+  local device_name="$1"
+  local device_description="$2"
+  local device_profile="$3"
+  local target="${autoload_dir}/${device_name}:${device_profile}.json"
+
+  if [[ -e "$target" ]]; then
+    log "Autoload gia' presente: $target"
+    return 0
+  fi
+
+  if (( dry_run )); then
+    printf '[dry-run] install -d %s\n' "$autoload_dir"
+    cat <<EOF
+[dry-run] write ${target}
+{
+    "device": "${device_name}",
+    "device-description": "${device_description}",
+    "device-profile": "${device_profile}",
+    "preset-name": "${preset_name}"
+}
+EOF
+    return 0
+  fi
+
+  install -d "$autoload_dir"
+  cat > "$target" <<EOF
+{
+    "device": "${device_name}",
+    "device-description": "${device_description}",
+    "device-profile": "${device_profile}",
+    "preset-name": "${preset_name}"
+}
+EOF
+}
+
+main() {
+  local sink_data=()
+  local device_name=""
+  local device_description=""
+  local device_profile=""
+
+  parse_args "$@"
+
+  if ! is_framework_laptop13; then
+    log "Hardware non Framework Laptop 13: niente preset automatico."
+    exit 0
+  fi
+
+  ensure_payload_present || exit 0
+  wait_for_pactl || exit 0
+
+  if ! mapfile -t sink_data < <(resolve_speaker_target); then
+    warn "speaker sink interno non trovato; salto autoload Framework"
+    exit 0
+  fi
+
+  (( ${#sink_data[@]} == 3 )) || {
+    warn "risoluzione sink incompleta; salto autoload Framework"
+    exit 0
+  }
+
+  device_name="${sink_data[0]}"
+  device_description="${sink_data[1]}"
+  device_profile="${sink_data[2]}"
+
+  write_autoload_profile "$device_name" "$device_description" "$device_profile"
+
+  (( start_easyeffects )) || exit 0
+
+  if ! have_cmd easyeffects; then
+    warn "easyeffects non trovato; impossibile avviare il servizio audio"
+    exit 0
+  fi
+
+  if (( dry_run )); then
+    printf '[dry-run] easyeffects --service-mode --hide-window\n'
+    exit 0
+  fi
+
+  exec easyeffects --service-mode --hide-window
+}
+
+main "$@"
