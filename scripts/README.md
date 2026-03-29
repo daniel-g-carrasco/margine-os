@@ -36,5 +36,7 @@ Primo script operativo:
 - `provision-storage`: prepara disco, `LUKS2`, `Btrfs` e subvolumi dalla live ISO.
 - `install-live-iso`: orchestra `provision-storage` e `bootstrap-live-iso`
   in una pipeline unica da live ISO.
+- `install-live-iso-guided`: wrapper interattivo passo passo sopra
+  `install-live-iso` e `bootstrap-live-iso`.
 - `bootstrap-live-iso`: fase 1 del bootstrap, pensata per la live ISO Arch.
 - `bootstrap-in-chroot`: fase 2 del bootstrap, pensata per il sistema target.

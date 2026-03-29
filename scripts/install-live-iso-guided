@@ -1,0 +1,329 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+mode=""
+disk=""
+target_root="/mnt"
+hostname="margine"
+username=""
+real_name=""
+user_shell="/bin/bash"
+extra_groups=""
+user_password_hash=""
+run_chroot=1
+
+usage() {
+  cat <<'EOF'
+Usage:
+  install-live-iso-guided [options]
+
+Options:
+  --dry-run   Mostra i comandi finali senza eseguirli
+  --help      Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+ensure_prereqs() {
+  [[ -x "${script_dir}/install-live-iso" ]] || die "missing executable: ${script_dir}/install-live-iso"
+  [[ -x "${script_dir}/bootstrap-live-iso" ]] || die "missing executable: ${script_dir}/bootstrap-live-iso"
+}
+
+prompt() {
+  local label="$1"
+  local default_value="${2-}"
+  local reply=""
+
+  if [[ -n "$default_value" ]]; then
+    printf '%s [%s]: ' "$label" "$default_value" >&2
+  else
+    printf '%s: ' "$label" >&2
+  fi
+
+  read -r reply
+  if [[ -n "$reply" ]]; then
+    printf '%s\n' "$reply"
+  else
+    printf '%s\n' "$default_value"
+  fi
+}
+
+prompt_required() {
+  local label="$1"
+  local default_value="${2-}"
+  local value=""
+
+  while :; do
+    value="$(prompt "$label" "$default_value")"
+    [[ -n "$value" ]] && break
+    log "Valore richiesto."
+  done
+
+  printf '%s\n' "$value"
+}
+
+prompt_yes_no() {
+  local label="$1"
+  local default_value="$2"
+  local reply=""
+
+  while :; do
+    if [[ "$default_value" = "y" ]]; then
+      printf '%s [Y/n]: ' "$label" >&2
+    else
+      printf '%s [y/N]: ' "$label" >&2
+    fi
+
+    read -r reply
+    reply="${reply,,}"
+
+    if [[ -z "$reply" ]]; then
+      printf '%s\n' "$default_value"
+      return 0
+    fi
+
+    case "$reply" in
+      y|yes)
+        printf 'y\n'
+        return 0
+        ;;
+      n|no)
+        printf 'n\n'
+        return 0
+        ;;
+    esac
+
+    log "Rispondi con y o n."
+  done
+}
+
+prompt_mode() {
+  local reply=""
+
+  log
+  log "Modalita' installazione:"
+  log "  1) Disco dedicato: partiziona, cifra e installa"
+  log "  2) Target gia' preparato: usa un mount esistente"
+
+  while :; do
+    printf 'Selezione [1]: ' >&2
+    read -r reply
+    reply="${reply:-1}"
+
+    case "$reply" in
+      1)
+        mode="erase-disk"
+        return 0
+        ;;
+      2)
+        mode="mounted-target"
+        return 0
+        ;;
+    esac
+
+    log "Seleziona 1 oppure 2."
+  done
+}
+
+prompt_password_hash() {
+  local choice=""
+  local password1=""
+  local password2=""
+
+  choice="$(prompt_yes_no "Vuoi impostare gia' la password utente durante l'installazione?" "n")"
+  [[ "$choice" = "y" ]] || return 0
+
+  if ! have_cmd openssl; then
+    log "openssl non disponibile: la password andra' impostata dopo con passwd."
+    return 0
+  fi
+
+  while :; do
+    printf 'Password utente: ' >&2
+    read -rs password1
+    printf '\n' >&2
+    printf 'Ripeti password utente: ' >&2
+    read -rs password2
+    printf '\n' >&2
+
+    if [[ "$password1" != "$password2" ]]; then
+      log "Le password non coincidono. Riprova."
+      continue
+    fi
+
+    if [[ -z "$password1" ]]; then
+      log "Password vuota non consentita."
+      continue
+    fi
+
+    user_password_hash="$(printf '%s\n' "$password1" | openssl passwd -6 -stdin)"
+    password1=""
+    password2=""
+    return 0
+  done
+}
+
+collect_common_inputs() {
+  target_root="$(prompt_required "Mountpoint target" "$target_root")"
+  hostname="$(prompt_required "Hostname" "$hostname")"
+  username="$(prompt_required "Username amministrativo")"
+  real_name="$(prompt "Nome reale/commento" "$username")"
+  user_shell="$(prompt_required "Shell login" "$user_shell")"
+  extra_groups="$(prompt "Gruppi aggiuntivi (CSV, opzionale)")"
+  run_chroot="$(prompt_yes_no "Vuoi eseguire subito anche la fase chroot?" "y")"
+  prompt_password_hash
+}
+
+collect_inputs() {
+  prompt_mode
+
+  if [[ "$mode" = "erase-disk" ]]; then
+    disk="$(prompt_required "Disco target, per esempio /dev/nvme0n1")"
+  fi
+
+  collect_common_inputs
+}
+
+print_summary() {
+  log
+  log "Riepilogo:"
+  log "  Modalita': ${mode}"
+  [[ -n "$disk" ]] && log "  Disco: ${disk}"
+  log "  Target root: ${target_root}"
+  log "  Hostname: ${hostname}"
+  log "  Username: ${username}"
+  log "  Nome reale: ${real_name}"
+  log "  Shell: ${user_shell}"
+  if [[ -n "$extra_groups" ]]; then
+    log "  Gruppi aggiuntivi: ${extra_groups}"
+  else
+    log "  Gruppi aggiuntivi: nessuno"
+  fi
+  log "  Gruppi default aggiunti dal bootstrap: wheel, video, render"
+  log "  Chroot automatico: ${run_chroot}"
+  if [[ -n "$user_password_hash" ]]; then
+    log "  Password utente: verra' impostata durante il bootstrap"
+  else
+    log "  Password utente: da impostare dopo con passwd"
+  fi
+  (( dry_run )) && log "  Modalita' esecuzione: dry-run"
+}
+
+confirm_execution() {
+  local reply=""
+
+  log
+  if [[ "$mode" = "erase-disk" ]]; then
+    printf "ATTENZIONE: questa modalita' puo' cancellare il disco indicato.\n"
+    reply="$(prompt_yes_no "Confermi di voler proseguire?" "n")"
+  else
+    reply="$(prompt_yes_no "Confermi di voler proseguire?" "y")"
+  fi
+
+  [[ "$reply" = "y" ]] || die "installazione annullata"
+}
+
+run_erase_disk_mode() {
+  local -a args=(
+    --disk "$disk"
+    --target-root "$target_root"
+    --hostname "$hostname"
+    --username "$username"
+    --real-name "$real_name"
+    --shell "$user_shell"
+    --yes-really-destroy-disk
+  )
+
+  [[ -n "$extra_groups" ]] && args+=(--extra-groups "$extra_groups")
+  [[ -n "$user_password_hash" ]] && args+=(--user-password-hash "$user_password_hash")
+  [[ "$run_chroot" = "y" ]] && args+=(--run-chroot)
+  (( dry_run )) && args+=(--dry-run)
+
+  log
+  log "==> Avvio installazione guidata su disco dedicato"
+  run_cmd "${script_dir}/install-live-iso" "${args[@]}"
+}
+
+run_mounted_target_mode() {
+  local -a args=(
+    --target-root "$target_root"
+    --repo-source "$repo_root"
+    --repo-dest /root/margine-os
+    --hostname "$hostname"
+    --username "$username"
+    --real-name "$real_name"
+    --shell "$user_shell"
+  )
+
+  [[ -n "$extra_groups" ]] && args+=(--extra-groups "$extra_groups")
+  [[ -n "$user_password_hash" ]] && args+=(--user-password-hash "$user_password_hash")
+  [[ "$run_chroot" = "y" ]] && args+=(--run-chroot)
+  (( dry_run )) && args+=(--dry-run)
+
+  log
+  log "==> Avvio bootstrap guidato su target gia' montato"
+  run_cmd "${script_dir}/bootstrap-live-iso" "${args[@]}"
+}
+
+main() {
+  parse_args "$@"
+  ensure_prereqs
+
+  log "=== Margine Guided Install ==="
+  collect_inputs
+  print_summary
+  confirm_execution
+
+  if [[ "$mode" = "erase-disk" ]]; then
+    run_erase_disk_mode
+  else
+    run_mounted_target_mode
+  fi
+
+  log
+  log "=== FINITO ==="
+}
+
+main "$@"
