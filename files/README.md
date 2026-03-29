@@ -7,6 +7,7 @@ Struttura prevista:
 - `etc/` per file destinati a `/etc`
 - `usr/` per file destinati a `/usr`
 - `home/` per file utente da distribuire nella home
+- `esp/` per file destinati alla EFI System Partition
 
 Regola:
 

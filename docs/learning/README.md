@@ -10,6 +10,8 @@ Argomenti previsti:
 - confronto tra layout attuale e layout target
 - validazione della catena di boot
 - separazione tra boot normale e recovery
+- modello di integrazione con Arch rolling
+- lettura del template Limine
 - snapshot e rollback
 - pacman, hook e manutenzione
 - Hyprland e componenti del desktop

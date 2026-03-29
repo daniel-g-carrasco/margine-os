@@ -1,0 +1,34 @@
+# Template base di limine.conf per Margine
+# La sezione recovery verra' generata automaticamente.
+
+timeout: 5
+default_entry: Margine/Produzione
+remember_last_entry: yes
+quiet: yes
+verbose: no
+editor_enabled: no
+interface_branding: Margine
+interface_branding_colour: 6
+
+${EFI_LINUX}=boot():/EFI/Linux
+
+/Margine
+comment: Percorso di boot quotidiano stabile.
+
+//Produzione
+protocol: efi
+path: ${EFI_LINUX}/margine-linux.efi
+
+//Fallback
+protocol: efi
+path: ${EFI_LINUX}/margine-linux-fallback.efi
+
+/Recovery
+comment: Entry generate automaticamente per snapshot e manutenzione.
+
+# BEGIN MARGINE GENERATED RECOVERY ENTRIES
+//Recovery manuale
+protocol: efi
+path: ${EFI_LINUX}/margine-recovery.efi
+cmdline: root=UUID=@ROOT_UUID@ rd.luks.name=@LUKS_UUID@=cryptroot rootfstype=btrfs rootflags=subvol=@ rw quiet
+# END MARGINE GENERATED RECOVERY ENTRIES

@@ -7,6 +7,13 @@ Obiettivo: costruire una base Arch Linux riproducibile, didattica e mantenibile,
 orientata a `Hyprland`, `Framework Laptop 13 AMD`, fotografia, affidabilità e
 rollback sicuro.
 
+`Margine` non è pensato come fork congelato di Arch.
+È pensato come un layer riproducibile sopra Arch rolling:
+
+- Arch fornisce i pacchetti aggiornati;
+- `Margine` definisce come quei pacchetti vengono selezionati, configurati,
+  mantenuti e recuperati.
+
 Il progetto non parte da una ISO custom. Parte da una repo leggibile e
 versionata, con:
 
@@ -38,16 +45,18 @@ versionata, con:
 
 ## Stato attuale
 
-Il progetto è iniziato con una decisione metodologica importante:
+Il progetto ha già fissato le fondamenta:
 
-- si costruirà una distro personale tramite repo riproducibile;
-- non si farà un clone indiscriminato della macchina corrente;
-- si userà una allowlist concordata da Daniel;
-- il primo obiettivo è congelare architettura, scope e priorità.
+- approccio repo-first;
+- Arch rolling come base;
+- `Limine + UKI + Secure Boot + TPM2 + Btrfs + Snapper`;
+- layout storage target;
+- separazione tra boot `prod` e `recovery`;
+- primo template versionato di `limine.conf`.
 
 ## Prossimo passo
 
-1. Fissare l'allowlist iniziale.
-2. Fissare le scelte architetturali non negoziabili.
-3. Eseguire un inventario guidato del sistema attuale.
-4. Costruire il primo manifest minimale.
+1. Generare `limine.conf` a partire dal template.
+2. Definire la policy snapshot pre/post update.
+3. Disegnare gli hook di rigenerazione `UKI` e rifirma.
+4. Costruire i primi manifest di pacchetti.
