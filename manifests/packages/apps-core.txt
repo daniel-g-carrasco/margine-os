@@ -1,4 +1,8 @@
 # Applicativi core richiesti esplicitamente.
+# Nota:
+# - `thunderbird` ufficiale e' la baseline `v1`;
+# - se emergera' un bisogno reale di ESR, verra' trattato come eccezione
+#   separata e non come default del progetto.
 
 bitwarden
 blanket

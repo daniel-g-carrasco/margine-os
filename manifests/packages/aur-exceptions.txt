@@ -1,7 +1,12 @@
 # AUR solo per eccezioni motivate.
+#
+# Approvate per requisito esplicito:
 
 davinci-resolve
 gapless
-hyprcap
 koofr-desktop-bin
+
+# Valutazioni ancora aperte:
+# `walker` piace come UX, ma `Margine v1` puo' vivere anche con `fuzzel`
+# ufficiale. Per ora lo teniamo separato.
 walker

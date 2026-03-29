@@ -1,10 +1,16 @@
 # Desktop Hyprland e tooling quotidiano minimo.
+# Nota:
+# - screenshot e recording stanno sullo stack ufficiale `grim + slurp + satty +
+#   wf-recorder`;
+# - launcher/menu di fallback ufficiale: `fuzzel`;
+# - `walker` resta valutazione separata come eccezione AUR opzionale.
 
 bluetui
 bluez
 bluez-utils
 brightnessctl
 cliphist
+fuzzel
 fzf
 grim
 hypridle
@@ -27,6 +33,7 @@ pipewire-jack
 pipewire-pulse
 polkit-gnome
 satty
+slurp
 swayosd
 waybar
 wf-recorder
