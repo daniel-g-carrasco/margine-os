@@ -7,13 +7,27 @@ Regola:
 - nomi espliciti;
 - niente dump indiscriminati da `pacman -Qqe`.
 
-Esempi futuri:
+Stato attuale della macchina di partenza:
 
-- `base.txt`
+- `230` pacchetti espliciti installati;
+- solo una parte entrerà davvero in `Margine`.
+
+Approccio:
+
+- i manifest devono descrivere il sistema target;
+- non devono fotografare la macchina attuale;
+- i casi ambigui vanno parcheggiati in note separate finché non sono chiari.
+
+Struttura iniziale:
+
+- `packages/base-system.txt`
+- `packages/hardware-framework13-amd.txt`
+- `packages/security-and-recovery.txt`
+- `packages/hyprland-core.txt`
+- `packages/desktop-integration.txt`
+- `packages/apps-core.txt`
+- `packages/apps-photo-audio-video.txt`
+- `packages/fonts.txt`
+- `packages/aur-exceptions.txt`
+- `packages/open-questions.md`
 - `storage-subvolumes.txt`
-- `hardware-framework13-amd.txt`
-- `security.txt`
-- `hyprland-core.txt`
-- `desktop-tools.txt`
-- `photo.txt`
-- `aur-exceptions.txt`

@@ -1,0 +1,8 @@
+# Framework 13 AMD: stack grafico, power e diagnostica.
+
+clinfo
+libva-utils
+power-profiles-daemon
+radeontop
+rocm-opencl-runtime
+vulkan-radeon

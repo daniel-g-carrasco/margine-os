@@ -1,0 +1,7 @@
+# AUR solo per eccezioni motivate.
+
+davinci-resolve
+gapless
+hyprcap
+koofr-desktop-bin
+walker

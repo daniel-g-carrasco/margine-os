@@ -1,0 +1,11 @@
+# Sicurezza, cifratura, snapshot e restore.
+# Nota: in Margine la baseline resta Snapper; Timeshift e' un layer di
+# comodita', non il motore architetturale principale dei rollback.
+
+fprintd
+libfprint
+sbctl
+snap-pac
+snapper
+timeshift
+tpm2-tools

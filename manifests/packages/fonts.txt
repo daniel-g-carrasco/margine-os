@@ -1,0 +1,13 @@
+# Font utili per compatibilita', leggibilita' e UI.
+
+noto-fonts
+noto-fonts-cjk
+noto-fonts-emoji
+noto-fonts-extra
+otf-atkinson-hyperlegible
+otf-atkinsonhyperlegiblemono-nerd
+ttf-atkinson-hyperlegible
+ttf-caladea
+ttf-carlito
+ttf-croscore
+ttf-liberation

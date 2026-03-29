@@ -1,0 +1,10 @@
+# Integrazione desktop volutamente limitata.
+# Si tengono componenti utili al workflow senza trascinarsi GNOME Shell.
+
+gvfs
+gvfs-afc
+gvfs-gphoto2
+gvfs-mtp
+papers
+sushi
+xdg-user-dirs-gtk

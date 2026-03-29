@@ -1,0 +1,8 @@
+# Workflow creativo: fotografia, audio, video.
+
+argyllcms
+darktable
+easyeffects
+gimp
+lazygit
+lsp-plugins

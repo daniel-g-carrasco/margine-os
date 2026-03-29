@@ -1,0 +1,18 @@
+# Base di sistema minimale e riproducibile.
+
+amd-ucode
+base
+base-devel
+btrfs-progs
+efibootmgr
+fwupd
+git
+github-cli
+linux
+linux-firmware
+linux-headers
+man-db
+pacman-contrib
+sof-firmware
+wget
+zram-generator

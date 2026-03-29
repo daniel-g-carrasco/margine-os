@@ -1,0 +1,18 @@
+# Applicativi core richiesti esplicitamente.
+
+bitwarden
+blanket
+firefox
+hunspell-it
+hyphen-it
+kitty
+libreoffice-fresh
+libreoffice-fresh-it
+mythes-it
+neovim
+python-pip
+python-pynvim
+rclone
+thunderbird
+thunderbird-i18n-it
+vlc
