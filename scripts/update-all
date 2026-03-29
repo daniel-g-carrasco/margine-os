@@ -10,6 +10,7 @@ use_flatpak=1
 use_fwupd=1
 use_boot=1
 deploy_boot=0
+refresh_trust=1
 root_uuid=""
 luks_uuid=""
 limine_output=""
@@ -17,6 +18,7 @@ rendered_limine_output=""
 esp_path=""
 deploy_backup_dir=""
 limine_binary=""
+limine_tool=""
 main_uki=""
 fallback_uki=""
 recovery_uki=""
@@ -34,9 +36,11 @@ Options:
   --no-fwupd             Salta il layer firmware
   --no-boot              Salta la fase di rigenerazione boot
   --deploy-boot          Esegue il deploy degli artefatti sulla ESP
+  --no-trust-refresh     Non esegue enroll-config e firma EFI dopo il deploy
   --esp-path PATH        Mountpoint della EFI System Partition
   --backup-dir PATH      Directory backup per il deploy su ESP
   --limine-binary PATH   Binario EFI di Limine da deployare
+  --limine-tool PATH     Path esplicito al tool host `limine`
   --main-uki PATH        UKI principale da deployare
   --fallback-uki PATH    UKI fallback da deployare
   --recovery-uki PATH    UKI recovery da deployare
@@ -117,6 +121,10 @@ parse_args() {
         deploy_boot=1
         shift
         ;;
+      --no-trust-refresh)
+        refresh_trust=0
+        shift
+        ;;
       --esp-path)
         [[ $# -ge 2 ]] || die "missing value for --esp-path"
         esp_path="$2"
@@ -132,6 +140,12 @@ parse_args() {
       --limine-binary)
         [[ $# -ge 2 ]] || die "missing value for --limine-binary"
         limine_binary="$2"
+        deploy_boot=1
+        shift 2
+        ;;
+      --limine-tool)
+        [[ $# -ge 2 ]] || die "missing value for --limine-tool"
+        limine_tool="$2"
         deploy_boot=1
         shift 2
         ;;
@@ -286,6 +300,34 @@ deploy_boot_phase() {
   run_cmd "$deploy_script" "${args[@]}"
 }
 
+refresh_trust_phase() {
+  local trust_script="${repo_root}/scripts/refresh-efi-trust"
+  local args=()
+
+  [[ -x "$trust_script" ]] || die "trust refresh script not executable: $trust_script"
+  [[ -n "$esp_path" ]] || die "--esp-path is required when trust refresh is enabled"
+
+  args+=(--esp-path "$esp_path")
+
+  if [[ -n "$limine_tool" ]]; then
+    args+=(--limine-tool "$limine_tool")
+  fi
+
+  if [[ -n "$main_uki" ]]; then
+    args+=(--main-uki "${esp_path}/EFI/Linux/margine-linux.efi")
+  fi
+  if [[ -n "$fallback_uki" ]]; then
+    args+=(--fallback-uki "${esp_path}/EFI/Linux/margine-linux-fallback.efi")
+  fi
+  if [[ -n "$recovery_uki" ]]; then
+    args+=(--recovery-uki "${esp_path}/EFI/Linux/margine-recovery.efi")
+  fi
+
+  (( dry_run )) && args=(--dry-run "${args[@]}")
+
+  run_cmd "$trust_script" "${args[@]}"
+}
+
 run_boot_regeneration() {
   (( use_boot )) || return 0
 
@@ -307,6 +349,11 @@ run_boot_regeneration() {
 
   if (( deploy_boot )); then
     deploy_boot_phase
+    if (( refresh_trust )); then
+      refresh_trust_phase
+    else
+      log "Trust refresh disabilitato, salto enroll-config e firma EFI."
+    fi
   fi
 }
 

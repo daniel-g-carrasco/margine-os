@@ -1,0 +1,246 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dry_run=0
+esp_path=""
+limine_tool=""
+limine_binary=""
+limine_config=""
+main_uki=""
+fallback_uki=""
+recovery_uki=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  refresh-efi-trust --esp-path PATH [options]
+
+Options:
+  --dry-run              Mostra i comandi senza eseguirli
+  --esp-path PATH        Mountpoint della EFI System Partition
+  --limine-tool PATH     Path esplicito al tool host `limine`
+  --limine-binary PATH   Binario EFI di Limine gia' deployato
+  --limine-config PATH   limine.conf gia' deployato
+  --main-uki PATH        UKI principale gia' deployata
+  --fallback-uki PATH    UKI fallback gia' deployata
+  --recovery-uki PATH    UKI recovery gia' deployata
+  --help                 Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --esp-path)
+        [[ $# -ge 2 ]] || die "missing value for --esp-path"
+        esp_path="$2"
+        shift 2
+        ;;
+      --limine-tool)
+        [[ $# -ge 2 ]] || die "missing value for --limine-tool"
+        limine_tool="$2"
+        shift 2
+        ;;
+      --limine-binary)
+        [[ $# -ge 2 ]] || die "missing value for --limine-binary"
+        limine_binary="$2"
+        shift 2
+        ;;
+      --limine-config)
+        [[ $# -ge 2 ]] || die "missing value for --limine-config"
+        limine_config="$2"
+        shift 2
+        ;;
+      --main-uki)
+        [[ $# -ge 2 ]] || die "missing value for --main-uki"
+        main_uki="$2"
+        shift 2
+        ;;
+      --fallback-uki)
+        [[ $# -ge 2 ]] || die "missing value for --fallback-uki"
+        fallback_uki="$2"
+        shift 2
+        ;;
+      --recovery-uki)
+        [[ $# -ge 2 ]] || die "missing value for --recovery-uki"
+        recovery_uki="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+resolve_tool_path() {
+  if [[ -n "$limine_tool" ]]; then
+    return 0
+  fi
+
+  if command -v limine >/dev/null 2>&1; then
+    limine_tool="$(command -v limine)"
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "limine host tool not found during dry-run; using placeholder command"
+    limine_tool="limine"
+    return 0
+  fi
+
+  die "limine host tool not found; install the limine package or pass --limine-tool"
+}
+
+ensure_command() {
+  local command_name="$1"
+
+  if command -v "$command_name" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "command not found during dry-run: $command_name"
+    return 0
+  fi
+
+  die "required command not found: $command_name"
+}
+
+ensure_required_file() {
+  local label="$1"
+  local path="$2"
+
+  if [[ -f "$path" ]]; then
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "${label} not found during dry-run: ${path}"
+    return 0
+  fi
+
+  die "${label} not found: ${path}"
+}
+
+sign_if_present() {
+  local label="$1"
+  local path="$2"
+
+  if [[ -z "$path" ]]; then
+    return 0
+  fi
+
+  if [[ ! -f "$path" ]]; then
+    warn "${label} non presente, salto firma: ${path}"
+    return 0
+  fi
+
+  log
+  log "==> ${label}"
+  run_cmd sudo sbctl sign --save "$path"
+}
+
+compute_config_hash() {
+  if [[ -f "$limine_config" ]]; then
+    b2sum "$limine_config" | awk '{print $1}'
+    return 0
+  fi
+
+  if (( dry_run )); then
+    printf '%s\n' '<limine-config-b2sum>'
+    return 0
+  fi
+
+  die "limine config not found: $limine_config"
+}
+
+main() {
+  local config_hash=""
+
+  parse_args "$@"
+
+  [[ -n "$esp_path" ]] || die "--esp-path is required"
+  [[ -d "$esp_path" ]] || die "ESP path not found or not mounted: $esp_path"
+
+  if [[ -z "$limine_binary" ]]; then
+    limine_binary="${esp_path}/EFI/BOOT/BOOTX64.EFI"
+  fi
+  if [[ -z "$limine_config" ]]; then
+    limine_config="${esp_path}/EFI/BOOT/limine.conf"
+  fi
+  if [[ -z "$main_uki" ]]; then
+    main_uki="${esp_path}/EFI/Linux/margine-linux.efi"
+  fi
+  if [[ -z "$fallback_uki" ]]; then
+    fallback_uki="${esp_path}/EFI/Linux/margine-linux-fallback.efi"
+  fi
+  if [[ -z "$recovery_uki" ]]; then
+    recovery_uki="${esp_path}/EFI/Linux/margine-recovery.efi"
+  fi
+
+  resolve_tool_path
+  ensure_command b2sum
+  ensure_command awk
+  ensure_command sbctl
+  ensure_required_file "Limine EFI binary" "$limine_binary"
+  ensure_required_file "Limine config" "$limine_config"
+
+  config_hash="$(compute_config_hash)"
+
+  log "=== Refresh trust chain EFI ==="
+  log "ESP: ${esp_path}"
+  log "Limine EFI: ${limine_binary}"
+  log "Limine config: ${limine_config}"
+  log "Config BLAKE2B: ${config_hash}"
+
+  log
+  log "==> Enroll config hash in Limine EFI"
+  run_cmd sudo "$limine_tool" enroll-config "$limine_binary" "$config_hash"
+
+  log
+  log "==> Sign Limine EFI binary"
+  run_cmd sudo sbctl sign --save "$limine_binary"
+
+  sign_if_present "Sign main UKI" "$main_uki"
+  sign_if_present "Sign fallback UKI" "$fallback_uki"
+  sign_if_present "Sign recovery UKI" "$recovery_uki"
+
+  log
+  log "==> Verify Secure Boot files"
+  run_cmd sudo sbctl verify
+
+  log
+  log "=== Refresh completato ==="
+}
+
+main "$@"

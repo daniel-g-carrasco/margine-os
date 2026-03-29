@@ -16,6 +16,7 @@ Argomenti previsti:
 - policy snapshot e limiti della recovery
 - ragionamento dell'orchestratore update-all
 - deploy sicuro sulla ESP
+- enrollment della config Limine e firma EFI
 - snapshot e rollback
 - pacman, hook e manutenzione
 - Hyprland e componenti del desktop

@@ -24,3 +24,5 @@ Primo script operativo:
   distinzione tra layer core e accessori.
 - `deploy-boot-artifacts`: installa su `ESP` gli artefatti generati, con backup
   preventivo dei file sovrascritti.
+- `refresh-efi-trust`: calcola l'hash di `limine.conf`, esegue
+  `limine enroll-config` e firma la catena EFI con `sbctl`.

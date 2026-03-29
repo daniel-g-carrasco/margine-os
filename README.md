@@ -52,11 +52,12 @@ Il progetto ha già fissato le fondamenta:
 - `Limine + UKI + Secure Boot + TPM2 + Btrfs + Snapper`;
 - layout storage target;
 - separazione tra boot `prod` e `recovery`;
-- primo template versionato di `limine.conf`.
+- primo template versionato di `limine.conf`;
+- primo modello completo di deploy e refresh della trust chain EFI.
 
 ## Prossimo passo
 
-1. Generare `limine.conf` a partire dal template.
-2. Definire la policy snapshot pre/post update.
-3. Disegnare gli hook di rigenerazione `UKI` e rifirma.
+1. Generare blocchi recovery da snapshot reali di `Snapper`.
+2. Definire il provisioning iniziale di `sbctl` e Secure Boot.
+3. Disegnare gli hook di rigenerazione `UKI`, deploy e rifirma.
 4. Costruire i primi manifest di pacchetti.
