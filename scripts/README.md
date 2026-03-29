@@ -32,5 +32,7 @@ Primo script operativo:
 - `install-from-manifests`: installa i layer definiti nei manifest, separando
   repo ufficiali, AUR e Flatpak tramite flag espliciti.
 - `provision-storage`: prepara disco, `LUKS2`, `Btrfs` e subvolumi dalla live ISO.
+- `install-live-iso`: orchestra `provision-storage` e `bootstrap-live-iso`
+  in una pipeline unica da live ISO.
 - `bootstrap-live-iso`: fase 1 del bootstrap, pensata per la live ISO Arch.
 - `bootstrap-in-chroot`: fase 2 del bootstrap, pensata per il sistema target.

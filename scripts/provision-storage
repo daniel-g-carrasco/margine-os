@@ -6,6 +6,7 @@ repo_root="$(cd "${script_dir}/.." && pwd)"
 subvolumes_manifest="${repo_root}/manifests/storage-subvolumes.txt"
 
 dry_run=0
+show_next_step=1
 confirm_destroy=0
 disk=""
 target_root="/mnt"
@@ -29,6 +30,7 @@ Options:
   --btrfs-label LABEL           Label del filesystem Btrfs
   --mount-opts OPTS            Opzioni mount Btrfs (default coerente con ADR 0003)
   --yes-really-destroy-disk     Conferma esplicita dell'operazione distruttiva
+  --no-next-step                Non mostra il prossimo comando consigliato
   --dry-run                     Mostra il piano senza eseguirlo
   --help                        Mostra questo aiuto
 EOF
@@ -99,6 +101,10 @@ parse_args() {
         ;;
       --yes-really-destroy-disk)
         confirm_destroy=1
+        shift
+        ;;
+      --no-next-step)
+        show_next_step=0
         shift
         ;;
       --dry-run)
@@ -296,9 +302,12 @@ print_summary() {
   log "  LUKS2: ${crypt_part}"
   log "  Mapper: /dev/mapper/${crypt_name}"
   log "  Root mounted at: ${target_root}"
-  log
-  log "Prossimo passo consigliato:"
-  printf '  %s\n' "${repo_root}/scripts/bootstrap-live-iso --target-root ${target_root}"
+
+  if (( show_next_step )); then
+    log
+    log "Prossimo passo consigliato:"
+    printf '  %s\n' "${repo_root}/scripts/bootstrap-live-iso --target-root ${target_root}"
+  fi
 }
 
 main() {

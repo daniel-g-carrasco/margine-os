@@ -150,7 +150,15 @@ resolve_stage1_packages() {
 
 ensure_target_root() {
   [[ -n "$target_root" ]] || die "--target-root is required"
-  [[ -d "$target_root" ]] || die "target root not found: $target_root"
+
+  if [[ ! -d "$target_root" ]]; then
+    if (( dry_run )); then
+      warn "target root not found during dry-run: $target_root"
+      return 0
+    fi
+
+    die "target root not found: $target_root"
+  fi
 
   if mountpoint -q "$target_root"; then
     return 0
