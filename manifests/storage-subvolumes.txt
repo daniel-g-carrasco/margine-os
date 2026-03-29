@@ -1,0 +1,19 @@
+# Subvolumi Btrfs target per Margine v1
+# Formato: nome_subvolume | mountpoint | categoria | incluso_nel_rollback_root
+
+@ | / | system-state | yes
+@home | /home | user-data | no
+@snapshots | /.snapshots | snapper-storage | no
+@var_log | /var/log | noisy-runtime | no
+@var_cache | /var/cache | noisy-runtime | no
+@var_tmp | /var/tmp | noisy-runtime | no
+@root | /root | admin-state | no
+@srv | /srv | service-data | no
+@data | /data | datasets | no
+@var_lib_libvirt | /var/lib/libvirt | virtualization-rootful | no
+@var_lib_machines | /var/lib/machines | nspawn-rootful | no
+@var_lib_containers | /var/lib/containers | containers-rootful | no
+
+# Opzionali solo se entrano davvero nella allowlist:
+# @var_lib_docker | /var/lib/docker | docker-rootful | no
+# @var_lib_flatpak | /var/lib/flatpak | flatpak-system | no
