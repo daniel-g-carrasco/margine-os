@@ -1,0 +1,325 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+subvolumes_manifest="${repo_root}/manifests/storage-subvolumes.txt"
+
+dry_run=0
+confirm_destroy=0
+disk=""
+target_root="/mnt"
+crypt_name="cryptroot"
+esp_size_mib=4096
+esp_label="MARGINE-ESP"
+btrfs_label="margine-root"
+mount_opts="rw,relatime,compress=zstd:3,ssd"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-storage --disk PATH --yes-really-destroy-disk [options]
+
+Options:
+  --disk PATH                    Disco target, per esempio /dev/nvme0n1
+  --target-root PATH             Mountpoint finale (default: /mnt)
+  --crypt-name NAME             Nome mapper LUKS (default: cryptroot)
+  --esp-size-mib NUM            Dimensione ESP in MiB (default: 4096)
+  --esp-label LABEL             Label FAT32 della ESP
+  --btrfs-label LABEL           Label del filesystem Btrfs
+  --mount-opts OPTS            Opzioni mount Btrfs (default coerente con ADR 0003)
+  --yes-really-destroy-disk     Conferma esplicita dell'operazione distruttiva
+  --dry-run                     Mostra il piano senza eseguirlo
+  --help                        Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --disk)
+        [[ $# -ge 2 ]] || die "missing value for --disk"
+        disk="$2"
+        shift 2
+        ;;
+      --target-root)
+        [[ $# -ge 2 ]] || die "missing value for --target-root"
+        target_root="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        shift 2
+        ;;
+      --esp-size-mib)
+        [[ $# -ge 2 ]] || die "missing value for --esp-size-mib"
+        esp_size_mib="$2"
+        shift 2
+        ;;
+      --esp-label)
+        [[ $# -ge 2 ]] || die "missing value for --esp-label"
+        esp_label="$2"
+        shift 2
+        ;;
+      --btrfs-label)
+        [[ $# -ge 2 ]] || die "missing value for --btrfs-label"
+        btrfs_label="$2"
+        shift 2
+        ;;
+      --mount-opts)
+        [[ $# -ge 2 ]] || die "missing value for --mount-opts"
+        mount_opts="$2"
+        shift 2
+        ;;
+      --yes-really-destroy-disk)
+        confirm_destroy=1
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in parted partprobe wipefs cryptsetup mkfs.fat mkfs.btrfs btrfs blkid mount umount findmnt mountpoint udevadm grep awk sort install lsblk; do
+    if have_cmd "$cmd"; then
+      continue
+    fi
+
+    if (( dry_run )); then
+      warn "command not found during dry-run: $cmd"
+    else
+      die "required command not found: $cmd"
+    fi
+  done
+}
+
+validate_inputs() {
+  [[ -n "$disk" ]] || die "--disk is required"
+  [[ -f "$subvolumes_manifest" ]] || die "subvolumes manifest not found: $subvolumes_manifest"
+  (( confirm_destroy )) || die "refusing to continue without --yes-really-destroy-disk"
+  [[ "$target_root" = /* ]] || die "--target-root must be an absolute path"
+  [[ "$target_root" != "/" ]] || die "--target-root must not be /"
+
+  if [[ -b "$disk" ]]; then
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "disk is not a block device during dry-run: $disk"
+    return 0
+  fi
+
+  die "disk is not a block device: $disk"
+}
+
+ensure_disk_not_in_use() {
+  local row=""
+  local mountpoints=""
+  local mountpoint=""
+
+  while IFS= read -r row; do
+    mountpoints="$(printf '%s' "$row" | awk '{$1=""; sub(/^ /, ""); print}')"
+    mountpoints="${mountpoints//\\x0a/$'\n'}"
+
+    while IFS= read -r mountpoint; do
+      [[ -n "$mountpoint" ]] || continue
+
+      if (( dry_run )); then
+        warn "disk or descendants appear mounted during dry-run: $mountpoint"
+        continue
+      fi
+
+      die "disk or descendants appear mounted: $mountpoint"
+    done <<< "$mountpoints"
+  done < <(lsblk -nrpo NAME,MOUNTPOINTS "$disk")
+}
+
+partition_path() {
+  local partition_number="$1"
+  if [[ "$disk" =~ [0-9]$ ]]; then
+    printf '%sp%s\n' "$disk" "$partition_number"
+  else
+    printf '%s%s\n' "$disk" "$partition_number"
+  fi
+}
+
+unmount_target_tree() {
+  local target=""
+
+  if [[ ! -d "$target_root" ]]; then
+    return 0
+  fi
+
+  while IFS= read -r target; do
+    [[ -n "$target" ]] || continue
+    run_cmd umount "$target"
+  done < <(findmnt -Rno TARGET "$target_root" 2>/dev/null | awk '{print length, $0}' | sort -rn | cut -d" " -f2-)
+}
+
+close_existing_mapper() {
+  local mapper_path="/dev/mapper/${crypt_name}"
+
+  if [[ -e "$mapper_path" ]]; then
+    run_cmd cryptsetup close "$crypt_name"
+  fi
+}
+
+wipe_and_partition_disk() {
+  local esp_end_mib=$((1 + esp_size_mib))
+
+  log
+  log "==> Partition disk"
+  run_cmd wipefs -af "$disk"
+  run_cmd parted -s -a optimal "$disk" mklabel gpt
+  run_cmd parted -s -a optimal "$disk" unit MiB mkpart ESP fat32 1 "$esp_end_mib"
+  run_cmd parted -s "$disk" set 1 esp on
+  run_cmd parted -s "$disk" name 1 ESP
+  run_cmd parted -s -a optimal "$disk" unit MiB mkpart cryptroot "$esp_end_mib" 100%
+  run_cmd parted -s "$disk" name 2 cryptroot
+  run_cmd partprobe "$disk"
+  run_cmd udevadm settle
+}
+
+format_and_open_devices() {
+  local esp_part
+  local crypt_part
+
+  esp_part="$(partition_path 1)"
+  crypt_part="$(partition_path 2)"
+
+  log
+  log "==> Format and open devices"
+  run_cmd mkfs.fat -F 32 -n "$esp_label" "$esp_part"
+  run_cmd cryptsetup luksFormat --type luks2 "$crypt_part"
+  run_cmd cryptsetup open "$crypt_part" "$crypt_name"
+  run_cmd mkfs.btrfs -L "$btrfs_label" "/dev/mapper/${crypt_name}"
+}
+
+create_subvolumes() {
+  local subvol=""
+
+  log
+  log "==> Create Btrfs subvolumes"
+  run_cmd install -d "$target_root"
+  run_cmd mount "/dev/mapper/${crypt_name}" "$target_root"
+
+  while IFS='|' read -r subvol _rest; do
+    subvol="$(printf '%s' "$subvol" | awk '{$1=$1; print}')"
+    [[ -n "$subvol" ]] || continue
+    run_cmd btrfs subvolume create "${target_root}/${subvol}"
+  done < <(grep -hvE '^[[:space:]]*(#|$)' "$subvolumes_manifest")
+
+  run_cmd umount "$target_root"
+}
+
+mount_layout() {
+  local subvol=""
+  local mountpoint=""
+  local mount_target=""
+  local root_opts="${mount_opts},subvol=@"
+  local subvol_opts=""
+  local esp_part
+
+  esp_part="$(partition_path 1)"
+
+  log
+  log "==> Mount final layout"
+  run_cmd install -d "$target_root"
+  run_cmd mount -o "$root_opts" "/dev/mapper/${crypt_name}" "$target_root"
+
+  while IFS='|' read -r subvol mountpoint _rest; do
+    subvol="$(printf '%s' "$subvol" | awk '{$1=$1; print}')"
+    mountpoint="$(printf '%s' "$mountpoint" | awk '{$1=$1; print}')"
+    [[ -n "$subvol" ]] || continue
+    [[ "$mountpoint" != "/" ]] || continue
+
+    mount_target="${target_root}${mountpoint}"
+    subvol_opts="${mount_opts},subvol=${subvol}"
+    run_cmd install -d "$mount_target"
+    run_cmd mount -o "$subvol_opts" "/dev/mapper/${crypt_name}" "$mount_target"
+  done < <(grep -hvE '^[[:space:]]*(#|$)' "$subvolumes_manifest")
+
+  run_cmd install -d "${target_root}/boot"
+  run_cmd mount "$esp_part" "${target_root}/boot"
+}
+
+print_summary() {
+  local esp_part
+  local crypt_part
+
+  esp_part="$(partition_path 1)"
+  crypt_part="$(partition_path 2)"
+
+  log
+  log "Target storage pronto:"
+  log "  Disk: ${disk}"
+  log "  ESP: ${esp_part} -> ${target_root}/boot"
+  log "  LUKS2: ${crypt_part}"
+  log "  Mapper: /dev/mapper/${crypt_name}"
+  log "  Root mounted at: ${target_root}"
+  log
+  log "Prossimo passo consigliato:"
+  printf '  %s\n' "${repo_root}/scripts/bootstrap-live-iso --target-root ${target_root}"
+}
+
+main() {
+  parse_args "$@"
+  ensure_prereqs
+  validate_inputs
+
+  log "=== Provision storage Margine ==="
+  (( dry_run )) && log "Modalita': dry-run"
+
+  unmount_target_tree
+  close_existing_mapper
+  ensure_disk_not_in_use
+  wipe_and_partition_disk
+  format_and_open_devices
+  create_subvolumes
+  mount_layout
+  print_summary
+
+  log
+  log "=== FINITO ==="
+}
+
+main "$@"

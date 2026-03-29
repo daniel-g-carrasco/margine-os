@@ -31,5 +31,6 @@ Primo script operativo:
   della trust chain EFI.
 - `install-from-manifests`: installa i layer definiti nei manifest, separando
   repo ufficiali, AUR e Flatpak tramite flag espliciti.
+- `provision-storage`: prepara disco, `LUKS2`, `Btrfs` e subvolumi dalla live ISO.
 - `bootstrap-live-iso`: fase 1 del bootstrap, pensata per la live ISO Arch.
 - `bootstrap-in-chroot`: fase 2 del bootstrap, pensata per il sistema target.
