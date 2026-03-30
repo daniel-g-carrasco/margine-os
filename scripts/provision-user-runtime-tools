@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+username=""
+home_dir=""
+
+declare -a home_payload=(
+  ".config/systemd/user/elephant.service"
+  ".local/bin/margine-launcher"
+  ".local/bin/margine-launcher-service"
+  ".local/bin/open-vpn-menu"
+  ".local/bin/vpn-menu"
+  ".local/bin/vpn-status"
+  ".local/bin/reset-fingerprint-daemon"
+)
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-user-runtime-tools --username NAME [options]
+
+Options:
+  --username NAME   Utente target che ricevera' i tool runtime utente
+  --dry-run         Mostra il piano senza eseguirlo
+  --help            Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --username)
+        [[ $# -ge 2 ]] || die "missing value for --username"
+        username="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-user-runtime-tools must run as root"
+}
+
+resolve_home_dir() {
+  home_dir="$(getent passwd "$username" | cut -d: -f6)"
+  [[ -n "$home_dir" ]] || die "could not resolve home for user: $username"
+}
+
+copy_payload() {
+  local relative=""
+  local source=""
+  local target=""
+  local mode=""
+
+  log
+  log "==> Install runtime tools"
+
+  for relative in "${home_payload[@]}"; do
+    source="${repo_root}/files/home/${relative}"
+    target="${home_dir}/${relative}"
+
+    [[ -f "$source" ]] || die "required source file not found: $source"
+
+    mode=644
+    if [[ "$relative" == .local/bin/* ]]; then
+      mode=755
+    fi
+
+    run_cmd install -Dm"${mode}" "$source" "$target"
+  done
+}
+
+enable_elephant_unit() {
+  local wants_dir="${home_dir}/.config/systemd/user/default.target.wants"
+  local link_path="${wants_dir}/elephant.service"
+
+  log
+  log "==> Enable elephant user service"
+
+  run_cmd install -d "$wants_dir"
+
+  if (( dry_run )); then
+    printf '[dry-run] ln -sfn ../elephant.service %s\n' "$link_path"
+    return 0
+  fi
+
+  ln -sfn ../elephant.service "$link_path"
+}
+
+fix_ownership() {
+  log
+  log "==> Fix ownership"
+
+  run_cmd chown -R \
+    "${username}:${username}" \
+    "${home_dir}/.config/systemd/user" \
+    "${home_dir}/.local/bin"
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  [[ -n "$username" ]] || die "--username is required"
+  resolve_home_dir
+
+  copy_payload
+  enable_elephant_unit
+  fix_ownership
+
+  log
+  log "Runtime utente installato."
+}
+
+main "$@"

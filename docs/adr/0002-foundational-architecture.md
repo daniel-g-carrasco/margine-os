@@ -213,12 +213,15 @@ Questo ADR NON chiude ancora:
 
 - schema esatto delle partizioni;
 - schema esatto dei subvolumi Btrfs;
-- scelta finale del gestore di sessione (`greetd`, TTY, altro);
 - policy operativa di snapshot automatici;
 - dettagli di firma e hook della catena `Limine + UKI + Secure Boot`;
 - policy PCR per `TPM2`.
 
 Questi punti verranno affrontati in ADR successivi.
+
+Nota:
+- il login path finale è stato poi chiuso in ADR successivi con `greetd +
+  tuigreet`, autologin iniziale e `hyprlock`.
 
 ## Per uno studente: la versione semplice
 

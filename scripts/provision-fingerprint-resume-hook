@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+hook_source="${repo_root}/files/etc/systemd/system-sleep/fprintd-reset"
+
+dry_run=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-fingerprint-resume-hook [options]
+
+Options:
+  --dry-run   Mostra il piano senza eseguirlo
+  --help      Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-fingerprint-resume-hook must run as root"
+}
+
+main() {
+  parse_args "$@"
+  require_root
+
+  [[ -f "$hook_source" ]] || die "hook source not found: $hook_source"
+
+  log "==> Install fingerprint resume mitigation"
+  run_cmd install -Dm755 "$hook_source" /etc/systemd/system-sleep/fprintd-reset
+
+  log
+  log "Hook installato: fprintd verra' fermato prima del suspend e riavviato al resume."
+}
+
+main "$@"

@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+template_source="${repo_root}/files/etc/greetd/config.toml.template"
+
+dry_run=0
+username=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-greetd-login --username NAME [options]
+
+Options:
+  --username NAME   Utente principale da usare per l'autologin iniziale
+  --dry-run         Mostra il piano senza eseguirlo
+  --help            Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --username)
+        [[ $# -ge 2 ]] || die "missing value for --username"
+        username="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-greetd-login must run as root"
+}
+
+ensure_sources() {
+  [[ -f "$template_source" ]] || die "template not found: $template_source"
+}
+
+render_config() {
+  sed "s|__MARGINE_MAIN_USER__|${username}|g" "$template_source"
+}
+
+install_config() {
+  local target="/etc/greetd/config.toml"
+
+  log
+  log "==> Install greetd config"
+
+  if (( dry_run )); then
+    printf '[dry-run] render %s -> %s\n' "$template_source" "$target"
+    return 0
+  fi
+
+  install -d -m 755 /etc/greetd
+  render_config >"$target"
+  chmod 644 "$target"
+}
+
+enable_service() {
+  log
+  log "==> Enable greetd"
+  run_cmd systemctl enable greetd.service
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  [[ -n "$username" ]] || die "--username is required"
+  ensure_sources
+
+  log "=== Provision greetd login path ==="
+  (( dry_run )) && log "Modalita': dry-run"
+
+  install_config
+  enable_service
+
+  log
+  log "greetd configurato: autologin iniziale verso Hyprland, fallback successivo a tuigreet."
+}
+
+main "$@"

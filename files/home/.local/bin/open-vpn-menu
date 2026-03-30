@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+exec kitty --class vpn-menu -e "$HOME/.local/bin/vpn-menu"

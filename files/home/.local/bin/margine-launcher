@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if command -v walker >/dev/null 2>&1; then
+  exec walker "$@"
+fi
+
+if command -v hyprlauncher >/dev/null 2>&1; then
+  exec hyprlauncher "$@"
+fi
+
+printf 'Nessun launcher disponibile: servono walker o hyprlauncher.\n' >&2
+exit 1

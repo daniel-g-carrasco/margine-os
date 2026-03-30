@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+send_notice() {
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send -u low "VPN" "$1"
+  fi
+}
+
+pause_on_error() {
+  printf '\nPremi invio per chiudere...'
+  read -r _
+}
+
+wireguard_ready() {
+  local modules_dir="/usr/lib/modules/$(uname -r)"
+
+  if [[ ! -d "$modules_dir" ]]; then
+    printf 'Il kernel in esecuzione (%s) non ha piu'' i moduli installati.\n' "$(uname -r)"
+    printf 'Probabilmente hai aggiornato il kernel e non hai ancora riavviato.\n'
+    printf 'Riavvia il sistema e riprova WireGuard.\n'
+    return 1
+  fi
+
+  if find "$modules_dir" -name 'wireguard.ko*' -print -quit | grep -q .; then
+    return 0
+  fi
+
+  printf 'Il modulo kernel WireGuard non e'' disponibile per %s.\n' "$(uname -r)"
+  printf 'WireGuard non puo'' essere attivato finche'' il modulo non esiste.\n'
+  return 1
+}
+
+toggle_connection() {
+  local name="$1"
+  local type="$2"
+  local state="$3"
+  local output=""
+
+  if [[ $state == "up" ]]; then
+    if ! output="$(nmcli connection down id "$name" 2>&1)"; then
+      send_notice "Errore scollegando: $name"
+      printf 'Errore durante la disconnessione di %s\n\n%s\n' "$name" "$output"
+      pause_on_error
+      return 1
+    fi
+
+    send_notice "Disconnected: $name"
+    return 0
+  fi
+
+  if [[ $type == "wireguard" ]]; then
+    if ! wireguard_ready; then
+      send_notice "WireGuard non disponibile: riavvio richiesto"
+      pause_on_error
+      return 1
+    fi
+  fi
+
+  if [[ $type == "vpn" ]]; then
+    if ! output="$(nmcli --ask connection up id "$name" 2>&1)"; then
+      send_notice "Errore connettendo: $name"
+      printf 'Errore durante la connessione di %s\n\n%s\n' "$name" "$output"
+      pause_on_error
+      return 1
+    fi
+  else
+    if ! output="$(nmcli connection up id "$name" 2>&1)"; then
+      send_notice "Errore connettendo: $name"
+      printf 'Errore durante la connessione di %s\n\n%s\n' "$name" "$output"
+      pause_on_error
+      return 1
+    fi
+  fi
+
+  send_notice "Connected: $name"
+}
+
+disconnect_all() {
+  mapfile -t active_names < <(
+    nmcli -t -f NAME,TYPE connection show --active |
+      awk -F: '$2 == "vpn" || $2 == "wireguard" { print $1 }'
+  )
+
+  if ((${#active_names[@]} == 0)); then
+    send_notice "No active VPN to disconnect"
+    exit 0
+  fi
+
+  for name in "${active_names[@]}"; do
+    nmcli connection down id "$name" >/dev/null
+  done
+
+  send_notice "Disconnected: ${active_names[*]}"
+}
+
+if [[ ${1:-} == "--disconnect-all" ]]; then
+  disconnect_all
+  exit 0
+fi
+
+mapfile -t active_names < <(
+  nmcli -t -f NAME,TYPE connection show --active |
+    awk -F: '$2 == "vpn" || $2 == "wireguard" { print $1 }'
+)
+
+active_lookup=$(printf '%s\n' "${active_names[@]:-}")
+
+mapfile -t all_vpns < <(
+  nmcli -t -f NAME,TYPE connection show |
+    awk -F: '$2 == "vpn" || $2 == "wireguard" { print $1 "\t" $2 }'
+)
+
+if ((${#all_vpns[@]} == 0)); then
+  printf 'No VPN profiles found in NetworkManager.\n'
+  printf 'Import one with:\n'
+  printf '  nmcli connection import type openvpn file file.ovpn\n'
+  printf '  nmcli connection import type wireguard file wg.conf\n'
+  printf '\nPress enter to close...'
+  read -r _
+  exit 0
+fi
+
+choices=()
+if ((${#active_names[@]} > 0)); then
+  choices+=($'disconnect all\tactive\tall tunnels')
+fi
+
+for line in "${all_vpns[@]}"; do
+  name=${line%%$'\t'*}
+  type=${line##*$'\t'}
+  state="down"
+  if grep -Fxq "$name" <<<"$active_lookup"; then
+    state="up"
+  fi
+  choices+=("$state"$'\t'"$type"$'\t'"$name")
+done
+
+selection=$(
+  printf '%s\n' "${choices[@]}" |
+    fzf \
+      --ansi \
+      --delimiter=$'\t' \
+      --with-nth=1,2,3 \
+      --layout=reverse \
+      --height=100% \
+      --border \
+      --prompt='vpn > ' \
+      --header=$'enter: toggle tunnel  esc: close'
+)
+
+[[ -z ${selection:-} ]] && exit 0
+
+state=$(cut -f1 <<<"$selection")
+name=$(cut -f3- <<<"$selection")
+
+if [[ $name == "all tunnels" ]]; then
+  disconnect_all
+  exit 0
+fi
+
+toggle_connection "$name" "$(cut -f2 <<<"$selection")" "$state"

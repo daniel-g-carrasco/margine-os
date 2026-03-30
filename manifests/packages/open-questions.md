@@ -16,8 +16,11 @@
   principale del rollback.
 - `hyprcap` non entra nella baseline `v1`: useremo stack screenshot/recording
   ufficiale (`grim`, `slurp`, `satty`, `wf-recorder`).
-- `hyprlauncher` diventa il launcher predefinito.
-- `walker` resta una seconda scelta opzionale.
+- `greetd + tuigreet` diventa il login path baseline.
+- l'utente principale entra con autologin iniziale via `greetd`, poi viene
+  accolto da `hyprlock`.
+- `walker` diventa il launcher preferito.
+- `hyprlauncher` resta il fallback ufficiale se `walker` non e' presente.
 - la connettivita' di sistema entra in un layer dedicato:
   - `networkmanager`
   - `networkmanager-openvpn`
@@ -47,7 +50,22 @@
   espliciti;
 - `Margine` non deve copiarli: deve selezionarli.
 - `walker` oggi risulta AUR;
+- `elephant` oggi risulta AUR;
 - `hyprlauncher` invece e' disponibile nei repo ufficiali Arch.
+
+## Decisioni architetturali chiuse
+
+### Login path
+
+`Margine v1` adotta:
+
+- `greetd`
+- `tuigreet`
+- `initial_session` per l'autologin iniziale dell'utente principale
+- `hyprlock` come lockscreen immediata della sessione grafica
+
+Questo chiude il dubbio precedente tra `greetd`, TTY puro o altro display
+manager.
 
 ## Ambiguità da chiudere
 

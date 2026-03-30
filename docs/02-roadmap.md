@@ -76,6 +76,7 @@ Obiettivo:
 
 Temi:
 - config Hyprland;
+- `greetd + tuigreet`;
 - tema centralizzato in stile Omarchy;
 - waybar;
 - hyprpaper;

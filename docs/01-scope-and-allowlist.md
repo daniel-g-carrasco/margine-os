@@ -22,11 +22,13 @@ Entra nel progetto solo ciò che è:
 - `hyprpaper`
 - `mako`
 - `walker`
+- `hyprlauncher` come fallback ufficiale del launcher
 - stack screenshot / screen recording
 - `EasyEffects`
 - `update-all` come entrypoint operativo
 - `Btrfs` + `LUKS2`
 - `Secure Boot` + `TPM2`
+- `greetd + tuigreet` con autologin iniziale e `hyprlock`
 - documentazione didattica
 - repository Git locale + GitHub
 - `Firefox` puro, con configurazione enforced ma non estrema
@@ -51,7 +53,6 @@ Nota:
 
 ## Elementi da decidere più avanti
 
-- display manager finale (`greetd`, TTY, altro)
 - gestore snapshot (`Snapper` come base, eventuale compat layer)
 - scelta definitiva del bootloader
 - sostituti non-GNOME per alcune app correnti

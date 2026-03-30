@@ -260,6 +260,49 @@ run_framework_audio_provisioner() {
   run_cmd "$provisioner" "${args[@]}"
 }
 
+run_user_runtime_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-user-runtime-tools"
+  local -a args=(
+    --username "$username"
+  )
+
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$provisioner" ]] || die "runtime provisioner not executable: $provisioner"
+
+  log
+  log "==> Provision user runtime tools"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
+run_greetd_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-greetd-login"
+  local -a args=(
+    --username "$username"
+  )
+
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$provisioner" ]] || die "greetd provisioner not executable: $provisioner"
+
+  log
+  log "==> Provision greetd login path"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
+run_fingerprint_resume_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-fingerprint-resume-hook"
+  local -a args=()
+
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$provisioner" ]] || die "fingerprint hook provisioner not executable: $provisioner"
+
+  log
+  log "==> Provision fingerprint resume mitigation"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
 enable_base_services() {
   local -a services=(
     NetworkManager.service
@@ -288,6 +331,9 @@ main() {
   configure_hostname
   run_manifest_installer
   run_user_provisioner
+  run_user_runtime_provisioner
+  run_greetd_provisioner
+  run_fingerprint_resume_provisioner
   run_framework_audio_provisioner
   enable_base_services
 

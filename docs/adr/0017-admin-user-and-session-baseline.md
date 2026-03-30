@@ -103,11 +103,12 @@ In questo ADR chiudiamo solo la baseline minima:
 - `xdg-user-dirs`;
 - servizi base di sistema.
 
-Non chiudiamo ancora:
+Il login path finale viene invece chiuso da ADR successivi:
 
-- display manager finale;
-- autologin;
-- scelta definitiva tra `greetd`, TTY o altro.
+- `greetd`;
+- `tuigreet` come fallback;
+- autologin iniziale dell'utente principale;
+- `hyprlock` come lockscreen immediata all'ingresso sessione.
 
 ## Conseguenze pratiche
 
@@ -115,7 +116,8 @@ Questa scelta ci dà:
 
 - un bootstrap che produce davvero un sistema amministrabile;
 - una baseline più pulita e moderna;
-- meno accoppiamento tra provisioning utente e scelta del login manager.
+- meno accoppiamento tra provisioning utente e login path finale;
+- una base coerente su cui agganciare il provisioning della sessione.
 
 ## Per uno studente: la versione semplice
 

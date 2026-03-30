@@ -1,0 +1,14 @@
+[Unit]
+Description=Elephant datasource backend for Walker
+ConditionPathExists=/usr/bin/elephant
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/elephant
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

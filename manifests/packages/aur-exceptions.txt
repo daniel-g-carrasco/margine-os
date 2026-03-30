@@ -4,7 +4,9 @@
 
 davinci-resolve
 koofr-desktop-bin
-
-# Seconda scelta / opzionali consapevoli:
-# `walker` resta disponibile come launcher secondario.
+elephant
 walker
+
+# Note:
+# - `walker` e `elephant` restano AUR, ma nel desktop target sono il launcher
+#   preferito e il relativo backend dati.

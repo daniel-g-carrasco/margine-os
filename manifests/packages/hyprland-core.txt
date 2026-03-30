@@ -2,12 +2,15 @@
 # Nota:
 # - screenshot e recording stanno sullo stack ufficiale `grim + slurp + satty +
 #   wf-recorder`;
-# - launcher predefinito: `hyprlauncher`;
-# - launcher secondario opzionale: `walker` (AUR).
+# - login path baseline: `greetd + tuigreet`;
+# - launcher preferito: `walker` se installato;
+# - fallback ufficiale: `hyprlauncher`.
 
 brightnessctl
 cliphist
 fzf
+greetd
+greetd-tuigreet
 grim
 hypridle
 hyprland

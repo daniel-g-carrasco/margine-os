@@ -1,0 +1,11 @@
+#!/bin/sh
+
+case "$1" in
+  pre)
+    /usr/bin/systemctl stop fprintd.service >/dev/null 2>&1 || true
+    ;;
+  post)
+    /usr/bin/sleep 1
+    /usr/bin/systemctl restart fprintd.service >/dev/null 2>&1 || true
+    ;;
+esac

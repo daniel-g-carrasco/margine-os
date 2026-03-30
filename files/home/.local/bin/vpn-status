@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+mapfile -t active_vpns < <(
+  nmcli -t -f NAME,TYPE connection show --active |
+    awk -F: '$2 == "vpn" || $2 == "wireguard" { print $1 ":" $2 }'
+)
+
+if ((${#active_vpns[@]} == 0)); then
+  printf '{"text":"VPN","class":"inactive","tooltip":"No VPN active\\nLeft click: open menu"}\n'
+  exit 0
+fi
+
+wg_count=0
+vpn_count=0
+names=()
+
+for entry in "${active_vpns[@]}"; do
+  name=${entry%:*}
+  type=${entry##*:}
+  names+=("$name")
+  if [[ $type == wireguard ]]; then
+    ((wg_count+=1))
+  else
+    ((vpn_count+=1))
+  fi
+done
+
+if ((${#active_vpns[@]} == 1)); then
+  if ((wg_count == 1)); then
+    text="WG"
+  else
+    text="VPN"
+  fi
+else
+  text="VPN${#active_vpns[@]}"
+fi
+
+tooltip=$(printf '%s\n' "${names[@]}")
+tooltip=${tooltip//$'\n'/\\n}
+
+printf '{"text":"%s","class":"active","tooltip":"%s"}\n' "$text" "$tooltip"
