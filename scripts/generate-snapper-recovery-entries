@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+root_uuid=""
+luks_uuid=""
+snapper_config="root"
+snapshots_subvolume="@snapshots"
+limit=12
+output_path=""
+entry_template="${repo_root}/files/esp/EFI/BOOT/recovery-snapshot-entry.template"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  generate-snapper-recovery-entries --root-uuid UUID --luks-uuid UUID [options]
+
+Options:
+  --root-uuid UUID            UUID del filesystem root Btrfs
+  --luks-uuid UUID            UUID del contenitore LUKS2
+  --snapper-config NAME       Config Snapper da interrogare (default: root)
+  --snapshots-subvolume PATH  Subvolume che contiene gli snapshot (default: @snapshots)
+  --limit N                   Numero massimo di snapshot da esporre (default: 12)
+  --template PATH             Template entry da usare
+  --output PATH               Scrive su file invece che su stdout
+  --help                      Mostra questo aiuto
+EOF
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --root-uuid)
+        [[ $# -ge 2 ]] || die "missing value for --root-uuid"
+        root_uuid="$2"
+        shift 2
+        ;;
+      --luks-uuid)
+        [[ $# -ge 2 ]] || die "missing value for --luks-uuid"
+        luks_uuid="$2"
+        shift 2
+        ;;
+      --snapper-config)
+        [[ $# -ge 2 ]] || die "missing value for --snapper-config"
+        snapper_config="$2"
+        shift 2
+        ;;
+      --snapshots-subvolume)
+        [[ $# -ge 2 ]] || die "missing value for --snapshots-subvolume"
+        snapshots_subvolume="${2#/}"
+        shift 2
+        ;;
+      --limit)
+        [[ $# -ge 2 ]] || die "missing value for --limit"
+        limit="$2"
+        shift 2
+        ;;
+      --template)
+        [[ $# -ge 2 ]] || die "missing value for --template"
+        entry_template="$2"
+        shift 2
+        ;;
+      --output)
+        [[ $# -ge 2 ]] || die "missing value for --output"
+        output_path="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+escape_sed_replacement() {
+  printf '%s' "$1" | sed -e 's/[\/&]/\\&/g'
+}
+
+snapshot_comment() {
+  local number="$1"
+  local description="$2"
+
+  description="${description//$'\r'/ }"
+  description="${description//$'\n'/ }"
+  description="${description//$'\t'/ }"
+  description="$(printf '%s' "$description" | tr -s ' ')"
+  description="${description#"${description%%[![:space:]]*}"}"
+  description="${description%"${description##*[![:space:]]}"}"
+
+  if [[ -z "$description" ]]; then
+    printf 'Snapshot %s' "$number"
+  else
+    printf 'Snapshot %s - %s' "$number" "$description"
+  fi
+}
+
+collect_snapshots() {
+  if ! command -v snapper >/dev/null 2>&1; then
+    warn "snapper non trovato, nessuna recovery entry generata"
+    return 0
+  fi
+
+  snapper list-configs --no-headers --csvout --columns config 2>/dev/null |
+    grep -Fxq "$snapper_config" || {
+      warn "config Snapper non trovata: $snapper_config"
+      return 0
+    }
+
+  snapper --no-dbus --csvout --separator $'\t' --no-headers -c "$snapper_config" \
+    list --columns number,description 2>/dev/null |
+    awk -F'\t' '$1 ~ /^[0-9]+$/ && $1 != "0" { print }' |
+    sort -t$'\t' -k1,1nr |
+    head -n "$limit"
+}
+
+render_entries() {
+  local line=""
+  local number=""
+  local description=""
+  local comment=""
+  local snapshot_subvolume=""
+
+  while IFS=$'\t' read -r number description; do
+    [[ -n "$number" ]] || continue
+    comment="$(snapshot_comment "$number" "$description")"
+    snapshot_subvolume="${snapshots_subvolume}/${number}/snapshot"
+
+    sed \
+      -e "s/@SNAPSHOT_NUMBER@/$(escape_sed_replacement "$number")/g" \
+      -e "s/@SNAPSHOT_COMMENT@/$(escape_sed_replacement "$comment")/g" \
+      -e "s/@SNAPSHOT_SUBVOLUME@/$(escape_sed_replacement "$snapshot_subvolume")/g" \
+      -e "s/@ROOT_UUID@/$(escape_sed_replacement "$root_uuid")/g" \
+      -e "s/@LUKS_UUID@/$(escape_sed_replacement "$luks_uuid")/g" \
+      "$entry_template"
+    printf '\n'
+  done
+}
+
+main() {
+  local rendered=""
+
+  parse_args "$@"
+
+  [[ -n "$root_uuid" ]] || die "--root-uuid is required"
+  [[ -n "$luks_uuid" ]] || die "--luks-uuid is required"
+  [[ -f "$entry_template" ]] || die "template not found: $entry_template"
+  [[ "$limit" =~ ^[0-9]+$ ]] || die "--limit must be a non-negative integer"
+
+  rendered="$(collect_snapshots | render_entries || true)"
+
+  if [[ -n "$output_path" ]]; then
+    mkdir -p "$(dirname "$output_path")"
+    printf '%s' "$rendered" > "$output_path"
+  else
+    printf '%s' "$rendered"
+  fi
+}
+
+main "$@"

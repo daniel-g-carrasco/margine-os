@@ -1,0 +1,5 @@
+# Configurazioni di sistema approvate per la migrazione.
+
+/etc/fprintd.conf
+/etc/pam.d/hyprlock
+

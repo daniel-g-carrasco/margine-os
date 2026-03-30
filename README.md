@@ -54,11 +54,14 @@ Il progetto ha già fissato le fondamenta:
 - separazione tra boot `prod` e `recovery`;
 - primo template versionato di `limine.conf`;
 - primo modello completo di deploy e refresh della trust chain EFI;
-- primo modello di bootstrap iniziale di Secure Boot con `sbctl`.
+- primo modello di bootstrap iniziale di Secure Boot con `sbctl`;
+- login path `greetd + tuigreet + autologin iniziale + hyprlock`;
+- layer di connettivita' e desktop versionati;
+- primi layer applicativi e modello di migrazione selettiva.
 
 ## Prossimo passo
 
-1. Generare blocchi recovery da snapshot reali di `Snapper`.
-2. Disegnare gli hook di rigenerazione `UKI`, deploy e rifirma.
-3. Costruire i primi manifest di pacchetti.
-4. Fissare il bootstrap iniziale di installazione.
+1. Validare end-to-end snapshot bootabili e rollback operativo.
+2. Chiudere app per app le configurazioni ancora aperte.
+3. Rifinire il percorso di reinstallazione guidata e mounted-target.
+4. Affrontare la fase estetica solo dopo che il sistema e' coerente.

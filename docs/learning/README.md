@@ -24,6 +24,9 @@ Argomenti previsti:
 - portal, polkit e sessione utente
 - stack grafico AMD
 - audio su Framework 13
+- migrazione selettiva delle configurazioni
+- configurazione applicativa versionata
+- snapshot bootabili e limiti del rollback
 - color management e fotografia su Linux
 
 Regola:

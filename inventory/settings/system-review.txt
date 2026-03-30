@@ -1,0 +1,6 @@
+# Configurazioni di sistema da valutare prima della migrazione.
+# Queste vanno riesaminate e normalizzate, non copiate alla cieca.
+
+/etc/conf.d/snapper
+/etc/timeshift/default.json
+/etc/timeshift/timeshift.json

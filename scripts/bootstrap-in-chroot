@@ -297,6 +297,21 @@ run_user_runtime_provisioner() {
   run_cmd "$provisioner" "${args[@]}"
 }
 
+run_user_app_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-user-app-config"
+  local -a args=(
+    --username "$username"
+  )
+
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$provisioner" ]] || die "app provisioner not executable: $provisioner"
+
+  log
+  log "==> Provision user application layer"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
 run_desktop_provisioner() {
   local provisioner="${repo_root}/scripts/provision-hyprland-desktop"
   local -a args=(
@@ -370,6 +385,7 @@ main() {
   run_connectivity_provisioner
   run_user_provisioner
   run_user_runtime_provisioner
+  run_user_app_provisioner
   run_desktop_provisioner
   run_greetd_provisioner
   run_fingerprint_resume_provisioner

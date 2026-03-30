@@ -1,0 +1,15 @@
+{
+  "policies": {
+    "DisableTelemetry": true,
+    "DisableFirefoxStudies": true,
+    "DisablePocket": true,
+    "DontCheckDefaultBrowser": true,
+    "NoDefaultBookmarks": true,
+    "FirefoxHome": {
+      "Pocket": false,
+      "SponsoredPocket": false,
+      "SponsoredTopSites": false,
+      "Snippets": false
+    }
+  }
+}

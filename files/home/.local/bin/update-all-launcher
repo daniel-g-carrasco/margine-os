@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cmd="update-all"
+hold='echo; read -n1 -rsp "Premi un tasto per chiudere..."'
+
+if command -v kitty >/dev/null 2>&1; then
+  exec kitty --class update-all -e bash -lc "$cmd; $hold"
+elif command -v kgx >/dev/null 2>&1; then
+  exec kgx -- bash -lc "$cmd; $hold"
+elif command -v gnome-terminal >/dev/null 2>&1; then
+  exec gnome-terminal -- bash -lc "$cmd; $hold"
+elif command -v xterm >/dev/null 2>&1; then
+  exec xterm -e bash -lc "$cmd; $hold"
+else
+  echo "Nessun terminale trovato (kgx/gnome-terminal/xterm)."
+  echo "Esegui a mano: $cmd"
+  exit 1
+fi

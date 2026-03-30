@@ -69,13 +69,6 @@ manager.
 
 ## Ambiguità da chiudere
 
-### Firefox
-
-Il pacchetto e' deciso.
-Manca ancora la parte piu' importante:
-
-- definire il layer di configurazione enforced ma non invasivo.
-
 ### EasyEffects per Framework 13
 
 Il layer base e' ormai chiaro:
@@ -103,3 +96,12 @@ Il layer di configurazione ormai e' chiuso in questa forma:
 Resta aperta solo una validazione futura:
 
 - capire se per `MT7922` servira' davvero un tuning driver dedicato oppure no.
+
+### Migrazione applicativa
+
+Il modello di migrazione selettiva e' deciso.
+Restano da chiudere app per app, piu' avanti:
+
+- eventuali config per editor aggiuntivi o IDE;
+- eventuale policy Thunderbird oltre al pacchetto;
+- eventuali preferenze browser utente non esprimibili bene via policy.

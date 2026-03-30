@@ -11,10 +11,12 @@ use_fwupd=1
 use_boot=1
 deploy_boot=0
 refresh_trust=1
+include_snapper_recovery=1
 root_uuid=""
 luks_uuid=""
 limine_output=""
 rendered_limine_output=""
+recovery_entries_output=""
 esp_path=""
 deploy_backup_dir=""
 limine_binary=""
@@ -22,6 +24,9 @@ limine_tool=""
 main_uki=""
 fallback_uki=""
 recovery_uki=""
+snapper_config="root"
+snapshots_subvolume="@snapshots"
+recovery_entry_limit=12
 soft_failures=0
 
 usage() {
@@ -37,6 +42,7 @@ Options:
   --no-boot              Salta la fase di rigenerazione boot
   --deploy-boot          Esegue il deploy degli artefatti sulla ESP
   --no-trust-refresh     Non esegue enroll-config e firma EFI dopo il deploy
+  --no-snapper-recovery  Non genera entry recovery da snapshot Snapper
   --esp-path PATH        Mountpoint della EFI System Partition
   --backup-dir PATH      Directory backup per il deploy su ESP
   --limine-binary PATH   Binario EFI di Limine da deployare
@@ -44,6 +50,11 @@ Options:
   --main-uki PATH        UKI principale da deployare
   --fallback-uki PATH    UKI fallback da deployare
   --recovery-uki PATH    UKI recovery da deployare
+  --snapper-config NAME  Config Snapper per le entry recovery (default: root)
+  --snapshots-subvolume PATH
+                         Subvolume snapshot root (default: @snapshots)
+  --recovery-entry-limit N
+                         Numero max di snapshot da mostrare (default: 12)
   --root-uuid UUID       UUID del filesystem root Btrfs
   --luks-uuid UUID       UUID del contenitore LUKS2
   --limine-output PATH   Dove renderizzare limine.conf
@@ -125,6 +136,10 @@ parse_args() {
         refresh_trust=0
         shift
         ;;
+      --no-snapper-recovery)
+        include_snapper_recovery=0
+        shift
+        ;;
       --esp-path)
         [[ $# -ge 2 ]] || die "missing value for --esp-path"
         esp_path="$2"
@@ -165,6 +180,21 @@ parse_args() {
         [[ $# -ge 2 ]] || die "missing value for --recovery-uki"
         recovery_uki="$2"
         deploy_boot=1
+        shift 2
+        ;;
+      --snapper-config)
+        [[ $# -ge 2 ]] || die "missing value for --snapper-config"
+        snapper_config="$2"
+        shift 2
+        ;;
+      --snapshots-subvolume)
+        [[ $# -ge 2 ]] || die "missing value for --snapshots-subvolume"
+        snapshots_subvolume="${2#/}"
+        shift 2
+        ;;
+      --recovery-entry-limit)
+        [[ $# -ge 2 ]] || die "missing value for --recovery-entry-limit"
+        recovery_entry_limit="$2"
         shift 2
         ;;
       --root-uuid)
@@ -242,9 +272,34 @@ run_fwupd_update() {
   fi
 }
 
+build_recovery_entries() {
+  local generator="${repo_root}/scripts/generate-snapper-recovery-entries"
+  local output_path="${repo_root}/build/limine-recovery-entries.conf"
+  local args=(
+    --root-uuid "$root_uuid"
+    --luks-uuid "$luks_uuid"
+    --snapper-config "$snapper_config"
+    --snapshots-subvolume "$snapshots_subvolume"
+    --limit "$recovery_entry_limit"
+    --output "$output_path"
+  )
+
+  [[ -x "$generator" ]] || die "recovery generator not executable: $generator"
+
+  if ! run_cmd "$generator" "${args[@]}"; then
+    warn "generazione entry recovery Snapper fallita"
+    soft_failures=1
+    recovery_entries_output=""
+    return 0
+  fi
+
+  recovery_entries_output="$output_path"
+}
+
 render_limine_config() {
   local generator="${repo_root}/scripts/generate-limine-config"
   local output_path="$limine_output"
+  local args=()
 
   [[ -x "$generator" ]] || die "generator not executable: $generator"
   [[ -n "$root_uuid" ]] || die "--root-uuid is required for boot phase"
@@ -256,10 +311,17 @@ render_limine_config() {
 
   rendered_limine_output="$output_path"
 
-  run_cmd "$generator" \
-    --root-uuid "$root_uuid" \
-    --luks-uuid "$luks_uuid" \
+  args=(
+    --root-uuid "$root_uuid"
+    --luks-uuid "$luks_uuid"
     --output "$output_path"
+  )
+
+  if [[ -n "$recovery_entries_output" ]]; then
+    args+=(--recovery-entries "$recovery_entries_output")
+  fi
+
+  run_cmd "$generator" "${args[@]}"
 }
 
 deploy_boot_phase() {
@@ -342,6 +404,9 @@ run_boot_regeneration() {
   fi
 
   if [[ -n "$root_uuid" || -n "$luks_uuid" || -n "$limine_output" ]]; then
+    if (( include_snapper_recovery )); then
+      build_recovery_entries
+    fi
     render_limine_config
   else
     log "UUID non forniti, salto rendering limine.conf."

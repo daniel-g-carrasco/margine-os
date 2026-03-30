@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+source_home="${HOME}"
+home_allowlist="${repo_root}/inventory/settings/home-approved.txt"
+system_approved="${repo_root}/inventory/settings/system-approved.txt"
+system_review="${repo_root}/inventory/settings/system-review.txt"
+output_path=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  inventory-current-settings [options]
+
+Options:
+  --source-home PATH       Home sorgente da analizzare (default: $HOME)
+  --output PATH            Scrive il report su file invece che su stdout
+  --help                   Mostra questo aiuto
+EOF
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --source-home)
+        [[ $# -ge 2 ]] || die "missing value for --source-home"
+        source_home="$2"
+        shift 2
+        ;;
+      --output)
+        [[ $# -ge 2 ]] || die "missing value for --output"
+        output_path="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+emit() {
+  printf '%s\n' "${1-}"
+}
+
+report_home() {
+  local entry=""
+  local source=""
+  local repo_file=""
+
+  emit "## Home approvata"
+
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    [[ "$entry" =~ ^# ]] && continue
+
+    source="${source_home}/${entry}"
+    repo_file="${repo_root}/files/home/${entry}"
+
+    if [[ -e "$source" && -e "$repo_file" ]]; then
+      emit "- OK: \`${entry}\` esiste nella macchina corrente ed e' gia' versionato."
+    elif [[ -e "$source" ]]; then
+      emit "- REVIEW: \`${entry}\` esiste nella macchina corrente ma non e' ancora versionato."
+    else
+      emit "- MISSING: \`${entry}\` non esiste nella macchina corrente."
+    fi
+  done < "$home_allowlist"
+}
+
+report_system() {
+  local approved_entry=""
+  local entry=""
+  local repo_rel=""
+  local repo_file=""
+
+  emit
+  emit "## Sistema approvato"
+
+  while IFS= read -r approved_entry; do
+    [[ -n "$approved_entry" ]] || continue
+    [[ "$approved_entry" =~ ^# ]] && continue
+
+    repo_rel="${approved_entry#/}"
+    repo_file="${repo_root}/files/${repo_rel}"
+
+    if [[ -e "$approved_entry" && -e "$repo_file" ]]; then
+      emit "- OK: \`${approved_entry}\` esiste ed e' gia' versionato."
+    elif [[ -e "$approved_entry" ]]; then
+      emit "- REVIEW: \`${approved_entry}\` esiste ma non e' ancora versionato."
+    else
+      emit "- ASSENTE: \`${approved_entry}\` non esiste sul sistema corrente."
+    fi
+  done < "$system_approved"
+
+  emit
+  emit "## Sistema da riesaminare"
+
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    [[ "$entry" =~ ^# ]] && continue
+
+    repo_rel="${entry#/}"
+    repo_file="${repo_root}/files/${repo_rel}"
+
+    if [[ -e "$entry" && -e "$repo_file" ]]; then
+      emit "- VERSIONATO: \`${entry}\` esiste ed e' gia' in repo."
+    elif [[ -e "$entry" ]]; then
+      emit "- REVIEW: \`${entry}\` esiste ma va ancora tradotto in forma target."
+    else
+      emit "- ASSENTE: \`${entry}\` non esiste sul sistema corrente."
+    fi
+  done < "$system_review"
+}
+
+main() {
+  parse_args "$@"
+
+  [[ -d "$source_home" ]] || die "source home not found: $source_home"
+  [[ -f "$home_allowlist" ]] || die "home allowlist not found: $home_allowlist"
+  [[ -f "$system_approved" ]] || die "system approved list not found: $system_approved"
+  [[ -f "$system_review" ]] || die "system review list not found: $system_review"
+
+  if [[ -n "$output_path" ]]; then
+    mkdir -p "$(dirname "$output_path")"
+    exec >"$output_path"
+  fi
+
+  emit "# Inventario configurazioni correnti"
+  emit
+  emit "- Home sorgente: \`${source_home}\`"
+  emit "- Repo Margine: \`${repo_root}\`"
+  emit
+  emit "Regola: si migra solo cio' che e' riproducibile e sensato."
+  emit
+
+  report_home
+  report_system
+}
+
+main "$@"

@@ -4,6 +4,8 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
 hook_source="${repo_root}/files/etc/systemd/system-sleep/fprintd-reset"
+pam_source="${repo_root}/files/etc/pam.d/hyprlock"
+fprintd_source="${repo_root}/files/etc/fprintd.conf"
 
 dry_run=0
 
@@ -66,12 +68,19 @@ main() {
   require_root
 
   [[ -f "$hook_source" ]] || die "hook source not found: $hook_source"
+  [[ -f "$pam_source" ]] || die "pam source not found: $pam_source"
+  [[ -f "$fprintd_source" ]] || die "fprintd source not found: $fprintd_source"
 
   log "==> Install fingerprint resume mitigation"
   run_cmd install -Dm755 "$hook_source" /etc/systemd/system-sleep/fprintd-reset
 
   log
-  log "Hook installato: fprintd verra' fermato prima del suspend e riavviato al resume."
+  log "==> Install fingerprint baseline config"
+  run_cmd install -Dm644 "$pam_source" /etc/pam.d/hyprlock
+  run_cmd install -Dm644 "$fprintd_source" /etc/fprintd.conf
+
+  log
+  log "Hook e baseline fingerprint installati."
 }
 
 main "$@"

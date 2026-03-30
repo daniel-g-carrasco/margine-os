@@ -1,0 +1,13 @@
+# File e directory della home che ha senso migrare in Margine.
+# Il criterio e' "configurazione riproducibile", non "qualsiasi cosa esista".
+
+.config/kitty/kitty.conf
+.config/mimeapps.list
+.config/nvim
+.config/user-dirs.dirs
+.config/user-dirs.locale
+.local/bin/open-vpn-menu
+.local/bin/update-all-launcher
+.local/bin/vpn-menu
+.local/bin/vpn-status
+

@@ -26,9 +26,10 @@ path: ${EFI_LINUX}/margine-linux-fallback.efi
 /Recovery
 comment: Entry generate automaticamente per snapshot e manutenzione.
 
-# BEGIN MARGINE GENERATED RECOVERY ENTRIES
 //Recovery manuale
 protocol: efi
 path: ${EFI_LINUX}/margine-recovery.efi
 cmdline: root=UUID=@ROOT_UUID@ rd.luks.name=@LUKS_UUID@=cryptroot rootfstype=btrfs rootflags=subvol=@ rw quiet
+
+# BEGIN MARGINE GENERATED RECOVERY ENTRIES
 # END MARGINE GENERATED RECOVERY ENTRIES
