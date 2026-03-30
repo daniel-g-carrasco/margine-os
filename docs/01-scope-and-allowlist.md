@@ -32,6 +32,7 @@ Entra nel progetto solo ciò che è:
 - documentazione didattica
 - repository Git locale + GitHub
 - `Firefox` puro, con configurazione enforced ma non estrema
+- `Thunderbird` ufficiale come mail client baseline
 
 ## Escluso da subito
 

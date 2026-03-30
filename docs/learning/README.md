@@ -30,6 +30,7 @@ Argomenti previsti:
 - snapshot pre-update e snapshot granulari
 - color management e fotografia su Linux
 - ICC su Hyprland: app-first contro compositor-first
+- browser e mailer: pacchetto, default e dati personali
 
 Regola:
 - ogni nota deve spiegare il "cosa", il "perché" e il "come modificarlo".

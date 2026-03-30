@@ -7,7 +7,7 @@
 - `Firefox` resta il browser principale.
 - `Thunderbird` entra nel progetto come pacchetto ufficiale `thunderbird`.
 - `Thunderbird ESR` non risulta disponibile nei repo ufficiali Arch al
-  `2026-03-29`, quindi non diventa baseline `v1`.
+  `2026-03-30`, quindi non diventa baseline `v1`.
 - `Koofr` resta una eccezione AUR motivata.
 - `DaVinci Resolve` resta una eccezione AUR motivata.
 - `Gapless` entra come Flatpak esplicito (`com.github.neithern.g4music`).
@@ -103,5 +103,4 @@ Il modello di migrazione selettiva e' deciso.
 Restano da chiudere app per app, piu' avanti:
 
 - eventuali config per editor aggiuntivi o IDE;
-- eventuale policy Thunderbird oltre al pacchetto;
 - eventuali preferenze browser utente non esprimibili bene via policy.

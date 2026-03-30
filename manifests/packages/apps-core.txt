@@ -1,7 +1,8 @@
 # Applicativi core richiesti esplicitamente.
 # Nota:
-# - al 2026-03-29 non risulta un `thunderbird-esr` nei repo ufficiali Arch;
-# - quindi la baseline `v1` resta `thunderbird` ufficiale.
+# - al 2026-03-30 `thunderbird-esr` non risulta nei repo ufficiali Arch;
+# - quindi la baseline `v1` resta `thunderbird` ufficiale;
+# - l'eventuale ESR resta materia di eccezione futura, non di default.
 
 bitwarden
 blanket
