@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OUTDIR="${XDG_VIDEOS_DIR:-$HOME/Video}/00. Screen"
+runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
+PIDFILE="${runtime_dir}/wf-recorder.pid"
+
+mkdir -p "$OUTDIR"
+
+if pgrep -x wf-recorder >/dev/null 2>&1; then
+    exec "$HOME/.local/bin/screenrecord-stop"
+fi
+
+rm -f "${runtime_dir}/wf-recorder.pid" "${runtime_dir}/wf-recorder-region.pid"
+outfile="$OUTDIR/$(date +'%Y-%m-%d_%H-%M-%S').mp4"
+
+wf-recorder -f "$outfile" &
+pid="$!"
+echo "$pid" > "$PIDFILE"
+pkill --signal SIGRTMIN+8 -x waybar >/dev/null 2>&1 || true

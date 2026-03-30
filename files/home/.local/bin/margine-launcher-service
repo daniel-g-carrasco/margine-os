@@ -6,4 +6,8 @@ if command -v walker >/dev/null 2>&1; then
   exec walker --gapplication-service "$@"
 fi
 
+if command -v hyprlauncher >/dev/null 2>&1; then
+  exec hyprlauncher --daemon
+fi
+
 exit 0

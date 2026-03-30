@@ -1,13 +1,17 @@
 # Desktop Hyprland e tooling quotidiano minimo.
 # Nota:
-# - screenshot e recording stanno sullo stack ufficiale `grim + slurp + satty +
-#   wf-recorder`;
+# - screenshot e recording usano `grim + slurp + satty + wf-recorder`, con
+#   `hyprcap` come wrapper opzionale del flusso screenshot;
 # - login path baseline: `greetd + tuigreet`;
 # - launcher preferito: `walker` se installato;
 # - fallback ufficiale: `hyprlauncher`.
 
 brightnessctl
 cliphist
+libnotify
+playerctl
+upower
+xdg-utils
 fzf
 greetd
 greetd-tuigreet

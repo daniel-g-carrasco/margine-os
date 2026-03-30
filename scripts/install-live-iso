@@ -14,6 +14,7 @@ real_name=""
 user_shell="/bin/bash"
 extra_groups=""
 user_password_hash=""
+wifi_regdom="IT"
 run_chroot=0
 confirm_destroy=0
 crypt_name="cryptroot"
@@ -38,6 +39,7 @@ Options:
   --shell PATH                   Shell login dell'utente (default: /bin/bash)
   --extra-groups CSV             Gruppi aggiuntivi separati da virgola
   --user-password-hash HASH      Hash password per l'utente amministrativo
+  --wifi-regdom CODE             Regulatory domain Wi-Fi (default: IT)
   --run-chroot                   Avvia subito la fase 2 via arch-chroot
   --crypt-name NAME              Nome mapper LUKS (default: cryptroot)
   --esp-size-mib NUM             Dimensione ESP in MiB (default: 4096)
@@ -110,6 +112,11 @@ parse_args() {
       --user-password-hash)
         [[ $# -ge 2 ]] || die "missing value for --user-password-hash"
         user_password_hash="$2"
+        shift 2
+        ;;
+      --wifi-regdom)
+        [[ $# -ge 2 ]] || die "missing value for --wifi-regdom"
+        wifi_regdom="${2^^}"
         shift 2
         ;;
       --run-chroot)
@@ -211,6 +218,7 @@ run_bootstrap_phase() {
   [[ -n "$real_name" ]] && args+=(--real-name "$real_name")
   [[ -n "$extra_groups" ]] && args+=(--extra-groups "$extra_groups")
   [[ -n "$user_password_hash" ]] && args+=(--user-password-hash "$user_password_hash")
+  [[ -n "$wifi_regdom" ]] && args+=(--wifi-regdom "$wifi_regdom")
   (( run_chroot )) && args+=(--run-chroot)
   (( dry_run )) && args+=(--dry-run)
 

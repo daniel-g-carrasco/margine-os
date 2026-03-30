@@ -1,0 +1,39 @@
+[general]
+fullscreen = "current-screen"
+early-exit = true
+copy-command = "wl-copy"
+output-filename = "~/Immagini/Schermate/%Y-%m-%d_%H-%M-%S.png"
+actions-on-enter = ["save-to-file", "exit"]
+actions-on-escape = ["exit"]
+actions-on-right-click = ["save-to-clipboard"]
+initial-tool = "arrow"
+annotation-size-factor = 1.15
+corner-roundness = 7
+default-hide-toolbars = false
+focus-toggles-toolbars = false
+disable-notifications = true
+no-window-decoration = true
+
+[font]
+family = "Atkinson Hyperlegible Next"
+style = "Regular"
+fallback = ["Noto Sans", "Noto Color Emoji"]
+
+[color-palette]
+palette = [
+  "#E7D186",
+  "#E6E6E6",
+  "#99C1F1",
+  "#8FF0A4",
+  "#F6D32D",
+  "#FF7B63",
+]
+
+custom = [
+  "#E7D186",
+  "#E6E6E6",
+  "#99C1F1",
+  "#8FF0A4",
+  "#F6D32D",
+  "#FF7B63",
+]

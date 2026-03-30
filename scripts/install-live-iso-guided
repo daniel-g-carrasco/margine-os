@@ -14,6 +14,7 @@ real_name=""
 user_shell="/bin/bash"
 extra_groups=""
 user_password_hash=""
+wifi_regdom="IT"
 run_chroot=1
 
 usage() {
@@ -212,6 +213,7 @@ collect_common_inputs() {
   real_name="$(prompt "Nome reale/commento" "$username")"
   user_shell="$(prompt_required "Shell login" "$user_shell")"
   extra_groups="$(prompt "Gruppi aggiuntivi (CSV, opzionale)")"
+  wifi_regdom="$(prompt_required "Regulatory domain Wi-Fi" "$wifi_regdom")"
   run_chroot="$(prompt_yes_no "Vuoi eseguire subito anche la fase chroot?" "y")"
   prompt_password_hash
 }
@@ -241,7 +243,8 @@ print_summary() {
   else
     log "  Gruppi aggiuntivi: nessuno"
   fi
-  log "  Gruppi default aggiunti dal bootstrap: wheel, video, render"
+  log "  Regulatory domain Wi-Fi: ${wifi_regdom}"
+  log "  Gruppi default aggiunti dal bootstrap: wheel, video, render, kvm, libvirt, colord"
   log "  Chroot automatico: ${run_chroot}"
   if [[ -n "$user_password_hash" ]]; then
     log "  Password utente: verra' impostata durante il bootstrap"
@@ -278,6 +281,7 @@ run_erase_disk_mode() {
 
   [[ -n "$extra_groups" ]] && args+=(--extra-groups "$extra_groups")
   [[ -n "$user_password_hash" ]] && args+=(--user-password-hash "$user_password_hash")
+  [[ -n "$wifi_regdom" ]] && args+=(--wifi-regdom "$wifi_regdom")
   [[ "$run_chroot" = "y" ]] && args+=(--run-chroot)
   (( dry_run )) && args+=(--dry-run)
 
@@ -299,6 +303,7 @@ run_mounted_target_mode() {
 
   [[ -n "$extra_groups" ]] && args+=(--extra-groups "$extra_groups")
   [[ -n "$user_password_hash" ]] && args+=(--user-password-hash "$user_password_hash")
+  [[ -n "$wifi_regdom" ]] && args+=(--wifi-regdom "$wifi_regdom")
   [[ "$run_chroot" = "y" ]] && args+=(--run-chroot)
   (( dry_run )) && args+=(--dry-run)
 

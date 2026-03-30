@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+internal_monitor="eDP-1"
+external_monitor="${MARGINE_EXTERNAL_MONITOR:-}"
+
+# Give Hyprland a moment to finish registering outputs at session start.
+sleep 1
+
+monitors="$(hyprctl monitors all 2>/dev/null || true)"
+
+if [[ -z "$monitors" ]]; then
+  exit 0
+fi
+
+if [[ -z "$external_monitor" ]]; then
+  external_monitor="$(
+    awk '/^Monitor / { print $2 }' <<<"$monitors" |
+      grep -v "^${internal_monitor}$" |
+      head -n1
+  )"
+fi
+
+if [[ -n "$external_monitor" ]] && grep -q "^Monitor ${external_monitor} " <<<"$monitors"; then
+  hyprctl dispatch moveworkspacetomonitor 1 "$external_monitor" >/dev/null 2>&1 || true
+  hyprctl dispatch focusmonitor "$internal_monitor" >/dev/null 2>&1 || true
+  hyprctl dispatch workspace 2 >/dev/null 2>&1 || true
+  hyprctl dispatch moveworkspacetomonitor 2 "$internal_monitor" >/dev/null 2>&1 || true
+else
+  hyprctl dispatch moveworkspacetomonitor 1 "$internal_monitor" >/dev/null 2>&1 || true
+  hyprctl dispatch focusmonitor "$internal_monitor" >/dev/null 2>&1 || true
+  hyprctl dispatch workspace 1 >/dev/null 2>&1 || true
+fi

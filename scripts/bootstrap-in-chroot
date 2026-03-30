@@ -16,6 +16,7 @@ real_name=""
 user_shell="/bin/bash"
 extra_groups=""
 user_password_hash=""
+wifi_regdom="IT"
 
 phase2_layers=(
   connectivity-stack
@@ -43,6 +44,7 @@ Options:
   --timezone ZONE        Timezone (default: Europe/Rome)
   --locale-line LINE     Riga da abilitare in /etc/locale.gen
   --lang LANG            LANG finale (default: it_IT.UTF-8)
+  --wifi-regdom CODE     Regulatory domain Wi-Fi (default: IT)
   --include-aur          Include il manifest AUR
   --include-flatpak      Include il manifest Flatpak
   --dry-run              Mostra il piano senza eseguirlo
@@ -117,6 +119,11 @@ parse_args() {
       --lang)
         [[ $# -ge 2 ]] || die "missing value for --lang"
         lang="$2"
+        shift 2
+        ;;
+      --wifi-regdom)
+        [[ $# -ge 2 ]] || die "missing value for --wifi-regdom"
+        wifi_regdom="${2^^}"
         shift 2
         ;;
       --include-aur)
@@ -226,6 +233,21 @@ run_manifest_installer() {
   run_cmd "$installer" "${args[@]}"
 }
 
+run_connectivity_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-connectivity-config"
+  local -a args=(
+    --wifi-regdom "$wifi_regdom"
+  )
+
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$provisioner" ]] || die "connectivity provisioner not executable: $provisioner"
+
+  log
+  log "==> Provision connectivity baseline"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
 run_user_provisioner() {
   local provisioner="${repo_root}/scripts/provision-system-user"
   local -a args=(
@@ -272,6 +294,21 @@ run_user_runtime_provisioner() {
 
   log
   log "==> Provision user runtime tools"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
+run_desktop_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-hyprland-desktop"
+  local -a args=(
+    --username "$username"
+  )
+
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$provisioner" ]] || die "desktop provisioner not executable: $provisioner"
+
+  log
+  log "==> Provision Hyprland desktop layer"
   run_cmd "$provisioner" "${args[@]}"
 }
 
@@ -330,8 +367,10 @@ main() {
   enable_locale_line
   configure_hostname
   run_manifest_installer
+  run_connectivity_provisioner
   run_user_provisioner
   run_user_runtime_provisioner
+  run_desktop_provisioner
   run_greetd_provisioner
   run_fingerprint_resume_provisioner
   run_framework_audio_provisioner

@@ -14,8 +14,8 @@
 - `LazyVim` verrà trattato come configurazione di `Neovim`, non come pacchetto.
 - `Timeshift` puo' entrare, ma `Snapper` resta il motore architetturale
   principale del rollback.
-- `hyprcap` non entra nella baseline `v1`: useremo stack screenshot/recording
-  ufficiale (`grim`, `slurp`, `satty`, `wf-recorder`).
+- `hyprcap` entra come eccezione AUR mirata, perché oggi il workflow screenshot
+  validato sulla macchina reale lo usa come wrapper sopra lo stack ufficiale.
 - `greetd + tuigreet` diventa il login path baseline.
 - l'utente principale entra con autologin iniziale via `greetd`, poi viene
   accolto da `hyprlock`.
@@ -93,11 +93,13 @@ Resta solo da vedere, piu' avanti, se vorremo aggiungere:
 
 ### Networking su Framework 13 AMD
 
-Il layer pacchetti ormai e' chiaro.
-Restano da tradurre in configurazione versionata tre punti raccomandati
-dalla documentazione Framework / Arch:
+Il layer di configurazione ormai e' chiuso in questa forma:
 
-- usare `iwd` come backend Wi-Fi di `NetworkManager`;
-- impostare il regulatory domain, altrimenti sulle AMD 7040 si resta limitati;
-- verificare se per MT7922 convenga disabilitare il power saving del modulo
-  per migliorare stabilita' e throughput.
+- `NetworkManager` come orchestratore principale;
+- `iwd` come backend Wi-Fi;
+- regulatory domain versionato;
+- `impala` e `bluetui` come TUI baseline.
+
+Resta aperta solo una validazione futura:
+
+- capire se per `MT7922` servira' davvero un tuning driver dedicato oppure no.

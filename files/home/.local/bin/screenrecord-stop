@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+pidfiles=(
+  "${XDG_RUNTIME_DIR:-/tmp}/wf-recorder.pid"
+  "${XDG_RUNTIME_DIR:-/tmp}/wf-recorder-region.pid"
+)
+
+stopped=0
+
+for pidfile in "${pidfiles[@]}"; do
+  if [[ -f "$pidfile" ]]; then
+    pid="$(cat "$pidfile" 2>/dev/null || true)"
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      kill -INT "$pid"
+      stopped=1
+    fi
+  fi
+done
+
+if pgrep -x wf-recorder >/dev/null 2>&1; then
+  pkill -INT -x wf-recorder
+  stopped=1
+fi
+
+rm -f "${pidfiles[@]}"
+pkill --signal SIGRTMIN+8 -x waybar >/dev/null 2>&1 || true
+
+if [[ "$stopped" -eq 1 ]]; then
+  notify-send -a "Screen Recorder" "Registrazione" "Registrazione fermata"
+fi

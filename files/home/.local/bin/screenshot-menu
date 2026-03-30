@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+pictures_dir="${XDG_PICTURES_DIR:-$HOME/Immagini}"
+output_dir="${pictures_dir}/Schermate"
+
+mkdir -p "$output_dir"
+
+notify_capture() {
+  local file="$1"
+  (
+    action="$(notify-send \
+      -a "Screenshot" \
+      -u low \
+      -t 10000 \
+      -i "$file" \
+      -h "string:image-path:$file" \
+      -c "transfer.complete" \
+      -A "annotate=Annota" \
+      -A "open=Apri" \
+      -A "folder=Cartella" \
+      -A "copy=Copia" \
+      "Screenshot salvato" \
+      "$(basename "$file")" 2>/dev/null || true)"
+
+    case "$action" in
+      annotate)
+        ~/.local/bin/annotate-screenshot "$file"
+        ;;
+      open)
+        xdg-open "$file" >/dev/null 2>&1
+        ;;
+      folder)
+        nautilus --select "$file" >/dev/null 2>&1 || xdg-open "$(dirname "$file")" >/dev/null 2>&1
+        ;;
+      copy)
+        wl-copy --type image/png < "$file"
+        notify-send -a "Screenshot" -u low -t 2500 "Screenshot copiata" "$(basename "$file")"
+        ;;
+    esac
+  ) >/dev/null 2>&1 &
+}
+
+choose_action() {
+  if command -v walker >/dev/null 2>&1; then
+    printf '%s\n' \
+      'Monitor attivo' \
+      'Monitor...' \
+      'Finestra attiva' \
+      'Finestra...' \
+      'Regione' \
+      | walker -d -e -p 'Screenshot'
+    return
+  fi
+
+  if command -v hyprlauncher >/dev/null 2>&1; then
+    printf '%s\n' \
+      'Monitor attivo' \
+      'Monitor...' \
+      'Finestra attiva' \
+      'Finestra...' \
+      'Regione' \
+      | hyprlauncher --dmenu
+    return
+  fi
+
+  exit 1
+}
+
+resolve_selection() {
+  case "${1:-menu}" in
+    menu|"")
+      choice="$(choose_action || true)"
+      case "$choice" in
+        'Monitor attivo')
+          printf '%s\n' 'monitor:active'
+          ;;
+        'Monitor...')
+          printf '%s\n' 'monitor'
+          ;;
+        'Finestra attiva')
+          printf '%s\n' 'window:active'
+          ;;
+        'Finestra...')
+          printf '%s\n' 'window'
+          ;;
+        'Regione')
+          printf '%s\n' 'region'
+          ;;
+      esac
+      ;;
+    *)
+      printf '%s\n' "$1"
+      ;;
+  esac
+}
+
+selection="$(resolve_selection "${1:-menu}")"
+
+if [[ -z "$selection" ]]; then
+  exit 0
+fi
+
+if ! command -v hyprcap >/dev/null 2>&1; then
+  notify-send -u normal "Screenshot" "hyprcap non e' installato"
+  exit 1
+fi
+
+filename="$(date '+%Y-%m-%d_%H-%M-%S').png"
+filepath="${output_dir}/${filename}"
+
+if ! hyprcap shot "$selection" -w -f "$filename" -o "$output_dir" -N; then
+  exit 0
+fi
+
+if [[ -f "$filepath" ]]; then
+  notify_capture "$filepath"
+fi

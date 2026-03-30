@@ -1,0 +1,156 @@
+{
+  // Derived from j5onrf/dots:
+  // Adwaita-CT-Iosevka-Pro-Thin
+  "layer": "top",
+  "position": "top",
+  "height": 36,
+  "spacing": 8,
+  "margin": "0 0 0 0",
+
+  "modules-left": [
+    "hyprland/workspaces",
+    "hyprland/window"
+  ],
+  "modules-center": [
+    "clock"
+  ],
+  "modules-right": [
+    "custom/recording",
+    "custom/vpn",
+    "network",
+    "bluetooth",
+    "pulseaudio",
+    "battery",
+    "tray"
+  ],
+
+  "hyprland/workspaces": {
+    "all-outputs": true,
+    "disable-scroll": true,
+    "sort-by-number": true,
+    "show-special": false,
+    "format": "{icon}",
+    "format-icons": {
+      "1": "1",
+      "2": "2",
+      "3": "3",
+      "4": "4",
+      "5": "5",
+      "6": "6",
+      "7": "7",
+      "8": "8",
+      "9": "9",
+      "10": "10",
+      "urgent": "!"
+    }
+  },
+
+  "hyprland/window": {
+    "format": "{title}",
+    "max-length": 70,
+    "separate-outputs": true,
+    "rewrite": {
+      "^(\\s*)$": "Desktop",
+      "(.*) - Mozilla Firefox": "$1",
+      "(.*) - Firefox": "$1",
+      "(.*) - Kitty": "$1",
+      "(.*) - org.gnome.Nautilus": "$1"
+    }
+  },
+
+  "clock": {
+    "format": "{:%a %d %b  %H:%M}",
+    "tooltip-format": "<big>{:%A %d %B %Y}</big>\n<tt>{calendar}</tt>",
+    "calendar": {
+      "mode": "month",
+      "mode-mon-col": 3,
+      "weeks-pos": "right"
+    }
+  },
+
+  "network": {
+    "format-wifi": "󰖩 {signalStrength}%",
+    "format-ethernet": "󰈀",
+    "format-disconnected": "󰖪 offline",
+    "tooltip-format-wifi": "{essid}\n{signalStrength}%\n{ipaddr}",
+    "tooltip-format-ethernet": "{ifname}\n{ipaddr}",
+    "tooltip-format-disconnected": "Disconnected",
+    "on-click": "~/.local/bin/open-network-tui"
+  },
+
+  "custom/vpn": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.local/bin/vpn-status",
+    "interval": 5,
+    "on-click": "~/.local/bin/open-vpn-menu",
+    "on-click-right": "~/.local/bin/vpn-menu --disconnect-all",
+    "escape": true
+  },
+
+  "custom/recording": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.local/bin/screenrecord-status",
+    "exec-if": "pgrep -x wf-recorder >/dev/null",
+    "interval": 2,
+    "signal": 8,
+    "on-click": "~/.local/bin/screenrecord-stop",
+    "escape": true
+  },
+
+  "bluetooth": {
+    "format": "󰂯",
+    "format-disabled": "󰂲",
+    "format-off": "󰂲",
+    "format-no-controller": "",
+    "format-connected": "󰂯 {num_connections}",
+    "format-connected-battery": "󰂯 {device_battery_percentage}%",
+    "tooltip-format": "{controller_alias}\n{controller_address}",
+    "on-click": "~/.local/bin/open-bluetooth-settings",
+    },
+
+  "pulseaudio": {
+    "scroll-step": 5,
+    "format": "{icon} {volume}%",
+    "format-bluetooth": "󰂯 {volume}%",
+    "format-muted": "󰖁",
+    "format-icons": {
+      "default": [
+        "󰕿",
+        "󰖀",
+        "󰕾"
+      ]
+    },
+    "tooltip": false,
+    "on-click": "pavucontrol",
+    "on-click-middle": "~/.local/bin/volume-osd mute",
+    "on-scroll-up": "~/.local/bin/volume-osd up",
+    "on-scroll-down": "~/.local/bin/volume-osd down"
+  },
+
+  "battery": {
+    "states": {
+      "warning": 30,
+      "critical": 15
+    },
+    "format": "{icon} {capacity}%",
+    "format-charging": "󰂄 {capacity}%",
+    "format-plugged": "󰚥 {capacity}%",
+    "format-icons": [
+      "󰂎",
+      "󰁺",
+      "󰁼",
+      "󰁾",
+      "󰂀",
+      "󰂂",
+      "󰁹"
+    ],
+    "on-click": "~/.local/bin/open-power-settings"
+  },
+
+  "tray": {
+    "icon-size": 16,
+    "spacing": 10
+  }
+}

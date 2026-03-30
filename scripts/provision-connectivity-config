@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+wifi_regdom="IT"
+
+nm_backend_source="${repo_root}/files/etc/NetworkManager/conf.d/10-wifi-backend.conf"
+iwd_main_source="${repo_root}/files/etc/iwd/main.conf"
+regdom_template_source="${repo_root}/files/etc/modprobe.d/cfg80211-regdom.conf.template"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-connectivity-config [options]
+
+Options:
+  --wifi-regdom CODE  Regulatory domain Wi-Fi da applicare (default: IT)
+  --dry-run           Mostra il piano senza eseguirlo
+  --help              Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --wifi-regdom)
+        [[ $# -ge 2 ]] || die "missing value for --wifi-regdom"
+        wifi_regdom="${2^^}"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-connectivity-config must run as root"
+}
+
+ensure_sources() {
+  local source=""
+
+  for source in \
+    "$nm_backend_source" \
+    "$iwd_main_source" \
+    "$regdom_template_source"; do
+    [[ -f "$source" ]] || die "required source file not found: $source"
+  done
+}
+
+validate_regdom() {
+  [[ "$wifi_regdom" =~ ^[A-Z]{2}$ ]] || die "invalid wifi regulatory domain: $wifi_regdom"
+}
+
+render_regdom() {
+  sed "s|__MARGINE_WIFI_REGDOM__|${wifi_regdom}|g" "$regdom_template_source"
+}
+
+install_nm_backend() {
+  log
+  log "==> Install NetworkManager iwd backend"
+  run_cmd install -Dm644 \
+    "$nm_backend_source" \
+    /etc/NetworkManager/conf.d/10-wifi-backend.conf
+}
+
+install_iwd_main() {
+  log
+  log "==> Install iwd main.conf"
+  run_cmd install -Dm644 \
+    "$iwd_main_source" \
+    /etc/iwd/main.conf
+}
+
+install_regdom() {
+  local target="/etc/modprobe.d/cfg80211-regdom.conf"
+
+  log
+  log "==> Install Wi-Fi regulatory domain"
+
+  if (( dry_run )); then
+    printf '[dry-run] render %s -> %s\n' "$regdom_template_source" "$target"
+    return 0
+  fi
+
+  install -d -m 755 /etc/modprobe.d
+  render_regdom >"$target"
+  chmod 644 "$target"
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  ensure_sources
+  validate_regdom
+
+  log "=== Provision connectivity baseline ==="
+  (( dry_run )) && log "Modalita': dry-run"
+
+  install_nm_backend
+  install_iwd_main
+  install_regdom
+
+  log
+  log "Connectivity baseline installata: NetworkManager + iwd, regdom ${wifi_regdom}."
+}
+
+main "$@"

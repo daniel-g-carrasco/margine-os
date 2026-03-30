@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+rfkill unblock bluetooth >/dev/null 2>&1 || true
+
+if command -v bluetui >/dev/null 2>&1; then
+  exec kitty --class bluetooth-tui -e bluetui
+fi
+
+exec kitty --class bluetooth-tui -e bluetoothctl

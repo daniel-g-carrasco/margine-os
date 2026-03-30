@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+file="${1:-}"
+
+if [[ -z "$file" || ! -f "$file" ]]; then
+  exit 1
+fi
+
+if ! command -v satty >/dev/null 2>&1; then
+  exec xdg-open "$file"
+fi
+
+before_sig="$(stat -c '%Y:%s' "$file" 2>/dev/null || printf '0:0')"
+
+satty --filename "$file" --output-filename "$file"
+
+after_sig="$(stat -c '%Y:%s' "$file" 2>/dev/null || printf '0:0')"
+
+if [[ "$after_sig" != "$before_sig" ]]; then
+  notify-send \
+    -a "Screenshot" \
+    -u low \
+    -t 3500 \
+    -i "$file" \
+    -h "string:image-path:$file" \
+    "Screenshot aggiornata" \
+    "$(basename "$file")"
+fi

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+exec kitty --class power-tools -e bash -lc '
+current=$(powerprofilesctl get 2>/dev/null || printf unknown)
+printf "Profilo corrente: %s\n\n" "$current"
+printf "1) power-saver\n2) balanced\n3) performance\n4) dettagli batteria\nq) esci\n> "
+read -r choice
+
+case "$choice" in
+  1) powerprofilesctl set power-saver ;;
+  2) powerprofilesctl set balanced ;;
+  3) powerprofilesctl set performance ;;
+  4)
+    clear
+    upower -d
+    ;;
+  q|Q) exit 0 ;;
+esac
+
+printf "\nPremi invio per chiudere..."
+read -r _
+'

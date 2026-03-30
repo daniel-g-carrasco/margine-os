@@ -15,6 +15,7 @@ real_name=""
 user_shell="/bin/bash"
 extra_groups=""
 user_password_hash=""
+wifi_regdom="IT"
 run_chroot=0
 
 stage1_layers=(
@@ -39,6 +40,7 @@ Options:
   --extra-groups CSV      Gruppi aggiuntivi separati da virgola
   --user-password-hash HASH
                          Hash password per l'utente amministrativo
+  --wifi-regdom CODE      Regulatory domain Wi-Fi da passare alla fase chroot
   --run-chroot            Avvia subito la fase 2 via arch-chroot
   --dry-run               Mostra il piano senza eseguirlo
   --help                  Mostra questo aiuto
@@ -116,6 +118,11 @@ parse_args() {
       --user-password-hash)
         [[ $# -ge 2 ]] || die "missing value for --user-password-hash"
         user_password_hash="$2"
+        shift 2
+        ;;
+      --wifi-regdom)
+        [[ $# -ge 2 ]] || die "missing value for --wifi-regdom"
+        wifi_regdom="${2^^}"
         shift 2
         ;;
       --run-chroot)
@@ -273,6 +280,7 @@ run_chroot_handoff() {
   [[ -n "$real_name" ]] && args+=(--real-name "$real_name")
   [[ -n "$extra_groups" ]] && args+=(--extra-groups "$extra_groups")
   [[ -n "$user_password_hash" ]] && args+=(--user-password-hash "$user_password_hash")
+  [[ -n "$wifi_regdom" ]] && args+=(--wifi-regdom "$wifi_regdom")
 
   log
   log "==> Run chroot handoff"
@@ -293,6 +301,9 @@ print_next_step() {
   fi
   if [[ -n "$user_password_hash" ]]; then
     command+=" --user-password-hash '<hash>'"
+  fi
+  if [[ -n "$wifi_regdom" ]]; then
+    command+=" --wifi-regdom ${wifi_regdom}"
   fi
 
   log

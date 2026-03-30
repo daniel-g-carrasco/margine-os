@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+action="${1:-}"
+
+if command -v swayosd-client >/dev/null 2>&1; then
+  case "$action" in
+    up)
+      exec swayosd-client --brightness raise
+      ;;
+    down)
+      exec swayosd-client --brightness lower
+      ;;
+  esac
+fi
+
+case "$action" in
+  up)
+    exec brightnessctl set 5%+
+    ;;
+  down)
+    exec brightnessctl set 5%-
+    ;;
+  *)
+    exit 1
+    ;;
+esac

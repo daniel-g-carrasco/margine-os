@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+username=""
+home_dir=""
+
+declare -a home_payload=(
+  ".config/hypr/hyprland.conf"
+  ".config/hypr/hypridle.conf"
+  ".config/hypr/hyprlock.conf"
+  ".config/hypr/hyprpaper.conf"
+  ".config/hypr/monitors.conf"
+  ".config/mako/config"
+  ".config/satty/config.toml"
+  ".config/swayosd/style.css"
+  ".config/walker/config.toml"
+  ".config/waybar/config.jsonc"
+  ".config/waybar/style.css"
+  ".config/waybar/launch.sh"
+  ".config/waybar/toggle.sh"
+  ".local/bin/annotate-screenshot"
+  ".local/bin/brightness-osd"
+  ".local/bin/hypr-workspace-layout"
+  ".local/bin/open-bluetooth-settings"
+  ".local/bin/open-network-tui"
+  ".local/bin/open-power-settings"
+  ".local/bin/polkit-agent-launch"
+  ".local/bin/polkit-agent-restart"
+  ".local/bin/screenrecord-region-toggle"
+  ".local/bin/screenrecord-status"
+  ".local/bin/screenrecord-stop"
+  ".local/bin/screenrecord-toggle"
+  ".local/bin/screenshot-menu"
+  ".local/bin/volume-osd"
+)
+
+wallpaper_source="${repo_root}/files/usr/share/margine/wallpapers/default.ppm"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-hyprland-desktop --username NAME [options]
+
+Options:
+  --username NAME   Utente target che ricevera' il desktop payload
+  --dry-run         Mostra il piano senza eseguirlo
+  --help            Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --username)
+        [[ $# -ge 2 ]] || die "missing value for --username"
+        username="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-hyprland-desktop must run as root"
+}
+
+resolve_home_dir() {
+  home_dir="$(getent passwd "$username" | cut -d: -f6)"
+  [[ -n "$home_dir" ]] || die "could not resolve home for user: $username"
+}
+
+ensure_sources() {
+  local relative=""
+  local source=""
+
+  [[ -f "$wallpaper_source" ]] || die "required source file not found: $wallpaper_source"
+
+  for relative in "${home_payload[@]}"; do
+    source="${repo_root}/files/home/${relative}"
+    [[ -f "$source" ]] || die "required source file not found: $source"
+  done
+}
+
+install_home_payload() {
+  local relative=""
+  local source=""
+  local target=""
+  local mode=""
+
+  log
+  log "==> Install desktop payload"
+
+  for relative in "${home_payload[@]}"; do
+    source="${repo_root}/files/home/${relative}"
+    target="${home_dir}/${relative}"
+    mode=644
+
+    if [[ "$relative" == .local/bin/* || "$relative" == .config/waybar/*.sh ]]; then
+      mode=755
+    fi
+
+    run_cmd install -Dm"${mode}" "$source" "$target"
+  done
+}
+
+install_system_wallpaper() {
+  log
+  log "==> Install default wallpaper asset"
+  run_cmd install -Dm644 \
+    "$wallpaper_source" \
+    /usr/share/margine/wallpapers/default.ppm
+}
+
+fix_ownership() {
+  log
+  log "==> Fix ownership"
+
+  run_cmd chown -R \
+    "${username}:${username}" \
+    "${home_dir}/.config/hypr" \
+    "${home_dir}/.config/mako" \
+    "${home_dir}/.config/satty" \
+    "${home_dir}/.config/swayosd" \
+    "${home_dir}/.config/walker" \
+    "${home_dir}/.config/waybar" \
+    "${home_dir}/.local/bin"
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  [[ -n "$username" ]] || die "--username is required"
+
+  resolve_home_dir
+  ensure_sources
+  install_home_payload
+  install_system_wallpaper
+  fix_ownership
+
+  log
+  log "Desktop Hyprland installato."
+}
+
+main "$@"

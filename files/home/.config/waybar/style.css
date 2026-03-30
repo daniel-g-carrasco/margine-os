@@ -1,0 +1,146 @@
+/* Derived from j5onrf/dots: Adwaita-CT-Iosevka-Pro-Thin */
+
+@define-color fg #e6e6e6;
+@define-color muted #a8a8a8;
+@define-color bg #242424;
+@define-color border #3a3a3a;
+@define-color hover #2f2f2f;
+@define-color accent #e6d5b1;
+@define-color warning #f6c177;
+@define-color critical #e95420;
+
+* {
+  border: none;
+  border-radius: 0;
+  font-family: "Iosevka Term", "JetBrainsMono Nerd Font Propo", sans-serif;
+  font-size: 14px;
+  min-height: 0;
+}
+
+window#waybar {
+  background: @bg;
+  color: @fg;
+  border-bottom: 1px solid @border;
+}
+
+#workspaces,
+#window,
+#clock,
+#custom-recording,
+#custom-vpn,
+#network,
+#bluetooth,
+#pulseaudio,
+#battery,
+#tray {
+  background: transparent;
+  color: @fg;
+  margin: 0;
+}
+
+#workspaces {
+  margin-left: 8px;
+}
+
+#workspaces button {
+  background: transparent;
+  border-bottom: 5px solid transparent;
+  box-shadow: none;
+  color: @muted;
+  margin: 0px 1px 1px 0;
+  padding: 0 6px;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+#workspaces button:hover {
+  background: transparent;
+  color: @fg;
+}
+
+#workspaces button.active {
+  color: @fg;
+  border-bottom-color: @accent;
+}
+
+#workspaces button.urgent {
+  color: @critical;
+  border-bottom-color: @critical;
+}
+
+#window {
+  min-width: 180px;
+  padding: 0 12px;
+  color: @muted;
+}
+
+#clock {
+  font-weight: 500;
+  padding: 0 6px;
+}
+
+#custom-recording,
+#custom-vpn,
+#network,
+#bluetooth,
+#pulseaudio,
+#battery,
+#tray {
+  padding: 0 8px;
+}
+
+#tray {
+  margin-right: 10px;
+}
+
+#tray > .passive {
+  -gtk-icon-effect: dim;
+}
+
+#custom-recording {
+  color: @critical;
+  font-weight: 700;
+}
+
+#custom-vpn.inactive {
+  color: @muted;
+}
+
+#custom-vpn.active {
+  color: @accent;
+}
+
+#custom-recording:hover,
+#custom-vpn:hover,
+#window:hover,
+#clock:hover,
+#network:hover,
+#bluetooth:hover,
+#pulseaudio:hover,
+#battery:hover,
+#tray:hover {
+  background: transparent;
+  }
+
+
+#pulseaudio.muted {
+  color: @muted;
+}
+
+#battery.warning {
+  color: @warning;
+}
+
+#battery.critical {
+  color: @critical;
+}
+
+tooltip {
+  background: rgba(24, 24, 24, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+tooltip label {
+  color: @fg;
+  font-size: 13px;
+}

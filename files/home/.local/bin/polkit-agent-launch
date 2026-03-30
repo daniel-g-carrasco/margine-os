@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if command -v pgrep >/dev/null 2>&1; then
+  if pgrep -x hyprpolkitagent >/dev/null 2>&1 \
+    || pgrep -f 'polkit-gnome-authentication-agent-1' >/dev/null 2>&1 \
+    || pgrep -f 'polkit-mate-authentication-agent-1' >/dev/null 2>&1 \
+    || pgrep -x lxqt-policykit-agent >/dev/null 2>&1
+  then
+    exit 0
+  fi
+fi
+
+if [[ -x /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 ]]; then
+  exec /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+fi
+
+if [[ -x /usr/lib/mate-polkit/polkit-mate-authentication-agent-1 ]]; then
+  exec /usr/lib/mate-polkit/polkit-mate-authentication-agent-1
+fi
+
+if command -v lxqt-policykit-agent >/dev/null 2>&1; then
+  exec lxqt-policykit-agent
+fi
+
+exec /usr/lib/hyprpolkitagent/hyprpolkitagent

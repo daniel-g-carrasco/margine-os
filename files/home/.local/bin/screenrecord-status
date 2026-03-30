@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+pid=""
+mode="schermo"
+
+runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
+
+if [[ -f "${runtime_dir}/wf-recorder-region.pid" ]]; then
+  region_pid="$(cat "${runtime_dir}/wf-recorder-region.pid" 2>/dev/null || true)"
+  if [[ -n "$region_pid" ]] && kill -0 "$region_pid" 2>/dev/null; then
+    pid="$region_pid"
+    mode="area"
+  fi
+fi
+
+if [[ -z "$pid" && -f "${runtime_dir}/wf-recorder.pid" ]]; then
+  screen_pid="$(cat "${runtime_dir}/wf-recorder.pid" 2>/dev/null || true)"
+  if [[ -n "$screen_pid" ]] && kill -0 "$screen_pid" 2>/dev/null; then
+    pid="$screen_pid"
+  fi
+fi
+
+if [[ -z "$pid" ]]; then
+  pid="$(pgrep -xo wf-recorder || true)"
+fi
+
+if [[ -z "$pid" ]]; then
+  exit 1
+fi
+
+elapsed="$(ps -o etime= -p "$pid" | xargs)"
+
+printf '{"text":"REC","class":"recording","tooltip":"Registrazione %s in corso\\nDurata: %s\\nClick per fermare"}\n' "$mode" "$elapsed"

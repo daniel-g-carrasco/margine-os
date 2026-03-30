@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+pkill -x hyprpolkitagent >/dev/null 2>&1 || true
+pkill -f 'polkit-gnome-authentication-agent-1' >/dev/null 2>&1 || true
+pkill -f 'polkit-mate-authentication-agent-1' >/dev/null 2>&1 || true
+pkill -x lxqt-policykit-agent >/dev/null 2>&1 || true
+
+nohup "$HOME/.local/bin/polkit-agent-launch" >/dev/null 2>&1 &
