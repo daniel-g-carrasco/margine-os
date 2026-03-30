@@ -2,4 +2,4 @@
 
 /etc/fprintd.conf
 /etc/pam.d/hyprlock
-
+/etc/timeshift/default.json

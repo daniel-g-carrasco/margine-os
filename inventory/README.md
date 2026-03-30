@@ -22,3 +22,6 @@ La sottocartella `apps/` raccoglie invece le decisioni applicative:
 - cosa entra davvero come configurazione;
 - cosa resta solo dato personale;
 - cosa va tradotto in template invece che copiato.
+
+Questo vale anche per strumenti "di sistema" come `Timeshift`, quando la
+decisione utile e' piu' applicativa che infrastrutturale.
