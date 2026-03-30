@@ -399,13 +399,18 @@ Cosa ti aspetti di vedere:
 ## 3. Montare il repository Margine dentro la live
 
 Il repository e' esposto alla VM tramite `virtfs/9p`.
+Importante:
+
+- non montarlo sotto `/mnt`
+- `/mnt` e' il `target_root` dell'installazione
+- durante la fase storage viene smontato e il repo sparirebbe
 
 Esegui:
 
 ```bash
-mkdir -p /mnt/margine-repo
-mount -t 9p -o trans=virtio,version=9p2000.L margine /mnt/margine-repo
-ls /mnt/margine-repo
+mkdir -p /root/margine-repo
+mount -t 9p -o trans=virtio,version=9p2000.L margine /root/margine-repo
+ls /root/margine-repo
 ```
 
 Se l'ultimo comando mostra file come `scripts`, `docs`, `manifests`, allora il
@@ -416,7 +421,7 @@ mount e' corretto.
 Avvia il wrapper guidato:
 
 ```bash
-/mnt/margine-repo/scripts/install-live-iso-guided
+/root/margine-repo/scripts/install-live-iso-guided
 ```
 
 Quando ti fa le domande, in VM usa queste risposte consigliate:
@@ -608,7 +613,7 @@ run-qemu-installed.sh
 Ricontrolla il comando:
 
 ```bash
-mount -t 9p -o trans=virtio,version=9p2000.L margine /mnt/margine-repo
+mount -t 9p -o trans=virtio,version=9p2000.L margine /root/margine-repo
 ```
 
 ### L'installer non trova il disco
@@ -636,11 +641,11 @@ cat /boot/EFI/BOOT/limine.conf
 Se vuoi evitare il wizard e ripetere sempre lo stesso test:
 
 ```bash
-/mnt/margine-repo/scripts/install-live-iso \
+/root/margine-repo/scripts/install-live-iso \
   --disk /dev/vda \
   --yes-really-destroy-disk \
   --target-root /mnt \
-  --repo-source /mnt/margine-repo \
+  --repo-source /root/margine-repo \
   --repo-dest /root/margine-os \
   --hostname margine-vm \
   --username daniel \

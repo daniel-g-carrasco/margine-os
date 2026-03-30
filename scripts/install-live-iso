@@ -183,6 +183,12 @@ validate_inputs() {
   [[ "$target_root" != "/" ]] || die "--target-root must not be /"
   [[ "$repo_dest" = /* ]] || die "--repo-dest must be an absolute path inside the target"
   [[ -d "$repo_source" ]] || die "repo source not found: $repo_source"
+
+  case "${repo_source}/" in
+    "${target_root}/"*)
+      die "--repo-source must live outside --target-root; otherwise the storage phase may unmount it"
+      ;;
+  esac
 }
 
 run_storage_phase() {
