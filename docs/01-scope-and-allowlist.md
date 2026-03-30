@@ -36,6 +36,8 @@ Entra nel progetto solo ciò che è:
 - `kitty` come terminale baseline
 - tooling esplicito per coding e amministrazione (`tmux`, `opencode`,
   monitor di sistema e utility CLI)
+- `OpenSSH` come stack remoto baseline (client sempre presente, server pronto)
+- firewall preconfigurato e semplice da gestire
 
 ## Escluso da subito
 

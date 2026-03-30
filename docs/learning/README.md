@@ -33,6 +33,7 @@ Argomenti previsti:
 - browser e mailer: pacchetto, default e dati personali
 - review app-per-app dei profili personali
 - tooling da terminale e amministrazione come layer dedicato
+- differenza tra pacchetto SSH, servizio e firewall
 
 Regola:
 - ogni nota deve spiegare il "cosa", il "perché" e il "come modificarlo".

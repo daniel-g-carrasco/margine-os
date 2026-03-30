@@ -65,6 +65,8 @@
 - `walker` oggi risulta AUR;
 - `elephant` oggi risulta AUR;
 - `hyprlauncher` invece e' disponibile nei repo ufficiali Arch.
+- `openssh` oggi e' gia' nel progetto anche come stack server/client;
+- `ufw` viene scelto come firewall baseline della `v1`.
 
 ## Decisioni architetturali chiuse
 

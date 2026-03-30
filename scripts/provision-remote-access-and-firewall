@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+
+ufw_defaults_file="/etc/default/ufw"
+ufw_conf_file="/etc/ufw/ufw.conf"
+sshd_dropin_source="${repo_root}/files/etc/ssh/sshd_config.d/10-margine.conf"
+enable_ssh_source="${repo_root}/files/usr/local/bin/margine-enable-ssh-server"
+disable_ssh_source="${repo_root}/files/usr/local/bin/margine-disable-ssh-server"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-remote-access-and-firewall [options]
+
+Options:
+  --dry-run  Mostra il piano senza eseguirlo
+  --help     Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-remote-access-and-firewall must run as root"
+}
+
+ensure_sources() {
+  [[ -f "$sshd_dropin_source" ]] || die "required source not found: $sshd_dropin_source"
+  [[ -f "$enable_ssh_source" ]] || die "required source not found: $enable_ssh_source"
+  [[ -f "$disable_ssh_source" ]] || die "required source not found: $disable_ssh_source"
+}
+
+configure_ufw_defaults() {
+  log
+  log "==> Configure UFW baseline"
+
+  if (( dry_run )); then
+    printf '[dry-run] set DEFAULT_INPUT_POLICY=\"DROP\" in %s\n' "$ufw_defaults_file"
+    printf '[dry-run] set DEFAULT_OUTPUT_POLICY=\"ACCEPT\" in %s\n' "$ufw_defaults_file"
+    printf '[dry-run] set DEFAULT_FORWARD_POLICY=\"DROP\" in %s\n' "$ufw_defaults_file"
+    printf '[dry-run] set IPV6=yes in %s\n' "$ufw_defaults_file"
+    printf '[dry-run] set ENABLED=yes in %s\n' "$ufw_conf_file"
+    return 0
+  fi
+
+  [[ -f "$ufw_defaults_file" ]] || die "ufw defaults file not found: $ufw_defaults_file"
+  [[ -f "$ufw_conf_file" ]] || die "ufw conf file not found: $ufw_conf_file"
+
+  sed -i \
+    -e 's/^DEFAULT_INPUT_POLICY=.*/DEFAULT_INPUT_POLICY="DROP"/' \
+    -e 's/^DEFAULT_OUTPUT_POLICY=.*/DEFAULT_OUTPUT_POLICY="ACCEPT"/' \
+    -e 's/^DEFAULT_FORWARD_POLICY=.*/DEFAULT_FORWARD_POLICY="DROP"/' \
+    -e 's/^IPV6=.*/IPV6=yes/' \
+    "$ufw_defaults_file"
+
+  sed -i 's/^ENABLED=.*/ENABLED=yes/' "$ufw_conf_file"
+}
+
+install_ssh_baseline() {
+  log
+  log "==> Install SSH baseline"
+
+  run_cmd install -Dm644 \
+    "$sshd_dropin_source" \
+    /etc/ssh/sshd_config.d/10-margine.conf
+
+  run_cmd install -Dm755 \
+    "$enable_ssh_source" \
+    /usr/local/bin/margine-enable-ssh-server
+
+  run_cmd install -Dm755 \
+    "$disable_ssh_source" \
+    /usr/local/bin/margine-disable-ssh-server
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  ensure_sources
+  configure_ufw_defaults
+  install_ssh_baseline
+
+  log
+  log "Remote access and firewall baseline installati."
+  log "UFW: deny incoming / allow outgoing / deny routed."
+  log "SSH: pacchetto pronto, servizio attivabile con margine-enable-ssh-server."
+}
+
+main "$@"

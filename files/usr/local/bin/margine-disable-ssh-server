@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ "$(id -u)" -eq 0 ]] || {
+  printf 'error: run as root\n' >&2
+  exit 1
+}
+
+if ! command -v systemctl >/dev/null 2>&1; then
+  printf 'error: systemctl not found\n' >&2
+  exit 1
+fi
+
+if command -v ufw >/dev/null 2>&1; then
+  ufw --force delete limit 22/tcp || true
+  ufw --force delete allow 22/tcp || true
+fi
+
+systemctl disable --now sshd.service || true
+
+printf 'SSH server disabled.\n'
+printf 'Service: sshd.service stopped/disabled\n'
+printf 'Firewall: SSH rule removed when present\n'

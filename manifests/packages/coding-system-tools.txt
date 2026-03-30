@@ -7,6 +7,7 @@
 
 bash-completion
 bat
+bind
 btop
 curl
 eza
@@ -17,15 +18,20 @@ jq
 less
 lsof
 man-pages
+mtr
+ncdu
 opencode
 openssh
+pciutils
 procps-ng
 radeontop
 ripgrep
 rsync
+smartmontools
 strace
 tmux
 tree
 unzip
+usbutils
 which
 zip

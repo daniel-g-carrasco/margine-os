@@ -9,3 +9,4 @@ snap-pac
 snapper
 timeshift
 tpm2-tools
+ufw

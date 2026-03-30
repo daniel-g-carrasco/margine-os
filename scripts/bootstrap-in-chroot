@@ -384,6 +384,19 @@ run_fingerprint_resume_provisioner() {
   run_cmd "$provisioner" "${args[@]}"
 }
 
+run_remote_access_firewall_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-remote-access-and-firewall"
+  local -a args=()
+
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$provisioner" ]] || die "remote access/firewall provisioner not executable: $provisioner"
+
+  log
+  log "==> Provision remote access and firewall baseline"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
 enable_base_services() {
   local -a services=(
     NetworkManager.service
@@ -392,6 +405,7 @@ enable_base_services() {
     power-profiles-daemon.service
     fstrim.timer
     systemd-timesyncd.service
+    ufw.service
   )
 
   log
@@ -418,6 +432,7 @@ main() {
   run_desktop_provisioner
   run_greetd_provisioner
   run_fingerprint_resume_provisioner
+  run_remote_access_firewall_provisioner
   run_framework_audio_provisioner
   run_photo_color_provisioner
   run_timeshift_provisioner

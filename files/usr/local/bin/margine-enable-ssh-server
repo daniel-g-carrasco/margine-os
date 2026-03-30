@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ "$(id -u)" -eq 0 ]] || {
+  printf 'error: run as root\n' >&2
+  exit 1
+}
+
+if ! command -v systemctl >/dev/null 2>&1; then
+  printf 'error: systemctl not found\n' >&2
+  exit 1
+fi
+
+if ! command -v ufw >/dev/null 2>&1; then
+  printf 'error: ufw not found\n' >&2
+  exit 1
+fi
+
+systemctl enable --now sshd.service
+ufw limit 22/tcp || true
+
+printf 'SSH server enabled.\n'
+printf 'Service: sshd.service\n'
+printf 'Firewall: ufw limit 22/tcp\n'
