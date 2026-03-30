@@ -9,6 +9,7 @@ hostname=""
 timezone="Europe/Rome"
 locale_line="it_IT.UTF-8 UTF-8"
 lang="it_IT.UTF-8"
+vconsole_source="${repo_root}/files/etc/vconsole.conf"
 include_aur=0
 include_flatpak=0
 username=""
@@ -217,6 +218,20 @@ configure_hostname() {
   printf '%s\n' "$hostname" > /etc/hostname
 }
 
+install_vconsole_baseline() {
+  log
+  log "==> Configure virtual console"
+
+  [[ -f "$vconsole_source" ]] || die "vconsole baseline not found: $vconsole_source"
+
+  if (( dry_run )); then
+    printf '[dry-run] install -Dm644 %s /etc/vconsole.conf\n' "$vconsole_source"
+    return 0
+  fi
+
+  install -Dm644 "$vconsole_source" /etc/vconsole.conf
+}
+
 run_manifest_installer() {
   local installer="${repo_root}/scripts/install-from-manifests"
   local -a args=()
@@ -233,7 +248,13 @@ run_manifest_installer() {
 
   log
   log "==> Install phase2 layers"
-  run_cmd "$installer" "${args[@]}"
+  if (( dry_run )); then
+    printf '[dry-run] SNAP_PAC_SKIP=yes %s' "$installer"
+    printf ' %q' "${args[@]}"
+    printf '\n'
+  else
+    SNAP_PAC_SKIP=yes "$installer" "${args[@]}"
+  fi
 }
 
 run_connectivity_provisioner() {
@@ -470,6 +491,7 @@ main() {
   configure_timezone
   enable_locale_line
   configure_hostname
+  install_vconsole_baseline
   run_manifest_installer
   run_initial_boot_provisioner
   run_connectivity_provisioner
