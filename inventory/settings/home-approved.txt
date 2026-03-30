@@ -8,6 +8,7 @@
 .config/nvim
 .config/user-dirs.dirs
 .config/user-dirs.locale
+.local/share/icc/margine
 .local/bin/open-vpn-menu
 .local/bin/update-all-launcher
 .local/bin/vpn-menu

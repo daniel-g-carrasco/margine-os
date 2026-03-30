@@ -2,7 +2,9 @@
 
 argyllcms
 calf
+colord
 darktable
+displaycal
 easyeffects
 gimp
 lazygit

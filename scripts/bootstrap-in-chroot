@@ -282,6 +282,21 @@ run_framework_audio_provisioner() {
   run_cmd "$provisioner" "${args[@]}"
 }
 
+run_photo_color_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-photo-color-assets"
+  local -a args=(
+    --username "$username"
+  )
+
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$provisioner" ]] || die "photo color provisioner not executable: $provisioner"
+
+  log
+  log "==> Provision photo/color assets"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
 run_timeshift_provisioner() {
   local provisioner="${repo_root}/scripts/provision-timeshift-defaults"
   local -a args=()
@@ -403,6 +418,7 @@ main() {
   run_greetd_provisioner
   run_fingerprint_resume_provisioner
   run_framework_audio_provisioner
+  run_photo_color_provisioner
   run_timeshift_provisioner
   enable_base_services
 
