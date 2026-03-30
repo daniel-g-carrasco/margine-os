@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dry_run=0
+snapper_config="root"
+description_prefix="margine pre-update"
+cleanup_algorithm="number"
+userdata="important=yes"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  create-pre-update-snapshot [options]
+
+Options:
+  --dry-run                Mostra il piano senza eseguirlo
+  --snapper-config NAME    Config Snapper da usare (default: root)
+  --description PREFIX     Prefisso descrizione snapshot
+  --cleanup ALGO           Cleanup algorithm (default: number)
+  --userdata DATA          Userdata da associare allo snapshot
+  --help                   Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --snapper-config)
+        [[ $# -ge 2 ]] || die "missing value for --snapper-config"
+        snapper_config="$2"
+        shift 2
+        ;;
+      --description)
+        [[ $# -ge 2 ]] || die "missing value for --description"
+        description_prefix="$2"
+        shift 2
+        ;;
+      --cleanup)
+        [[ $# -ge 2 ]] || die "missing value for --cleanup"
+        cleanup_algorithm="$2"
+        shift 2
+        ;;
+      --userdata)
+        [[ $# -ge 2 ]] || die "missing value for --userdata"
+        userdata="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+snapper_config_exists() {
+  snapper list-configs --no-headers --csvout --columns config 2>/dev/null |
+    grep -Fxq "$snapper_config"
+}
+
+main() {
+  local description=""
+
+  parse_args "$@"
+
+  if ! command -v snapper >/dev/null 2>&1; then
+    warn "snapper non trovato, snapshot pre-update saltato"
+    exit 0
+  fi
+
+  if ! snapper_config_exists; then
+    warn "config Snapper non trovata: ${snapper_config}"
+    exit 0
+  fi
+
+  description="${description_prefix} $(date +%F' '%T)"
+
+  log "==> Snapshot pre-update"
+  run_cmd sudo snapper -c "$snapper_config" create \
+    --type single \
+    --print-number \
+    --description "$description" \
+    --cleanup-algorithm "$cleanup_algorithm" \
+    --userdata "$userdata"
+}
+
+main "$@"

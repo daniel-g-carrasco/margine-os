@@ -85,7 +85,13 @@ Motivo:
 
 Gli snapshot automatici obbligatori nella `v1` sono:
 
+- snapshot iniziale esplicito all'avvio di `update-all`;
 - pre/post delle transazioni `pacman`
+
+Questo significa che il modello finale e':
+
+- uno snapshot "di inizio manutenzione" prima dell'intero aggiornamento;
+- snapshot pre/post granulari della transazione `pacman`.
 
 Questi snapshot saranno il percorso normale di recovery dopo update.
 
@@ -161,6 +167,7 @@ non vengono filtrati singolarmente.
 Il suo ruolo corretto sarà:
 
 - orchestrare l'update;
+- creare uno snapshot esplicito all'inizio del flusso;
 - lasciare a `snap-pac` gli snapshot pre/post della transazione `pacman`;
 - gestire i passaggi extra di `Margine`, come:
   - rigenerazione `UKI`
@@ -170,6 +177,7 @@ Il suo ruolo corretto sarà:
 
 In altre parole:
 
+- `update-all` crea il punto di ritorno "prima dell'intera manutenzione";
 - `snap-pac` protegge il root durante `pacman`;
 - `update-all` protegge la coerenza della pipeline completa di `Margine`.
 
@@ -232,7 +240,8 @@ Questo potrà essere orchestrato in futuro da uno script dedicato.
 
 Se la riduciamo all'essenziale:
 
-- `snap-pac` fa da airbag;
+- `update-all` apre con uno snapshot pre-update;
+- `snap-pac` fa da airbag granulare su `pacman`;
 - `update-all` fa da direttore d'orchestra;
 - gli snapshot proteggono il root;
 - la `ESP` si recupera con rigenerazione, non con magia;

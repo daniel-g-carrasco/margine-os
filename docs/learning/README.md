@@ -27,6 +27,7 @@ Argomenti previsti:
 - migrazione selettiva delle configurazioni
 - configurazione applicativa versionata
 - snapshot bootabili e limiti del rollback
+- snapshot pre-update e snapshot granulari
 - color management e fotografia su Linux
 
 Regola:

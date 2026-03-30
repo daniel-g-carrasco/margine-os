@@ -12,6 +12,7 @@ use_boot=1
 deploy_boot=0
 refresh_trust=1
 include_snapper_recovery=1
+create_pre_update_snapshot=1
 root_uuid=""
 luks_uuid=""
 limine_output=""
@@ -43,6 +44,7 @@ Options:
   --deploy-boot          Esegue il deploy degli artefatti sulla ESP
   --no-trust-refresh     Non esegue enroll-config e firma EFI dopo il deploy
   --no-snapper-recovery  Non genera entry recovery da snapshot Snapper
+  --no-pre-update-snap   Non crea lo snapshot iniziale di update-all
   --esp-path PATH        Mountpoint della EFI System Partition
   --backup-dir PATH      Directory backup per il deploy su ESP
   --limine-binary PATH   Binario EFI di Limine da deployare
@@ -140,6 +142,10 @@ parse_args() {
         include_snapper_recovery=0
         shift
         ;;
+      --no-pre-update-snap)
+        create_pre_update_snapshot=0
+        shift
+        ;;
       --esp-path)
         [[ $# -ge 2 ]] || die "missing value for --esp-path"
         esp_path="$2"
@@ -221,6 +227,28 @@ parse_args() {
         ;;
     esac
   done
+}
+
+run_pre_update_snapshot() {
+  local snapshot_script="${repo_root}/scripts/create-pre-update-snapshot"
+  local args=(
+    --snapper-config "$snapper_config"
+    --description "margine pre-update"
+    --cleanup number
+    --userdata "important=yes"
+  )
+
+  (( create_pre_update_snapshot )) || return 0
+  [[ -x "$snapshot_script" ]] || die "pre-update snapshot script not executable: $snapshot_script"
+  (( dry_run )) && args=(--dry-run "${args[@]}")
+
+  log
+  log "==> 0) Snapshot pre-update"
+
+  if ! run_cmd "$snapshot_script" "${args[@]}"; then
+    warn "snapshot pre-update fallito"
+    soft_failures=1
+  fi
 }
 
 run_pacman_update() {
@@ -445,6 +473,7 @@ main() {
     log "Modalita': dry-run"
   fi
 
+  run_pre_update_snapshot
   run_pacman_update
   run_aur_update
   run_flatpak_update
