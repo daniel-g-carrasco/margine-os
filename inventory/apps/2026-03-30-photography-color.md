@@ -76,3 +76,7 @@ La parte sicura da portare in `Margine` e':
 - asset ICC corretti;
 - applicazioni color-managed.
 
+Scelta aggiuntiva:
+
+- su `Hyprland` l'ICC compositor-level resta opzionale e non attivo di default;
+- la `v1` privilegia `colord + app-first`.

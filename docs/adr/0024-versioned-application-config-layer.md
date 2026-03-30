@@ -46,6 +46,8 @@ Questa e' una baseline "enforced ma non troppo":
 - definisce il comportamento base;
 - non blocca il browser in modo aziendale;
 - non pretende di sostituire la personalizzazione utente.
+- non introduce, nella `v1`, tweak browser-specifici aggressivi per il color
+  management.
 
 ### Neovim
 
@@ -91,4 +93,3 @@ Qui la regola e' semplice:
 - se un'applicazione ha uno strumento di policy migliore del profilo grezzo,
   usiamo quello;
 - se una cosa e' rumorosa o opaca, la rinviamo.
-
