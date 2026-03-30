@@ -4,6 +4,7 @@
 # - firmware UEFI e TPM virtuale pronti;
 # - container OCI rootless disponibili senza cambiare stack dopo.
 
+crun
 dnsmasq
 edk2-ovmf
 libvirt
