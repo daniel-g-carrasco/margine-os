@@ -47,6 +47,7 @@ Obiettivo:
 Esempi:
 - `base`
 - `hardware-framework13-amd`
+- `connectivity-stack`
 - `security`
 - `hyprland-core`
 - `desktop-tools`

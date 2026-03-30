@@ -16,6 +16,7 @@ declare -a requested_layers=()
 default_layers=(
   base-system
   hardware-framework13-amd
+  connectivity-stack
   security-and-recovery
   hyprland-core
   toolkit-gtk-qt

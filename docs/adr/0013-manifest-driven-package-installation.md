@@ -48,13 +48,14 @@ L'ordine base è:
 
 1. `base-system`
 2. `hardware-framework13-amd`
-3. `security-and-recovery`
-4. `hyprland-core`
-5. `toolkit-gtk-qt`
-6. `desktop-integration`
-7. `apps-core`
-8. `apps-photo-audio-video`
-9. `fonts`
+3. `connectivity-stack`
+4. `security-and-recovery`
+5. `hyprland-core`
+6. `toolkit-gtk-qt`
+7. `desktop-integration`
+8. `apps-core`
+9. `apps-photo-audio-video`
+10. `fonts`
 
 ## Regola AUR
 

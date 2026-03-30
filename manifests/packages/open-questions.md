@@ -18,6 +18,18 @@
   ufficiale (`grim`, `slurp`, `satty`, `wf-recorder`).
 - `hyprlauncher` diventa il launcher predefinito.
 - `walker` resta una seconda scelta opzionale.
+- la connettivita' di sistema entra in un layer dedicato:
+  - `networkmanager`
+  - `networkmanager-openvpn`
+  - `openvpn`
+  - `iwd`
+  - `iw`
+  - `wireguard-tools`
+  - `bluez`
+  - `bluez-utils`
+  - `bluetui`
+  - `impala`
+  - `wireless-regdb`
 - per toolkit e portal si rende esplicito un layer dedicato:
   - `xdg-desktop-portal`
   - `xdg-desktop-portal-hyprland`
@@ -60,3 +72,14 @@ Resta solo da vedere, piu' avanti, se vorremo aggiungere:
 
 - un eventuale toggle utente piu' comodo;
 - profili separati per cuffie o output esterni.
+
+### Networking su Framework 13 AMD
+
+Il layer pacchetti ormai e' chiaro.
+Restano da tradurre in configurazione versionata tre punti raccomandati
+dalla documentazione Framework / Arch:
+
+- usare `iwd` come backend Wi-Fi di `NetworkManager`;
+- impostare il regulatory domain, altrimenti sulle AMD 7040 si resta limitati;
+- verificare se per MT7922 convenga disabilitare il power saving del modulo
+  per migliorare stabilita' e throughput.

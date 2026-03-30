@@ -1,0 +1,17 @@
+# Connettivita' di sistema: rete, Wi-Fi, VPN e Bluetooth.
+# Baseline target per Framework 13 AMD:
+# - NetworkManager come orchestratore principale;
+# - iwd come backend Wi-Fi preferito;
+# - bluetui / impala come strumenti TUI coerenti col workflow terminal-first.
+
+bluetui
+bluez
+bluez-utils
+impala
+iw
+iwd
+networkmanager
+networkmanager-openvpn
+openvpn
+wireguard-tools
+wireless-regdb

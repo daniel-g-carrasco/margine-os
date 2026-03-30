@@ -18,6 +18,7 @@ extra_groups=""
 user_password_hash=""
 
 phase2_layers=(
+  connectivity-stack
   hyprland-core
   toolkit-gtk-qt
   desktop-integration

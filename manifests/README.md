@@ -22,6 +22,7 @@ Struttura iniziale:
 
 - `packages/base-system.txt`
 - `packages/hardware-framework13-amd.txt`
+- `packages/connectivity-stack.txt`
 - `packages/security-and-recovery.txt`
 - `packages/hyprland-core.txt`
 - `packages/toolkit-gtk-qt.txt`

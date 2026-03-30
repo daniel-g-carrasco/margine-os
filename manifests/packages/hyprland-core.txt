@@ -5,9 +5,6 @@
 # - launcher predefinito: `hyprlauncher`;
 # - launcher secondario opzionale: `walker` (AUR).
 
-bluetui
-bluez
-bluez-utils
 brightnessctl
 cliphist
 fzf
@@ -17,14 +14,9 @@ hyprland
 hyprlauncher
 hyprlock
 hyprpaper
-iwd
-impala
 kitty
 mako
 nautilus
-networkmanager
-networkmanager-openvpn
-openvpn
 otf-font-awesome
 pavucontrol
 alsa-utils
@@ -39,6 +31,5 @@ slurp
 swayosd
 waybar
 wf-recorder
-wireguard-tools
 wireplumber
 wl-clipboard
