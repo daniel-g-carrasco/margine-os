@@ -9,6 +9,8 @@ username=""
 home_dir=""
 
 declare -a home_payload=(
+  ".config/darktable/darktablerc-common"
+  ".config/darktable/styles"
   ".config/kitty/kitty.conf"
   ".config/mimeapps.list"
   ".config/nvim"
@@ -161,6 +163,7 @@ fix_ownership() {
 
   run_cmd chown -R \
     "${username}:${username}" \
+    "${home_dir}/.config/darktable" \
     "${home_dir}/.config/kitty" \
     "${home_dir}/.config/nvim" \
     "${home_dir}/.config/mimeapps.list" \

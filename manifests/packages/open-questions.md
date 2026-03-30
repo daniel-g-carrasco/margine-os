@@ -104,4 +104,5 @@ Restano da chiudere app per app, piu' avanti:
 
 - eventuali config per editor aggiuntivi o IDE;
 - eventuale policy Thunderbird oltre al pacchetto;
+- template `Timeshift` coerente con il layout target;
 - eventuali preferenze browser utente non esprimibili bene via policy.

@@ -16,3 +16,9 @@ La sottocartella `settings/` distingue:
 - file `home` gia' approvati per la migrazione;
 - file `system` gia' approvati per la migrazione;
 - file di sistema che richiedono ancora review prima di diventare target.
+
+La sottocartella `apps/` raccoglie invece le decisioni applicative:
+
+- cosa entra davvero come configurazione;
+- cosa resta solo dato personale;
+- cosa va tradotto in template invece che copiato.
