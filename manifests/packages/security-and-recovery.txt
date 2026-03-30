@@ -2,8 +2,11 @@
 # Nota: in Margine la baseline resta Snapper; Timeshift e' un layer di
 # comodita', non il motore architetturale principale dei rollback.
 
+cryptsetup
 fprintd
 libfprint
+limine
+mkinitcpio
 sbctl
 snap-pac
 snapper

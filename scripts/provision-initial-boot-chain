@@ -1,0 +1,304 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+esp_path="/boot"
+root_subvol="@"
+crypt_name=""
+
+mkinitcpio_conf_source="${repo_root}/files/etc/mkinitcpio.conf"
+linux_preset_source="${repo_root}/files/etc/mkinitcpio.d/linux.preset"
+cmdline_template_source="${repo_root}/files/etc/kernel/cmdline.template"
+generate_limine_script="${repo_root}/scripts/generate-limine-config"
+limine_binary_source="/usr/share/limine/BOOTX64.EFI"
+
+root_source=""
+root_uuid=""
+luks_device=""
+luks_uuid=""
+rendered_limine_conf=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-initial-boot-chain [options]
+
+Options:
+  --esp-path PATH      Mountpoint ESP (default: /boot)
+  --root-subvol NAME   Subvolume root Btrfs (default: @)
+  --crypt-name NAME    Nome mapper LUKS; se omesso prova a rilevarlo
+  --dry-run            Mostra il piano senza eseguirlo
+  --help               Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --esp-path)
+        [[ $# -ge 2 ]] || die "missing value for --esp-path"
+        esp_path="$2"
+        shift 2
+        ;;
+      --root-subvol)
+        [[ $# -ge 2 ]] || die "missing value for --root-subvol"
+        root_subvol="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-initial-boot-chain must run as root"
+}
+
+ensure_source_exists() {
+  local path="$1"
+  local label="$2"
+
+  if [[ -e "$path" ]]; then
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "${label} not found during dry-run: ${path}"
+    return 0
+  fi
+
+  die "${label} not found: ${path}"
+}
+
+ensure_sources() {
+  ensure_source_exists "$mkinitcpio_conf_source" "mkinitcpio config"
+  ensure_source_exists "$linux_preset_source" "linux preset"
+  ensure_source_exists "$cmdline_template_source" "kernel cmdline template"
+  ensure_source_exists "$generate_limine_script" "Limine config generator"
+  ensure_source_exists "$limine_binary_source" "Limine EFI binary"
+}
+
+detect_root_source() {
+  root_source="$(findmnt -no SOURCE / 2>/dev/null || true)"
+  root_source="${root_source%%[*}"
+  [[ -n "$root_source" ]] || die "unable to detect root source from findmnt"
+}
+
+detect_root_uuid() {
+  root_uuid="$(findmnt -no UUID / 2>/dev/null || true)"
+  if [[ -z "$root_uuid" ]]; then
+    root_uuid="$(blkid -s UUID -o value "$root_source" 2>/dev/null || true)"
+  fi
+  [[ -n "$root_uuid" ]] || die "unable to detect Btrfs UUID for ${root_source}"
+}
+
+detect_crypt_name() {
+  if [[ -n "$crypt_name" ]]; then
+    return 0
+  fi
+
+  if [[ "$root_source" == /dev/mapper/* ]]; then
+    crypt_name="${root_source##*/}"
+    return 0
+  fi
+
+  die "unable to infer LUKS mapper name from root source ${root_source}; use --crypt-name"
+}
+
+detect_luks_device() {
+  if ! have_cmd cryptsetup; then
+    die "cryptsetup not found"
+  fi
+
+  luks_device="$(
+    (cryptsetup status "$crypt_name" 2>/dev/null || true) \
+      | awk '/device:/ { print $2; exit }'
+  )"
+}
+
+detect_luks_uuid() {
+  local crypttab_file=""
+
+  if [[ -n "$luks_device" ]]; then
+    luks_uuid="$(blkid -s UUID -o value "$luks_device" 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$luks_uuid" && -r /etc/crypttab ]]; then
+    crypttab_file="/etc/crypttab"
+  elif [[ -z "$luks_uuid" && -r /etc/crypttab.initramfs ]]; then
+    crypttab_file="/etc/crypttab.initramfs"
+  fi
+
+  if [[ -z "$luks_uuid" && -n "$crypttab_file" ]]; then
+    luks_uuid="$(
+      awk -v name="$crypt_name" '
+        $1 == name {
+          gsub(/^UUID=/, "", $2)
+          print $2
+          exit
+        }
+      ' "$crypttab_file"
+    )"
+  fi
+
+  [[ -n "$luks_uuid" ]] || die "unable to detect LUKS UUID for ${luks_device}"
+}
+
+render_cmdline() {
+  sed \
+    -e "s|__MARGINE_ROOT_UUID__|${root_uuid}|g" \
+    -e "s|__MARGINE_LUKS_UUID__|${luks_uuid}|g" \
+    -e "s|__MARGINE_CRYPT_NAME__|${crypt_name}|g" \
+    -e "s|__MARGINE_ROOT_SUBVOL__|${root_subvol}|g" \
+    "$cmdline_template_source"
+}
+
+install_mkinitcpio_conf() {
+  log
+  log "==> Install mkinitcpio baseline"
+  run_cmd install -Dm644 "$mkinitcpio_conf_source" /etc/mkinitcpio.conf
+  run_cmd install -Dm644 "$linux_preset_source" /etc/mkinitcpio.d/linux.preset
+}
+
+install_kernel_cmdline() {
+  local target="/etc/kernel/cmdline"
+
+  log
+  log "==> Render kernel cmdline"
+
+  if (( dry_run )); then
+    printf '[dry-run] render %s -> %s\n' "$cmdline_template_source" "$target"
+    return 0
+  fi
+
+  install -d -m 755 /etc/kernel
+  render_cmdline >"$target"
+  chmod 644 "$target"
+}
+
+ensure_esp_layout() {
+  log
+  log "==> Ensure EFI layout"
+  run_cmd install -d -m 755 "${esp_path}/EFI/BOOT" "${esp_path}/EFI/Linux"
+}
+
+build_ukis() {
+  log
+  log "==> Build UKI set"
+  run_cmd mkinitcpio -P
+}
+
+render_limine_config() {
+  rendered_limine_conf="${repo_root}/build/limine.initial.conf"
+
+  log
+  log "==> Render initial limine.conf"
+  run_cmd "$generate_limine_script" \
+    --root-uuid "$root_uuid" \
+    --luks-uuid "$luks_uuid" \
+    --output "$rendered_limine_conf"
+}
+
+deploy_limine() {
+  log
+  log "==> Install Limine on ESP"
+  run_cmd install -Dm755 "$limine_binary_source" "${esp_path}/EFI/BOOT/BOOTX64.EFI"
+  run_cmd install -Dm644 "$rendered_limine_conf" "${esp_path}/EFI/BOOT/limine.conf"
+}
+
+enroll_limine_config() {
+  local config_path="${esp_path}/EFI/BOOT/limine.conf"
+  local binary_path="${esp_path}/EFI/BOOT/BOOTX64.EFI"
+  local config_hash=""
+
+  log
+  log "==> Enroll Limine config hash"
+
+  if (( dry_run )); then
+    printf '[dry-run] limine enroll-config %s <b2sum(%s)>\n' "$binary_path" "$config_path"
+    return 0
+  fi
+
+  have_cmd limine || die "limine host tool not found"
+  config_hash="$(b2sum "$config_path" | awk '{print $1}')"
+  limine enroll-config "$binary_path" "$config_hash"
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  ensure_sources
+  detect_root_source
+  detect_root_uuid
+  detect_crypt_name
+  detect_luks_device
+  detect_luks_uuid
+
+  log "=== Provision initial boot chain ==="
+  (( dry_run )) && log "Modalita': dry-run"
+  log "ESP: ${esp_path}"
+  log "Root source: ${root_source}"
+  log "Root UUID: ${root_uuid}"
+  log "LUKS mapper: ${crypt_name}"
+  log "LUKS UUID: ${luks_uuid}"
+
+  install_mkinitcpio_conf
+  install_kernel_cmdline
+  ensure_esp_layout
+  build_ukis
+  render_limine_config
+  deploy_limine
+  enroll_limine_config
+
+  log
+  log "Boot chain iniziale pronta: mkinitcpio, UKI prod/fallback/recovery e Limine sulla ESP."
+}
+
+main "$@"

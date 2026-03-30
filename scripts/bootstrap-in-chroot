@@ -251,6 +251,19 @@ run_connectivity_provisioner() {
   run_cmd "$provisioner" "${args[@]}"
 }
 
+run_initial_boot_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-initial-boot-chain"
+  local -a args=()
+
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$provisioner" ]] || die "initial boot provisioner not executable: $provisioner"
+
+  log
+  log "==> Provision initial boot chain"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
 run_user_provisioner() {
   local provisioner="${repo_root}/scripts/provision-system-user"
   local -a args=(
@@ -458,6 +471,7 @@ main() {
   enable_locale_line
   configure_hostname
   run_manifest_installer
+  run_initial_boot_provisioner
   run_connectivity_provisioner
   run_user_provisioner
   run_user_runtime_provisioner

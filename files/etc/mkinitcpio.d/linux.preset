@@ -1,0 +1,14 @@
+# mkinitcpio preset file for Margine on the 'linux' package
+
+ALL_kver="/boot/vmlinuz-linux"
+
+PRESETS=('default' 'fallback' 'recovery')
+
+default_uki="/boot/EFI/Linux/margine-linux.efi"
+default_options="--cmdline /etc/kernel/cmdline --splash /usr/share/systemd/bootctl/splash-arch.bmp"
+
+fallback_uki="/boot/EFI/Linux/margine-linux-fallback.efi"
+fallback_options="--cmdline /etc/kernel/cmdline --splash /usr/share/systemd/bootctl/splash-arch.bmp -S autodetect"
+
+recovery_uki="/boot/EFI/Linux/margine-recovery.efi"
+recovery_options="--no-cmdline --splash /usr/share/systemd/bootctl/splash-arch.bmp -S autodetect"

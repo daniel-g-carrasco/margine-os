@@ -40,6 +40,8 @@ Primo script operativo:
   `install-live-iso` e `bootstrap-live-iso`.
 - `bootstrap-live-iso`: fase 1 del bootstrap, pensata per la live ISO Arch.
 - `bootstrap-in-chroot`: fase 2 del bootstrap, pensata per il sistema target.
+- `provision-initial-boot-chain`: chiude il bootstrap installando la boot
+  chain iniziale `mkinitcpio + UKI + Limine` sul sistema target.
 - `validate-printing-scanning-baseline`: verifica pacchetti, servizi,
   discovery, stampanti e scanner rispetto alla baseline `Margine`.
 - `provision-virtualization-containers-baseline`: installa i file di baseline

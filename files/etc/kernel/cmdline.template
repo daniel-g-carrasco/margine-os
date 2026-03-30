@@ -1,0 +1,1 @@
+quiet splash loglevel=3 rd.udev.log_level=3 vt.global_cursor_default=0 zswap.enabled=0 root=UUID=__MARGINE_ROOT_UUID__ rd.luks.name=__MARGINE_LUKS_UUID__=__MARGINE_CRYPT_NAME__ rootfstype=btrfs rootflags=subvol=__MARGINE_ROOT_SUBVOL__ rw
