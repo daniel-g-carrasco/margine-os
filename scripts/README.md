@@ -42,3 +42,11 @@ Primo script operativo:
 - `bootstrap-in-chroot`: fase 2 del bootstrap, pensata per il sistema target.
 - `validate-printing-scanning-baseline`: verifica pacchetti, servizi,
   discovery, stampanti e scanner rispetto alla baseline `Margine`.
+- `provision-virtualization-containers-baseline`: installa i file di baseline
+  per `libvirt` e gli helper minimi lato virtualizzazione.
+- `validate-runtime-baseline`: verifica power, resume, audio, rete, Bluetooth e
+  tooling screenshot/recording sulla macchina reale.
+- `validate-boot-recovery-baseline`: verifica stato reale di Secure Boot, UKI,
+  bootloader e Snapper.
+- `validate-virtualization-containers-baseline`: verifica supporto CPU/KVM,
+  pacchetti e stato reale di `libvirt` e `podman`.

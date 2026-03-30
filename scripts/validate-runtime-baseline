@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+home_dir="${HOME:-/home/$(id -un)}"
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+section() {
+  printf '\n==> %s\n' "$*"
+}
+
+status_line() {
+  printf '  - %s\n' "$*"
+}
+
+show_service_state() {
+  local unit="$1"
+  local scope="${2:-system}"
+  local active="unknown"
+
+  if [[ "$scope" == "user" ]]; then
+    active="$(systemctl --user is-active "$unit" 2>/dev/null || true)"
+  else
+    active="$(systemctl is-active "$unit" 2>/dev/null || true)"
+  fi
+
+  status_line "${unit}: ${active:-unknown}"
+}
+
+power_section() {
+  local profile="unknown"
+  local amd_pstate="unknown"
+  local abm="unknown"
+  local battery_path=""
+  local rate=""
+  local percentage=""
+  local monitor_line=""
+
+  section "Power e Resume"
+
+  if have_cmd powerprofilesctl; then
+    profile="$(powerprofilesctl get 2>/dev/null || true)"
+  fi
+  status_line "power profile: ${profile:-unknown}"
+
+  amd_pstate="$(cat /sys/devices/system/cpu/amd_pstate/status 2>/dev/null || true)"
+  status_line "amd_pstate: ${amd_pstate:-missing}"
+
+  abm="$(cat /sys/module/amdgpu/parameters/abmlevel 2>/dev/null || true)"
+  status_line "amdgpu abmlevel: ${abm:-missing}"
+
+  battery_path="$(upower -e 2>/dev/null | grep BAT | head -n1 || true)"
+  if [[ -n "$battery_path" ]]; then
+    rate="$(upower -i "$battery_path" 2>/dev/null | awk -F: '/energy-rate/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+    percentage="$(upower -i "$battery_path" 2>/dev/null | awk -F: '/percentage/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+    status_line "battery: ${percentage:-unknown}, drain ${rate:-unknown}"
+  fi
+
+  if have_cmd hyprctl; then
+    monitor_line="$(hyprctl monitors all 2>/dev/null | awk '/^Monitor eDP-1/ {getline; print; exit}')"
+    [[ -n "$monitor_line" ]] && status_line "internal monitor: ${monitor_line}"
+  fi
+
+  status_line "resume hook present: $( [[ -x /etc/systemd/system-sleep/fprintd-reset ]] && echo yes || echo no )"
+  status_line "hyprlock PAM present: $( [[ -f /etc/pam.d/hyprlock ]] && echo yes || echo no )"
+}
+
+audio_section() {
+  local default_sink=""
+  local default_source=""
+
+  section "Audio"
+  show_service_state "pipewire.service" user
+  show_service_state "pipewire-pulse.service" user
+  show_service_state "wireplumber.service" user
+  show_service_state "easyeffects.service" user
+
+  if have_cmd pactl; then
+    default_sink="$(pactl info 2>/dev/null | awk -F: '/Default Sink/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+    default_source="$(pactl info 2>/dev/null | awk -F: '/Default Source/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+    status_line "default sink: ${default_sink:-unknown}"
+    status_line "default source: ${default_source:-unknown}"
+  fi
+
+  if have_cmd wpctl; then
+    wpctl status 2>/dev/null | awk '
+      /^Audio$/,/^Video$/ {
+        if ($0 ~ /Ryzen HD Audio Controller Stereo analogico/ || $0 ~ /Easy Effects Sink/ || $0 ~ /Easy Effects Source/) {
+          print "  - " $0
+        }
+      }'
+  fi
+}
+
+connectivity_section() {
+  local bt_powered="unknown"
+  local active_vpns=""
+
+  section "Rete, VPN e Bluetooth"
+  show_service_state "NetworkManager.service"
+  show_service_state "iwd.service"
+  show_service_state "bluetooth.service"
+
+  if have_cmd nmcli; then
+    status_line "nmcli general: $(nmcli general status 2>/dev/null | tail -n +2 | head -n1 | xargs)"
+    nmcli connection show --active 2>/dev/null | sed 's/^/  - /'
+    active_vpns="$(nmcli -t -f NAME,TYPE connection show --active 2>/dev/null | awk -F: '$2 == "vpn" || $2 == "wireguard" { print $1 }' | paste -sd, -)"
+    status_line "active vpn tunnels: ${active_vpns:-none}"
+  fi
+
+  if have_cmd bluetoothctl; then
+    bt_powered="$(bluetoothctl show 2>/dev/null | awk -F: '/Powered/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+    status_line "bluetooth powered: ${bt_powered:-unknown}"
+  fi
+}
+
+screenshot_section() {
+  section "Screenshot e Recording"
+
+  while IFS= read -r relpath; do
+    [[ -n "$relpath" ]] || continue
+    path="${home_dir}/${relpath}"
+    status_line "helper present: ${path} ($( [[ -x "$path" ]] && echo yes || echo no ))"
+  done <<'EOF'
+.local/bin/screenshot-menu
+.local/bin/annotate-screenshot
+.local/bin/screenrecord-toggle
+.local/bin/screenrecord-region-toggle
+.local/bin/screenrecord-status
+.local/bin/screenrecord-stop
+EOF
+
+  if [[ -f "${home_dir}/.config/hypr/hyprland.conf" ]]; then
+    rg -n 'Print|screenrecord-toggle|screenshot-menu' "${home_dir}/.config/hypr/hyprland.conf" 2>/dev/null | sed 's/^/  - /'
+  fi
+}
+
+main() {
+  power_section
+  audio_section
+  connectivity_section
+  screenshot_section
+}
+
+main "$@"

@@ -29,3 +29,9 @@ decisione utile e' piu' applicativa che infrastrutturale.
 Qui possono entrare anche validazioni reali di sottosistemi specifici, quando
 servono a confermare che una scelta architetturale del progetto corrisponde
 davvero all'hardware e al workflow usati.
+
+La sottocartella `runtime/` raccoglie invece:
+
+- audit dei sottosistemi reali della macchina corrente;
+- gap tra macchina attuale e baseline `Margine`;
+- risultati di validazioni ripetibili guidate dagli script del progetto.

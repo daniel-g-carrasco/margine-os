@@ -35,6 +35,8 @@ Argomenti previsti:
 - tooling da terminale e amministrazione come layer dedicato
 - differenza tra pacchetto SSH, servizio e firewall
 - stampa, scanner e discovery di rete
+- validazione runtime del sistema
+- virtualizzazione e container come baseline separata
 
 Regola:
 - ogni nota deve spiegare il "cosa", il "perché" e il "come modificarlo".

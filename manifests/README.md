@@ -25,6 +25,7 @@ Struttura iniziale:
 - `packages/connectivity-stack.txt`
 - `packages/security-and-recovery.txt`
 - `packages/coding-system-tools.txt`
+- `packages/virtualization-containers-stack.txt`
 - `packages/hyprland-core.txt`
 - `packages/toolkit-gtk-qt.txt`
 - `packages/printing-scanning-stack.txt`

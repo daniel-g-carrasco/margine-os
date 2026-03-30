@@ -19,6 +19,7 @@ default_layers=(
   connectivity-stack
   security-and-recovery
   coding-system-tools
+  virtualization-containers-stack
   hyprland-core
   toolkit-gtk-qt
   printing-scanning-stack

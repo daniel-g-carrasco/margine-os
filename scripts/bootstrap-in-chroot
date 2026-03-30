@@ -21,6 +21,7 @@ wifi_regdom="IT"
 phase2_layers=(
   connectivity-stack
   coding-system-tools
+  virtualization-containers-stack
   hyprland-core
   toolkit-gtk-qt
   printing-scanning-stack
@@ -411,6 +412,19 @@ run_print_scan_provisioner() {
   run_cmd "$provisioner" "${args[@]}"
 }
 
+run_virtualization_container_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-virtualization-containers-baseline"
+  local -a args=()
+
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$provisioner" ]] || die "virtualization/container provisioner not executable: $provisioner"
+
+  log
+  log "==> Provision virtualization and container baseline"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
 enable_base_services() {
   local -a services=(
     NetworkManager.service
@@ -420,6 +434,7 @@ enable_base_services() {
     fstrim.timer
     systemd-timesyncd.service
     ufw.service
+    libvirtd.service
     cups.socket
     avahi-daemon.service
     avahi-daemon.socket
@@ -452,6 +467,7 @@ main() {
   run_fingerprint_resume_provisioner
   run_remote_access_firewall_provisioner
   run_print_scan_provisioner
+  run_virtualization_container_provisioner
   run_framework_audio_provisioner
   run_photo_color_provisioner
   run_timeshift_provisioner

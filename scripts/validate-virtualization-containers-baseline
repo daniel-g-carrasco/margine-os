@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+section() {
+  printf '\n==> %s\n' "$*"
+}
+
+status_line() {
+  printf '  - %s\n' "$*"
+}
+
+package_section() {
+  section "Pacchetti"
+  while IFS= read -r pkg; do
+    [[ -n "$pkg" ]] || continue
+    if pacman -Q "$pkg" >/dev/null 2>&1; then
+      status_line "${pkg}: installed"
+    else
+      status_line "${pkg}: missing"
+    fi
+  done <<'EOF'
+dnsmasq
+edk2-ovmf
+libvirt
+podman
+qemu-desktop
+swtpm
+virt-manager
+virt-viewer
+EOF
+}
+
+hardware_section() {
+  section "Supporto hardware"
+  if grep -Eq 'svm|vmx' /proc/cpuinfo; then
+    status_line "CPU virtualization extensions: present"
+  else
+    status_line "CPU virtualization extensions: missing"
+  fi
+
+  lsmod | awk '/^kvm($|_)/ { print "  - " $0 }'
+}
+
+runtime_section() {
+  section "Runtime"
+  status_line "libvirtd.service: $(systemctl is-active libvirtd.service 2>/dev/null || true)"
+  status_line "libvirtd.service enabled: $(systemctl is-enabled libvirtd.service 2>/dev/null || true)"
+
+  if have_cmd virsh; then
+    virsh net-list --all 2>/dev/null | sed 's/^/  - /'
+  fi
+
+  if have_cmd podman; then
+    status_line "podman available: yes"
+  else
+    status_line "podman available: no"
+  fi
+}
+
+storage_section() {
+  section "Storage paths"
+  status_line "/var/lib/libvirt exists: $( [[ -d /var/lib/libvirt ]] && echo yes || echo no )"
+  status_line "/var/lib/containers exists: $( [[ -d /var/lib/containers ]] && echo yes || echo no )"
+}
+
+main() {
+  package_section
+  hardware_section
+  runtime_section
+  storage_section
+}
+
+main "$@"

@@ -1,0 +1,14 @@
+# Virtualizzazione e container: baseline workstation.
+# Obiettivo:
+# - VM KVM/QEMU gestibili subito in modo grafico;
+# - firmware UEFI e TPM virtuale pronti;
+# - container OCI rootless disponibili senza cambiare stack dopo.
+
+dnsmasq
+edk2-ovmf
+libvirt
+podman
+qemu-desktop
+swtpm
+virt-manager
+virt-viewer

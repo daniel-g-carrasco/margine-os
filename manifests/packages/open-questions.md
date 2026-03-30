@@ -80,6 +80,15 @@
 - `openssh` oggi e' gia' nel progetto anche come stack server/client;
 - `ufw` viene scelto come firewall baseline della `v1`.
 - la baseline stampa/scanner `v1` e' `driverless-first`.
+- virtualizzazione e container entrano in una baseline dedicata:
+  - `libvirt`
+  - `qemu-desktop`
+  - `virt-manager`
+  - `virt-viewer`
+  - `edk2-ovmf`
+  - `dnsmasq`
+  - `swtpm`
+  - `podman`
 
 ## Decisioni architetturali chiuse
 
@@ -147,3 +156,16 @@ Resta aperta solo una validazione futura:
 
 - verificare se, oltre alla baseline `driverless-first`, serviranno eccezioni
   per stampanti o scanner vecchi.
+
+### Virtualizzazione e container
+
+La baseline viene chiusa cosi':
+
+- `libvirt + qemu-desktop + OVMF` per le VM;
+- `virt-manager + virt-viewer` per la gestione grafica;
+- `swtpm` per guest che richiedono TPM virtuale;
+- `podman` per i container.
+
+Resta aperta solo una validazione futura:
+
+- decidere se `podman-compose` debba entrare davvero nella `v1` oppure no.
