@@ -34,6 +34,7 @@ Argomenti previsti:
 - review app-per-app dei profili personali
 - tooling da terminale e amministrazione come layer dedicato
 - differenza tra pacchetto SSH, servizio e firewall
+- stampa, scanner e discovery di rete
 
 Regola:
 - ogni nota deve spiegare il "cosa", il "perché" e il "come modificarlo".

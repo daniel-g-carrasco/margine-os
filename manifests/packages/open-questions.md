@@ -56,6 +56,18 @@
   - `qt6ct`
   - `nwg-look`
   - `adwaita-icon-theme`
+- stampa e scanner entrano in un layer dedicato:
+  - `cups`
+  - `cups-filters`
+  - `cups-pk-helper`
+  - `avahi`
+  - `nss-mdns`
+  - `ipp-usb`
+  - `sane`
+  - `sane-airscan`
+  - `simple-scan`
+  - `system-config-printer`
+  - `ghostscript`
 
 ## Da ricordare
 
@@ -67,6 +79,7 @@
 - `hyprlauncher` invece e' disponibile nei repo ufficiali Arch.
 - `openssh` oggi e' gia' nel progetto anche come stack server/client;
 - `ufw` viene scelto come firewall baseline della `v1`.
+- la baseline stampa/scanner `v1` e' `driverless-first`.
 
 ## Decisioni architetturali chiuse
 
@@ -119,3 +132,18 @@ Restano da chiudere app per app, piu' avanti:
 
 - eventuali config per editor aggiuntivi o IDE;
 - eventuali preferenze browser utente non esprimibili bene via policy.
+
+### Stampa e scanner
+
+La baseline e' ormai chiusa in questa forma:
+
+- `CUPS + Avahi + ipp-usb` lato stampa;
+- `SANE + sane-airscan` lato scanner;
+- `system-config-printer` come gestione principale stampanti;
+- `simple-scan` come frontend scanner semplice;
+- `nss-mdns` per discovery locale coerente.
+
+Resta aperta solo una validazione futura:
+
+- verificare se, oltre alla baseline `driverless-first`, serviranno eccezioni
+  per stampanti o scanner vecchi.

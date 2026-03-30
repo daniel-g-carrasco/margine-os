@@ -23,6 +23,7 @@ phase2_layers=(
   coding-system-tools
   hyprland-core
   toolkit-gtk-qt
+  printing-scanning-stack
   desktop-integration
   apps-core
   apps-photo-audio-video
@@ -397,6 +398,19 @@ run_remote_access_firewall_provisioner() {
   run_cmd "$provisioner" "${args[@]}"
 }
 
+run_print_scan_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-printing-scanning-baseline"
+  local -a args=()
+
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$provisioner" ]] || die "print/scan provisioner not executable: $provisioner"
+
+  log
+  log "==> Provision printing and scanning baseline"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
 enable_base_services() {
   local -a services=(
     NetworkManager.service
@@ -406,6 +420,10 @@ enable_base_services() {
     fstrim.timer
     systemd-timesyncd.service
     ufw.service
+    cups.socket
+    avahi-daemon.service
+    avahi-daemon.socket
+    ipp-usb.service
   )
 
   log
@@ -433,6 +451,7 @@ main() {
   run_greetd_provisioner
   run_fingerprint_resume_provisioner
   run_remote_access_firewall_provisioner
+  run_print_scan_provisioner
   run_framework_audio_provisioner
   run_photo_color_provisioner
   run_timeshift_provisioner

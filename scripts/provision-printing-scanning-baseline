@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dry_run=0
+nsswitch_file="/etc/nsswitch.conf"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-printing-scanning-baseline [options]
+
+Options:
+  --dry-run  Mostra il piano senza eseguirlo
+  --help     Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-printing-scanning-baseline must run as root"
+}
+
+ensure_nsswitch_exists() {
+  [[ -f "$nsswitch_file" ]] || die "nsswitch file not found: $nsswitch_file"
+}
+
+render_hosts_line() {
+  local current_line="$1"
+  local mdns_block="mdns_minimal [NOTFOUND=return]"
+  local rendered="$current_line"
+
+  if [[ "$current_line" == *mdns* ]]; then
+    printf '%s\n' "$current_line"
+    return 0
+  fi
+
+  if [[ "$current_line" == *" resolve "* ]]; then
+    rendered="${current_line/ resolve / ${mdns_block} resolve }"
+  elif [[ "$current_line" == *" dns"* ]]; then
+    rendered="${current_line/ dns/ ${mdns_block} dns}"
+  else
+    rendered="${current_line} ${mdns_block}"
+  fi
+
+  printf '%s\n' "$rendered"
+}
+
+configure_nsswitch_mdns() {
+  local current_line=""
+  local new_line=""
+  local tmp=""
+
+  log
+  log "==> Configure nsswitch mDNS support"
+
+  current_line="$(grep -E '^hosts:' "$nsswitch_file" || true)"
+  [[ -n "$current_line" ]] || die "hosts line not found in $nsswitch_file"
+
+  new_line="$(render_hosts_line "$current_line")"
+
+  if [[ "$new_line" == "$current_line" ]]; then
+    log "nsswitch hosts line already supports mDNS."
+    return 0
+  fi
+
+  if (( dry_run )); then
+    printf '[dry-run] replace hosts line in %s\n' "$nsswitch_file"
+    printf '[dry-run] old: %s\n' "$current_line"
+    printf '[dry-run] new: %s\n' "$new_line"
+    return 0
+  fi
+
+  tmp="$(mktemp)"
+  awk -v replacement="$new_line" '
+    BEGIN { done = 0 }
+    /^hosts:/ {
+      print replacement
+      done = 1
+      next
+    }
+    { print }
+    END {
+      if (!done) {
+        exit 1
+      }
+    }
+  ' "$nsswitch_file" >"$tmp"
+
+  cat "$tmp" >"$nsswitch_file"
+  rm -f "$tmp"
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  ensure_nsswitch_exists
+
+  log "=== Provision printing and scanning baseline ==="
+  (( dry_run )) && log "Modalita': dry-run"
+
+  configure_nsswitch_mdns
+
+  log
+  log "Baseline stampa/scanner pronta:"
+  log "- CUPS + Avahi + ipp-usb lato stampa"
+  log "- SANE + sane-airscan lato scanner"
+  log "- system-config-printer per gestire le code"
+  log "- simple-scan per scansioni semplici"
+}
+
+main "$@"

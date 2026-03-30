@@ -1,0 +1,17 @@
+# Stampa e scanner: baseline driverless-first.
+# Obiettivo:
+# - rete e USB moderni via IPP Everywhere / AirPrint / Mopria;
+# - discovery via Avahi/mDNS;
+# - gestione semplice con tool grafici leggeri, non con driver vendor-specifici.
+
+avahi
+cups
+cups-filters
+cups-pk-helper
+ghostscript
+ipp-usb
+nss-mdns
+sane
+sane-airscan
+simple-scan
+system-config-printer

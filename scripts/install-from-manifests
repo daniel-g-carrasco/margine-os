@@ -21,6 +21,7 @@ default_layers=(
   coding-system-tools
   hyprland-core
   toolkit-gtk-qt
+  printing-scanning-stack
   desktop-integration
   apps-core
   apps-photo-audio-video

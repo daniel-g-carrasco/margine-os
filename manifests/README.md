@@ -27,6 +27,7 @@ Struttura iniziale:
 - `packages/coding-system-tools.txt`
 - `packages/hyprland-core.txt`
 - `packages/toolkit-gtk-qt.txt`
+- `packages/printing-scanning-stack.txt`
 - `packages/desktop-integration.txt`
 - `packages/apps-core.txt`
 - `packages/apps-photo-audio-video.txt`
