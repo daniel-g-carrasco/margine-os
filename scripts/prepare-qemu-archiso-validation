@@ -24,6 +24,7 @@ ovmf_code=""
 ovmf_vars_template=""
 ovmf_vars_copy=""
 run_script_path=""
+run_installed_script_path=""
 guide_path=""
 
 usage() {
@@ -179,6 +180,7 @@ init_paths() {
   iso_path="${iso_path:-${workdir}/archlinux-x86_64.iso}"
   ovmf_vars_copy="${workdir}/OVMF_VARS.fd"
   run_script_path="${workdir}/run-qemu.sh"
+  run_installed_script_path="${workdir}/run-qemu-installed.sh"
   guide_path="${workdir}/inside-live-iso.md"
 }
 
@@ -250,9 +252,12 @@ prepare_ovmf_vars() {
 }
 
 build_qemu_command() {
+  local mode="${1:-live}"
   local display_args=""
   local accel="accel=kvm:tcg"
   local cpu_model="host"
+  local cdrom_args=""
+  local boot_args=""
 
   if (( headless )); then
     display_args="-display none -serial mon:stdio"
@@ -265,6 +270,13 @@ build_qemu_command() {
     cpu_model="max"
   fi
 
+  if [[ "$mode" == "live" ]]; then
+    cdrom_args="-cdrom ${iso_path}"
+    boot_args="-boot order=d,menu=on"
+  else
+    boot_args="-boot order=c,menu=on"
+  fi
+
   cat <<EOF
 qemu-system-x86_64 \\
   -machine q35,${accel} \\
@@ -274,8 +286,8 @@ qemu-system-x86_64 \\
   -drive if=pflash,format=raw,readonly=on,file=${ovmf_code} \\
   -drive if=pflash,format=raw,file=${ovmf_vars_copy} \\
   -drive if=virtio,format=qcow2,file=${disk_path} \\
-  -cdrom ${iso_path} \\
-  -boot order=d,menu=on \\
+  ${cdrom_args} \\
+  ${boot_args} \\
   -netdev user,id=net0,hostfwd=tcp::${ssh_forward_port}-:22 \\
   -device virtio-net-pci,netdev=net0 \\
   -device virtio-rng-pci \\
@@ -285,14 +297,12 @@ EOF
 }
 
 write_run_script() {
-  local command_text=""
-
   log
-  log "==> Write QEMU launcher"
+  log "==> Write QEMU launchers"
 
-  command_text="$(build_qemu_command)"
   if (( dry_run )); then
     printf '[dry-run] write %s\n' "$run_script_path"
+    printf '[dry-run] write %s\n' "$run_installed_script_path"
     return 0
   fi
 
@@ -301,9 +311,17 @@ write_run_script() {
 #!/usr/bin/env bash
 set -euo pipefail
 
-$(build_qemu_command)
+$(build_qemu_command live)
 EOF
   chmod +x "$run_script_path"
+
+  cat >"$run_installed_script_path" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+$(build_qemu_command installed)
+EOF
+  chmod +x "$run_installed_script_path"
 }
 
 write_guest_guide() {
@@ -316,29 +334,306 @@ write_guest_guide() {
   fi
 
   cat >"$guide_path" <<'EOF'
-# Validazione Margine in Arch live ISO
+# Validazione Margine in QEMU con Arch live ISO
 
-## 1. Dentro la live ISO
+Questa guida e' pensata per essere eseguita con calma, come se stessi facendo
+la prima installazione reale del sistema.
+
+Obiettivo:
+
+1. avviare la live ISO Arch dentro QEMU;
+2. montare il repository `Margine` dentro la live;
+3. lanciare l'installer;
+4. verificare che gli artefatti di boot vengano davvero generati;
+5. fare il primo boot del sistema installato.
+
+## 0. Sul sistema host
+
+Hai gia' due launcher:
+
+- `run-qemu.sh`
+  Usa la live ISO Arch per l'installazione.
+- `run-qemu-installed.sh`
+  Avvia il disco installato senza rientrare nella live ISO.
+
+Flusso corretto:
+
+1. avvia `run-qemu.sh`
+2. installa `Margine`
+3. spegni o riavvia la VM
+4. chiudi la finestra della live ISO se necessario
+5. avvia `run-qemu-installed.sh`
+
+## 1. Avvio della live ISO
+
+Dal sistema host:
 
 ```bash
-timedatectl set-ntp true
-mkdir -p /mnt/margine-repo
-mount -t 9p -o trans=virtio,version=9p2000.L margine /mnt/margine-repo
+~/dev/margine-os/build/qemu-archiso-validation/run-qemu.sh
 ```
 
-## 2. Installazione guidata
+Quando compare il menu Arch:
+
+- scegli `Arch Linux install medium`
+- premi `Invio`
+
+Secondo la guida ufficiale Arch, entrerai nella live come `root` sulla prima
+console, con shell `zsh`.
+
+## 2. Primo orientamento dentro la live
+
+Appena hai il prompt, esegui:
+
+```bash
+timedatectl status
+ip addr
+lsblk
+```
+
+Cosa ti aspetti di vedere:
+
+- rete funzionante
+- disco virtuale principale come `/dev/vda`
+- nessun sistema ancora installato su quel disco
+
+## 3. Montare il repository Margine dentro la live
+
+Il repository e' esposto alla VM tramite `virtfs/9p`.
+
+Esegui:
+
+```bash
+mkdir -p /mnt/margine-repo
+mount -t 9p -o trans=virtio,version=9p2000.L margine /mnt/margine-repo
+ls /mnt/margine-repo
+```
+
+Se l'ultimo comando mostra file come `scripts`, `docs`, `manifests`, allora il
+mount e' corretto.
+
+## 4. Installazione guidata: percorso consigliato
+
+Avvia il wrapper guidato:
 
 ```bash
 /mnt/margine-repo/scripts/install-live-iso-guided
 ```
 
-Percorso consigliato in VM:
-- modalita': `1` disco dedicato
-- disco target: `/dev/vda`
-- target root: `/mnt`
-- chroot automatico: `y`
+Quando ti fa le domande, in VM usa queste risposte consigliate:
 
-## 3. Installazione non interattiva equivalente
+### Modalita'
+
+Scegli:
+
+- `1`
+
+Significa:
+
+- disco dedicato
+- partizionamento distruttivo del disco virtuale
+
+In VM e' la scelta giusta.
+
+### Disco target
+
+Inserisci:
+
+```text
+/dev/vda
+```
+
+### Mountpoint target
+
+Lascia:
+
+```text
+/mnt
+```
+
+### Hostname
+
+Puoi usare:
+
+```text
+margine-vm
+```
+
+### Username amministrativo
+
+Puoi usare:
+
+```text
+daniel
+```
+
+### Nome reale
+
+Puoi lasciare:
+
+```text
+Daniel Carrasco
+```
+
+### Shell login
+
+Lascia:
+
+```text
+/bin/bash
+```
+
+### Gruppi aggiuntivi
+
+Per la VM puoi lasciare vuoto.
+
+### Regulatory domain Wi-Fi
+
+Lascia:
+
+```text
+IT
+```
+
+### Chroot automatico
+
+Rispondi:
+
+```text
+y
+```
+
+Questa e' la scelta giusta se vuoi che la pipeline faccia tutto in un colpo.
+
+### Password utente
+
+Se vuoi testare anche il login utente subito, imposta gia' una password.
+
+Se preferisci fare prima, puoi anche saltarla e sistemarla dopo con `passwd`
+da chroot.
+
+## 5. Cosa succede durante l'installazione
+
+La pipeline corretta e' questa:
+
+1. provisioning storage
+2. `pacstrap` dei layer iniziali
+3. `genfstab`
+4. copia repo nel target
+5. `arch-chroot`
+6. installazione layer rimanenti
+7. provisioning della boot chain iniziale
+8. provisioning desktop, rete, firewall, stampa, VM, ecc.
+
+Quindi, se vedi che sta facendo:
+
+- `mkinitcpio -P`
+- scrittura di `/boot/EFI/BOOT/limine.conf`
+- scrittura di `/boot/EFI/Linux/*.efi`
+
+sei nel punto giusto.
+
+## 6. Verifiche minime prima del reboot
+
+Quando l'installazione finisce, prima di riavviare esegui:
+
+```bash
+arch-chroot /mnt ls -l /boot/EFI/BOOT
+arch-chroot /mnt ls -l /boot/EFI/Linux
+arch-chroot /mnt cat /boot/EFI/BOOT/limine.conf
+arch-chroot /mnt cat /etc/kernel/cmdline
+```
+
+Ti aspetti almeno:
+
+- `BOOTX64.EFI`
+- `limine.conf`
+- `margine-linux.efi`
+- `margine-linux-fallback.efi`
+- `margine-recovery.efi`
+
+Nota importante:
+
+- `bootctl status` qui non e' il controllo principale, perche' `Margine`
+  punta a `Limine`, non a `systemd-boot`
+
+## 7. Spegnimento della live e primo boot del sistema installato
+
+Quando sei soddisfatto delle verifiche:
+
+```bash
+sync
+poweroff
+```
+
+Poi, dal sistema host:
+
+```bash
+~/dev/margine-os/build/qemu-archiso-validation/run-qemu-installed.sh
+```
+
+Questo passaggio e' importante:
+
+- `run-qemu.sh` riavvia sempre la live ISO
+- `run-qemu-installed.sh` prova davvero il disco installato
+
+## 8. Cosa controllare al primo boot
+
+Dopo il primo boot del sistema installato, verifica:
+
+```bash
+cat /proc/cmdline
+findmnt /
+systemctl status greetd
+```
+
+Se arrivi alla sessione o almeno al login path previsto, il test ha superato il
+primo gate serio.
+
+## 9. Se qualcosa va storto
+
+I problemi piu' probabili sono questi:
+
+### Torni sempre nella live ISO
+
+Stai usando il launcher sbagliato.
+
+Usa:
+
+```bash
+run-qemu-installed.sh
+```
+
+### Il mount 9p non funziona
+
+Ricontrolla il comando:
+
+```bash
+mount -t 9p -o trans=virtio,version=9p2000.L margine /mnt/margine-repo
+```
+
+### L'installer non trova il disco
+
+Dentro la live ricontrolla:
+
+```bash
+lsblk
+```
+
+In questa VM il target atteso e' `/dev/vda`.
+
+### Il bootloader non parte
+
+Le prime cose da controllare sono:
+
+```bash
+ls /boot/EFI/BOOT
+ls /boot/EFI/Linux
+cat /boot/EFI/BOOT/limine.conf
+```
+
+## 10. Variante non interattiva
+
+Se vuoi evitare il wizard e ripetere sempre lo stesso test:
 
 ```bash
 /mnt/margine-repo/scripts/install-live-iso \
@@ -353,29 +648,7 @@ Percorso consigliato in VM:
   --run-chroot
 ```
 
-## 4. Cosa verificare prima del reboot
-
-```bash
-arch-chroot /mnt bootctl status || true
-arch-chroot /mnt ls -l /boot/EFI/BOOT
-arch-chroot /mnt ls -l /boot/EFI/Linux
-arch-chroot /mnt cat /boot/EFI/BOOT/limine.conf
-```
-
-Nota:
-- il target `Margine` usa `Limine`, quindi `bootctl status` non e' il check principale;
-- il check reale e' la presenza di `BOOTX64.EFI`, `limine.conf` e delle `UKI`.
-
-## 5. Dopo il reboot
-
-Verifiche minime:
-
-```bash
-cat /proc/cmdline
-findmnt /
-systemctl status greetd
-systemctl --user status elephant.service || true
-```
+Questa e' la forma piu' adatta ai test ripetibili.
 EOF
 }
 
