@@ -52,3 +52,5 @@ Primo script operativo:
   bootloader e Snapper.
 - `validate-virtualization-containers-baseline`: verifica supporto CPU/KVM,
   pacchetti e stato reale di `libvirt` e `podman`.
+- `prepare-qemu-archiso-validation`: prepara una VM QEMU/OVMF con Arch ISO
+  ufficiale e una guida per validare `Margine` in installazione reale.

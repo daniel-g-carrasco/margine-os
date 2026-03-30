@@ -1,0 +1,422 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+workdir="${repo_root}/build/qemu-archiso-validation"
+iso_path=""
+disk_path=""
+disk_size="80G"
+memory_mib="8192"
+cpus="6"
+ssh_forward_port="2222"
+download_iso=0
+run_vm=0
+headless=0
+dry_run=0
+
+arch_iso_url="https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso"
+arch_sig_url="https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso.sig"
+arch_b2sums_url="https://geo.mirror.pkgbuild.com/iso/latest/b2sums.txt"
+
+ovmf_code=""
+ovmf_vars_template=""
+ovmf_vars_copy=""
+run_script_path=""
+guide_path=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  prepare-qemu-archiso-validation [options]
+
+Options:
+  --workdir PATH          Directory di lavoro (default: build/qemu-archiso-validation)
+  --iso PATH              Arch ISO locale da usare
+  --disk PATH             Disco qcow2 da usare (default: WORKDIR/margine-test.qcow2)
+  --disk-size SIZE        Dimensione disco qcow2 (default: 80G)
+  --memory-mib N          RAM VM in MiB (default: 8192)
+  --cpus N                vCPU VM (default: 6)
+  --ssh-forward-port N    Porta host da inoltrare a guest:22 (default: 2222)
+  --download-iso          Scarica la Arch ISO ufficiale e i file di verifica
+  --run                   Avvia subito QEMU dopo la preparazione
+  --headless              Avvia QEMU senza finestra grafica
+  --dry-run               Mostra il piano senza eseguirlo
+  --help                  Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --workdir)
+        [[ $# -ge 2 ]] || die "missing value for --workdir"
+        workdir="$2"
+        shift 2
+        ;;
+      --iso)
+        [[ $# -ge 2 ]] || die "missing value for --iso"
+        iso_path="$2"
+        shift 2
+        ;;
+      --disk)
+        [[ $# -ge 2 ]] || die "missing value for --disk"
+        disk_path="$2"
+        shift 2
+        ;;
+      --disk-size)
+        [[ $# -ge 2 ]] || die "missing value for --disk-size"
+        disk_size="$2"
+        shift 2
+        ;;
+      --memory-mib)
+        [[ $# -ge 2 ]] || die "missing value for --memory-mib"
+        memory_mib="$2"
+        shift 2
+        ;;
+      --cpus)
+        [[ $# -ge 2 ]] || die "missing value for --cpus"
+        cpus="$2"
+        shift 2
+        ;;
+      --ssh-forward-port)
+        [[ $# -ge 2 ]] || die "missing value for --ssh-forward-port"
+        ssh_forward_port="$2"
+        shift 2
+        ;;
+      --download-iso)
+        download_iso=1
+        shift
+        ;;
+      --run)
+        run_vm=1
+        shift
+        ;;
+      --headless)
+        headless=1
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in qemu-system-x86_64 qemu-img curl b2sum install cp; do
+    have_cmd "$cmd" || die "required command not found: $cmd"
+  done
+}
+
+resolve_ovmf_paths() {
+  local code_candidate=""
+  local vars_candidate=""
+
+  for code_candidate in \
+    /usr/share/edk2/x64/OVMF_CODE.secboot.4m.fd \
+    /usr/share/OVMF/OVMF_CODE.secboot.4m.fd \
+    /usr/share/edk2/x64/OVMF_CODE.4m.fd \
+    /usr/share/OVMF/OVMF_CODE.4m.fd; do
+    if [[ -f "$code_candidate" ]]; then
+      ovmf_code="$code_candidate"
+      break
+    fi
+  done
+
+  for vars_candidate in \
+    /usr/share/edk2/x64/OVMF_VARS.4m.fd \
+    /usr/share/OVMF/OVMF_VARS.4m.fd; do
+    if [[ -f "$vars_candidate" ]]; then
+      ovmf_vars_template="$vars_candidate"
+      break
+    fi
+  done
+
+  [[ -n "$ovmf_code" ]] || die "unable to locate OVMF_CODE firmware"
+  [[ -n "$ovmf_vars_template" ]] || die "unable to locate OVMF_VARS template"
+}
+
+init_paths() {
+  [[ "$workdir" = /* ]] || workdir="${repo_root}/${workdir}"
+  disk_path="${disk_path:-${workdir}/margine-test.qcow2}"
+  iso_path="${iso_path:-${workdir}/archlinux-x86_64.iso}"
+  ovmf_vars_copy="${workdir}/OVMF_VARS.fd"
+  run_script_path="${workdir}/run-qemu.sh"
+  guide_path="${workdir}/inside-live-iso.md"
+}
+
+download_iso_assets() {
+  (( download_iso )) || return 0
+
+  log
+  log "==> Download Arch ISO assets"
+  run_cmd install -d "$workdir"
+  run_cmd curl -L --fail --output "$iso_path" "$arch_iso_url"
+  run_cmd curl -L --fail --output "${iso_path}.sig" "$arch_sig_url"
+  run_cmd curl -L --fail --output "${workdir}/b2sums.txt" "$arch_b2sums_url"
+}
+
+verify_iso_assets() {
+  if [[ ! -f "$iso_path" ]]; then
+    if (( dry_run )); then
+      warn "ISO not found during dry-run: ${iso_path}"
+      return 0
+    fi
+
+    die "ISO not found: $iso_path"
+  fi
+
+  if [[ -f "${workdir}/b2sums.txt" ]]; then
+    log
+    log "==> Verify ISO checksum"
+
+    if (( dry_run )); then
+      printf '[dry-run] grep archlinux-x86_64.iso %s > %s\n' "${workdir}/b2sums.txt" "${workdir}/archlinux.b2"
+      printf '[dry-run] (cd %s && b2sum -c archlinux.b2)\n' "$workdir"
+      return 0
+    fi
+
+    grep 'archlinux-x86_64.iso$' "${workdir}/b2sums.txt" > "${workdir}/archlinux.b2"
+    (
+      cd "$workdir"
+      b2sum -c archlinux.b2
+    )
+  else
+    warn "b2sums.txt not present; skipping checksum verification"
+  fi
+}
+
+prepare_disk() {
+  log
+  log "==> Prepare qcow2 disk"
+
+  if [[ -f "$disk_path" ]]; then
+    log "Disk already exists: ${disk_path}"
+    return 0
+  fi
+
+  run_cmd install -d "$(dirname "$disk_path")"
+  run_cmd qemu-img create -f qcow2 "$disk_path" "$disk_size"
+}
+
+prepare_ovmf_vars() {
+  log
+  log "==> Prepare OVMF vars"
+
+  run_cmd install -d "$workdir"
+  if [[ -f "$ovmf_vars_copy" ]]; then
+    log "OVMF vars already exists: ${ovmf_vars_copy}"
+    return 0
+  fi
+
+  run_cmd cp "$ovmf_vars_template" "$ovmf_vars_copy"
+}
+
+build_qemu_command() {
+  local display_args=""
+  local accel="accel=kvm:tcg"
+  local cpu_model="host"
+
+  if (( headless )); then
+    display_args="-display none -serial mon:stdio"
+  else
+    display_args="-display default -serial file:${workdir}/serial.log"
+  fi
+
+  if [[ ! -r /dev/kvm ]]; then
+    accel="accel=tcg"
+    cpu_model="max"
+  fi
+
+  cat <<EOF
+qemu-system-x86_64 \\
+  -machine q35,${accel} \\
+  -cpu ${cpu_model} \\
+  -smp ${cpus} \\
+  -m ${memory_mib} \\
+  -drive if=pflash,format=raw,readonly=on,file=${ovmf_code} \\
+  -drive if=pflash,format=raw,file=${ovmf_vars_copy} \\
+  -drive if=virtio,format=qcow2,file=${disk_path} \\
+  -cdrom ${iso_path} \\
+  -boot order=d,menu=on \\
+  -netdev user,id=net0,hostfwd=tcp::${ssh_forward_port}-:22 \\
+  -device virtio-net-pci,netdev=net0 \\
+  -device virtio-rng-pci \\
+  -virtfs local,path=${repo_root},mount_tag=margine,security_model=none,readonly=on \\
+  ${display_args}
+EOF
+}
+
+write_run_script() {
+  local command_text=""
+
+  log
+  log "==> Write QEMU launcher"
+
+  command_text="$(build_qemu_command)"
+  if (( dry_run )); then
+    printf '[dry-run] write %s\n' "$run_script_path"
+    return 0
+  fi
+
+  install -d "$workdir"
+  cat >"$run_script_path" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+$(build_qemu_command)
+EOF
+  chmod +x "$run_script_path"
+}
+
+write_guest_guide() {
+  log
+  log "==> Write guest guide"
+
+  if (( dry_run )); then
+    printf '[dry-run] write %s\n' "$guide_path"
+    return 0
+  fi
+
+  cat >"$guide_path" <<'EOF'
+# Validazione Margine in Arch live ISO
+
+## 1. Dentro la live ISO
+
+```bash
+timedatectl set-ntp true
+mkdir -p /mnt/margine-repo
+mount -t 9p -o trans=virtio,version=9p2000.L margine /mnt/margine-repo
+```
+
+## 2. Installazione guidata
+
+```bash
+/mnt/margine-repo/scripts/install-live-iso-guided
+```
+
+Percorso consigliato in VM:
+- modalita': `1` disco dedicato
+- disco target: `/dev/vda`
+- target root: `/mnt`
+- chroot automatico: `y`
+
+## 3. Installazione non interattiva equivalente
+
+```bash
+/mnt/margine-repo/scripts/install-live-iso \
+  --disk /dev/vda \
+  --yes-really-destroy-disk \
+  --target-root /mnt \
+  --repo-source /mnt/margine-repo \
+  --repo-dest /root/margine-os \
+  --hostname margine-vm \
+  --username daniel \
+  --real-name "Daniel Carrasco" \
+  --run-chroot
+```
+
+## 4. Cosa verificare prima del reboot
+
+```bash
+arch-chroot /mnt bootctl status || true
+arch-chroot /mnt ls -l /boot/EFI/BOOT
+arch-chroot /mnt ls -l /boot/EFI/Linux
+arch-chroot /mnt cat /boot/EFI/BOOT/limine.conf
+```
+
+Nota:
+- il target `Margine` usa `Limine`, quindi `bootctl status` non e' il check principale;
+- il check reale e' la presenza di `BOOTX64.EFI`, `limine.conf` e delle `UKI`.
+
+## 5. Dopo il reboot
+
+Verifiche minime:
+
+```bash
+cat /proc/cmdline
+findmnt /
+systemctl status greetd
+systemctl --user status elephant.service || true
+```
+EOF
+}
+
+maybe_run_vm() {
+  (( run_vm )) || return 0
+
+  log
+  log "==> Launch QEMU"
+
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$run_script_path"
+    return 0
+  fi
+
+  exec "$run_script_path"
+}
+
+main() {
+  parse_args "$@"
+  ensure_prereqs
+  resolve_ovmf_paths
+  init_paths
+
+  log "=== Prepare QEMU Arch ISO validation ==="
+  (( dry_run )) && log "Modalita': dry-run"
+
+  download_iso_assets
+  verify_iso_assets
+  prepare_disk
+  prepare_ovmf_vars
+  write_run_script
+  write_guest_guide
+
+  log
+  log "Pronto."
+  log "Launcher VM: ${run_script_path}"
+  log "Guida in-guest: ${guide_path}"
+  log "ISO: ${iso_path}"
+  log "Disco VM: ${disk_path}"
+
+  maybe_run_vm
+}
+
+main "$@"

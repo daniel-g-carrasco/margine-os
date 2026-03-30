@@ -38,6 +38,7 @@ Argomenti previsti:
 - validazione runtime del sistema
 - virtualizzazione e container come baseline separata
 - boot chain iniziale come prerequisito del test end-to-end
+- validazione installativa in VM prima del ferro vero
 
 Regola:
 - ogni nota deve spiegare il "cosa", il "perché" e il "come modificarlo".
