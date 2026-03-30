@@ -10,7 +10,6 @@ firefox
 firefox-i18n-it
 hunspell-it
 hyphen-it
-kitty
 libreoffice-fresh
 libreoffice-fresh-it
 mythes-it

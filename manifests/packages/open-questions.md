@@ -21,6 +21,19 @@
   accolto da `hyprlock`.
 - `walker` diventa il launcher preferito.
 - `hyprlauncher` resta il fallback ufficiale se `walker` non e' presente.
+- `kitty` resta il terminale baseline.
+- `Ghostty` esce dal perimetro della `v1`.
+- nasce un layer dedicato al tooling da coding e amministrazione, con:
+  - `tmux`
+  - `opencode`
+  - `htop`
+  - `btop`
+  - `radeontop`
+  - `ripgrep`
+  - `fd`
+  - `jq`
+  - `tree`
+  - utility CLI esplicite come `curl`, `grep`, `less`, `openssh`
 - la connettivita' di sistema entra in un layer dedicato:
   - `networkmanager`
   - `networkmanager-openvpn`

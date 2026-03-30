@@ -18,6 +18,7 @@ default_layers=(
   hardware-framework13-amd
   connectivity-stack
   security-and-recovery
+  coding-system-tools
   hyprland-core
   toolkit-gtk-qt
   desktop-integration

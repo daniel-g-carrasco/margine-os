@@ -152,11 +152,12 @@
 
 - Path osservato:
   - `~/.config/ghostty/config`
-- Decisione: `Rivedi piu' avanti`
+- Decisione: `Non migrare`
 - Motivo:
-  - oggi `Margine` usa `kitty` come baseline;
-  - `ghostty` puo' diventare una scelta alternativa, ma non entra ancora come
-    profilo utente da migrare.
+  - `Margine` usa `kitty` come terminale baseline;
+  - non vogliamo mantenere due terminali come default della `v1`;
+  - il profilo `ghostty` non porta abbastanza valore da giustificarne la
+    migrazione adesso.
 
 ### VS Code
 
@@ -211,6 +212,6 @@ Il quadro attuale e' questo:
 - `Versiona`: `Neovim`, `Kitty`, `Darktable` selettivo, `EasyEffects`
   selettivo, ICC selettivi.
 - `Non migrare`: `Firefox/Floorp`, `Thunderbird`, `Bitwarden`, `VLC`,
-  `Papers`, `Koofr`, `rclone.conf`, `VS Code`, `gtk bookmarks`,
+  `Papers`, `Koofr`, `rclone.conf`, `VS Code`, `Ghostty`, `gtk bookmarks`,
   `~/.local/share/applications` in blocco.
-- `Rivedi piu' avanti`: `GIMP`, `LibreOffice`, `Ghostty`.
+- `Rivedi piu' avanti`: `GIMP`, `LibreOffice`.

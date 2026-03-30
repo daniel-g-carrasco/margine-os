@@ -33,11 +33,15 @@ Entra nel progetto solo ciò che è:
 - repository Git locale + GitHub
 - `Firefox` puro, con configurazione enforced ma non estrema
 - `Thunderbird` ufficiale come mail client baseline
+- `kitty` come terminale baseline
+- tooling esplicito per coding e amministrazione (`tmux`, `opencode`,
+  monitor di sistema e utility CLI)
 
 ## Escluso da subito
 
 - `Floorp`
 - `GNOME` come ambiente principale
+- `Ghostty` come secondo terminale baseline
 - copia cieca dei pacchetti attuali
 - componenti `-git` come base del sistema
 - AUR non strettamente necessari

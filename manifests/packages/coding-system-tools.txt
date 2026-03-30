@@ -1,0 +1,31 @@
+# Tooling esplicito per coding e amministrazione quotidiana.
+# Nota:
+# - alcuni comandi "base" esistono gia' grazie ad Arch (`base`, `procps-ng`,
+#   ecc.), ma li rendiamo comunque espliciti qui quando fanno parte
+#   dell'esperienza workstation che vogliamo garantire;
+# - `kitty` resta nel layer desktop, non qui.
+
+bash-completion
+bat
+btop
+curl
+eza
+fd
+grep
+htop
+jq
+less
+lsof
+man-pages
+opencode
+openssh
+procps-ng
+radeontop
+ripgrep
+rsync
+strace
+tmux
+tree
+unzip
+which
+zip
