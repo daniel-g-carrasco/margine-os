@@ -25,3 +25,7 @@ La sottocartella `apps/` raccoglie invece le decisioni applicative:
 
 Questo vale anche per strumenti "di sistema" come `Timeshift`, quando la
 decisione utile e' piu' applicativa che infrastrutturale.
+
+Qui possono entrare anche validazioni reali di sottosistemi specifici, quando
+servono a confermare che una scelta architetturale del progetto corrisponde
+davvero all'hardware e al workflow usati.

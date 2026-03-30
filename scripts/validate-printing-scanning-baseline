@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+section() {
+  printf '\n==> %s\n' "$*"
+}
+
+status_line() {
+  printf '  - %s\n' "$*"
+}
+
+show_service_state() {
+  local unit="$1"
+  local active="unknown"
+  local enabled="unknown"
+
+  active="$(systemctl is-active "$unit" 2>/dev/null || true)"
+  enabled="$(systemctl is-enabled "$unit" 2>/dev/null || true)"
+
+  status_line "${unit}: active=${active:-unknown}, enabled=${enabled:-unknown}"
+}
+
+show_package_state() {
+  local package="$1"
+  if pacman -Q "$package" >/dev/null 2>&1; then
+    status_line "${package}: installed"
+  else
+    status_line "${package}: missing"
+  fi
+}
+
+show_hosts_line() {
+  local hosts_line=""
+  hosts_line="$(grep -E '^hosts:' /etc/nsswitch.conf || true)"
+
+  if [[ -z "$hosts_line" ]]; then
+    status_line "nsswitch hosts line: missing"
+    return 0
+  fi
+
+  status_line "nsswitch hosts line: ${hosts_line}"
+  if [[ "$hosts_line" == *mdns* ]]; then
+    status_line "mDNS support in nsswitch: present"
+  else
+    status_line "mDNS support in nsswitch: absent"
+  fi
+}
+
+show_printers() {
+  local printers=""
+  printers="$(lpstat -v 2>/dev/null || true)"
+
+  if [[ -z "$printers" ]]; then
+    status_line "no printers detected via CUPS"
+    return 0
+  fi
+
+  printf '%s\n' "$printers" | sed 's/^/  - /'
+}
+
+show_scanners() {
+  local devices=""
+
+  if ! have_cmd scanimage; then
+    status_line "scanimage: missing"
+    return 0
+  fi
+
+  devices="$(timeout 20s scanimage -L 2>/dev/null | grep '^device ' || true)"
+  if [[ -z "$devices" ]]; then
+    status_line "no scanner devices detected via SANE"
+    return 0
+  fi
+
+  printf '%s\n' "$devices" | sed 's/^/  - /'
+}
+
+show_ipp_discovery() {
+  local printers=""
+
+  if ! have_cmd ippfind; then
+    status_line "ippfind: missing"
+    return 0
+  fi
+
+  printers="$(timeout 6s ippfind 2>/dev/null | sed -n '1,20p' || true)"
+  if [[ -z "$printers" ]]; then
+    status_line "no IPP advertisements seen during short probe"
+    return 0
+  fi
+
+  printf '%s\n' "$printers" | sed 's/^/  - /'
+}
+
+main() {
+  section "Printing/Scanning Packages"
+  while IFS= read -r package; do
+    [[ -n "$package" ]] || continue
+    show_package_state "$package"
+  done <<'EOF'
+avahi
+cups
+cups-filters
+cups-pk-helper
+ghostscript
+ipp-usb
+nss-mdns
+sane
+sane-airscan
+simple-scan
+system-config-printer
+EOF
+
+  section "Services"
+  show_service_state "cups.socket"
+  show_service_state "avahi-daemon.service"
+  show_service_state "avahi-daemon.socket"
+  show_service_state "ipp-usb.service"
+
+  section "Local Discovery"
+  show_hosts_line
+  show_ipp_discovery
+
+  section "Printers"
+  show_printers
+
+  section "Scanners"
+  show_scanners
+}
+
+main "$@"
