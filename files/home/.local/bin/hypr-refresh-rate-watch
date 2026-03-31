@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+monitor_name="${HYPR_POWER_MONITOR:-eDP-1}"
+monitor_position="${HYPR_POWER_POSITION:-0x0}"
+monitor_scale="${HYPR_POWER_SCALE:-2.0}"
+ac_mode="${HYPR_POWER_MODE_AC:-2880x1920@120}"
+battery_mode="${HYPR_POWER_MODE_BATTERY:-2880x1920@60}"
+poll_seconds="${HYPR_POWER_POLL_SECONDS:-5}"
+
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+state_dir="${runtime_dir}/margine"
+state_file="${state_dir}/hypr-refresh-rate.state"
+
+log() {
+  printf '[hypr-refresh-rate] %s\n' "$*"
+}
+
+discover_hypr_instance() {
+  local latest=""
+
+  latest="$(ls -1dt "${runtime_dir}"/hypr/* 2>/dev/null | head -n1 || true)"
+  [[ -n "$latest" ]] || return 1
+
+  export HYPRLAND_INSTANCE_SIGNATURE
+  HYPRLAND_INSTANCE_SIGNATURE="${latest##*/}"
+  return 0
+}
+
+hyprctl_ready() {
+  discover_hypr_instance || return 1
+  hyprctl monitors all >/dev/null 2>&1
+}
+
+monitor_connected() {
+  hyprctl monitors all | grep -q "^Monitor ${monitor_name} "
+}
+
+current_mode() {
+  hyprctl monitors all | awk -v mon="$monitor_name" '
+    $1 == "Monitor" && $2 == mon {
+      getline
+      print $1
+      exit
+    }
+  '
+}
+
+on_ac_power() {
+  local supply=""
+  local type=""
+  local status=""
+
+  for supply in /sys/class/power_supply/*; do
+    [[ -f "${supply}/type" ]] || continue
+    type="$(<"${supply}/type")"
+
+    case "$type" in
+      Mains|USB)
+        if [[ -f "${supply}/online" ]] && [[ "$(<"${supply}/online")" == "1" ]]; then
+          return 0
+        fi
+        ;;
+    esac
+  done
+
+  for supply in /sys/class/power_supply/*; do
+    [[ -f "${supply}/type" ]] || continue
+    type="$(<"${supply}/type")"
+
+    if [[ "$type" == "Battery" && -f "${supply}/status" ]]; then
+      status="$(<"${supply}/status")"
+      case "$status" in
+        Charging|Full|Not\ charging)
+          return 0
+          ;;
+      esac
+    fi
+  done
+
+  return 1
+}
+
+desired_mode() {
+  if on_ac_power; then
+    printf '%s\n' "$ac_mode"
+  else
+    printf '%s\n' "$battery_mode"
+  fi
+}
+
+desired_state() {
+  if on_ac_power; then
+    printf 'ac\n'
+  else
+    printf 'battery\n'
+  fi
+}
+
+apply_mode() {
+  local mode="$1"
+  hyprctl keyword monitor "${monitor_name}, ${mode}, ${monitor_position}, ${monitor_scale}" >/dev/null
+}
+
+mode_matches() {
+  local desired="$1"
+  local current=""
+
+  current="$(current_mode || true)"
+  [[ -n "$current" && "$current" == "${desired}"* ]]
+}
+
+main() {
+  local state=""
+  local desired=""
+  local last_state=""
+
+  mkdir -p "$state_dir"
+  [[ -f "$state_file" ]] && last_state="$(<"$state_file")"
+
+  while ! hyprctl_ready; do
+    sleep 2
+  done
+
+  while :; do
+    if ! hyprctl_ready || ! monitor_connected; then
+      sleep "$poll_seconds"
+      continue
+    fi
+
+    state="$(desired_state)"
+    desired="$(desired_mode)"
+
+    if [[ "$state" != "$last_state" ]] || ! mode_matches "$desired"; then
+      if apply_mode "$desired"; then
+        printf '%s\n' "$state" > "$state_file"
+        last_state="$state"
+        log "Applied ${monitor_name} -> ${desired} (${state})"
+      fi
+    fi
+
+    sleep "$poll_seconds"
+  done
+}
+
+main "$@"

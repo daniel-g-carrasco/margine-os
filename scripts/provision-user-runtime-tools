@@ -10,8 +10,10 @@ home_dir=""
 
 declare -a home_payload=(
   ".config/systemd/user/elephant.service"
+  ".config/systemd/user/hypr-refresh-rate.service"
   ".local/bin/margine-launcher"
   ".local/bin/margine-launcher-service"
+  ".local/bin/hypr-refresh-rate-watch"
   ".local/bin/open-vpn-menu"
   ".local/bin/vpn-menu"
   ".local/bin/vpn-status"
@@ -107,21 +109,30 @@ copy_payload() {
   done
 }
 
-enable_elephant_unit() {
+enable_user_units() {
   local wants_dir="${home_dir}/.config/systemd/user/default.target.wants"
-  local link_path="${wants_dir}/elephant.service"
+  local unit=""
+  local link_path=""
+  local -a units=(
+    elephant.service
+    hypr-refresh-rate.service
+  )
 
   log
-  log "==> Enable elephant user service"
+  log "==> Enable user services"
 
   run_cmd install -d "$wants_dir"
 
-  if (( dry_run )); then
-    printf '[dry-run] ln -sfn ../elephant.service %s\n' "$link_path"
-    return 0
-  fi
+  for unit in "${units[@]}"; do
+    link_path="${wants_dir}/${unit}"
 
-  ln -sfn ../elephant.service "$link_path"
+    if (( dry_run )); then
+      printf '[dry-run] ln -sfn ../%s %s\n' "$unit" "$link_path"
+      continue
+    fi
+
+    ln -sfn "../${unit}" "$link_path"
+  done
 }
 
 fix_ownership() {
@@ -141,7 +152,7 @@ main() {
   resolve_home_dir
 
   copy_payload
-  enable_elephant_unit
+  enable_user_units
   fix_ownership
 
   log
