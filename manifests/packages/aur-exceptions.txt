@@ -4,12 +4,9 @@
 
 davinci-resolve
 koofr-desktop-bin
-elephant
-hyprcap
-walker
 
 # Note:
-# - `walker` e `elephant` restano AUR, ma nel desktop target sono il launcher
-#   preferito e il relativo backend dati.
-# - `hyprcap` resta un'eccezione mirata: oggi il workflow screenshot validato
-#   sulla macchina reale lo usa come wrapper sopra lo stack ufficiale.
+# - `walker`, `elephant` e `hyprcap` fanno ormai parte del baseline AUR
+#   automatico, perche' la UX desktop di Margine li considera componenti
+#   fondamentali.
+# - qui restano solo eccezioni AUR non essenziali al bootstrap base.

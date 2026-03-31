@@ -33,6 +33,7 @@ Struttura iniziale:
 - `packages/apps-core.txt`
 - `packages/apps-photo-audio-video.txt`
 - `packages/fonts.txt`
+- `packages/aur-baseline.txt`
 - `packages/aur-exceptions.txt`
 - `packages/open-questions.md`
 - `flatpaks/apps.txt`

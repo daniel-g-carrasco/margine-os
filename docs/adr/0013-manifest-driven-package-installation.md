@@ -38,9 +38,11 @@ Questo significa:
 
 1. i pacchetti ufficiali vengono letti da manifest `*.txt` versionati;
 2. i layer ufficiali hanno un ordine esplicito;
-3. AUR non entra nel percorso di default;
+3. un piccolo baseline AUR entra nel percorso di default solo dove serve a non
+   rompere il desktop target;
 4. Flatpak non entra nel percorso di default;
-5. AUR e Flatpak si abilitano solo con flag espliciti.
+5. le eccezioni AUR non essenziali e Flatpak si abilitano solo con flag
+   espliciti.
 
 ## Ordine canonico dei layer ufficiali
 
@@ -59,12 +61,23 @@ L'ordine base è:
 
 ## Regola AUR
 
-Il manifest `aur-exceptions.txt` non viene installato automaticamente.
+Il manifest `aur-baseline.txt` viene installato automaticamente.
 
 Motivo:
 
-- vogliamo che il percorso standard resti ancorato ai repo ufficiali;
-- le eccezioni AUR devono essere una scelta consapevole.
+- `Margine` usa `walker` come launcher preferito;
+- `walker` richiede `elephant`;
+- il workflow screenshot validato usa `hyprcap`;
+- senza questi pacchetti il desktop installato sarebbe incoerente rispetto alla
+  baseline dichiarata.
+
+Il manifest `aur-exceptions.txt` invece non viene installato automaticamente.
+
+Motivo:
+
+- vogliamo che il percorso standard resti il piu' possibile ancorato ai repo
+  ufficiali;
+- le eccezioni AUR non essenziali devono restare una scelta consapevole.
 
 ## Regola Flatpak
 
@@ -97,7 +110,7 @@ Questa scelta ci dà:
 
 - un bootstrap iniziale già utile;
 - manifest che diventano davvero eseguibili;
-- un confine chiaro tra ufficiale, AUR e Flatpak;
+- un confine chiaro tra ufficiale, AUR di baseline, AUR opzionale e Flatpak;
 - una base buona per lo script da live ISO.
 
 ## Per uno studente: la versione semplice

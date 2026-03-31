@@ -82,6 +82,30 @@ session_env_section() {
   fi
 }
 
+launcher_section() {
+  local walker_path=""
+  local elephant_path=""
+  local hyprlauncher_path=""
+
+  section "Launcher"
+
+  walker_path="$(command -v walker 2>/dev/null || true)"
+  elephant_path="$(command -v elephant 2>/dev/null || true)"
+  hyprlauncher_path="$(command -v hyprlauncher 2>/dev/null || true)"
+
+  status_line "walker: ${walker_path:-missing}"
+  status_line "elephant: ${elephant_path:-missing}"
+  status_line "hyprlauncher: ${hyprlauncher_path:-missing}"
+
+  if [[ -n "$walker_path" && -n "$elephant_path" ]]; then
+    status_line "launcher baseline: walker+elephant"
+  elif [[ -n "$hyprlauncher_path" ]]; then
+    status_line "launcher baseline: hyprlauncher fallback only"
+  else
+    status_line "launcher baseline: missing"
+  fi
+}
+
 power_section() {
   local profile="unknown"
   local amd_pstate="unknown"
@@ -192,6 +216,7 @@ EOF
 
 main() {
   session_env_section
+  launcher_section
   power_section
   audio_section
   connectivity_section

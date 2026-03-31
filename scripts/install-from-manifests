@@ -9,8 +9,9 @@ include_aur=0
 include_flatpak=0
 packages_dir="${repo_root}/manifests/packages"
 flatpaks_file="${repo_root}/manifests/flatpaks/apps.txt"
+aur_baseline_manifest="${repo_root}/manifests/packages/aur-baseline.txt"
 aur_manifest="${repo_root}/manifests/packages/aur-exceptions.txt"
-aur_helper=""
+aur_installer="${repo_root}/scripts/install-aur-packages"
 declare -a requested_layers=()
 
 default_layers=(
@@ -37,9 +38,8 @@ Usage:
 Options:
   --dry-run               Mostra il piano senza eseguire installazioni
   --layer NAME            Installa solo il layer indicato; ripetibile
-  --include-aur           Include il manifest AUR
+  --include-aur           Include anche le eccezioni AUR opzionali
   --include-flatpak       Include il manifest Flatpak
-  --aur-helper NAME       Forza `yay` o `paru`
   --list-layers           Mostra i layer disponibili ed esce
   --help                  Mostra questo aiuto
 EOF
@@ -76,8 +76,11 @@ list_layers() {
     printf '  - %s\n' "$layer"
   done
   log
-  log "Layer opzionali:"
+  log "Layer AUR:"
+  log "  - aur-baseline (automatico)"
   log "  - aur-exceptions (via --include-aur)"
+  log
+  log "Layer opzionali:"
   log "  - flatpaks/apps.txt (via --include-flatpak)"
 }
 
@@ -100,11 +103,6 @@ parse_args() {
       --include-flatpak)
         include_flatpak=1
         shift
-        ;;
-      --aur-helper)
-        [[ $# -ge 2 ]] || die "missing value for --aur-helper"
-        aur_helper="$2"
-        shift 2
         ;;
       --list-layers)
         list_layers
@@ -140,25 +138,6 @@ resolve_layers() {
   for layer in "${requested_layers[@]}"; do
     ensure_layer_exists "$layer"
   done
-}
-
-choose_aur_helper() {
-  if [[ -n "$aur_helper" ]]; then
-    have_cmd "$aur_helper" || die "AUR helper not found: $aur_helper"
-    return 0
-  fi
-
-  if have_cmd yay; then
-    aur_helper="yay"
-    return 0
-  fi
-
-  if have_cmd paru; then
-    aur_helper="paru"
-    return 0
-  fi
-
-  die "no supported AUR helper found; install yay or paru, or pass --aur-helper"
 }
 
 ensure_flathub_remote() {
@@ -199,25 +178,23 @@ install_official_layers() {
   run_cmd sudo pacman -S --needed --asexplicit "${packages[@]}"
 }
 
-install_aur_layer() {
-  local -a packages=()
-  local package=""
+install_aur_manifest() {
+  local manifest="$1"
+  local label="$2"
 
-  (( include_aur )) || return 0
-
-  [[ -f "$aur_manifest" ]] || die "AUR manifest not found: $aur_manifest"
-  choose_aur_helper
-
-  while IFS= read -r package; do
-    [[ -n "$package" ]] || continue
-    packages+=("$package")
-  done < <(read_manifest_lines "$aur_manifest")
-
-  (( ${#packages[@]} > 0 )) || return 0
+  [[ -f "$manifest" ]] || die "AUR manifest not found: $manifest"
+  [[ -x "$aur_installer" ]] || die "AUR installer not executable: $aur_installer"
 
   log
-  log "Manifest AUR incluso: ${#packages[@]} pacchetti"
-  run_cmd "$aur_helper" -S --needed "${packages[@]}"
+  log "${label}"
+  run_cmd sudo "$aur_installer" --manifest "$manifest"
+}
+
+install_aur_layers() {
+  install_aur_manifest "$aur_baseline_manifest" "Manifest AUR baseline"
+
+  (( include_aur )) || return 0
+  install_aur_manifest "$aur_manifest" "Manifest AUR opzionale"
 }
 
 install_flatpak_layer() {
@@ -250,7 +227,7 @@ main() {
   (( dry_run )) && log "Modalita': dry-run"
 
   install_official_layers
-  install_aur_layer
+  install_aur_layers
   install_flatpak_layer
 
   log

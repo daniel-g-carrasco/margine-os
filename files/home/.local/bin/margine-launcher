@@ -2,7 +2,14 @@
 
 set -euo pipefail
 
-if command -v walker >/dev/null 2>&1; then
+force_fallback=0
+
+if [[ "${1:-}" == "--fallback" ]]; then
+  force_fallback=1
+  shift
+fi
+
+if (( ! force_fallback )) && command -v walker >/dev/null 2>&1 && command -v elephant >/dev/null 2>&1; then
   exec walker "$@"
 fi
 

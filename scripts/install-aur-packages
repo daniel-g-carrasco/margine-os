@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dry_run=0
+upgrade=0
+build_user="aurbuilder"
+build_root="/var/cache/margine-aur"
+declare -a manifests=()
+declare -a packages=()
+
+usage() {
+  cat <<'EOF'
+Usage:
+  install-aur-packages [options] [package...]
+
+Options:
+  --manifest PATH        Legge i pacchetti AUR da un manifest; ripetibile
+  --build-user NAME      Utente non-root usato per il build (default: aurbuilder)
+  --upgrade              Ricostruisce anche i pacchetti gia' installati
+  --dry-run              Mostra il piano senza eseguirlo
+  --help                 Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --manifest)
+        [[ $# -ge 2 ]] || die "missing value for --manifest"
+        manifests+=("$2")
+        shift 2
+        ;;
+      --build-user)
+        [[ $# -ge 2 ]] || die "missing value for --build-user"
+        build_user="$2"
+        shift 2
+        ;;
+      --upgrade)
+        upgrade=1
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        packages+=("$1")
+        shift
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "install-aur-packages must run as root"
+}
+
+read_manifest_lines() {
+  local file="$1"
+  grep -hvE '^[[:space:]]*(#|$)' "$file"
+}
+
+resolve_packages() {
+  local manifest=""
+  local package=""
+  local -A seen=()
+  local -a ordered=()
+
+  for manifest in "${manifests[@]}"; do
+    [[ -f "$manifest" ]] || die "manifest not found: $manifest"
+    while IFS= read -r package; do
+      [[ -n "$package" ]] || continue
+      if [[ -z "${seen[$package]+x}" ]]; then
+        ordered+=("$package")
+        seen["$package"]=1
+      fi
+    done < <(read_manifest_lines "$manifest")
+  done
+
+  for package in "${packages[@]}"; do
+    if [[ -z "${seen[$package]+x}" ]]; then
+      ordered+=("$package")
+      seen["$package"]=1
+    fi
+  done
+
+  packages=("${ordered[@]}")
+  (( ${#packages[@]} > 0 )) || die "no AUR packages resolved"
+}
+
+ensure_prereqs() {
+  local cmd=""
+  for cmd in git makepkg sudo pacman; do
+    command -v "$cmd" >/dev/null 2>&1 || die "required command not found: $cmd"
+  done
+}
+
+ensure_build_user() {
+  local sudoers_path="/etc/sudoers.d/90-margine-aurbuilder"
+  local home_path="${build_root}/home"
+
+  if ! id -u "$build_user" >/dev/null 2>&1; then
+    run_cmd useradd -m -d "$home_path" -s /bin/bash "$build_user"
+  fi
+
+  run_cmd install -d -m 755 -o "$build_user" -g "$build_user" \
+    "${build_root}" \
+    "${build_root}/src"
+
+  if (( dry_run )); then
+    printf '[dry-run] install sudoers drop-in for %s at %s\n' "$build_user" "$sudoers_path"
+    return 0
+  fi
+
+  install -Dm440 /dev/stdin "$sudoers_path" <<EOF
+Defaults:${build_user} !authenticate
+${build_user} ALL=(root) NOPASSWD: /usr/bin/pacman
+EOF
+}
+
+refresh_repo() {
+  local package="$1"
+  local repo_dir="${build_root}/src/${package}"
+
+  if (( dry_run )); then
+    if [[ -d "$repo_dir/.git" ]]; then
+      printf '[dry-run] sudo -u %s git -C %s fetch --all --prune\n' "$build_user" "$repo_dir"
+      printf '[dry-run] sudo -u %s git -C %s reset --hard origin/master\n' "$build_user" "$repo_dir"
+    else
+      printf '[dry-run] sudo -u %s git clone https://aur.archlinux.org/%s.git %s\n' "$build_user" "$package" "$repo_dir"
+    fi
+    return 0
+  fi
+
+  if [[ -d "$repo_dir/.git" ]]; then
+    sudo -u "$build_user" git -C "$repo_dir" fetch --all --prune
+    sudo -u "$build_user" git -C "$repo_dir" reset --hard origin/master
+    return 0
+  fi
+
+  sudo -u "$build_user" git clone "https://aur.archlinux.org/${package}.git" "$repo_dir"
+}
+
+build_package() {
+  local package="$1"
+  local repo_dir="${build_root}/src/${package}"
+  local cmd="cd '$repo_dir' && git clean -fdx >/dev/null 2>&1 || true && makepkg --syncdeps --install --cleanbuild --clean --force --noconfirm"
+
+  if (( dry_run )); then
+    printf '[dry-run] sudo -u %s bash -lc %q\n' "$build_user" "$cmd"
+    return 0
+  fi
+
+  sudo -u "$build_user" bash -lc "$cmd"
+}
+
+install_packages() {
+  local package=""
+
+  log "Pacchetti AUR risolti: ${#packages[@]}"
+
+  for package in "${packages[@]}"; do
+    if (( ! upgrade )) && pacman -Q "$package" >/dev/null 2>&1; then
+      log "==> Skip AUR gia' installato: ${package}"
+      continue
+    fi
+
+    log
+    log "==> Build/install AUR: ${package}"
+    refresh_repo "$package"
+    build_package "$package"
+  done
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  resolve_packages
+  ensure_prereqs
+  ensure_build_user
+  install_packages
+}
+
+main "$@"

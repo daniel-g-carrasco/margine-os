@@ -258,6 +258,8 @@ run_pacman_update() {
 }
 
 run_aur_update() {
+  local aur_installer="${repo_root}/scripts/install-aur-packages"
+  local aur_baseline_manifest="${repo_root}/manifests/packages/aur-baseline.txt"
   (( use_aur )) || return 0
 
   log
@@ -267,6 +269,8 @@ run_aur_update() {
     run_optional "AUR update via yay" yay -Syu
   elif have_cmd paru; then
     run_optional "AUR update via paru" paru -Syu
+  elif [[ -x "$aur_installer" && -f "$aur_baseline_manifest" ]]; then
+    run_optional "AUR baseline rebuild" sudo "$aur_installer" --manifest "$aur_baseline_manifest" --upgrade
   else
     log "AUR helper non trovato, salto."
   fi

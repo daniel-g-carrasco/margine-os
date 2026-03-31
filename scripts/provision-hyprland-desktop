@@ -11,6 +11,7 @@ home_dir=""
 declare -a home_payload=(
   ".config/hypr/hyprland.conf"
   ".config/hypr/hypridle.conf"
+  ".config/hypr/hyprlauncher.conf"
   ".config/hypr/hyprlock.conf"
   ".config/hypr/hyprpaper.conf"
   ".config/hypr/monitors.conf"
