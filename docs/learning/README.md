@@ -39,6 +39,7 @@ Argomenti previsti:
 - virtualizzazione e container come baseline separata
 - boot chain iniziale come prerequisito del test end-to-end
 - validazione installativa in VM prima del ferro vero
+- separazione tra `VRR`, refresh rate e power profile sul laptop
 
 Regola:
 - ogni nota deve spiegare il "cosa", il "perché" e il "come modificarlo".

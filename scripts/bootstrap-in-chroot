@@ -272,6 +272,19 @@ run_connectivity_provisioner() {
   run_cmd "$provisioner" "${args[@]}"
 }
 
+run_framework_power_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-framework-power"
+  local -a args=()
+
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$provisioner" ]] || die "framework power provisioner not executable: $provisioner"
+
+  log
+  log "==> Provision Framework power baseline"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
 run_initial_boot_provisioner() {
   local provisioner="${repo_root}/scripts/provision-initial-boot-chain"
   local -a args=()
@@ -495,6 +508,7 @@ main() {
   run_manifest_installer
   run_initial_boot_provisioner
   run_connectivity_provisioner
+  run_framework_power_provisioner
   run_user_provisioner
   run_user_runtime_provisioner
   run_user_app_provisioner

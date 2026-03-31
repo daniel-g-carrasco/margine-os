@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+state_source="${repo_root}/files/var/lib/power-profiles-daemon/state.ini"
+state_target="/var/lib/power-profiles-daemon/state.ini"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-framework-power [options]
+
+Options:
+  --dry-run  Mostra il piano senza eseguirlo
+  --help     Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-framework-power must run as root"
+}
+
+ensure_sources() {
+  [[ -f "$state_source" ]] || die "required source file not found: $state_source"
+}
+
+install_state_file() {
+  log
+  log "==> Install power-profiles-daemon baseline"
+  run_cmd install -Dm644 "$state_source" "$state_target"
+}
+
+apply_live_policy_if_possible() {
+  if ! command -v powerprofilesctl >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if ! systemctl is-active --quiet power-profiles-daemon.service 2>/dev/null; then
+    return 0
+  fi
+
+  log
+  log "==> Apply live Framework power policy"
+
+  if (( dry_run )); then
+    printf '[dry-run] powerprofilesctl configure-action --disable amdgpu_panel_power\n'
+    printf '[dry-run] powerprofilesctl configure-action --disable amdgpu_dpm\n'
+    printf '[dry-run] powerprofilesctl configure-battery-aware --enable || true\n'
+    return 0
+  fi
+
+  powerprofilesctl configure-action --disable amdgpu_panel_power || true
+  powerprofilesctl configure-action --disable amdgpu_dpm || true
+  powerprofilesctl configure-battery-aware --enable || true
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  ensure_sources
+  install_state_file
+  apply_live_policy_if_possible
+
+  log
+  log "Baseline power Framework installata."
+}
+
+main "$@"
