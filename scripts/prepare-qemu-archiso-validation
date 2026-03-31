@@ -589,10 +589,17 @@ Dopo il primo boot del sistema installato, verifica:
 cat /proc/cmdline
 findmnt /
 systemctl status greetd
+systemctl --user show-environment | rg '^(DISPLAY|WAYLAND_DISPLAY|XDG_CURRENT_DESKTOP|XDG_SESSION_TYPE|XDG_SESSION_DESKTOP|DESKTOP_SESSION|GDK_BACKEND|MOZ_ENABLE_WAYLAND|_JAVA_AWT_WM_NONREPARENTING|HYPRLAND_INSTANCE_SIGNATURE|XDG_RUNTIME_DIR)='
+systemctl --user status elephant.service --no-pager
 ```
 
 Se arrivi alla sessione o almeno al login path previsto, il test ha superato il
 primo gate serio.
+
+Per la regressione `Walker/Elephant`, qui il controllo importante e' questo:
+
+- il blocco di variabili sopra deve essere presente dentro `systemd --user`
+- `elephant.service` deve essere attivo
 
 ## 9. Se qualcosa va storto
 

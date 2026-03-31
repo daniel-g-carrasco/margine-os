@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+declare -a candidate_vars=(
+  DISPLAY
+  WAYLAND_DISPLAY
+  XDG_CURRENT_DESKTOP
+  XDG_SESSION_TYPE
+  XDG_SESSION_DESKTOP
+  DESKTOP_SESSION
+  GDK_BACKEND
+  MOZ_ENABLE_WAYLAND
+  _JAVA_AWT_WM_NONREPARENTING
+  HYPRLAND_INSTANCE_SIGNATURE
+  XDG_RUNTIME_DIR
+)
+
+export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-Hyprland}"
+export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}"
+export XDG_SESSION_DESKTOP="${XDG_SESSION_DESKTOP:-hyprland}"
+export DESKTOP_SESSION="${DESKTOP_SESSION:-hyprland}"
+export GDK_BACKEND="${GDK_BACKEND:-wayland}"
+export MOZ_ENABLE_WAYLAND="${MOZ_ENABLE_WAYLAND:-1}"
+export _JAVA_AWT_WM_NONREPARENTING="${_JAVA_AWT_WM_NONREPARENTING:-1}"
+
+collect_present_vars() {
+  local name=""
+  local -a present=()
+
+  for name in "${candidate_vars[@]}"; do
+    [[ -n "${!name:-}" ]] && present+=("$name")
+  done
+
+  printf '%s\n' "${present[@]}"
+}
+
+main() {
+  local -a present_vars=()
+
+  mapfile -t present_vars < <(collect_present_vars)
+
+  (( ${#present_vars[@]} > 0 )) || exit 0
+
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl --user import-environment "${present_vars[@]}" || true
+  fi
+
+  if command -v dbus-update-activation-environment >/dev/null 2>&1; then
+    dbus-update-activation-environment --systemd "${present_vars[@]}" || true
+  fi
+}
+
+main "$@"

@@ -11,6 +11,7 @@ home_dir=""
 declare -a home_payload=(
   ".config/systemd/user/elephant.service"
   ".config/systemd/user/hypr-refresh-rate.service"
+  ".local/bin/margine-import-session-environment"
   ".local/bin/margine-launcher"
   ".local/bin/margine-launcher-service"
   ".local/bin/hypr-refresh-rate-watch"

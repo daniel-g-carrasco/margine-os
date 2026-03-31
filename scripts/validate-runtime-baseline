@@ -29,6 +29,59 @@ show_service_state() {
   status_line "${unit}: ${active:-unknown}"
 }
 
+session_env_section() {
+  local -a vars=(
+    DISPLAY
+    WAYLAND_DISPLAY
+    XDG_CURRENT_DESKTOP
+    XDG_SESSION_TYPE
+    XDG_SESSION_DESKTOP
+    DESKTOP_SESSION
+    GDK_BACKEND
+    MOZ_ENABLE_WAYLAND
+    _JAVA_AWT_WM_NONREPARENTING
+    HYPRLAND_INSTANCE_SIGNATURE
+    XDG_RUNTIME_DIR
+  )
+  local systemd_env=""
+  local name=""
+  local manager_value=""
+  local shell_value=""
+  local -a missing=()
+  local -a mismatched=()
+
+  section "Session environment"
+  show_service_state "elephant.service" user
+
+  systemd_env="$(systemctl --user show-environment 2>/dev/null || true)"
+
+  for name in "${vars[@]}"; do
+    manager_value="$(printf '%s\n' "$systemd_env" | sed -n "s/^${name}=//p" | head -n1)"
+    shell_value="${!name:-}"
+
+    if [[ -z "$manager_value" ]]; then
+      missing+=("$name")
+      continue
+    fi
+
+    if [[ -n "$shell_value" && "$manager_value" != "$shell_value" ]]; then
+      mismatched+=("$name")
+    fi
+  done
+
+  if (( ${#missing[@]} == 0 )); then
+    status_line "systemd user environment: complete"
+  else
+    status_line "systemd user environment missing: ${missing[*]}"
+  fi
+
+  if (( ${#mismatched[@]} == 0 )); then
+    status_line "session env parity with shell: ok"
+  else
+    status_line "session env parity mismatch: ${mismatched[*]}"
+  fi
+}
+
 power_section() {
   local profile="unknown"
   local amd_pstate="unknown"
@@ -138,6 +191,7 @@ EOF
 }
 
 main() {
+  session_env_section
   power_section
   audio_section
   connectivity_section
