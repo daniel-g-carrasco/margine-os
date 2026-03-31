@@ -98,7 +98,10 @@ copy_payload() {
 fix_ownership() {
   log
   log "==> Fix ownership"
-  run_cmd chown -R "${username}:${username}" "${home_dir}/.local/share/icc/margine"
+  run_cmd chown -R \
+    "${username}:${username}" \
+    "${home_dir}/.local" \
+    "${home_dir}/.local/share/icc/margine"
 }
 
 main() {

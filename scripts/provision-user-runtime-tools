@@ -142,6 +142,8 @@ fix_ownership() {
 
   run_cmd chown -R \
     "${username}:${username}" \
+    "${home_dir}/.config" \
+    "${home_dir}/.local" \
     "${home_dir}/.config/systemd/user" \
     "${home_dir}/.local/bin"
 }

@@ -154,6 +154,8 @@ fix_ownership() {
 
   run_cmd chown -R \
     "${username}:${username}" \
+    "${home_dir}/.config" \
+    "${home_dir}/.local" \
     "${home_dir}/.config/hypr" \
     "${home_dir}/.config/mako" \
     "${home_dir}/.config/satty" \

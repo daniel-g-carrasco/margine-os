@@ -145,6 +145,8 @@ fix_ownership() {
 
   run_cmd chown -R \
     "${username}:${username}" \
+    "${home_dir}/.config" \
+    "${home_dir}/.local" \
     "${home_dir}/.local/bin" \
     "${home_dir}/.local/share/easyeffects" \
     "${home_dir}/.config/systemd/user"
