@@ -1,9 +1,7 @@
 # AUR di baseline necessari per rendere coerente il desktop Margine.
 #
 # Ordine importante:
-# - `elephant` prima di `walker`, perche' Walker lo usa per lanciare le app;
-# - `hyprcap` resta qui per non rompere il workflow screenshot validato.
+# - `elephant` prima di `walker`, perche' Walker lo usa per lanciare le app.
 
 elephant
 walker
-hyprcap

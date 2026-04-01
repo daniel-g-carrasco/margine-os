@@ -347,6 +347,19 @@ run_photo_color_provisioner() {
   run_cmd "$provisioner" "${args[@]}"
 }
 
+run_snapper_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-snapper-baseline"
+  local -a args=()
+
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$provisioner" ]] || die "snapper provisioner not executable: $provisioner"
+
+  log
+  log "==> Provision Snapper baseline"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
 run_timeshift_provisioner() {
   local provisioner="${repo_root}/scripts/provision-timeshift-defaults"
   local -a args=()
@@ -481,7 +494,6 @@ enable_base_services() {
     fstrim.timer
     systemd-timesyncd.service
     ufw.service
-    libvirtd.service
     cups.socket
     avahi-daemon.service
     avahi-daemon.socket
@@ -520,6 +532,7 @@ main() {
   run_virtualization_container_provisioner
   run_framework_audio_provisioner
   run_photo_color_provisioner
+  run_snapper_provisioner
   run_timeshift_provisioner
   enable_base_services
 

@@ -7,6 +7,10 @@ output_dir="${pictures_dir}/Schermate"
 
 mkdir -p "$output_dir"
 
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
 notify_capture() {
   local file="$1"
   (
@@ -42,36 +46,69 @@ notify_capture() {
   ) >/dev/null 2>&1 &
 }
 
-choose_action() {
-  if command -v walker >/dev/null 2>&1; then
-    printf '%s\n' \
-      'Monitor attivo' \
-      'Monitor...' \
-      'Finestra attiva' \
-      'Finestra...' \
-      'Regione' \
-      | walker -d -e -p 'Screenshot'
-    return
+choose_from_menu() {
+  local prompt="$1"
+  local menu_input="$2"
+  local choice=""
+
+  if have_cmd walker; then
+    choice="$(printf '%s\n' "$menu_input" | walker -d -e -p "$prompt" 2>/dev/null || true)"
+    if [[ -n "$choice" ]]; then
+      printf '%s\n' "$choice"
+      return 0
+    fi
   fi
 
-  if command -v hyprlauncher >/dev/null 2>&1; then
-    printf '%s\n' \
-      'Monitor attivo' \
-      'Monitor...' \
-      'Finestra attiva' \
-      'Finestra...' \
-      'Regione' \
-      | hyprlauncher --dmenu
-    return
+  if have_cmd hyprlauncher; then
+    choice="$(printf '%s\n' "$menu_input" | hyprlauncher --dmenu 2>/dev/null || true)"
+    if [[ -n "$choice" ]]; then
+      printf '%s\n' "$choice"
+      return 0
+    fi
   fi
 
-  exit 1
+  return 1
+}
+
+focused_monitor_name() {
+  hyprctl -j monitors 2>/dev/null |
+    jq -r '.[] | select(.focused == true) | .name' |
+    head -n1 || true
+}
+
+active_window_geometry() {
+  hyprctl -j activewindow 2>/dev/null |
+    jq -r 'if .mapped == true and (.at | length) == 2 and (.size | length) == 2 then "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])" else empty end' || true
+}
+
+monitor_choices() {
+  hyprctl -j monitors 2>/dev/null |
+    jq -r '.[] | "\(.name)\t\(.description // .name)"' || true
+}
+
+window_choices() {
+  hyprctl -j clients 2>/dev/null |
+    jq -r '.[] | select(.mapped == true and (.at | length) == 2 and (.size | length) == 2) | "\(.workspace.name)\t\(.class // "-")\t\(.title // "(senza titolo)")\t\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"' || true
+}
+
+capture_monitor() {
+  local monitor_name="$1"
+
+  [[ -n "$monitor_name" ]] || return 1
+  grim -o "$monitor_name" "$filepath"
+}
+
+capture_geometry() {
+  local geometry="$1"
+
+  [[ -n "$geometry" ]] || return 1
+  grim -g "$geometry" "$filepath"
 }
 
 resolve_selection() {
   case "${1:-menu}" in
     menu|"")
-      choice="$(choose_action || true)"
+      choice="$(choose_from_menu "Screenshot" $'Monitor attivo\nMonitor...\nFinestra attiva\nFinestra...\nRegione' || true)"
       case "$choice" in
         'Monitor attivo')
           printf '%s\n' 'monitor:active'
@@ -96,21 +133,57 @@ resolve_selection() {
   esac
 }
 
+capture_selection() {
+  local selection="$1"
+  local choice=""
+  local geometry=""
+  local monitor_name=""
+
+  case "$selection" in
+    monitor:active)
+      monitor_name="$(focused_monitor_name)"
+      capture_monitor "$monitor_name"
+      ;;
+    monitor)
+      choice="$(choose_from_menu "Monitor" "$(monitor_choices)" || true)"
+      monitor_name="${choice%%$'\t'*}"
+      capture_monitor "$monitor_name"
+      ;;
+    window:active)
+      geometry="$(active_window_geometry)"
+      capture_geometry "$geometry"
+      ;;
+    window)
+      choice="$(choose_from_menu "Finestra" "$(window_choices)" || true)"
+      geometry="${choice##*$'\t'}"
+      capture_geometry "$geometry"
+      ;;
+    region)
+      geometry="$(slurp || true)"
+      capture_geometry "$geometry"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+if ! have_cmd grim || ! have_cmd slurp || ! have_cmd jq || ! have_cmd hyprctl; then
+  notify-send -u normal "Screenshot" "Stack screenshot incompleto: servono grim, slurp, jq e hyprctl"
+  exit 1
+fi
+
 selection="$(resolve_selection "${1:-menu}")"
 
 if [[ -z "$selection" ]]; then
-  exit 0
-fi
-
-if ! command -v hyprcap >/dev/null 2>&1; then
-  notify-send -u normal "Screenshot" "hyprcap non e' installato"
-  exit 1
+  selection="monitor:active"
 fi
 
 filename="$(date '+%Y-%m-%d_%H-%M-%S').png"
 filepath="${output_dir}/${filename}"
 
-if ! hyprcap shot "$selection" -w -f "$filename" -o "$output_dir" -N; then
+if ! capture_selection "$selection"; then
+  notify-send -u normal "Screenshot" "Acquisizione non riuscita"
   exit 0
 fi
 

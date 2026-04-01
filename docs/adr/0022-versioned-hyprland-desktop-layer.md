@@ -77,8 +77,15 @@ macchina reale:
 - recording con indicatore `REC` in `waybar`;
 - OSD volume/luminosità con `swayosd`.
 
-Per gli screenshot la `v1` ammette `hyprcap` come eccezione AUR mirata, perché
-oggi è il wrapper già validato nel setup reale.
+La baseline `v1` usa direttamente:
+
+- `grim`
+- `slurp`
+- `satty`
+- `wf-recorder`
+
+Questo evita che il desktop dipenda da un wrapper AUR per funzioni di base come
+screenshot e recording.
 
 ## Wallpaper
 

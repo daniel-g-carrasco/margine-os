@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $(id -u) -ne 0 ]]; then
-  printf 'error: this helper must run as root\n' >&2
-  exit 1
-fi
-
-systemctl enable --now libvirtd.service
-
-if command -v virsh >/dev/null 2>&1 && virsh net-info default >/dev/null 2>&1; then
-  virsh net-autostart default
-  virsh net-start default >/dev/null 2>&1 || true
-fi
-
-printf 'Libvirt enabled. Default network is set to autostart when available.\n'
+exec /usr/local/bin/margine-enable-libvirt "$@"

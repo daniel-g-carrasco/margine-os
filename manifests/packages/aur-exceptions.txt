@@ -6,7 +6,6 @@ davinci-resolve
 koofr-desktop-bin
 
 # Note:
-# - `walker`, `elephant` e `hyprcap` fanno ormai parte del baseline AUR
-#   automatico, perche' la UX desktop di Margine li considera componenti
-#   fondamentali.
+# - `walker` ed `elephant` fanno ormai parte del baseline AUR automatico,
+#   perche' la UX desktop di Margine li considera componenti fondamentali.
 # - qui restano solo eccezioni AUR non essenziali al bootstrap base.

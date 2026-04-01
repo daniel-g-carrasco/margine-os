@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $(id -u) -ne 0 ]]; then
+  printf 'error: this helper must run as root\n' >&2
+  exit 1
+fi
+
+systemctl disable --now \
+  libvirtd.service \
+  libvirtd.socket \
+  libvirtd-ro.socket \
+  libvirtd-admin.socket >/dev/null 2>&1 || true
+
+printf 'Libvirt disabled.\n'

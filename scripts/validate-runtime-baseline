@@ -219,7 +219,14 @@ connectivity_section() {
 }
 
 screenshot_section() {
+  local binary=""
+
   section "Screenshot e Recording"
+
+  for binary in grim slurp satty wf-recorder hyprctl jq; do
+    status_line "binary ${binary}: $(command -v "$binary" >/dev/null 2>&1 && echo yes || echo no)"
+  done
+  status_line "binary hyprcap (opzionale): $(command -v hyprcap >/dev/null 2>&1 && echo yes || echo no)"
 
   while IFS= read -r relpath; do
     [[ -n "$relpath" ]] || continue

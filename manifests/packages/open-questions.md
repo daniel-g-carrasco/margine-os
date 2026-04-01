@@ -14,8 +14,6 @@
 - `LazyVim` verrà trattato come configurazione di `Neovim`, non come pacchetto.
 - `Timeshift` puo' entrare, ma `Snapper` resta il motore architetturale
   principale del rollback.
-- `hyprcap` entra come eccezione AUR mirata, perché oggi il workflow screenshot
-  validato sulla macchina reale lo usa come wrapper sopra lo stack ufficiale.
 - `greetd + tuigreet` diventa il login path baseline.
 - l'utente principale entra con autologin iniziale via `greetd`, poi viene
   accolto da `hyprlock`.

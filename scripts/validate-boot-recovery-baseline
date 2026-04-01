@@ -68,6 +68,7 @@ snapper_section() {
   fi
 
   status_line "/.snapshots exists: $( [[ -d /.snapshots ]] && echo yes || echo no )"
+  status_line "/etc/snapper/configs/root: $( [[ -f /etc/snapper/configs/root ]] && echo yes || echo no )"
   status_line "snapper-timeline.timer: $(systemctl is-enabled snapper-timeline.timer 2>/dev/null || true)"
   status_line "snapper-cleanup.timer: $(systemctl is-enabled snapper-cleanup.timer 2>/dev/null || true)"
 }

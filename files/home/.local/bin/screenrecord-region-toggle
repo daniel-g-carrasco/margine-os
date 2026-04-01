@@ -23,3 +23,5 @@ wf-recorder -g "$GEOM" -f "$outfile" &
 pid="$!"
 echo "$pid" > "$PIDFILE"
 pkill --signal SIGRTMIN+8 -x waybar >/dev/null 2>&1 || true
+
+notify-send -a "Screen Recorder" "Registrazione" "Registrazione area avviata"

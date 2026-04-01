@@ -67,7 +67,6 @@ Motivo:
 
 - `Margine` usa `walker` come launcher preferito;
 - `walker` richiede `elephant`;
-- il workflow screenshot validato usa `hyprcap`;
 - senza questi pacchetti il desktop installato sarebbe incoerente rispetto alla
   baseline dichiarata.
 

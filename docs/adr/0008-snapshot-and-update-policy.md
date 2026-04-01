@@ -95,6 +95,12 @@ Questo significa che il modello finale e':
 
 Questi snapshot saranno il percorso normale di recovery dopo update.
 
+In piu', il bootstrap iniziale del sistema deve lasciare almeno:
+
+- la config `root` di `snapper` installata davvero;
+- `snap-pac` configurato;
+- uno snapshot baseline iniziale del sistema appena installato.
+
 ## 4. Timeline
 
 Nella `v1` disabilitiamo le timeline automatiche sul root.

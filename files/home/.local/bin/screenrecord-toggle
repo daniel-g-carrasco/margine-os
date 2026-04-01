@@ -7,14 +7,31 @@ PIDFILE="${runtime_dir}/wf-recorder.pid"
 
 mkdir -p "$OUTDIR"
 
+focused_monitor_name() {
+    if ! command -v hyprctl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+        return 0
+    fi
+
+    hyprctl -j monitors 2>/dev/null |
+        jq -r '.[] | select(.focused == true) | .name' |
+        head -n1 || true
+}
+
 if pgrep -x wf-recorder >/dev/null 2>&1; then
     exec "$HOME/.local/bin/screenrecord-stop"
 fi
 
 rm -f "${runtime_dir}/wf-recorder.pid" "${runtime_dir}/wf-recorder-region.pid"
 outfile="$OUTDIR/$(date +'%Y-%m-%d_%H-%M-%S').mp4"
+monitor_name="$(focused_monitor_name)"
 
-wf-recorder -f "$outfile" &
+if [[ -n "$monitor_name" ]]; then
+    wf-recorder -o "$monitor_name" -f "$outfile" &
+else
+    wf-recorder -f "$outfile" &
+fi
 pid="$!"
 echo "$pid" > "$PIDFILE"
 pkill --signal SIGRTMIN+8 -x waybar >/dev/null 2>&1 || true
+
+notify-send -a "Screen Recorder" "Registrazione" "Registrazione schermo avviata"

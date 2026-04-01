@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+snapper_config_source="${repo_root}/files/etc/snapper/configs/root"
+snap_pac_source="${repo_root}/files/etc/snap-pac.ini"
+snapshots_dir="/.snapshots"
+initial_snapshot_description="margine bootstrap baseline"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-snapper-baseline [options]
+
+Options:
+  --dry-run  Mostra il piano senza eseguirlo
+  --help     Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-snapper-baseline must run as root"
+}
+
+ensure_sources() {
+  [[ -f "$snapper_config_source" ]] || die "required source not found: $snapper_config_source"
+  [[ -f "$snap_pac_source" ]] || die "required source not found: $snap_pac_source"
+}
+
+ensure_btrfs_layout() {
+  local root_fstype=""
+
+  root_fstype="$(findmnt -no FSTYPE / 2>/dev/null || true)"
+  [[ "$root_fstype" == "btrfs" ]] || die "snapper baseline richiede root su btrfs"
+
+  if ! mountpoint -q "$snapshots_dir"; then
+    warn "${snapshots_dir} non risulta un mountpoint dedicato; continuo ma la baseline recovery non e' allineata al layout previsto"
+  fi
+}
+
+install_config_files() {
+  log
+  log "==> Install Snapper config files"
+
+  run_cmd install -Dm644 \
+    "$snapper_config_source" \
+    /etc/snapper/configs/root
+
+  run_cmd install -Dm644 \
+    "$snap_pac_source" \
+    /etc/snap-pac.ini
+}
+
+ensure_snapshots_dir() {
+  log
+  log "==> Ensure /.snapshots layout"
+
+  run_cmd install -d -m 750 "$snapshots_dir"
+
+  if (( ! dry_run )); then
+    chown root:root "$snapshots_dir"
+  fi
+}
+
+snapper_config_exists() {
+  snapper --no-dbus list-configs --no-headers --csvout --columns config 2>/dev/null |
+    grep -Fxq "root"
+}
+
+count_root_snapshots() {
+  snapper --no-dbus -c root list --disable-used-space 2>/dev/null |
+    awk 'match($0, /^[[:space:]]*[0-9]+/) {count++} END {print count+0}'
+}
+
+create_initial_snapshot_if_needed() {
+  local snapshot_count="0"
+
+  log
+  log "==> Ensure initial root snapshot"
+
+  if (( dry_run )); then
+    printf '[dry-run] snapper --no-dbus list-configs\n'
+    printf '[dry-run] snapper --no-dbus -c root create --type single --cleanup-algorithm number --description %q --userdata %q\n' \
+      "$initial_snapshot_description" \
+      "important=yes,margine=yes,scope=root,source=bootstrap"
+    return 0
+  fi
+
+  if ! command -v snapper >/dev/null 2>&1; then
+    die "snapper command not found"
+  fi
+
+  if ! snapper_config_exists; then
+    die "Snapper config 'root' not visible after install"
+  fi
+
+  snapshot_count="$(count_root_snapshots)"
+  if [[ "$snapshot_count" -gt 0 ]]; then
+    log "Snapper ha gia' ${snapshot_count} snapshot root; nessuno snapshot bootstrap aggiuntivo."
+    return 0
+  fi
+
+  snapper --no-dbus -c root create \
+    --type single \
+    --cleanup-algorithm number \
+    --description "$initial_snapshot_description" \
+    --userdata "important=yes,margine=yes,scope=root,source=bootstrap"
+}
+
+enable_cleanup_timer() {
+  log
+  log "==> Enable Snapper cleanup timer"
+  run_cmd systemctl enable snapper-cleanup.timer
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  ensure_sources
+
+  log "=== Provision Snapper baseline ==="
+  (( dry_run )) && log "Modalita': dry-run"
+
+  ensure_btrfs_layout
+  install_config_files
+  ensure_snapshots_dir
+  create_initial_snapshot_if_needed
+  enable_cleanup_timer
+
+  log
+  log "Baseline Snapper pronta:"
+  log "- config root installata"
+  log "- snap-pac configurato"
+  log "- snapshot bootstrap iniziale garantito"
+  log "- snapper-cleanup.timer abilitato"
+}
+
+main "$@"

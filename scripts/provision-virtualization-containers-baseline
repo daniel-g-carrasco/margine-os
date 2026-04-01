@@ -7,6 +7,8 @@ repo_root="$(cd "${script_dir}/.." && pwd)"
 dry_run=0
 libvirt_dropin_source="${repo_root}/files/etc/libvirt/libvirtd.conf.d/10-margine.conf"
 libvirt_helper_source="${repo_root}/files/usr/local/bin/margine-enable-libvirt-default-network"
+libvirt_enable_helper_source="${repo_root}/files/usr/local/bin/margine-enable-libvirt"
+libvirt_disable_helper_source="${repo_root}/files/usr/local/bin/margine-disable-libvirt"
 
 usage() {
   cat <<'EOF'
@@ -65,6 +67,8 @@ require_root() {
 ensure_sources() {
   [[ -f "$libvirt_dropin_source" ]] || die "required source not found: $libvirt_dropin_source"
   [[ -f "$libvirt_helper_source" ]] || die "required source not found: $libvirt_helper_source"
+  [[ -f "$libvirt_enable_helper_source" ]] || die "required source not found: $libvirt_enable_helper_source"
+  [[ -f "$libvirt_disable_helper_source" ]] || die "required source not found: $libvirt_disable_helper_source"
 }
 
 install_libvirt_baseline() {
@@ -75,8 +79,18 @@ install_libvirt_baseline() {
     /etc/libvirt/libvirtd.conf.d/10-margine.conf
 
   run_cmd install -Dm755 \
+    "$libvirt_enable_helper_source" \
+    /usr/local/bin/margine-enable-libvirt
+
+  run_cmd install -Dm755 \
+    "$libvirt_disable_helper_source" \
+    /usr/local/bin/margine-disable-libvirt
+
+  run_cmd install -Dm755 \
     "$libvirt_helper_source" \
     /usr/local/bin/margine-enable-libvirt-default-network
+
+  run_cmd install -d -m 700 /var/lib/libvirt/secrets
 }
 
 main() {
@@ -93,7 +107,8 @@ main() {
   log "Baseline virtualizzazione/container pronta:"
   log "- libvirt socket group = libvirt"
   log "- qemu:///system come URI predefinito"
-  log "- helper per attivare la rete default di libvirt"
+  log "- helper per abilitare libvirt con bootstrap della chiave segreta"
+  log "- libvirtd NON viene acceso automaticamente al primo boot"
 }
 
 main "$@"

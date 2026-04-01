@@ -32,7 +32,10 @@ In piu':
 
 - installiamo un drop-in `libvirtd.conf.d` per usare il gruppo `libvirt`;
 - impostiamo `qemu:///system` come URI predefinito;
-- forniamo un helper per abilitare la rete `default` di `libvirt`.
+- forniamo un helper per abilitare `libvirtd` in modo corretto, inizializzando
+  prima la chiave segreta richiesta da libvirt;
+- la rete `default` di `libvirt` viene poi portata in autostart da quello
+  stesso helper quando disponibile.
 
 ## Perche' questa scelta
 
@@ -62,7 +65,9 @@ Non entrano ancora:
 ### Negative
 
 - e' un layer in piu' nella baseline;
-- `libvirtd` entra tra i servizi di sistema da validare davvero.
+- `libvirtd` non puo' piu' essere trattato come servizio "sempre on" del primo
+  boot, perche' le release attuali di libvirt richiedono uno stato iniziale
+  coerente per le credenziali.
 
 ## Per uno studente
 
@@ -70,5 +75,5 @@ La lezione qui e' questa:
 
 - preparare storage per le VM non basta;
 - mettere l'utente nel gruppo `libvirt` non basta;
-- finche' non esistono pacchetti, runtime e check ripetibili, non hai una
+- finche' non esistono pacchetti, helper di bootstrap e check ripetibili, non hai una
   baseline: hai solo intenzioni.

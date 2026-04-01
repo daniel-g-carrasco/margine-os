@@ -47,8 +47,11 @@ hardware_section() {
 
 runtime_section() {
   section "Runtime"
+  status_line "libvirt baseline: opt-in"
   status_line "libvirtd.service: $(systemctl is-active libvirtd.service 2>/dev/null || true)"
   status_line "libvirtd.service enabled: $(systemctl is-enabled libvirtd.service 2>/dev/null || true)"
+  status_line "margine-enable-libvirt helper: $( [[ -x /usr/local/bin/margine-enable-libvirt ]] && echo yes || echo no )"
+  status_line "libvirt secret key: $( [[ -s /var/lib/libvirt/secrets/secrets-encryption-key ]] && echo ready || echo missing )"
 
   if have_cmd virsh; then
     virsh net-list --all 2>/dev/null | sed 's/^/  - /'
@@ -64,6 +67,7 @@ runtime_section() {
 storage_section() {
   section "Storage paths"
   status_line "/var/lib/libvirt exists: $( [[ -d /var/lib/libvirt ]] && echo yes || echo no )"
+  status_line "/var/lib/libvirt/secrets exists: $( [[ -d /var/lib/libvirt/secrets ]] && echo yes || echo no )"
   status_line "/var/lib/containers exists: $( [[ -d /var/lib/containers ]] && echo yes || echo no )"
 }
 

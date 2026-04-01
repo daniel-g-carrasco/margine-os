@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+secret_dir="/var/lib/libvirt/secrets"
+secret_file="${secret_dir}/secrets-encryption-key"
+
+if [[ $(id -u) -ne 0 ]]; then
+  printf 'error: this helper must run as root\n' >&2
+  exit 1
+fi
+
+install -d -m 700 "$secret_dir"
+
+if [[ ! -s "$secret_file" ]]; then
+  rm -f "$secret_file"
+  systemctl start virt-secret-init-encryption.service
+fi
+
+if [[ ! -s "$secret_file" ]]; then
+  printf 'error: libvirt secrets encryption key not initialized correctly\n' >&2
+  exit 1
+fi
+
+systemctl reset-failed libvirtd.service libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket >/dev/null 2>&1 || true
+systemctl enable --now libvirtd.service
+
+if command -v virsh >/dev/null 2>&1 && virsh net-info default >/dev/null 2>&1; then
+  virsh net-autostart default
+  virsh net-start default >/dev/null 2>&1 || true
+fi
+
+printf 'Libvirt enabled. Encryption key is initialized and the default network will autostart when available.\n'
