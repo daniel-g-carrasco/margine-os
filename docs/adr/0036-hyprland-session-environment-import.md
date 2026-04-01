@@ -29,7 +29,8 @@ Hyprland nel manager `systemd --user` e nel contesto di attivazione D-Bus.
 La soluzione e':
 
 - script versionato `margine-import-session-environment`;
-- esecuzione molto presto nella sezione `exec-once` di `hyprland.conf`;
+- esecuzione come prima `exec-once` della sessione in `hyprland.conf`;
+- avvio del servizio launcher subito dopo l'import dell'ambiente;
 - uso congiunto di:
   - `systemctl --user import-environment`
   - `dbus-update-activation-environment --systemd`
@@ -80,6 +81,9 @@ Positive:
 - il manager `systemd --user` riceve lo stesso contesto grafico essenziale che
   vede la shell della sessione;
 - anche le attivazioni D-Bus grafiche restano coerenti.
+- `Elephant` non viene piu' abilitato come servizio di sessione persistente:
+  viene avviato on-demand dal launcher dopo l'import dell'ambiente, cosi' non
+  puo' partire troppo presto.
 
 Negative:
 

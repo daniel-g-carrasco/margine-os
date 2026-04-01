@@ -29,6 +29,14 @@ show_service_state() {
   status_line "${unit}: ${active:-unknown}"
 }
 
+show_user_enablement_state() {
+  local unit="$1"
+  local enabled="unknown"
+
+  enabled="$(systemctl --user is-enabled "$unit" 2>/dev/null || true)"
+  status_line "${unit} enablement: ${enabled:-unknown}"
+}
+
 session_env_section() {
   local -a vars=(
     DISPLAY
@@ -52,6 +60,7 @@ session_env_section() {
 
   section "Session environment"
   show_service_state "elephant.service" user
+  show_user_enablement_state "elephant.service"
 
   systemd_env="$(systemctl --user show-environment 2>/dev/null || true)"
 
@@ -79,6 +88,12 @@ session_env_section() {
     status_line "session env parity with shell: ok"
   else
     status_line "session env parity mismatch: ${mismatched[*]}"
+  fi
+
+  if [[ "$(systemctl --user is-enabled elephant.service 2>/dev/null || true)" == "enabled" ]]; then
+    status_line "elephant startup mode: risk (enabled too early)"
+  else
+    status_line "elephant startup mode: on-demand ok"
   fi
 }
 

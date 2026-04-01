@@ -112,10 +112,10 @@ copy_payload() {
 
 enable_user_units() {
   local wants_dir="${home_dir}/.config/systemd/user/default.target.wants"
+  local elephant_legacy_link="${wants_dir}/elephant.service"
   local unit=""
   local link_path=""
   local -a units=(
-    elephant.service
     hypr-refresh-rate.service
   )
 
@@ -134,6 +134,13 @@ enable_user_units() {
 
     ln -sfn "../${unit}" "$link_path"
   done
+
+  if (( dry_run )); then
+    printf '[dry-run] rm -f %s\n' "$elephant_legacy_link"
+    return 0
+  fi
+
+  rm -f "$elephant_legacy_link"
 }
 
 fix_ownership() {
