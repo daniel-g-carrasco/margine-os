@@ -187,12 +187,19 @@ power_section() {
 audio_section() {
   local default_sink=""
   local default_source=""
+  local ee_process="stopped"
+  local ee_sink="no"
+  local ee_source="no"
 
   section "Audio"
   show_service_state "pipewire.service" user
   show_service_state "pipewire-pulse.service" user
   show_service_state "wireplumber.service" user
-  show_service_state "easyeffects.service" user
+
+  if pgrep -x easyeffects >/dev/null 2>&1; then
+    ee_process="running"
+  fi
+  status_line "easyeffects process: ${ee_process}"
 
   if have_cmd pactl; then
     default_sink="$(pactl info 2>/dev/null | awk -F: '/Default Sink/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
@@ -202,6 +209,15 @@ audio_section() {
   fi
 
   if have_cmd wpctl; then
+    if wpctl status 2>/dev/null | grep -q 'Easy Effects Sink'; then
+      ee_sink="yes"
+    fi
+    if wpctl status 2>/dev/null | grep -q 'Easy Effects Source'; then
+      ee_source="yes"
+    fi
+    status_line "Easy Effects sink visible: ${ee_sink}"
+    status_line "Easy Effects source visible: ${ee_source}"
+
     wpctl status 2>/dev/null | awk '
       /^Audio$/,/^Video$/ {
         if ($0 ~ /Ryzen HD Audio Controller Stereo analogico/ || $0 ~ /Easy Effects Sink/ || $0 ~ /Easy Effects Source/) {
@@ -209,6 +225,28 @@ audio_section() {
         }
       }'
   fi
+}
+
+productivity_section() {
+  local libreoffice_registry="${home_dir}/.config/libreoffice/4/user/registrymodifications.xcu"
+  local notebookbar_state="missing"
+
+  section "Produttivita'"
+
+  status_line "libreoffice: $(command -v libreoffice >/dev/null 2>&1 && echo yes || echo no)"
+
+  if [[ -f "$libreoffice_registry" ]]; then
+    if grep -q "ActiveWriter.*notebookbar.ui" "$libreoffice_registry" \
+      && grep -q "ActiveCalc.*notebookbar.ui" "$libreoffice_registry" \
+      && grep -q "ActiveImpress.*notebookbar.ui" "$libreoffice_registry" \
+      && grep -q "ActiveDraw.*notebookbar.ui" "$libreoffice_registry"; then
+      notebookbar_state="notebookbar"
+    else
+      notebookbar_state="custom-or-default"
+    fi
+  fi
+
+  status_line "libreoffice UI baseline: ${notebookbar_state}"
 }
 
 photo_section() {
@@ -294,6 +332,7 @@ main() {
   power_section
   audio_section
   photo_section
+  productivity_section
   connectivity_section
   screenshot_section
 }

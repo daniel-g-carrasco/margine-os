@@ -22,6 +22,7 @@ declare -a home_payload=(
 firefox_policy_source="${repo_root}/files/etc/firefox/policies/policies.json"
 global_update_source="${repo_root}/scripts/update-all"
 darktable_baseline_source="${repo_root}/files/home/.config/darktable/darktablerc"
+libreoffice_baseline_source="${repo_root}/files/home/.config/libreoffice/4/user/registrymodifications.xcu"
 
 usage() {
   cat <<'EOF'
@@ -152,6 +153,22 @@ install_darktable_baseline() {
   run_cmd install -Dm644 "$darktable_baseline_source" "$target"
 }
 
+install_libreoffice_baseline() {
+  local target="${home_dir}/.config/libreoffice/4/user/registrymodifications.xcu"
+
+  log
+  log "==> Install curated LibreOffice baseline"
+
+  [[ -f "$libreoffice_baseline_source" ]] || die "required source not found: $libreoffice_baseline_source"
+
+  if [[ -e "$target" ]]; then
+    log "LibreOffice user config gia' presente: baseline non sovrascritta."
+    return 0
+  fi
+
+  run_cmd install -Dm644 "$libreoffice_baseline_source" "$target"
+}
+
 install_firefox_policy() {
   log
   log "==> Install Firefox baseline policy"
@@ -181,6 +198,7 @@ fix_ownership() {
   run_cmd chown -R \
     "${username}:${username}" \
     "${home_dir}/.config" \
+    "${home_dir}/.config/libreoffice" \
     "${home_dir}/.local" \
     "${home_dir}/.config/darktable" \
     "${home_dir}/.config/kitty" \
@@ -199,6 +217,7 @@ main() {
   resolve_home_dir
   copy_home_payload
   install_darktable_baseline
+  install_libreoffice_baseline
   install_firefox_policy
   install_global_update_all
   fix_ownership

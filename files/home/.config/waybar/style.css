@@ -28,6 +28,7 @@ window#waybar {
 #clock,
 #custom-recording,
 #custom-vpn,
+#custom-easyeffects,
 #network,
 #bluetooth,
 #pulseaudio,
@@ -80,6 +81,7 @@ window#waybar {
 
 #custom-recording,
 #custom-vpn,
+#custom-easyeffects,
 #network,
 #bluetooth,
 #pulseaudio,
@@ -109,8 +111,17 @@ window#waybar {
   color: @accent;
 }
 
+#custom-easyeffects.active {
+  color: @accent;
+}
+
+#custom-easyeffects.inactive {
+  color: @muted;
+}
+
 #custom-recording:hover,
 #custom-vpn:hover,
+#custom-easyeffects:hover,
 #window:hover,
 #clock:hover,
 #network:hover,

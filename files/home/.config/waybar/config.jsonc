@@ -19,6 +19,7 @@
     "custom/vpn",
     "network",
     "bluetooth",
+    "custom/easyeffects",
     "pulseaudio",
     "battery",
     "tray"
@@ -109,6 +110,16 @@
     "tooltip-format": "{controller_alias}\n{controller_address}",
     "on-click": "~/.local/bin/open-bluetooth-settings",
     },
+
+  "custom/easyeffects": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.local/bin/easyeffects-status",
+    "interval": 5,
+    "on-click": "easyeffects",
+    "on-click-right": "pkill -x easyeffects || true",
+    "escape": true
+  },
 
   "pulseaudio": {
     "scroll-step": 5,

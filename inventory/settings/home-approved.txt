@@ -2,8 +2,10 @@
 # Il criterio e' "configurazione riproducibile", non "qualsiasi cosa esista".
 
 .config/darktable/darktablerc-common
+.config/darktable/darktablerc
 .config/darktable/styles
 .config/kitty/kitty.conf
+.config/libreoffice/4/user/registrymodifications.xcu
 .config/mimeapps.list
 .config/nvim
 .config/user-dirs.dirs

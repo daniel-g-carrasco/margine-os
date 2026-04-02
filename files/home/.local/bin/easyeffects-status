@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+have_wpctl=0
+sink_present=no
+source_present=no
+
+if command -v wpctl >/dev/null 2>&1; then
+  have_wpctl=1
+  if wpctl status 2>/dev/null | grep -q 'Easy Effects Sink'; then
+    sink_present=yes
+  fi
+  if wpctl status 2>/dev/null | grep -q 'Easy Effects Source'; then
+    source_present=yes
+  fi
+fi
+
+if pgrep -x easyeffects >/dev/null 2>&1; then
+  tooltip="EasyEffects attivo"
+  if (( have_wpctl )); then
+    tooltip="${tooltip}\\nSink: ${sink_present}\\nSource: ${source_present}"
+  fi
+  printf '{"text":"FX","class":"active","tooltip":"%s"}\n' "$tooltip"
+  exit 0
+fi
+
+tooltip="EasyEffects non attivo\\nClick: avvia\\nRight click: termina"
+printf '{"text":"FX","class":"inactive","tooltip":"%s"}\n' "$tooltip"

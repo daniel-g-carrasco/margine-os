@@ -25,6 +25,7 @@ declare -a home_payload=(
   ".config/waybar/toggle.sh"
   ".local/bin/annotate-screenshot"
   ".local/bin/brightness-osd"
+  ".local/bin/easyeffects-status"
   ".local/bin/hypr-workspace-layout"
   ".local/bin/open-bluetooth-settings"
   ".local/bin/open-network-tui"

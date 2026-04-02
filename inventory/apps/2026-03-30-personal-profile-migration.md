@@ -61,12 +61,12 @@
 
 - Path osservato:
   - `~/.config/GIMP/3.0`
-- Decisione: `Rivedi piu' avanti`
+- Decisione: `Non migrare`
 - Motivo:
-  - `gimprc` e `sessionrc` mischiano preferenze e stato finestra;
-  - le directory `brushes`, `palettes`, `scripts`, `plug-ins` oggi risultano
-    vuote, quindi non c'e' ancora un sottoinsieme creativo reale da estrarre.
-- Regola futura:
+  - i file osservati sono soprattutto stato locale, opzioni strumenti,
+    sessione, layout e cache plugin;
+  - non emergono asset creativi personali gia' isolati da portare in baseline.
+- Eccezione futura:
   - se compariranno pennelli, palette, script o plug-in personali, si
     versioneranno solo quelli.
 
@@ -104,13 +104,19 @@
 
 - Path osservato:
   - `~/.config/libreoffice/4`
-- Decisione: `Rivedi piu' avanti`
+- Decisione: `Versiona` in forma selettiva
 - Motivo:
   - il profilo completo e' troppo ampio e poco didattico;
-  - oggi non emergono template o macro personali gia' isolati.
+  - pero' la scelta della `Notebookbar` e' stabile, leggibile e riproducibile.
+- Sottoinsieme scelto:
+  - `registrymodifications.xcu` minimale con `Notebookbar` per
+    `Writer`, `Calc`, `Impress`, `Draw`
+- Da NON migrare:
+  - storico documenti, percorsi recenti, geometrie finestre, cache OpenCL,
+    device identifier OpenCL, stato sidebar o dialoghi
 - Regola futura:
-  - se avrai template, dizionari o macro davvero tuoi, si potranno estrarre da
-    soli.
+  - template, macro o dizionari personali andranno estratti da soli, non come
+    copia cieca del profilo completo.
 
 ### Koofr
 
@@ -211,8 +217,7 @@
 Il quadro attuale e' questo:
 
 - `Versiona`: `Neovim`, `Kitty`, `Darktable` selettivo, `EasyEffects`
-  selettivo, ICC selettivi.
+  selettivo, `LibreOffice` selettivo, ICC selettivi.
 - `Non migrare`: `Firefox/Floorp`, `Thunderbird`, `Bitwarden`, `VLC`,
   `Papers`, `Koofr`, `rclone.conf`, `VS Code`, `Ghostty`, `gtk bookmarks`,
-  `~/.local/share/applications` in blocco.
-- `Rivedi piu' avanti`: `GIMP`, `LibreOffice`.
+  `~/.local/share/applications` in blocco, `GIMP`.
