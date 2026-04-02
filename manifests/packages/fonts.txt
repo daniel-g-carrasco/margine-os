@@ -10,4 +10,5 @@ ttf-atkinson-hyperlegible
 ttf-caladea
 ttf-carlito
 ttf-croscore
+ttf-ibm-plex
 ttf-liberation
