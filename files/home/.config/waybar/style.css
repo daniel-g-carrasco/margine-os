@@ -1,35 +1,35 @@
 /* Derived from j5onrf/dots: Adwaita-CT-Iosevka-Pro-Thin */
 
-@define-color fg #f2e7d8;
-@define-color muted #c2b09d;
-@define-color bg #1f1a18;
-@define-color border #4a3c35;
-@define-color hover #2c2421;
-@define-color accent #e9d2b2;
-@define-color warning #f2c48d;
-@define-color critical #ea9a7d;
-@define-color ws1 #f2cdcd;
-@define-color ws2 #f5d0c5;
-@define-color ws3 #f8e0b0;
-@define-color ws4 #d9e7b1;
-@define-color ws5 #bfe3c0;
-@define-color ws6 #b8e3da;
-@define-color ws7 #b7d9f5;
-@define-color ws8 #c9cff8;
-@define-color ws9 #e2d0f3;
-@define-color ws10 #f1cfe2;
+@define-color fg #f5e0dc;
+@define-color muted #bac2de;
+@define-color bg #11111b;
+@define-color border #313244;
+@define-color hover #1e1e2e;
+@define-color accent #cba6f7;
+@define-color warning #f9e2af;
+@define-color critical #f38ba8;
+@define-color ws1 #f5e0dc;
+@define-color ws2 #f2cdcd;
+@define-color ws3 #f5c2e7;
+@define-color ws4 #cba6f7;
+@define-color ws5 #eba0ac;
+@define-color ws6 #fab387;
+@define-color ws7 #f9e2af;
+@define-color ws8 #a6e3a1;
+@define-color ws9 #94e2d5;
+@define-color ws10 #89dceb;
 
 * {
   border: none;
   border-radius: 0;
-  font-family: "Liberation Mono", "DejaVu Sans Mono", "Noto Sans Mono", "Iosevka Term", monospace;
+  font-family: "Noto Serif", "DejaVu Serif", "Liberation Serif", "JetBrainsMono Nerd Font Propo", serif;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   min-height: 0;
 }
 
 window#waybar {
-  background: linear-gradient(180deg, #241d1b 0%, @bg 100%);
+  background: @bg;
   color: @fg;
   border-bottom: 1px solid @border;
 }
@@ -56,76 +56,84 @@ window#waybar {
 
 #workspaces button {
   background: transparent;
-  box-shadow: inset 0 -4px 0 transparent;
+  border-radius: 7px 7px 0 0;
+  box-shadow: inset 0 -3px 0 transparent;
   color: @muted;
-  margin: 0px 1px 0 0;
-  min-width: 0;
-  padding: 1px 5px 2px 5px;
+  margin: 0px 3px 2px 0;
+  min-width: 18px;
+  padding: 0 7px 1px 7px;
   transition: color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
 }
 
+#workspaces button label {
+  font-family: "Noto Serif", "DejaVu Serif", "Liberation Serif", serif;
+  font-size: 15px;
+  font-weight: 600;
+}
+
 #workspaces button:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: alpha(@hover, 0.9);
   color: @fg;
 }
 
 #workspaces button.active {
   color: @fg;
+  background: alpha(@hover, 0.55);
 }
 
 #workspaces button:nth-child(1).active {
   color: @ws1;
-  box-shadow: inset 0 -4px 0 @ws1;
+  box-shadow: inset 0 -3px 0 @ws1;
 }
 
 #workspaces button:nth-child(2).active {
   color: @ws2;
-  box-shadow: inset 0 -4px 0 @ws2;
+  box-shadow: inset 0 -3px 0 @ws2;
 }
 
 #workspaces button:nth-child(3).active {
   color: @ws3;
-  box-shadow: inset 0 -4px 0 @ws3;
+  box-shadow: inset 0 -3px 0 @ws3;
 }
 
 #workspaces button:nth-child(4).active {
   color: @ws4;
-  box-shadow: inset 0 -4px 0 @ws4;
+  box-shadow: inset 0 -3px 0 @ws4;
 }
 
 #workspaces button:nth-child(5).active {
   color: @ws5;
-  box-shadow: inset 0 -4px 0 @ws5;
+  box-shadow: inset 0 -3px 0 @ws5;
 }
 
 #workspaces button:nth-child(6).active {
   color: @ws6;
-  box-shadow: inset 0 -4px 0 @ws6;
+  box-shadow: inset 0 -3px 0 @ws6;
 }
 
 #workspaces button:nth-child(7).active {
   color: @ws7;
-  box-shadow: inset 0 -4px 0 @ws7;
+  box-shadow: inset 0 -3px 0 @ws7;
 }
 
 #workspaces button:nth-child(8).active {
   color: @ws8;
-  box-shadow: inset 0 -4px 0 @ws8;
+  box-shadow: inset 0 -3px 0 @ws8;
 }
 
 #workspaces button:nth-child(9).active {
   color: @ws9;
-  box-shadow: inset 0 -4px 0 @ws9;
+  box-shadow: inset 0 -3px 0 @ws9;
 }
 
 #workspaces button:nth-child(10).active {
   color: @ws10;
-  box-shadow: inset 0 -4px 0 @ws10;
+  box-shadow: inset 0 -3px 0 @ws10;
 }
 
 #workspaces button.urgent {
   color: @critical;
-  box-shadow: inset 0 -4px 0 @critical;
+  box-shadow: inset 0 -3px 0 @critical;
 }
 
 #window {
@@ -152,8 +160,10 @@ window#waybar {
 
 #custom-vpn,
 #custom-easyeffects {
-  padding-top: 1px;
+  padding-top: 2px;
   padding-bottom: 0;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 #tray {
