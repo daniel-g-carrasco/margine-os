@@ -22,9 +22,9 @@
 * {
   border: none;
   border-radius: 0;
-  font-family: "Noto Sans", "Cantarell", "DejaVu Sans", sans-serif;
+  font-family: "Liberation Mono", "DejaVu Sans Mono", "Noto Sans Mono", "Iosevka Term", monospace;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   min-height: 0;
 }
 
@@ -58,9 +58,9 @@ window#waybar {
   background: transparent;
   box-shadow: inset 0 -4px 0 transparent;
   color: @muted;
-  margin: 0px 2px 0 0;
-  min-width: 22px;
-  padding: 1px 8px 2px 8px;
+  margin: 0px 1px 0 0;
+  min-width: 0;
+  padding: 1px 5px 2px 5px;
   transition: color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
 }
 
