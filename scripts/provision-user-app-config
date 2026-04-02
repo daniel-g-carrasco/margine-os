@@ -21,6 +21,7 @@ declare -a home_payload=(
 
 firefox_policy_source="${repo_root}/files/etc/firefox/policies/policies.json"
 global_update_source="${repo_root}/scripts/update-all"
+darktable_baseline_source="${repo_root}/files/home/.config/darktable/darktablerc"
 
 usage() {
   cat <<'EOF'
@@ -135,6 +136,22 @@ copy_home_payload() {
   done
 }
 
+install_darktable_baseline() {
+  local target="${home_dir}/.config/darktable/darktablerc"
+
+  log
+  log "==> Install curated darktable baseline"
+
+  [[ -f "$darktable_baseline_source" ]] || die "required source not found: $darktable_baseline_source"
+
+  if [[ -e "$target" ]]; then
+    log "darktable user config gia' presente: baseline non sovrascritta."
+    return 0
+  fi
+
+  run_cmd install -Dm644 "$darktable_baseline_source" "$target"
+}
+
 install_firefox_policy() {
   log
   log "==> Install Firefox baseline policy"
@@ -181,6 +198,7 @@ main() {
 
   resolve_home_dir
   copy_home_payload
+  install_darktable_baseline
   install_firefox_policy
   install_global_update_all
   fix_ownership

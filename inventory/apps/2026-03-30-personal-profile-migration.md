@@ -37,12 +37,13 @@
   - `~/.config/darktable`
 - Decisione: `Versiona` in forma selettiva
 - Sottoinsieme scelto:
+  - `darktablerc` baseline curato
   - `darktablerc-common`
   - stili `.dtstyle`
 - Da NON migrare:
   - `library.db`
   - `data.db`
-  - `darktablerc`
+  - il `darktablerc` completo della macchina sorgente
 
 ### EasyEffects
 

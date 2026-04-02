@@ -211,6 +211,32 @@ audio_section() {
   fi
 }
 
+photo_section() {
+  local cltest_output=""
+  local cltest_device=""
+
+  section "Fotografia e OpenCL"
+
+  status_line "darktable: $(command -v darktable >/dev/null 2>&1 && echo yes || echo no)"
+  status_line "darktable-cltest: $(command -v darktable-cltest >/dev/null 2>&1 && echo yes || echo no)"
+  status_line "darktable common config: $( [[ -f "${home_dir}/.config/darktable/darktablerc-common" ]] && echo yes || echo no )"
+  status_line "darktable curated config: $( [[ -f "${home_dir}/.config/darktable/darktablerc" ]] && echo yes || echo no )"
+
+  if have_cmd darktable-cltest; then
+    cltest_output="$(timeout 20s darktable-cltest 2>&1 || true)"
+
+    if printf '%s\n' "$cltest_output" | grep -q 'FINALLY: opencl PREFERENCE=ON is AVAILABLE and ENABLED.'; then
+      status_line "darktable OpenCL: enabled"
+      cltest_device="$(printf '%s\n' "$cltest_output" | sed -n "s/.*DEVICE:[[:space:]]*0: '\\([^']*\\)'.*/\\1/p" | head -n1)"
+      [[ -n "$cltest_device" ]] && status_line "darktable OpenCL device: ${cltest_device}"
+    elif printf '%s\n' "$cltest_output" | grep -q 'found 0 device'; then
+      status_line "darktable OpenCL: no device"
+    else
+      status_line "darktable OpenCL: check manually"
+    fi
+  fi
+}
+
 connectivity_section() {
   local bt_powered="unknown"
   local active_vpns=""
@@ -267,6 +293,7 @@ main() {
   ownership_section
   power_section
   audio_section
+  photo_section
   connectivity_section
   screenshot_section
 }

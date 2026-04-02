@@ -13,11 +13,12 @@ Da tenere nella baseline di `Margine`:
 
 Decisione:
 
-- tenere configurazione leggera e stili;
+- tenere configurazione leggera, un `darktablerc` baseline curato e stili;
 - non migrare database libreria o stato pesante.
 
 Da versionare:
 
+- `darktablerc`
 - `darktablerc-common`
 - stili `.dtstyle`
 
@@ -26,7 +27,7 @@ Da NON versionare:
 - `library.db`
 - `data.db`
 - snapshot `*-pre-*`, `*-snp-*`
-- `darktablerc`
+- il `darktablerc` completo della macchina sorgente
 
 ## DisplayCAL
 

@@ -51,6 +51,8 @@ Inoltre, `Margine v1` adotta un modello esplicito di applicazione del profilo:
 La baseline versionata include:
 
 - configurazione leggera e stabile;
+- un `darktablerc` baseline curato, limitato a preferenze UI/OpenCL
+  riproducibili;
 - stili utente;
 - nessun database libreria o cache.
 
