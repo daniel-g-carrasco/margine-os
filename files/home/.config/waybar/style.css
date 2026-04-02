@@ -24,7 +24,7 @@
   border-radius: 0;
   font-family: "Liberation Mono", "DejaVu Sans Mono", "Noto Sans Mono", "Iosevka Term", monospace;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   min-height: 0;
 }
 
@@ -150,6 +150,12 @@ window#waybar {
   padding: 0 8px;
 }
 
+#custom-vpn,
+#custom-easyeffects {
+  padding-top: 1px;
+  padding-bottom: 0;
+}
+
 #tray {
   margin-right: 10px;
 }
@@ -214,4 +220,33 @@ tooltip {
 tooltip label {
   color: @fg;
   font-size: 13px;
+}
+
+menu {
+  background: rgba(26, 21, 20, 0.98);
+  border: 1px solid alpha(@border, 0.95);
+  border-radius: 10px;
+  margin-top: 6px;
+  padding: 6px;
+}
+
+menuitem {
+  border-radius: 8px;
+  color: @fg;
+  font-family: "Liberation Mono", "DejaVu Sans Mono", "Noto Sans Mono", "Iosevka Term", monospace;
+  font-size: 13px;
+  font-weight: 500;
+  margin: 2px 0;
+  padding: 6px 10px;
+}
+
+menuitem:hover {
+  background: @hover;
+  color: @accent;
+}
+
+menu separator {
+  background: alpha(@border, 0.7);
+  margin: 4px 6px;
+  min-height: 1px;
 }
