@@ -1,24 +1,35 @@
 /* Derived from j5onrf/dots: Adwaita-CT-Iosevka-Pro-Thin */
 
-@define-color fg #e6e6e6;
-@define-color muted #a8a8a8;
-@define-color bg #242424;
-@define-color border #3a3a3a;
-@define-color hover #2f2f2f;
-@define-color accent #e6d5b1;
-@define-color warning #f6c177;
-@define-color critical #e95420;
+@define-color fg #f2e7d8;
+@define-color muted #c2b09d;
+@define-color bg #1f1a18;
+@define-color border #4a3c35;
+@define-color hover #2c2421;
+@define-color accent #e9d2b2;
+@define-color warning #f2c48d;
+@define-color critical #ea9a7d;
+@define-color ws1 #f2cdcd;
+@define-color ws2 #f5d0c5;
+@define-color ws3 #f8e0b0;
+@define-color ws4 #d9e7b1;
+@define-color ws5 #bfe3c0;
+@define-color ws6 #b8e3da;
+@define-color ws7 #b7d9f5;
+@define-color ws8 #c9cff8;
+@define-color ws9 #e2d0f3;
+@define-color ws10 #f1cfe2;
 
 * {
   border: none;
   border-radius: 0;
-  font-family: "Iosevka Term", "JetBrainsMono Nerd Font Propo", sans-serif;
+  font-family: "Noto Sans", "Cantarell", "DejaVu Sans", sans-serif;
   font-size: 14px;
+  font-weight: 600;
   min-height: 0;
 }
 
 window#waybar {
-  background: @bg;
+  background: linear-gradient(180deg, #241d1b 0%, @bg 100%);
   color: @fg;
   border-bottom: 1px solid @border;
 }
@@ -45,27 +56,76 @@ window#waybar {
 
 #workspaces button {
   background: transparent;
-  border-bottom: 5px solid transparent;
-  box-shadow: none;
+  box-shadow: inset 0 -4px 0 transparent;
   color: @muted;
-  margin: 0px 1px 1px 0;
-  padding: 0 6px;
-  transition: color 120ms ease, border-color 120ms ease;
+  margin: 0px 2px 0 0;
+  min-width: 22px;
+  padding: 1px 8px 2px 8px;
+  transition: color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
 }
 
 #workspaces button:hover {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.03);
   color: @fg;
 }
 
 #workspaces button.active {
   color: @fg;
-  border-bottom-color: @accent;
+}
+
+#workspaces button:nth-child(1).active {
+  color: @ws1;
+  box-shadow: inset 0 -4px 0 @ws1;
+}
+
+#workspaces button:nth-child(2).active {
+  color: @ws2;
+  box-shadow: inset 0 -4px 0 @ws2;
+}
+
+#workspaces button:nth-child(3).active {
+  color: @ws3;
+  box-shadow: inset 0 -4px 0 @ws3;
+}
+
+#workspaces button:nth-child(4).active {
+  color: @ws4;
+  box-shadow: inset 0 -4px 0 @ws4;
+}
+
+#workspaces button:nth-child(5).active {
+  color: @ws5;
+  box-shadow: inset 0 -4px 0 @ws5;
+}
+
+#workspaces button:nth-child(6).active {
+  color: @ws6;
+  box-shadow: inset 0 -4px 0 @ws6;
+}
+
+#workspaces button:nth-child(7).active {
+  color: @ws7;
+  box-shadow: inset 0 -4px 0 @ws7;
+}
+
+#workspaces button:nth-child(8).active {
+  color: @ws8;
+  box-shadow: inset 0 -4px 0 @ws8;
+}
+
+#workspaces button:nth-child(9).active {
+  color: @ws9;
+  box-shadow: inset 0 -4px 0 @ws9;
+}
+
+#workspaces button:nth-child(10).active {
+  color: @ws10;
+  box-shadow: inset 0 -4px 0 @ws10;
 }
 
 #workspaces button.urgent {
   color: @critical;
-  border-bottom-color: @critical;
+  box-shadow: inset 0 -4px 0 @critical;
 }
 
 #window {
@@ -75,7 +135,7 @@ window#waybar {
 }
 
 #clock {
-  font-weight: 500;
+  font-weight: 700;
   padding: 0 6px;
 }
 
