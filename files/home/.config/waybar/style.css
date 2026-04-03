@@ -238,8 +238,8 @@ menu {
   background: rgba(17, 18, 20, 0.99);
   border: 1px solid @border;
   border-radius: 0;
-  margin-top: 6px;
-  padding: 4px;
+  margin-top: 0;
+  padding: 2px 0;
 }
 
 menuitem {
@@ -248,16 +248,30 @@ menuitem {
   font-size: 13px;
   font-weight: 500;
   margin: 0;
-  padding: 6px 10px;
+  padding: 7px 12px;
 }
 
 menuitem:hover {
-  background: alpha(@hover, 0.95);
-  color: @ws4;
+  background: alpha(@hover, 1);
+  border-left: 2px solid @ws2;
+  color: @ws2;
+  padding-left: 10px;
+}
+
+menuitem:disabled {
+  color: @muted;
+  font-weight: 600;
+}
+
+menuitem:disabled:hover {
+  background: transparent;
+  border-left: 2px solid transparent;
+  color: @muted;
+  padding-left: 12px;
 }
 
 menu separator {
-  background: alpha(@border, 0.7);
-  margin: 3px 4px;
+  background: alpha(@border, 0.95);
+  margin: 4px 0;
   min-height: 1px;
 }
