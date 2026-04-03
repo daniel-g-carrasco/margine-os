@@ -158,7 +158,6 @@ window#waybar {
 
 #pulseaudio {
   min-width: 72px;
-  text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
