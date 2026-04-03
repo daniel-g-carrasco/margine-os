@@ -158,7 +158,6 @@ window#waybar {
 
 #pulseaudio {
   min-width: 72px;
-  font-variant-numeric: tabular-nums;
 }
 
 #custom-vpn,
