@@ -238,7 +238,7 @@ menu {
   background: rgba(17, 18, 20, 0.99);
   border: 1px solid @border;
   border-radius: 0;
-  margin-top: 0;
+  margin-top: 4px;
   padding: 2px 0;
 }
 
