@@ -8,16 +8,16 @@
 @define-color accent #cba6f7;
 @define-color warning #f9e2af;
 @define-color critical #f38ba8;
-@define-color ws1 #f5e0dc;
-@define-color ws2 #f2cdcd;
-@define-color ws3 #f5c2e7;
-@define-color ws4 #cba6f7;
-@define-color ws5 #eba0ac;
-@define-color ws6 #fab387;
-@define-color ws7 #f9e2af;
-@define-color ws8 #a6e3a1;
-@define-color ws9 #94e2d5;
-@define-color ws10 #89dceb;
+@define-color ws1 #efe3cf;
+@define-color ws2 #e3d0b3;
+@define-color ws3 #d8bd97;
+@define-color ws4 #cfaf86;
+@define-color ws5 #c39b72;
+@define-color ws6 #b48760;
+@define-color ws7 #a77655;
+@define-color ws8 #c9ab7f;
+@define-color ws9 #d5ba92;
+@define-color ws10 #e6cfaa;
 
 * {
   border: none;
