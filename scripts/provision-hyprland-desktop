@@ -23,6 +23,7 @@ declare -a home_payload=(
   ".config/waybar/config.jsonc"
   ".config/waybar/style.css"
   ".config/waybar/launch.sh"
+  ".config/waybar/restart-swaync.sh"
   ".config/waybar/toggle.sh"
   ".local/bin/annotate-screenshot"
   ".local/bin/brightness-osd"
