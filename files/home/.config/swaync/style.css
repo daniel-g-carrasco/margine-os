@@ -102,6 +102,16 @@ scrollbar slider {
   padding: 0 8px 8px;
 }
 
+.control-center .notification-row .notification-background .notification .notification-default-action {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.control-center .notification-row .notification-background .notification .notification-action > button {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
 .control-center .notification-row:last-child .notification-background {
   padding-bottom: 0;
 }
