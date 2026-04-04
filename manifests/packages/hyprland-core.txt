@@ -21,7 +21,6 @@ hyprlauncher
 hyprlock
 hyprpaper
 kitty
-mako
 nautilus
 otf-font-awesome
 pavucontrol
@@ -34,6 +33,7 @@ pipewire-pulse
 polkit-gnome
 satty
 slurp
+swaync
 swayosd
 waybar
 wf-recorder

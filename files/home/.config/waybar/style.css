@@ -39,6 +39,7 @@ window#waybar {
 #clock,
 #custom-recording,
 #custom-vpn,
+#custom-notification,
 #custom-easyeffects,
 #network,
 #bluetooth,
@@ -148,6 +149,7 @@ window#waybar {
 
 #custom-recording,
 #custom-vpn,
+#custom-notification,
 #custom-easyeffects,
 #network,
 #bluetooth,
@@ -163,6 +165,7 @@ window#waybar {
 }
 
 #custom-vpn,
+#custom-notification,
 #custom-easyeffects {
   font-size: 13px;
   font-weight: 500;
@@ -189,6 +192,24 @@ window#waybar {
   color: @accent;
 }
 
+#custom-notification {
+  font-family: "JetBrainsMono Nerd Font Mono", "JetBrainsMono Nerd Font", "IBM Plex Sans Condensed";
+  color: @muted;
+}
+
+#custom-notification.notification,
+#custom-notification.inhibited-notification,
+#custom-notification.dnd-notification,
+#custom-notification.dnd-inhibited-notification {
+  color: @ws2;
+}
+
+#custom-notification.dnd-none,
+#custom-notification.dnd-inhibited-none {
+  color: @muted;
+  opacity: 0.78;
+}
+
 #custom-easyeffects.active {
   color: @accent;
 }
@@ -199,6 +220,7 @@ window#waybar {
 
 #custom-recording:hover,
 #custom-vpn:hover,
+#custom-notification:hover,
 #custom-easyeffects:hover,
 #window:hover,
 #clock:hover,
