@@ -44,8 +44,8 @@
 .notification-group {
   margin: 0 12px 12px;
   padding: 0;
-  border: none;
-  background: transparent;
+  border: 1px solid @border;
+  background: rgba(17, 18, 20, 0.992);
 }
 
 .notification-group:focus {
@@ -59,15 +59,14 @@
 }
 
 .notification-group .notification-group-headers {
-  background: rgba(27, 29, 32, 0.985);
-  border: 1px solid @border;
-  border-bottom: none;
-  padding: 8px 10px 6px;
+  background: rgba(22, 24, 27, 0.995);
+  border-bottom: 1px solid @border;
+  padding: 7px 10px 5px;
 }
 
 .notification-group .notification-group-headers .notification-group-icon {
   color: @accent;
-  -gtk-icon-size: 18px;
+  -gtk-icon-size: 16px;
 }
 
 .notification-group .notification-group-headers .notification-group-header {
@@ -75,22 +74,43 @@
   font-weight: 600;
 }
 
+.notification-group .notification-group-buttons {
+  background: rgba(22, 24, 27, 0.995);
+  border-bottom: 1px solid @border;
+  padding: 0 8px 6px;
+}
+
+.notification-group .notification-group-buttons button,
 .notification-group .notification-group-close-button .close-button {
   margin: 0;
+  min-width: 0;
+  min-height: 0;
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
+  color: @muted;
+}
+
+.notification-group .notification-group-buttons button:hover,
+.notification-group .notification-group-close-button .close-button:hover {
+  background: @hover;
+  color: @accent;
 }
 
 .notification-group .notification-row .notification {
   margin: 0;
   padding: 0;
-  background: rgba(17, 18, 20, 0.99);
-  border-left: 1px solid @border;
-  border-right: 1px solid @border;
-  border-bottom: 1px solid @border;
+  background: transparent;
+  border: none;
 }
 
 .notification-group .notification-row .notification .notification-default-action,
 .notification-group .notification-row .notification .notification-action {
   padding: 8px 10px;
+}
+
+.notification-group .notification-row:not(:last-child) .notification {
+  border-bottom: 1px solid @border;
 }
 
 .notification-group.collapsed,
@@ -104,7 +124,7 @@
 }
 
 .notification-group.collapsed:hover .notification-row:not(:only-child) .notification {
-  background: rgba(17, 18, 20, 0.99);
+  background: transparent;
 }
 
 .notification-row {
