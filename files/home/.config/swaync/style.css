@@ -95,6 +95,38 @@ blankwindow {
   margin: 0;
 }
 
+/* Granite styles GTK placeholders globally.
+ * Override those defaults inside swaync so the empty-state bell disappears.
+ */
+.control-center placeholder > grid,
+.control-center list placeholder > grid {
+  margin: 0;
+}
+
+.control-center placeholder > grid > .large-icons,
+.control-center list placeholder > grid > .large-icons {
+  -gtk-icon-size: 0;
+  min-width: 0;
+  min-height: 0;
+  opacity: 0;
+  margin: 0;
+}
+
+.control-center placeholder .title-1,
+.control-center placeholder .title-2,
+.control-center list placeholder .title-1,
+.control-center list placeholder .title-2 {
+  font-size: 0;
+  min-height: 0;
+  opacity: 0;
+  margin: 0;
+}
+
+.control-center placeholder box,
+.control-center list placeholder box {
+  margin-top: 0;
+}
+
 /*
  * GTK gives rows a focus/selection background by default.
  * These overrides remove the gray highlight around the latest notification.

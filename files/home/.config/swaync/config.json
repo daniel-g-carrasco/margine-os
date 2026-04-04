@@ -19,7 +19,7 @@
   "transition-time": 0,
   "timeout": 6,
   "fit-to-screen": false,
-  "text-empty": "No notifications",
+  "text-empty": "",
   "widgets": [
     "title",
     "dnd",
