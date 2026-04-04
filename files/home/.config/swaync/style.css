@@ -45,7 +45,7 @@
   margin: 0 12px 12px;
   padding: 0;
   border: 1px solid @border;
-  background: rgba(17, 18, 20, 0.992);
+  background: rgba(22, 24, 27, 0.995);
 }
 
 .notification-group:focus {
@@ -61,7 +61,7 @@
 .notification-group .notification-group-headers,
 .notification-group .notification-group-buttons,
 .notification-group .notification-group-close-button {
-  background: rgba(22, 24, 27, 0.995);
+  background: transparent;
 }
 
 .notification-group .notification-group-headers {
