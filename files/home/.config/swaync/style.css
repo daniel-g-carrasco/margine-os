@@ -41,6 +41,72 @@
   padding: 10px 12px;
 }
 
+.notification-group {
+  margin: 0 12px 12px;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.notification-group:focus {
+  background: transparent;
+}
+
+.notification-group .notification-group-buttons,
+.notification-group .notification-group-headers {
+  margin: 0;
+  color: @fg;
+}
+
+.notification-group .notification-group-headers {
+  background: rgba(27, 29, 32, 0.985);
+  border: 1px solid @border;
+  border-bottom: none;
+  padding: 8px 10px 6px;
+}
+
+.notification-group .notification-group-headers .notification-group-icon {
+  color: @accent;
+  -gtk-icon-size: 18px;
+}
+
+.notification-group .notification-group-headers .notification-group-header {
+  color: @fg;
+  font-weight: 600;
+}
+
+.notification-group .notification-group-close-button .close-button {
+  margin: 0;
+}
+
+.notification-group .notification-row .notification {
+  margin: 0;
+  padding: 0;
+  background: rgba(17, 18, 20, 0.99);
+  border-left: 1px solid @border;
+  border-right: 1px solid @border;
+  border-bottom: 1px solid @border;
+}
+
+.notification-group .notification-row .notification .notification-default-action,
+.notification-group .notification-row .notification .notification-action {
+  padding: 8px 10px;
+}
+
+.notification-group.collapsed,
+.notification-group.collapsed.not-expanded {
+  opacity: 1;
+}
+
+.notification-group.collapsed .notification-row:not(:last-child) .notification-action,
+.notification-group.collapsed .notification-row:not(:last-child) .notification-default-action {
+  opacity: 1;
+}
+
+.notification-group.collapsed:hover .notification-row:not(:only-child) .notification {
+  background: rgba(17, 18, 20, 0.99);
+}
+
 .notification-row {
   outline: none;
 }
