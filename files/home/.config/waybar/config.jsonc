@@ -22,8 +22,8 @@
     "custom/easyeffects",
     "pulseaudio",
     "battery",
-    "custom/notification",
-    "tray"
+    "tray",
+    "custom/notification"
   ],
 
   "hyprland/workspaces": {
