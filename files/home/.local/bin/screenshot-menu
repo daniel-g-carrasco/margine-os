@@ -51,16 +51,16 @@ choose_from_menu() {
   local menu_input="$2"
   local choice=""
 
-  if have_cmd walker; then
-    choice="$(printf '%s\n' "$menu_input" | walker -d -e -p "$prompt" 2>/dev/null || true)"
+  if have_cmd hyprlauncher; then
+    choice="$(printf '%s\n' "$menu_input" | hyprlauncher --dmenu 2>/dev/null || true)"
     if [[ -n "$choice" ]]; then
       printf '%s\n' "$choice"
       return 0
     fi
   fi
 
-  if have_cmd hyprlauncher; then
-    choice="$(printf '%s\n' "$menu_input" | hyprlauncher --dmenu 2>/dev/null || true)"
+  if have_cmd walker; then
+    choice="$(printf '%s\n' "$menu_input" | walker -d -e -p "$prompt" 2>/dev/null || true)"
     if [[ -n "$choice" ]]; then
       printf '%s\n' "$choice"
       return 0

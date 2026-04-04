@@ -4,8 +4,12 @@
   "positionY": "top",
   "layer": "overlay",
   "control-center-layer": "top",
+  "layer-shell": true,
+  "layer-shell-cover-screen": true,
+  "control-center-height": -1,
   "control-center-width": 420,
-  "control-center-margin-top": 8,
+  "control-center-exclusive-zone": false,
+  "control-center-margin-top": 44,
   "control-center-margin-right": 10,
   "notification-window-width": 420,
   "notification-icon-size": 48,
@@ -23,6 +27,9 @@
     "notifications"
   ],
   "widget-config": {
+    "notifications": {
+      "vexpand": false
+    },
     "mpris": {
       "autohide": true,
       "show-album-art": "when-available",
