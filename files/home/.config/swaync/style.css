@@ -7,12 +7,19 @@
 @define-color accent #c39b72;
 @define-color critical #f38ba8;
 
+:root {
+  --notification-icon-size: 48px;
+  --notification-app-icon-size: 18px;
+  --mpris-album-art-icon-size: 56px;
+}
+
 * {
   border: none;
   border-radius: 0;
   box-shadow: none;
   font-family: "IBM Plex Sans Condensed";
   font-size: 13px;
+  transition: none;
 }
 
 .blank-window,
@@ -37,67 +44,88 @@
   padding: 12px;
 }
 
-.floating-notifications .notification-row,
-.control-center .notification-row {
+/* Notification layout */
+.notification-row {
+  background: transparent;
+  outline: none;
+}
+
+.notification-row .notification-background {
+  padding: 6px 12px;
+}
+
+.floating-notifications .notification-row .notification-background {
+  padding: 8px 10px 0;
+}
+
+.notification-row .notification-background .notification {
+  background: rgba(24, 26, 29, 0.995);
+  color: @fg;
+  border: 1px solid @border;
+  padding: 0;
+}
+
+.notification-row .notification-background .notification.critical {
+  border-color: @critical;
+}
+
+.notification-row .notification-background .notification .notification-default-action {
+  background: transparent;
+  color: @fg;
+  border: none;
+  box-shadow: none;
+  padding: 6px 10px;
+  margin: 0;
+}
+
+.notification-row .notification-background .notification .notification-default-action:hover,
+.notification-row .notification-background .notification .notification-action:hover > button {
+  background: @hover;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content {
+  background: transparent;
+  padding: 0;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .text-box .summary {
+  color: @fg;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .text-box .time {
+  color: @muted;
+  font-size: 12px;
+  font-weight: 500;
+  margin-right: 28px;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .text-box .body {
+  color: @muted;
+  font-size: 13px;
+}
+
+.notification-row .notification-background .notification .notification-action {
   margin: 0;
   padding: 0;
 }
 
-.floating-notifications .notification-row {
-  margin: 8px 10px 0;
-}
-
-.floating-notifications .notification,
-.control-center .notification {
-  background: rgba(24, 26, 29, 0.995);
-  color: @fg;
-  border: 1px solid @border;
-}
-
-.control-center .notification {
-  margin: 0 12px 12px;
-}
-
-.notification-content {
-  padding: 0;
-}
-
-.notification .notification-default-action,
-.notification .notification-action {
+.notification-row .notification-background .notification .notification-action > button {
   background: transparent;
   color: @fg;
-  padding: 10px 12px;
-}
-
-.notification .notification-default-action:hover,
-.notification .notification-action:hover {
-  background: @hover;
-}
-
-.summary {
-  color: @fg;
-  font-weight: 600;
-}
-
-.time {
-  color: @muted;
-  font-size: 12px;
-}
-
-.body {
-  color: @muted;
-}
-
-.notification.critical {
-  border-color: @critical;
+  padding: 6px 10px 10px;
+  border-top: 1px solid @border;
 }
 
 .close-button {
   background: transparent;
   color: @muted;
-  min-width: 0;
-  min-height: 0;
-  padding: 4px 8px;
+  min-width: 20px;
+  min-height: 20px;
+  margin-top: 6px;
+  margin-right: 6px;
+  padding: 0;
 }
 
 .close-button:hover {
@@ -105,8 +133,15 @@
   color: @accent;
 }
 
+/* Top widgets */
+.widget-title,
+.widget-dnd,
+.widget-mpris {
+  margin: 0 12px 10px;
+}
+
 .widget-title {
-  padding: 10px 12px 4px;
+  padding: 10px 0 4px;
   color: @fg;
 }
 
@@ -128,7 +163,6 @@
 }
 
 .widget-dnd {
-  margin: 0 12px 10px;
   color: @muted;
 }
 
@@ -143,4 +177,51 @@
 
 .widget-dnd > switch slider {
   background: @fg;
+}
+
+/* MPRIS */
+.widget-mpris {
+  background: rgba(24, 26, 29, 0.995);
+  border: 1px solid @border;
+  padding: 0;
+}
+
+.widget-mpris .widget-mpris-player {
+  margin: 0;
+}
+
+.widget-mpris .widget-mpris-player .mpris-background {
+  filter: none;
+}
+
+.widget-mpris .widget-mpris-player .mpris-overlay {
+  background: transparent;
+  padding: 10px 12px;
+}
+
+.widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-title {
+  color: @fg;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-subtitle {
+  color: @muted;
+  font-size: 12px;
+}
+
+.widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-album-art {
+  box-shadow: none;
+}
+
+.widget-mpris .widget-mpris-player .mpris-overlay > box > button,
+.widget-mpris > box > button {
+  background: transparent;
+  color: @fg;
+  padding: 4px 8px;
+}
+
+.widget-mpris .widget-mpris-player .mpris-overlay > box > button:hover,
+.widget-mpris > box > button:hover {
+  background: @hover;
 }

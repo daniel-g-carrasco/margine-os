@@ -12,12 +12,24 @@
   "notification-body-image-height": 100,
   "notification-body-image-width": 200,
   "notification-grouping": false,
+  "transition-time": 0,
   "timeout": 6,
   "fit-to-screen": false,
   "text-empty": "No notifications",
   "widgets": [
     "title",
     "dnd",
+    "mpris",
     "notifications"
-  ]
+  ],
+  "widget-config": {
+    "mpris": {
+      "autohide": true,
+      "show-album-art": "when-available",
+      "loop-carousel": false,
+      "blacklist": [
+        "playerctld"
+      ]
+    }
+  }
 }
