@@ -43,7 +43,8 @@ Start from these knobs in `style.css`:
 
 - `--panel-padding`
 - `--section-gap`
-- `--card-gap`
+- `--panel-card-gap`
+- `--popup-card-gap`
 - `--popup-edge-gap`
 - `--content-padding-x`
 - `--content-padding-y`

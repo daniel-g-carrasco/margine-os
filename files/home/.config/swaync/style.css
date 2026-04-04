@@ -8,7 +8,8 @@
  * - --panel-padding: inner margin of the whole control center
  * - --section-gap: vertical gap between top sections / cards
  * - --popup-edge-gap: distance of popup notifications from screen edge
- * - --card-gap: vertical gap between notifications in the control center
+ * - --panel-card-gap: vertical gap between notifications in the control center
+ * - --popup-card-gap: vertical gap between stacked popup notifications
  * - --content-padding-x: left/right padding inside a notification body
  * - --content-padding-y: top/bottom padding inside a notification body
  *
@@ -33,7 +34,8 @@
   --section-gap: 10px;
 
   /* Notification list geometry */
-  --card-gap: 10px;
+  --panel-card-gap: 10px;
+  --popup-card-gap: 8px;
   --popup-edge-gap: 10px;
   --content-padding-x: 12px;
   --content-padding-y: 8px;
@@ -203,12 +205,12 @@ scrollbar slider {
 
 /* Popup notifications shown outside the panel. */
 .floating-notifications .notification-row .notification-background {
-  padding: 8px var(--popup-edge-gap) 0;
+  padding: var(--popup-card-gap) var(--popup-edge-gap) 0;
 }
 
 /* Notifications inside the control center. */
 .control-center .notification-row .notification-background {
-  padding: 0 0 var(--card-gap);
+  padding: 0 0 var(--panel-card-gap);
 }
 
 .control-center .notification-row:last-child .notification-background {
