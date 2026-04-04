@@ -182,6 +182,16 @@ power_section() {
 
   status_line "resume hook present: $( [[ -x /etc/systemd/system-sleep/fprintd-reset ]] && echo yes || echo no )"
   status_line "hyprlock PAM present: $( [[ -f /etc/pam.d/hyprlock ]] && echo yes || echo no )"
+  if [[ -f /etc/pam.d/hyprlock ]]; then
+    local login_includes
+    login_includes="$(rg -c '^[[:space:]]*auth[[:space:]]+include[[:space:]]+login$' /etc/pam.d/hyprlock 2>/dev/null || true)"
+    status_line "hyprlock PAM login includes: ${login_includes:-0}"
+    if [[ "${login_includes:-0}" != "1" ]]; then
+      status_line "hyprlock PAM sanity: suspect"
+    else
+      status_line "hyprlock PAM sanity: ok"
+    fi
+  fi
 }
 
 audio_section() {
