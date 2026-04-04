@@ -7,7 +7,7 @@ mkdir -p "$log_dir"
 
 pkill -x waybar >/dev/null 2>&1 || true
 
-nohup env -u DISPLAY waybar \
+nohup setsid env -u DISPLAY waybar \
   -c "$HOME/.config/waybar/config.jsonc" \
   -s "$HOME/.config/waybar/style.css" \
-  >"$log_dir/waybar.log" 2>&1 &
+  >"$log_dir/waybar.log" 2>&1 < /dev/null &
