@@ -139,6 +139,19 @@ blankwindow {
 }
 
 /*
+ * The notifications widget internally uses a GtkStack with vexpand=true.
+ * These selectors try to keep the empty notifications area collapsed.
+ */
+widget-notifications,
+widget-notifications > stack,
+widget-notifications > stack > box,
+widget-notifications > stack > scrolledwindow,
+widget-notifications viewport,
+widget-notifications list {
+  min-height: 0;
+}
+
+/*
  * GTK gives rows a focus/selection background by default.
  * These overrides remove the gray highlight around the latest notification.
  */
