@@ -203,7 +203,6 @@ window#waybar {
   padding-left: 10px;
   padding-right: 10px;
   min-width: 30px;
-  box-shadow: inset 0 -3px 0 transparent;
 }
 
 #custom-notification.none,
@@ -215,19 +214,16 @@ window#waybar {
 #custom-notification.dnd-inhibited-none {
   color: @muted;
   opacity: 0.88;
-  box-shadow: inset 0 -3px 0 @warning;
 }
 
 #custom-notification.notification,
 #custom-notification.inhibited-notification {
-  color: @fg;
-  box-shadow: inset 0 -3px 0 @ws5;
+  color: @ws5;
 }
 
 #custom-notification.dnd-notification,
 #custom-notification.dnd-inhibited-notification {
-  color: @fg;
-  box-shadow: inset 0 -3px 0 @warning;
+  color: @warning;
 }
 
 #custom-easyeffects.active {
