@@ -11,13 +11,21 @@ have_cmd() {
   command -v "$1" >/dev/null 2>&1
 }
 
+launch_detached() {
+  if have_cmd systemd-run; then
+    systemd-run --user --quiet --collect --same-dir --service-type=exec "$@" >/dev/null 2>&1 && return 0
+  fi
+
+  setsid -f "$@" >/dev/null 2>&1 || true
+}
+
 notify_capture() {
   local file="$1"
   (
-    action="$(notify-send \
+    action="$(timeout --foreground 30m notify-send \
       -a "Screenshot" \
       -u low \
-      -t 10000 \
+      -t 0 \
       -i "$file" \
       -h "string:image-path:$file" \
       -c "transfer.complete" \
@@ -30,13 +38,13 @@ notify_capture() {
 
     case "$action" in
       annotate)
-        ~/.local/bin/annotate-screenshot "$file"
+        launch_detached "$HOME/.local/bin/annotate-screenshot" "$file"
         ;;
       open)
-        xdg-open "$file" >/dev/null 2>&1
+        launch_detached xdg-open "$file"
         ;;
       folder)
-        nautilus --select "$file" >/dev/null 2>&1 || xdg-open "$(dirname "$file")" >/dev/null 2>&1
+        launch_detached nautilus --select "$file" || launch_detached xdg-open "$(dirname "$file")"
         ;;
       copy)
         wl-copy --type image/png < "$file"

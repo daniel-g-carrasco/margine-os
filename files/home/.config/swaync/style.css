@@ -10,7 +10,7 @@
 :root {
   --notification-icon-size: 48px;
   --notification-app-icon-size: 18px;
-  --mpris-album-art-icon-size: 56px;
+  --mpris-album-art-icon-size: 72px;
 }
 
 * {
@@ -47,6 +47,17 @@ blankwindow {
   margin: 0;
 }
 
+.control-center row,
+.control-center row:selected,
+.control-center row:focus,
+.control-center row:focus-within,
+.control-center row:hover,
+.control-center row:active {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
 .control-center .control-center-list-placeholder {
   color: @muted;
   padding: 0 12px;
@@ -66,6 +77,16 @@ scrollbar slider {
 .notification-row {
   background: transparent;
   outline: none;
+}
+
+.notification-row:focus,
+.notification-row:focus-within,
+.notification-row:selected,
+.notification-row:hover,
+.notification-row:active {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
 }
 
 .notification-row .notification-background {
@@ -172,15 +193,18 @@ scrollbar slider {
 .widget-title,
 .widget-dnd,
 .widget-mpris {
-  margin: 0 12px 10px;
+  margin: 0 0 10px;
+  padding: 0 12px;
 }
 
 .widget-title {
-  padding: 10px 0 4px;
+  min-height: 32px;
+  padding-top: 10px;
   color: @fg;
 }
 
 .widget-title > label {
+  margin: 0;
   font-weight: 600;
 }
 
@@ -188,8 +212,10 @@ scrollbar slider {
   background: transparent;
   color: @muted;
   border: 1px solid @border;
-  min-height: 0;
-  padding: 4px 8px;
+  min-height: 30px;
+  min-width: 96px;
+  margin: 0;
+  padding: 4px 12px;
 }
 
 .widget-title > button:hover {
@@ -198,12 +224,20 @@ scrollbar slider {
 }
 
 .widget-dnd {
+  min-height: 32px;
   color: @muted;
+}
+
+.widget-dnd label {
+  margin: 0;
 }
 
 .widget-dnd > switch {
   background: @hover;
   border: 1px solid @border;
+  min-width: 48px;
+  min-height: 30px;
+  margin: 0;
 }
 
 .widget-dnd > switch:checked {
@@ -212,6 +246,8 @@ scrollbar slider {
 
 .widget-dnd > switch slider {
   background: @fg;
+  min-width: 18px;
+  min-height: 18px;
 }
 
 /* MPRIS */
@@ -226,12 +262,12 @@ scrollbar slider {
 }
 
 .widget-mpris .widget-mpris-player .mpris-background {
-  filter: none;
+  filter: blur(10px) brightness(0.32);
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay {
-  background: transparent;
-  padding: 10px 12px;
+  background: rgba(17, 18, 20, 0.8);
+  padding: 12px 14px;
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-title {
@@ -246,14 +282,17 @@ scrollbar slider {
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-album-art {
+  -gtk-icon-size: var(--mpris-album-art-icon-size);
   box-shadow: none;
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay > box > button,
 .widget-mpris > box > button {
-  background: transparent;
+  background: rgba(17, 18, 20, 0.62);
+  border: 1px solid @border;
   color: @fg;
-  padding: 4px 8px;
+  min-height: 30px;
+  padding: 5px 10px;
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay > box > button:hover,
