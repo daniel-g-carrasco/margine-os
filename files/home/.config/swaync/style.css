@@ -1,3 +1,23 @@
+/* ----------------------------- */
+/* Margine swaync theme          */
+/* ----------------------------- */
+/*
+ * File intentionally organized by visual area.
+ * The safest knobs to tweak first are the variables in :root:
+ *
+ * - --panel-padding: inner margin of the whole control center
+ * - --section-gap: vertical gap between top sections / cards
+ * - --popup-edge-gap: distance of popup notifications from screen edge
+ * - --card-gap: vertical gap between notifications in the control center
+ * - --content-padding-x: left/right padding inside a notification body
+ * - --content-padding-y: top/bottom padding inside a notification body
+ *
+ * Border styling lives mainly in:
+ * - .control-center
+ * - .notification-row .notification-background .notification
+ * - .close-button
+ */
+
 @define-color fg #e8e6e3;
 @define-color muted #b9b5af;
 @define-color bg #111214;
@@ -8,10 +28,26 @@
 @define-color critical #f38ba8;
 
 :root {
+  /* Control center shell */
+  --panel-padding: 20px;
+  --section-gap: 10px;
+
+  /* Notification list geometry */
+  --card-gap: 10px;
+  --popup-edge-gap: 10px;
+  --content-padding-x: 12px;
+  --content-padding-y: 8px;
+  --control-center-action-padding-x: 8px;
+
+  /* Icon sizing */
   --notification-icon-size: 48px;
   --notification-app-icon-size: 18px;
   --mpris-album-art-icon-size: 88px;
 }
+
+/* ----------------------------- */
+/* Global reset                  */
+/* ----------------------------- */
 
 * {
   border: none;
@@ -22,62 +58,50 @@
   transition: none;
 }
 
-.blank-window,
-.floating-notifications {
-  background: transparent;
-}
+/* ----------------------------- */
+/* Outer layer windows           */
+/* ----------------------------- */
 
+.blank-window,
+.floating-notifications,
 notificationwindow,
 blankwindow {
   background: transparent;
 }
 
+/* ----------------------------- */
+/* Control center shell          */
+/* ----------------------------- */
+
 .control-center {
   background: rgba(17, 18, 20, 0.995);
   color: @fg;
   border: 1px solid @border;
-  padding: 20px;
+  padding: var(--panel-padding);
 }
 
 .control-center .control-center-list,
 .control-center .control-center-list-placeholder {
   background: transparent;
-  padding: 0;
   margin: 0;
+  padding: 0;
 }
 
+.control-center .control-center-list-placeholder {
+  color: @muted;
+}
+
+/*
+ * GTK gives rows a focus/selection background by default.
+ * These overrides remove the gray highlight around the latest notification.
+ */
 .control-center row,
 .control-center row:selected,
 .control-center row:focus,
 .control-center row:focus-within,
 .control-center row:hover,
-.control-center row:active {
-  background: transparent;
-  outline: none;
-  box-shadow: none;
-}
-
-.control-center .control-center-list-placeholder {
-  color: @muted;
-  padding: 0;
-}
-
-scrollbar,
-scrollbar slider {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  min-width: 0;
-  min-height: 0;
-  opacity: 0;
-}
-
-/* Notification layout */
-.notification-row {
-  background: transparent;
-  outline: none;
-}
-
+.control-center row:active,
+.notification-row,
 .notification-row:focus,
 .notification-row:focus-within,
 .notification-row:selected,
@@ -88,27 +112,34 @@ scrollbar slider {
   box-shadow: none;
 }
 
+/* Hide scrollbars: if they come back, remove this block first. */
+scrollbar,
+scrollbar slider {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  min-width: 0;
+  min-height: 0;
+  opacity: 0;
+}
+
+/* ----------------------------- */
+/* Notification cards            */
+/* ----------------------------- */
+
 .notification-row .notification-background {
   margin: 0;
   padding: 0;
 }
 
+/* Popup notifications shown outside the panel. */
 .floating-notifications .notification-row .notification-background {
-  padding: 8px 10px 0;
+  padding: 8px var(--popup-edge-gap) 0;
 }
 
+/* Notifications inside the control center. */
 .control-center .notification-row .notification-background {
-  padding: 0 0 10px;
-}
-
-.control-center .notification-row .notification-background .notification .notification-default-action {
-  padding-left: 8px;
-  padding-right: 8px;
-}
-
-.control-center .notification-row .notification-background .notification .notification-action > button {
-  padding-left: 8px;
-  padding-right: 8px;
+  padding: 0 0 var(--card-gap);
 }
 
 .control-center .notification-row:last-child .notification-background {
@@ -127,13 +158,17 @@ scrollbar slider {
   border-color: @critical;
 }
 
+/* ----------------------------- */
+/* Notification body             */
+/* ----------------------------- */
+
 .notification-row .notification-background .notification .notification-default-action {
   background: transparent;
   color: @fg;
   border: none;
   box-shadow: none;
-  padding: 8px 12px;
   margin: 0;
+  padding: var(--content-padding-y) var(--content-padding-x);
 }
 
 .notification-row .notification-background .notification .notification-default-action:hover,
@@ -141,15 +176,11 @@ scrollbar slider {
   background: @hover;
 }
 
-.notification-row .notification-background .notification .notification-default-action .notification-content {
-  background: transparent;
-  padding: 0;
-  margin: 0;
-}
-
+.notification-row .notification-background .notification .notification-default-action .notification-content,
 .notification-row .notification-background .notification .notification-default-action .notification-content .text-box {
-  padding: 0;
+  background: transparent;
   margin: 0;
+  padding: 0;
 }
 
 .notification-row .notification-background .notification .notification-default-action .notification-content .text-box .summary {
@@ -170,6 +201,10 @@ scrollbar slider {
   font-size: 13px;
 }
 
+/* ----------------------------- */
+/* Notification actions          */
+/* ----------------------------- */
+
 .notification-row .notification-background .notification .notification-action {
   margin: 0;
   padding: 0;
@@ -178,8 +213,22 @@ scrollbar slider {
 .notification-row .notification-background .notification .notification-action > button {
   background: transparent;
   color: @fg;
-  padding: 8px 12px;
   border-top: 1px solid @border;
+  padding: var(--content-padding-y) var(--content-padding-x);
+}
+
+/*
+ * Slightly tighter action buttons inside the control center.
+ * Change this if action labels feel too loose horizontally.
+ */
+.control-center .notification-row .notification-background .notification .notification-default-action {
+  padding-left: var(--control-center-action-padding-x);
+  padding-right: var(--control-center-action-padding-x);
+}
+
+.control-center .notification-row .notification-background .notification .notification-action > button {
+  padding-left: var(--control-center-action-padding-x);
+  padding-right: var(--control-center-action-padding-x);
 }
 
 .close-button {
@@ -198,14 +247,22 @@ scrollbar slider {
   color: @accent;
 }
 
-/* Top widgets */
+/* ----------------------------- */
+/* Top widgets                   */
+/* ----------------------------- */
+
+/*
+ * The top blocks all share the same outer rhythm.
+ * If their alignment drifts, adjust only this block first.
+ */
 .widget-title,
 .widget-dnd,
 .widget-mpris {
-  margin: 0 0 10px;
+  margin: 0 0 var(--section-gap);
   padding: 0;
 }
 
+/* Title row: "Notifications" + "Clear All" */
 .widget-title {
   min-height: 24px;
   padding-top: 4px;
@@ -232,6 +289,7 @@ scrollbar slider {
   color: @accent;
 }
 
+/* Do Not Disturb row */
 .widget-dnd {
   min-height: 24px;
   color: @muted;
@@ -259,13 +317,15 @@ scrollbar slider {
   background: @fg;
 }
 
-/* MPRIS */
+/* ----------------------------- */
+/* MPRIS / media card            */
+/* ----------------------------- */
+
 .widget-mpris {
   background: rgba(24, 26, 29, 0.995);
   border: 1px solid @border;
-  padding: 0;
   min-width: 0;
-  margin-bottom: 10px;
+  padding: 0;
 }
 
 .widget-mpris .widget-mpris-player {
@@ -305,9 +365,9 @@ scrollbar slider {
   border: 1px solid @border;
   color: @fg;
   min-height: 22px;
-  padding: 2px 8px;
   margin-top: 10px;
   margin-right: 6px;
+  padding: 2px 8px;
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay > box > button:hover,
