@@ -37,7 +37,7 @@ blankwindow {
   color: @fg;
   border-left: 1px solid @border;
   border-bottom: none;
-  padding: 0;
+  padding: 10px;
 }
 
 .control-center .control-center-list,
@@ -60,7 +60,7 @@ blankwindow {
 
 .control-center .control-center-list-placeholder {
   color: @muted;
-  padding: 0 8px;
+  padding: 0;
 }
 
 scrollbar,
@@ -99,7 +99,7 @@ scrollbar slider {
 }
 
 .control-center .notification-row .notification-background {
-  padding: 0 8px 8px;
+  padding: 0 0 10px;
 }
 
 .control-center .notification-row .notification-background .notification .notification-default-action {
@@ -203,7 +203,7 @@ scrollbar slider {
 .widget-title,
 .widget-dnd,
 .widget-mpris {
-  margin: 0 8px 8px;
+  margin: 0 0 10px;
   padding: 0;
 }
 
