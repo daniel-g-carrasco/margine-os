@@ -93,6 +93,7 @@ blankwindow {
   min-height: 0;
   padding: 0;
   margin: 0;
+  opacity: 0;
 }
 
 /* Granite styles GTK placeholders globally.
@@ -104,6 +105,9 @@ blankwindow {
 }
 
 .control-center placeholder > grid > .large-icons,
+.control-center placeholder image,
+.control-center list placeholder image,
+.control-center .control-center-list-placeholder image,
 .control-center list placeholder > grid > .large-icons {
   -gtk-icon-size: 0;
   min-width: 0;
@@ -125,6 +129,13 @@ blankwindow {
 .control-center placeholder box,
 .control-center list placeholder box {
   margin-top: 0;
+}
+
+.control-center placeholder,
+.control-center list placeholder,
+.control-center .control-center-list-placeholder {
+  min-width: 0;
+  min-height: 0;
 }
 
 /*
