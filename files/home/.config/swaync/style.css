@@ -20,10 +20,10 @@
 
 @define-color fg #e8e6e3;
 @define-color muted #b9b5af;
-@define-color bg #111214;
-@define-color panel #181a1d;
-@define-color border #2c2f33;
-@define-color hover #23262b;
+@define-color bg #121212;
+@define-color panel #1a1a1a;
+@define-color border #303030;
+@define-color hover #232323;
 @define-color accent #c39b72;
 @define-color critical #f38ba8;
 
@@ -74,7 +74,7 @@ blankwindow {
 /* ----------------------------- */
 
 .control-center {
-  background: rgba(17, 18, 20, 0.995);
+  background: rgba(18, 18, 18, 0.995);
   color: @fg;
   border: 1px solid @border;
   padding: var(--panel-padding);
@@ -216,7 +216,7 @@ scrollbar slider {
 }
 
 .notification-row .notification-background .notification {
-  background: rgba(24, 26, 29, 0.995);
+  background: rgba(26, 26, 26, 0.995);
   color: @fg;
   border: 1px solid @border;
   margin: 0;
@@ -391,7 +391,7 @@ scrollbar slider {
 /* ----------------------------- */
 
 .widget-mpris {
-  background: rgba(24, 26, 29, 0.995);
+  background: rgba(26, 26, 26, 0.995);
   border: 1px solid @border;
   min-width: 0;
   padding: 0;
@@ -406,7 +406,7 @@ scrollbar slider {
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay {
-  background: rgba(17, 18, 20, 0.8);
+  background: rgba(18, 18, 18, 0.8);
   padding: 14px 16px 16px;
 }
 
@@ -430,7 +430,7 @@ scrollbar slider {
 
 .widget-mpris .widget-mpris-player .mpris-overlay > box > button,
 .widget-mpris > box > button {
-  background: rgba(17, 18, 20, 0.62);
+  background: rgba(18, 18, 18, 0.62);
   border: 1px solid @border;
   color: @fg;
   min-height: 22px;

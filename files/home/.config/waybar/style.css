@@ -2,9 +2,9 @@
 
 @define-color fg #e8e6e3;
 @define-color muted #b9b5af;
-@define-color bg #111214;
-@define-color border #2c2f33;
-@define-color hover #1b1d20;
+@define-color bg #121212;
+@define-color border #303030;
+@define-color hover #1e1e1e;
 @define-color accent #cba6f7;
 @define-color warning #f9e2af;
 @define-color critical #f38ba8;
@@ -262,7 +262,7 @@ window#waybar {
 }
 
 tooltip {
-  background: rgba(17, 18, 20, 0.98);
+  background: rgba(18, 18, 18, 0.98);
   border: 1px solid @border;
   border-radius: 0;
 }
@@ -275,7 +275,7 @@ tooltip label {
 }
 
 menu {
-  background: rgba(17, 18, 20, 0.99);
+  background: rgba(18, 18, 18, 0.99);
   border: 1px solid @border;
   border-radius: 0;
   margin-top: 4px;
