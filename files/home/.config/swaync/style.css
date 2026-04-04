@@ -35,9 +35,8 @@ blankwindow {
 .control-center {
   background: rgba(17, 18, 20, 0.995);
   color: @fg;
-  border-left: 1px solid @border;
-  border-bottom: none;
-  padding: 10px;
+  border: 1px solid @border;
+  padding: 20px;
 }
 
 .control-center .control-center-list,
