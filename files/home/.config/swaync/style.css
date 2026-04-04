@@ -10,7 +10,7 @@
 :root {
   --notification-icon-size: 48px;
   --notification-app-icon-size: 18px;
-  --mpris-album-art-icon-size: 72px;
+  --mpris-album-art-icon-size: 88px;
 }
 
 * {
@@ -60,7 +60,7 @@ blankwindow {
 
 .control-center .control-center-list-placeholder {
   color: @muted;
-  padding: 0 12px;
+  padding: 0 10px;
 }
 
 scrollbar,
@@ -99,7 +99,7 @@ scrollbar slider {
 }
 
 .control-center .notification-row .notification-background {
-  padding: 0 12px 10px;
+  padding: 0 10px 10px;
 }
 
 .control-center .notification-row:last-child .notification-background {
@@ -193,13 +193,13 @@ scrollbar slider {
 .widget-title,
 .widget-dnd,
 .widget-mpris {
-  margin: 0 0 10px;
-  padding: 0 12px;
+  margin: 0 10px 10px;
+  padding: 0;
 }
 
 .widget-title {
-  min-height: 32px;
-  padding-top: 10px;
+  min-height: 26px;
+  padding-top: 8px;
   color: @fg;
 }
 
@@ -212,10 +212,10 @@ scrollbar slider {
   background: transparent;
   color: @muted;
   border: 1px solid @border;
-  min-height: 30px;
+  min-height: 24px;
   min-width: 96px;
   margin: 0;
-  padding: 4px 12px;
+  padding: 2px 10px;
 }
 
 .widget-title > button:hover {
@@ -224,7 +224,7 @@ scrollbar slider {
 }
 
 .widget-dnd {
-  min-height: 32px;
+  min-height: 26px;
   color: @muted;
 }
 
@@ -235,8 +235,8 @@ scrollbar slider {
 .widget-dnd > switch {
   background: @hover;
   border: 1px solid @border;
-  min-width: 48px;
-  min-height: 30px;
+  min-width: 42px;
+  min-height: 24px;
   margin: 0;
 }
 
@@ -246,8 +246,8 @@ scrollbar slider {
 
 .widget-dnd > switch slider {
   background: @fg;
-  min-width: 18px;
-  min-height: 18px;
+  min-width: 14px;
+  min-height: 14px;
 }
 
 /* MPRIS */
@@ -255,6 +255,7 @@ scrollbar slider {
   background: rgba(24, 26, 29, 0.995);
   border: 1px solid @border;
   padding: 0;
+  min-width: 0;
 }
 
 .widget-mpris .widget-mpris-player {
@@ -267,18 +268,20 @@ scrollbar slider {
 
 .widget-mpris .widget-mpris-player .mpris-overlay {
   background: rgba(17, 18, 20, 0.8);
-  padding: 12px 14px;
+  padding: 14px 16px;
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-title {
   color: @fg;
   font-size: 14px;
   font-weight: 600;
+  margin-bottom: 4px;
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-subtitle {
   color: @muted;
   font-size: 12px;
+  margin-bottom: 10px;
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-album-art {
@@ -291,8 +294,10 @@ scrollbar slider {
   background: rgba(17, 18, 20, 0.62);
   border: 1px solid @border;
   color: @fg;
-  min-height: 30px;
-  padding: 5px 10px;
+  min-height: 24px;
+  padding: 3px 8px;
+  margin-top: 8px;
+  margin-right: 6px;
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay > box > button:hover,
