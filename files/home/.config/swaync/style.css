@@ -58,10 +58,15 @@
   color: @fg;
 }
 
-.notification-group .notification-group-headers {
+.notification-group .notification-group-headers,
+.notification-group .notification-group-buttons,
+.notification-group .notification-group-close-button {
   background: rgba(22, 24, 27, 0.995);
+}
+
+.notification-group .notification-group-headers {
   border-bottom: 1px solid @border;
-  padding: 7px 10px 5px;
+  padding: 7px 10px 7px;
 }
 
 .notification-group .notification-group-headers .notification-group-icon {
@@ -75,9 +80,13 @@
 }
 
 .notification-group .notification-group-buttons {
-  background: rgba(22, 24, 27, 0.995);
   border-bottom: 1px solid @border;
-  padding: 0 8px 6px;
+  padding: 0 8px 6px 8px;
+}
+
+.notification-group .notification-group-close-button {
+  border-bottom: 1px solid @border;
+  padding: 0 8px 6px 0;
 }
 
 .notification-group .notification-group-buttons button,
@@ -113,14 +122,34 @@
   border-bottom: 1px solid @border;
 }
 
+.notification-group.collapsed .notification-group-headers,
+.notification-group.collapsed .notification-group-buttons,
+.notification-group.collapsed .notification-group-close-button {
+  opacity: 1;
+}
+
 .notification-group.collapsed,
 .notification-group.collapsed.not-expanded {
   opacity: 1;
 }
 
+.notification-group.collapsed .notification-row:not(:last-child) {
+  opacity: 0;
+  margin: 0;
+  min-height: 0;
+}
+
+.notification-group.collapsed .notification-row:not(:last-child) .notification {
+  border: none;
+  min-height: 0;
+}
+
 .notification-group.collapsed .notification-row:not(:last-child) .notification-action,
 .notification-group.collapsed .notification-row:not(:last-child) .notification-default-action {
-  opacity: 1;
+  opacity: 0;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .notification-group.collapsed:hover .notification-row:not(:only-child) .notification {
