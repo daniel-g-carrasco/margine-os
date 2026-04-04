@@ -17,6 +17,7 @@ declare -a home_payload=(
   ".config/hypr/monitors.conf"
   ".config/satty/config.toml"
   ".config/swaync/config.json"
+  ".config/swaync/launch.sh"
   ".config/swaync/style.css"
   ".config/swayosd/style.css"
   ".config/walker/config.toml"
@@ -135,7 +136,7 @@ install_home_payload() {
     target="${home_dir}/${relative}"
     mode=644
 
-    if [[ "$relative" == .local/bin/* || "$relative" == .config/waybar/*.sh ]]; then
+    if [[ "$relative" == .local/bin/* || "$relative" == .config/waybar/*.sh || "$relative" == .config/swaync/*.sh ]]; then
       mode=755
     fi
 
