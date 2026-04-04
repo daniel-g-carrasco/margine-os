@@ -1,172 +1,77 @@
 @define-color fg #e8e6e3;
 @define-color muted #b9b5af;
 @define-color bg #111214;
+@define-color panel #181a1d;
 @define-color border #2c2f33;
-@define-color hover #1b1d20;
+@define-color hover #23262b;
 @define-color accent #c39b72;
 @define-color critical #f38ba8;
 
 * {
+  border: none;
   border-radius: 0;
+  box-shadow: none;
   font-family: "IBM Plex Sans Condensed";
   font-size: 13px;
-  box-shadow: none;
 }
 
-.blank-window {
+.blank-window,
+.floating-notifications {
   background: transparent;
-}
-
-.floating-notifications .notification-row .notification,
-.control-center .notification-row .notification {
-  background: rgba(17, 18, 20, 0.99);
-  border: 1px solid @border;
-  color: @fg;
-}
-
-.floating-notifications .notification-row .notification {
-  margin: 8px 10px 0;
-  padding: 10px 12px;
 }
 
 .control-center {
   background: rgba(17, 18, 20, 0.995);
+  color: @fg;
   border-left: 1px solid @border;
   border-bottom: 1px solid @border;
-  color: @fg;
 }
 
-.control-center .notification-row .notification {
-  margin: 0 12px 12px;
-  padding: 10px 12px;
-}
-
-.notification-group {
-  margin: 0 12px 12px;
-  padding: 0;
-  border: 1px solid @border;
-  background: rgba(22, 24, 27, 0.995);
-}
-
-.notification-group:focus {
+.control-center .control-center-list,
+.control-center .control-center-list-placeholder {
   background: transparent;
 }
 
-.notification-group .notification-group-buttons,
-.notification-group .notification-group-headers {
-  margin: 0;
-  color: @fg;
-}
-
-.notification-group .notification-group-headers,
-.notification-group .notification-group-buttons,
-.notification-group .notification-group-close-button {
-  background: transparent;
-}
-
-.notification-group .notification-group-headers {
-  border-bottom: 1px solid @border;
-  padding: 7px 10px 7px;
-}
-
-.notification-group .notification-group-headers .notification-group-icon {
-  color: @accent;
-  -gtk-icon-size: 16px;
-}
-
-.notification-group .notification-group-headers .notification-group-header {
-  color: @fg;
-  font-weight: 600;
-}
-
-.notification-group .notification-group-buttons {
-  border-bottom: 1px solid @border;
-  padding: 0 8px 6px 8px;
-}
-
-.notification-group .notification-group-close-button {
-  border-bottom: 1px solid @border;
-  padding: 0 8px 6px 0;
-}
-
-.notification-group .notification-group-buttons button,
-.notification-group .notification-group-close-button .close-button {
-  margin: 0;
-  min-width: 0;
-  min-height: 0;
-  padding: 2px 6px;
-  border: none;
-  background: transparent;
+.control-center .control-center-list-placeholder {
   color: @muted;
+  padding: 12px;
 }
 
-.notification-group .notification-group-buttons button:hover,
-.notification-group .notification-group-close-button .close-button:hover {
-  background: @hover;
-  color: @accent;
-}
-
-.notification-group .notification-row .notification {
+.floating-notifications .notification-row,
+.control-center .notification-row {
   margin: 0;
   padding: 0;
-  background: transparent;
-  border: none;
 }
 
-.notification-group .notification-row .notification .notification-default-action,
-.notification-group .notification-row .notification .notification-action {
-  padding: 8px 10px;
+.floating-notifications .notification-row {
+  margin: 8px 10px 0;
 }
 
-.notification-group .notification-row:not(:last-child) .notification {
-  border-bottom: 1px solid @border;
+.floating-notifications .notification,
+.control-center .notification {
+  background: rgba(24, 26, 29, 0.995);
+  color: @fg;
+  border: 1px solid @border;
 }
 
-.notification-group.collapsed .notification-group-headers,
-.notification-group.collapsed .notification-group-buttons,
-.notification-group.collapsed .notification-group-close-button {
-  opacity: 1;
-}
-
-.notification-group.collapsed,
-.notification-group.collapsed.not-expanded {
-  opacity: 1;
-}
-
-.notification-group.collapsed .notification-row:not(:last-child) {
-  opacity: 0;
-  margin: 0;
-  min-height: 0;
-}
-
-.notification-group.collapsed .notification-row:not(:last-child) .notification {
-  border: none;
-  min-height: 0;
-}
-
-.notification-group.collapsed .notification-row:not(:last-child) .notification-action,
-.notification-group.collapsed .notification-row:not(:last-child) .notification-default-action {
-  opacity: 0;
-  min-height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-.notification-group.collapsed:hover .notification-row:not(:only-child) .notification {
-  background: transparent;
-}
-
-.notification-row {
-  outline: none;
-}
-
-.notification-row:hover,
-.notification-row:focus {
-  background: transparent;
+.control-center .notification {
+  margin: 0 12px 12px;
 }
 
 .notification-content {
   padding: 0;
+}
+
+.notification .notification-default-action,
+.notification .notification-action {
+  background: transparent;
+  color: @fg;
+  padding: 10px 12px;
+}
+
+.notification .notification-default-action:hover,
+.notification .notification-action:hover {
+  background: @hover;
 }
 
 .summary {
@@ -189,8 +94,10 @@
 
 .close-button {
   background: transparent;
-  border: none;
   color: @muted;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px 8px;
 }
 
 .close-button:hover {
@@ -201,13 +108,16 @@
 .widget-title {
   padding: 10px 12px 4px;
   color: @fg;
+}
+
+.widget-title > label {
   font-weight: 600;
 }
 
 .widget-title > button {
   background: transparent;
-  border: 1px solid @border;
   color: @muted;
+  border: 1px solid @border;
   min-height: 0;
   padding: 4px 8px;
 }
