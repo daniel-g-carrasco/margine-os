@@ -4,13 +4,13 @@ set -euo pipefail
 
 rfkill unblock wifi >/dev/null 2>&1 || true
 
-if command -v impala >/dev/null 2>&1; then
-  exec kitty --class network-tui -e impala
-fi
-
 if command -v nmtui >/dev/null 2>&1; then
   exec kitty --class network-tui -e nmtui
 fi
 
-printf 'Nessun TUI rete disponibile: servono impala o nmtui.\n' >&2
+if command -v impala >/dev/null 2>&1; then
+  exec kitty --class network-tui -e impala
+fi
+
+printf 'Nessun TUI rete disponibile: servono nmtui o impala.\n' >&2
 exit 1
