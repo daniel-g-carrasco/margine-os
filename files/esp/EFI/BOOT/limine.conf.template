@@ -9,6 +9,15 @@ verbose: no
 editor_enabled: no
 interface_branding: Margine
 interface_branding_colour: 6
+interface_help_hidden: yes
+term_palette: 121212;6d5445;6e7b67;af9471;67737c;7b6971;c39b72;bdbdbd
+term_palette_bright: 303030;8a6855;89967d;c8ad89;82909b;95818b;d9bb96;f2f2f2
+term_background: f0121212
+term_foreground: e8e4df
+term_background_bright: 1a1a1a
+term_foreground_bright: f6f2ec
+term_margin: 48
+term_margin_gradient: 12
 
 ${EFI_LINUX}=boot():/EFI/Linux
 

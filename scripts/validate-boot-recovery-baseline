@@ -42,6 +42,27 @@ uki_section() {
   fi
 }
 
+boot_visuals_section() {
+  local mkinitcpio_hooks=""
+  local plymouth_theme="missing"
+
+  section "Plymouth e Boot Visuals"
+
+  if [[ -r /etc/mkinitcpio.conf ]]; then
+    mkinitcpio_hooks="$(awk -F'[()]' '/^HOOKS=/ {print $2; exit}' /etc/mkinitcpio.conf)"
+  fi
+
+  if [[ -r /etc/plymouth/plymouthd.conf ]]; then
+    plymouth_theme="$(awk -F= '/^Theme=/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' /etc/plymouth/plymouthd.conf)"
+  fi
+
+  status_line "mkinitcpio hook plymouth: $( [[ " ${mkinitcpio_hooks} " == *" plymouth "* ]] && echo yes || echo no )"
+  status_line "/etc/plymouth/plymouthd.conf: $( [[ -f /etc/plymouth/plymouthd.conf ]] && echo yes || echo no )"
+  status_line "theme corrente: ${plymouth_theme}"
+  status_line "Margine UKI splash: $( [[ -f /usr/share/margine/boot/margine-splash.bmp ]] && echo yes || echo no )"
+  status_line "kernel cmdline contiene splash: $( [[ -r /etc/kernel/cmdline ]] && rg -q '(^| )splash( |$)' /etc/kernel/cmdline && echo yes || echo no )"
+}
+
 snapper_section() {
   local configs=""
   local root_list=""
@@ -76,6 +97,7 @@ snapper_section() {
 main() {
   boot_section
   uki_section
+  boot_visuals_section
   snapper_section
 }
 

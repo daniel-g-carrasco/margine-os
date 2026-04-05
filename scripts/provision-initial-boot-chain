@@ -12,7 +12,7 @@ crypt_name=""
 mkinitcpio_conf_source="${repo_root}/files/etc/mkinitcpio.conf"
 linux_preset_source="${repo_root}/files/etc/mkinitcpio.d/linux.preset"
 cmdline_template_source="${repo_root}/files/etc/kernel/cmdline.template"
-vconsole_source="${repo_root}/files/etc/vconsole.conf"
+boot_baseline_script="${repo_root}/scripts/provision-boot-baseline"
 generate_limine_script="${repo_root}/scripts/generate-limine-config"
 limine_binary_source="/usr/share/limine/BOOTX64.EFI"
 
@@ -122,7 +122,7 @@ ensure_sources() {
   ensure_source_exists "$mkinitcpio_conf_source" "mkinitcpio config"
   ensure_source_exists "$linux_preset_source" "linux preset"
   ensure_source_exists "$cmdline_template_source" "kernel cmdline template"
-  ensure_source_exists "$vconsole_source" "vconsole baseline"
+  ensure_source_exists "$boot_baseline_script" "boot baseline provisioner"
   ensure_source_exists "$generate_limine_script" "Limine config generator"
   ensure_source_exists "$limine_binary_source" "Limine EFI binary"
 }
@@ -202,17 +202,14 @@ render_cmdline() {
     "$cmdline_template_source"
 }
 
-install_mkinitcpio_conf() {
-  log
-  log "==> Install mkinitcpio baseline"
-  run_cmd install -Dm644 "$mkinitcpio_conf_source" /etc/mkinitcpio.conf
-  run_cmd install -Dm644 "$linux_preset_source" /etc/mkinitcpio.d/linux.preset
-}
+install_boot_baseline() {
+  local args=()
 
-install_vconsole_baseline() {
   log
-  log "==> Ensure vconsole baseline"
-  run_cmd install -Dm644 "$vconsole_source" /etc/vconsole.conf
+  log "==> Install boot baseline"
+
+  (( dry_run )) && args+=(--dry-run)
+  run_cmd "$boot_baseline_script" "${args[@]}"
 }
 
 install_kernel_cmdline() {
@@ -297,8 +294,7 @@ main() {
   log "LUKS mapper: ${crypt_name}"
   log "LUKS UUID: ${luks_uuid}"
 
-  install_mkinitcpio_conf
-  install_vconsole_baseline
+  install_boot_baseline
   install_kernel_cmdline
   ensure_esp_layout
   build_ukis

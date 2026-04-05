@@ -29,6 +29,7 @@ snapper_config="root"
 snapshots_subvolume="@snapshots"
 recovery_entry_limit=12
 soft_failures=0
+boot_baseline_script=""
 
 usage() {
   cat <<'EOF'
@@ -427,6 +428,13 @@ run_boot_regeneration() {
 
   log
   log "==> 5) Artefatti di boot"
+
+  boot_baseline_script="${repo_root}/scripts/provision-boot-baseline"
+  if [[ -x "$boot_baseline_script" ]]; then
+    run_cmd sudo "$boot_baseline_script"
+  else
+    die "boot baseline provisioner not executable: $boot_baseline_script"
+  fi
 
   if have_cmd mkinitcpio; then
     run_cmd sudo mkinitcpio -P
