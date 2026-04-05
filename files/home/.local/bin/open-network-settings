@@ -5,7 +5,7 @@ set -euo pipefail
 rfkill unblock wifi >/dev/null 2>&1 || true
 
 if command -v nm-connection-editor >/dev/null 2>&1; then
-  exec nm-connection-editor
+  exec "$HOME/.local/bin/gtk-dark-exec" nm-connection-editor
 fi
 
 exec "$HOME/.local/bin/open-network-tui"

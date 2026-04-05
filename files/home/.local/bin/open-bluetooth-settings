@@ -2,31 +2,4 @@
 
 set -euo pipefail
 
-rfkill unblock bluetooth >/dev/null 2>&1 || true
-
-if command -v blueman-manager >/dev/null 2>&1; then
-  exec blueman-manager
-fi
-
 exec "$HOME/.local/bin/open-bluetooth-tui"
-
-kitty_bluetooth_window=(
-  kitty
-  --class bluetooth-tui
-  --title Bluetooth
-  --override font_family="IBM Plex Mono"
-  --override font_size=12.0
-  --override window_padding_width=14
-  --override background="#121212"
-  --override foreground="#e6e6e6"
-  --override selection_background="#303030"
-  --override selection_foreground="#f5f5f5"
-  --override cursor="#c39b72"
-  --override cursor_text_color="#121212"
-)
-
-if command -v bluetui >/dev/null 2>&1; then
-  exec "${kitty_bluetooth_window[@]}" -e bluetui
-fi
-
-exec "${kitty_bluetooth_window[@]}" -e bluetoothctl

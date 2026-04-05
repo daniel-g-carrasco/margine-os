@@ -5,6 +5,33 @@ set -euo pipefail
 have_wpctl=0
 sink_present=no
 source_present=no
+bypass_state=unknown
+
+query_easyeffects_server() {
+  python - "$1" <<'PY'
+import os
+import socket
+import sys
+
+command = sys.argv[1] + "\n"
+path = os.path.join(
+    os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"),
+    "EasyEffectsServer",
+)
+
+try:
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.settimeout(0.5)
+    sock.connect(path)
+    sock.sendall(command.encode())
+    reply = sock.recv(1024).decode().strip()
+    sock.close()
+    if reply:
+        print(reply)
+except Exception:
+    pass
+PY
+}
 
 if command -v wpctl >/dev/null 2>&1; then
   have_wpctl=1
@@ -17,7 +44,28 @@ if command -v wpctl >/dev/null 2>&1; then
 fi
 
 if pgrep -x easyeffects >/dev/null 2>&1; then
-  tooltip="EasyEffects attivo"
+  bypass_state="$(query_easyeffects_server get_global_bypass || printf 'unknown')"
+
+  case "$bypass_state" in
+    1)
+      tooltip="EasyEffects aperto ma bypassato"
+      if (( have_wpctl )); then
+        tooltip="${tooltip}\\nSink: ${sink_present}\\nSource: ${source_present}"
+      fi
+      printf '{"text":"FX","class":"bypassed","tooltip":"%s"}\n' "$tooltip"
+      exit 0
+      ;;
+    2)
+      tooltip="EasyEffects attivo"
+      if (( have_wpctl )); then
+        tooltip="${tooltip}\\nSink: ${sink_present}\\nSource: ${source_present}"
+      fi
+      printf '{"text":"FX","class":"active","tooltip":"%s"}\n' "$tooltip"
+      exit 0
+      ;;
+  esac
+
+  tooltip="EasyEffects in esecuzione"
   if (( have_wpctl )); then
     tooltip="${tooltip}\\nSink: ${sink_present}\\nSource: ${source_present}"
   fi
@@ -25,5 +73,5 @@ if pgrep -x easyeffects >/dev/null 2>&1; then
   exit 0
 fi
 
-tooltip="EasyEffects non attivo\\nClick: avvia\\nRight click: termina"
+tooltip="EasyEffects non attivo\\nClick: avvia"
 printf '{"text":"FX","class":"inactive","tooltip":"%s"}\n' "$tooltip"

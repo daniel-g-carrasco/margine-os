@@ -21,18 +21,30 @@ kitty_network_window=(
   --override window_padding_width=14
   --override background="#121212"
   --override foreground="#e6e6e6"
-  --override selection_background="#303030"
-  --override selection_foreground="#f5f5f5"
+  --override selection_background="#2a241d"
+  --override selection_foreground="#f5efe5"
   --override cursor="#c39b72"
   --override cursor_text_color="#121212"
+  --override color0="#121212"
+  --override color8="#5f5a55"
+  --override color3="#b59a79"
+  --override color11="#d6bea1"
+  --override color4="#8c7d6a"
+  --override color12="#a89783"
+  --override color6="#958673"
+  --override color14="#b3a08d"
 )
-
-if command -v nmtui >/dev/null 2>&1; then
-  exec "${kitty_network_window[@]}" -e nmtui
-fi
 
 if command -v impala >/dev/null 2>&1; then
   exec "${kitty_network_window[@]}" -e impala
+fi
+
+if command -v nmtui >/dev/null 2>&1; then
+  if [ "$#" -gt 0 ]; then
+    exec "${kitty_network_window[@]}" -e nmtui "$@"
+  fi
+
+  exec "${kitty_network_window[@]}" -e nmtui
 fi
 
 printf 'Nessun TUI rete disponibile: servono nmtui o impala.\n' >&2

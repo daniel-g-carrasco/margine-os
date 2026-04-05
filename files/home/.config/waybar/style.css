@@ -234,6 +234,10 @@ window#waybar {
   color: @muted;
 }
 
+#custom-easyeffects.bypassed {
+  color: @warning;
+}
+
 #custom-recording:hover,
 #custom-vpn:hover,
 #custom-notification:hover,

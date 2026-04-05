@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+export GTK_THEME="${GTK_THEME:-Adwaita:dark}"
+export GDK_BACKEND="x11"
+
+exec "$@"

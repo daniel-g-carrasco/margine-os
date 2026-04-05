@@ -15,6 +15,7 @@
     "clock"
   ],
   "modules-right": [
+    "tray",
     "custom/recording",
     "custom/vpn",
     "network",
@@ -22,7 +23,6 @@
     "custom/easyeffects",
     "pulseaudio",
     "battery",
-    "tray",
     "custom/notification"
   ],
 
@@ -79,9 +79,7 @@
     "tooltip-format-wifi": "{essid}\n{signalStrength}%\n{ipaddr}",
     "tooltip-format-ethernet": "{ifname}\n{ipaddr}",
     "tooltip-format-disconnected": "Disconnected",
-    "on-click": "~/.local/bin/open-network-settings",
-    "on-click-middle": "~/.local/bin/open-network-tui",
-    "on-click-right": "~/.local/bin/open-network-applet-menu"
+    "on-click": "~/.local/bin/open-network-tui"
   },
 
   "custom/vpn": {
@@ -113,8 +111,7 @@
     "format-connected": "󰂯 {num_connections}",
     "format-connected-battery": "󰂯 {device_battery_percentage}%",
     "tooltip-format": "{controller_alias}\n{controller_address}",
-    "on-click": "~/.local/bin/open-bluetooth-settings",
-    "on-click-right": "~/.local/bin/open-bluetooth-tui"
+    "on-click": "~/.local/bin/open-bluetooth-tui"
     },
 
   "custom/easyeffects": {
@@ -123,7 +120,6 @@
     "exec": "~/.local/bin/easyeffects-status",
     "interval": 5,
     "on-click": "easyeffects",
-    "on-click-right": "pkill -x easyeffects || true",
     "escape": true
   },
 
