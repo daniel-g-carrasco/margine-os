@@ -17,8 +17,8 @@ kitty_network_window=(
   --class network-tui
   --title Network
   --override font_family="IBM Plex Mono"
-  --override font_size=13.0
-  --override window_padding_width=18
+  --override font_size=12.0
+  --override window_padding_width=14
   --override background="#121212"
   --override foreground="#e6e6e6"
   --override selection_background="#303030"
