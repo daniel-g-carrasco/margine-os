@@ -258,6 +258,14 @@ scrollbar slider {
   padding: 0;
 }
 
+.notification-row .notification-background .notification .notification-default-action .notification-content .image {
+  margin: 4px 12px 4px 4px;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .app-icon {
+  margin: 6px;
+}
+
 .notification-row .notification-background .notification .notification-default-action .notification-content .text-box .summary {
   color: @fg;
   font-size: 14px;
