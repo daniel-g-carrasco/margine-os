@@ -209,7 +209,7 @@ scrollbar slider {
 }
 
 /* Notifications inside the control center. */
-.control-center .notification-row {
+.control-center .control-center-list > row {
   margin-bottom: var(--panel-card-gap);
 }
 
@@ -217,7 +217,7 @@ scrollbar slider {
   padding: 0;
 }
 
-.control-center .notification-row:last-child {
+.control-center .control-center-list > row:last-child {
   margin-bottom: 0;
 }
 
