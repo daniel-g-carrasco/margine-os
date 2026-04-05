@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+dest="org.freedesktop.network-manager-applet"
+item_path="/org/ayatana/NotificationItem/nm_applet"
+
+ensure_nm_applet() {
+  if busctl --user list 2>/dev/null | rg -q '^org\.freedesktop\.network-manager-applet\b'; then
+    return 0
+  fi
+
+  if ! command -v nm-applet >/dev/null 2>&1; then
+    return 1
+  fi
+
+  nohup nm-applet >/tmp/nm-applet.log 2>&1 </dev/null &
+
+  for _ in $(seq 1 20); do
+    sleep 0.15
+    if busctl --user list 2>/dev/null | rg -q '^org\.freedesktop\.network-manager-applet\b'; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+ensure_nm_applet || exit 1
+
+gdbus call --session \
+  --dest "$dest" \
+  --object-path "$item_path" \
+  --method org.kde.StatusNotifierItem.SecondaryActivate 0 0 >/dev/null 2>&1 || true
+
+gdbus call --session \
+  --dest "$dest" \
+  --object-path "$item_path" \
+  --method org.kde.StatusNotifierItem.XAyatanaSecondaryActivate 0 >/dev/null 2>&1 || true
