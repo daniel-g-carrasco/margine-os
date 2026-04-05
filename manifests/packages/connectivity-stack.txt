@@ -2,15 +2,19 @@
 # Baseline target per Framework 13 AMD:
 # - NetworkManager come orchestratore principale;
 # - iwd come backend Wi-Fi preferito;
-# - bluetui / impala come strumenti TUI coerenti col workflow terminal-first.
+# - nm-connection-editor / network-manager-applet / blueman per l'accesso GUI;
+# - bluetui / impala come fallback TUI coerenti col workflow terminal-first.
 
+blueman
 bluetui
 bluez
 bluez-utils
 impala
 iw
 iwd
+network-manager-applet
 networkmanager
+nm-connection-editor
 networkmanager-openvpn
 openvpn
 wireguard-tools

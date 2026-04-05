@@ -4,12 +4,6 @@ set -euo pipefail
 
 rfkill unblock bluetooth >/dev/null 2>&1 || true
 
-if command -v blueman-manager >/dev/null 2>&1; then
-  exec blueman-manager
-fi
-
-exec "$HOME/.local/bin/open-bluetooth-tui"
-
 kitty_bluetooth_window=(
   kitty
   --class bluetooth-tui
