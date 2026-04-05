@@ -403,12 +403,16 @@ scrollbar slider {
   padding: 0;
 }
 
+.widget-mpris > box {
+  background: rgba(18, 18, 18, 0.86);
+}
+
 .widget-mpris .widget-mpris-player {
   margin: 0;
 }
 
 .widget-mpris .widget-mpris-player .mpris-background {
-  filter: blur(10px) brightness(0.32);
+  filter: blur(9px) brightness(0.42);
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay {
@@ -434,18 +438,34 @@ scrollbar slider {
   box-shadow: none;
 }
 
-.widget-mpris .widget-mpris-player .mpris-overlay > box > button,
-.widget-mpris > box > button {
+.widget-mpris .widget-mpris-player .mpris-overlay > box > button {
   background: rgba(18, 18, 18, 0.62);
   border: 1px solid @border;
   color: @fg;
-  min-height: 22px;
-  margin-top: 10px;
+  min-height: 20px;
+  margin-top: 20px;
   margin-right: 6px;
-  padding: 2px 8px;
+  padding: 8px 8px;
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay > box > button:hover,
 .widget-mpris > box > button:hover {
   background: @hover;
+}
+
+.widget-mpris > box > button {
+  background: rgba(18, 18, 18, 0.72);
+  border: none;
+  color: @fg;
+  margin: 0;
+  min-width: 34px;
+  padding: 0;
+}
+
+.widget-mpris > box > button:first-child {
+  border-right: 1px solid @border;
+}
+
+.widget-mpris > box > button:last-child {
+  border-left: 1px solid @border;
 }
