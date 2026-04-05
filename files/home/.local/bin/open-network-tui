@@ -4,12 +4,27 @@ set -euo pipefail
 
 rfkill unblock wifi >/dev/null 2>&1 || true
 
+kitty_network_window=(
+  kitty
+  --class network-tui
+  --title Network
+  --override font_family="IBM Plex Mono"
+  --override font_size=13.0
+  --override window_padding_width=18
+  --override background="#121212"
+  --override foreground="#e6e6e6"
+  --override selection_background="#303030"
+  --override selection_foreground="#f5f5f5"
+  --override cursor="#c39b72"
+  --override cursor_text_color="#121212"
+)
+
 if command -v nmtui >/dev/null 2>&1; then
-  exec kitty --class network-tui -e nmtui
+  exec "${kitty_network_window[@]}" -e nmtui
 fi
 
 if command -v impala >/dev/null 2>&1; then
-  exec kitty --class network-tui -e impala
+  exec "${kitty_network_window[@]}" -e impala
 fi
 
 printf 'Nessun TUI rete disponibile: servono nmtui o impala.\n' >&2
