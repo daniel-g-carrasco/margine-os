@@ -4,6 +4,14 @@ set -euo pipefail
 
 rfkill unblock wifi >/dev/null 2>&1 || true
 
+nmtui_colors_file="${XDG_CONFIG_HOME:-$HOME/.config}/nmtui/colors.conf"
+
+if [ -f "$nmtui_colors_file" ]; then
+  export NMT_NEWT_COLORS_FILE="$nmtui_colors_file"
+  export NMT_NEWT_COLORS="$(cat "$nmtui_colors_file")"
+  export NEWT_COLORS="$NMT_NEWT_COLORS"
+fi
+
 kitty_network_window=(
   kitty
   --class network-tui
