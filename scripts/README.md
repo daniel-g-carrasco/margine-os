@@ -44,6 +44,9 @@ Primo script operativo:
   chain iniziale `mkinitcpio + UKI + Limine` sul sistema target.
 - `provision-boot-baseline`: installa i file di baseline del boot locale
   (`mkinitcpio`, `vconsole`, `plymouth`, splash UKI) prima della rigenerazione.
+- `stage-limine-side-by-side`: prepara `Limine` come applicazione EFI
+  separata, con config sulla root della ESP e voce UEFI dedicata, senza
+  sostituire il bootloader corrente.
 - `validate-printing-scanning-baseline`: verifica pacchetti, servizi,
   discovery, stampanti e scanner rispetto alla baseline `Margine`.
 - `provision-virtualization-containers-baseline`: installa i file di baseline

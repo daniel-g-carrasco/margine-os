@@ -1,0 +1,353 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+set_bootnext=0
+esp_path="/boot"
+entry_label="Margine (Limine test)"
+loader_dir="EFI/Margine"
+loader_name="BOOTX64.EFI"
+limine_binary_source="/usr/share/limine/BOOTX64.EFI"
+limine_tool=""
+root_source=""
+root_uuid=""
+crypt_name=""
+luks_device=""
+luks_uuid=""
+rendered_limine_conf=""
+backup_dir=""
+created_bootnum=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  stage-limine-side-by-side [options]
+
+Options:
+  --esp-path PATH      Mountpoint ESP (default: /boot)
+  --entry-label LABEL  Nome della voce EFI (default: Margine (Limine test))
+  --loader-dir PATH    Directory EFI target relativa alla ESP (default: EFI/Margine)
+  --loader-name NAME   Nome del binario EFI target (default: BOOTX64.EFI)
+  --crypt-name NAME    Nome mapper LUKS; se omesso prova a rilevarlo
+  --limine-tool PATH   Path esplicito al tool host `limine`
+  --set-bootnext       Imposta la nuova entry come prossimo boot una sola volta
+  --dry-run            Mostra il piano senza eseguire modifiche
+  --help               Mostra questo aiuto
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --esp-path)
+        [[ $# -ge 2 ]] || die "missing value for --esp-path"
+        esp_path="$2"
+        shift 2
+        ;;
+      --entry-label)
+        [[ $# -ge 2 ]] || die "missing value for --entry-label"
+        entry_label="$2"
+        shift 2
+        ;;
+      --loader-dir)
+        [[ $# -ge 2 ]] || die "missing value for --loader-dir"
+        loader_dir="${2#/}"
+        shift 2
+        ;;
+      --loader-name)
+        [[ $# -ge 2 ]] || die "missing value for --loader-name"
+        loader_name="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        shift 2
+        ;;
+      --limine-tool)
+        [[ $# -ge 2 ]] || die "missing value for --limine-tool"
+        limine_tool="$2"
+        shift 2
+        ;;
+      --set-bootnext)
+        set_bootnext=1
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root_capable() {
+  have_cmd sudo || die "sudo not found"
+}
+
+ensure_source_exists() {
+  local path="$1"
+  local label="$2"
+  [[ -e "$path" ]] && return 0
+  die "${label} not found: ${path}"
+}
+
+resolve_limine_tool() {
+  if [[ -n "$limine_tool" ]]; then
+    return 0
+  fi
+  if have_cmd limine; then
+    limine_tool="$(command -v limine)"
+    return 0
+  fi
+  die "limine host tool not found; install the limine package or pass --limine-tool"
+}
+
+detect_root_source() {
+  root_source="$(findmnt -no SOURCE / 2>/dev/null || true)"
+  root_source="${root_source%%[*}"
+  [[ -n "$root_source" ]] || die "unable to detect root source from findmnt"
+}
+
+detect_root_uuid() {
+  root_uuid="$(findmnt -no UUID / 2>/dev/null || true)"
+  if [[ -z "$root_uuid" ]]; then
+    root_uuid="$(blkid -s UUID -o value "$root_source" 2>/dev/null || true)"
+  fi
+  [[ -n "$root_uuid" ]] || die "unable to detect root UUID"
+}
+
+detect_crypt_name() {
+  if [[ -n "$crypt_name" ]]; then
+    return 0
+  fi
+
+  if [[ "$root_source" == /dev/mapper/* ]]; then
+    crypt_name="${root_source##*/}"
+    return 0
+  fi
+
+  die "unable to infer LUKS mapper name from root source ${root_source}; use --crypt-name"
+}
+
+detect_luks_device() {
+  luks_device="$(
+    (cryptsetup status "$crypt_name" 2>/dev/null || true) \
+      | awk '/device:/ { print $2; exit }'
+  )"
+  [[ -n "$luks_device" ]] || die "unable to detect LUKS backing device for ${crypt_name}"
+}
+
+detect_luks_uuid() {
+  luks_uuid="$(blkid -s UUID -o value "$luks_device" 2>/dev/null || true)"
+  [[ -n "$luks_uuid" ]] || die "unable to detect LUKS UUID"
+}
+
+render_limine_config() {
+  local generator="${repo_root}/scripts/generate-limine-config"
+
+  ensure_source_exists "$generator" "limine config generator"
+  rendered_limine_conf="${repo_root}/build/limine.side-by-side.conf"
+
+  if (( dry_run )); then
+    "$generator" \
+      --root-uuid "$root_uuid" \
+      --luks-uuid "$luks_uuid" \
+      --output "$rendered_limine_conf"
+    printf '[dry-run] render %s\n' "$rendered_limine_conf"
+  else
+    "$generator" \
+      --root-uuid "$root_uuid" \
+      --luks-uuid "$luks_uuid" \
+      --output "$rendered_limine_conf"
+  fi
+}
+
+init_backup_dir() {
+  backup_dir="${repo_root}/build/backups/limine-side-by-side-$(date +%Y%m%d-%H%M%S)"
+}
+
+backup_if_present() {
+  local target="$1"
+  local relative_path="$2"
+
+  if [[ -e "$target" ]]; then
+    run_cmd mkdir -p "${backup_dir}/$(dirname "$relative_path")"
+    run_cmd sudo cp -f "$target" "${backup_dir}/${relative_path}"
+  fi
+}
+
+deploy_side_by_side() {
+  local loader_target="${esp_path}/${loader_dir}/${loader_name}"
+  local config_target="${esp_path}/limine.conf"
+
+  ensure_source_exists "$limine_binary_source" "Limine EFI binary"
+  ensure_source_exists "$rendered_limine_conf" "rendered limine config"
+
+  backup_if_present "$loader_target" "${loader_dir}/${loader_name}"
+  backup_if_present "$config_target" "limine.conf"
+
+  run_cmd sudo install -Dm755 "$limine_binary_source" "$loader_target"
+  run_cmd sudo install -Dm644 "$rendered_limine_conf" "$config_target"
+}
+
+enroll_and_sign() {
+  local loader_target="${esp_path}/${loader_dir}/${loader_name}"
+  local config_target="${esp_path}/limine.conf"
+  local config_hash=""
+
+  if (( dry_run )); then
+    printf '[dry-run] compute b2sum %s\n' "$config_target"
+    printf '[dry-run] sudo %s enroll-config %s <b2sum>\n' "$limine_tool" "$loader_target"
+    printf '[dry-run] sudo sbctl sign --save %s\n' "$loader_target"
+    return 0
+  fi
+
+  config_hash="$(b2sum "$config_target" | awk '{print $1}')"
+  sudo "$limine_tool" enroll-config "$loader_target" "$config_hash"
+  sudo sbctl sign --save "$loader_target"
+}
+
+find_existing_bootnum() {
+  local target_label="$1"
+  efibootmgr -v 2>/dev/null | awk -v target="$target_label" '
+    $0 ~ /^Boot[0-9A-Fa-f]{4}\*/ {
+      line=$0
+      sub(/^Boot/, "", line)
+      bootnum=substr(line, 1, 4)
+      label=$0
+      sub(/^Boot[0-9A-Fa-f]{4}\*[[:space:]]*/, "", label)
+      sub(/[[:space:]]+(HD|PciRoot|VenHw|File)\(.*/, "", label)
+      sub(/[[:space:]]+$/, "", label)
+      if (label == target) {
+        print bootnum
+        exit
+      }
+    }
+  '
+}
+
+detect_boot_disk_and_part() {
+  local boot_source=""
+  local parent_disk=""
+  local part_num=""
+
+  boot_source="$(findmnt -no SOURCE "$esp_path" 2>/dev/null || true)"
+  [[ -n "$boot_source" ]] || die "unable to detect source device for ${esp_path}"
+
+  parent_disk="$(lsblk -no PKNAME "$boot_source" 2>/dev/null | awk 'NR==1 {print $1}')"
+  part_num="$(lsblk -no PARTN "$boot_source" 2>/dev/null | awk 'NR==1 {print $1}')"
+
+  [[ -n "$parent_disk" ]] || die "unable to detect parent disk for ${boot_source}"
+  [[ -n "$part_num" ]] || die "unable to detect partition number for ${boot_source}"
+
+  printf '/dev/%s %s\n' "$parent_disk" "$part_num"
+}
+
+create_or_reuse_entry() {
+  local disk part bootnum loader_efi_path
+
+  bootnum="$(find_existing_bootnum "$entry_label" || true)"
+  if [[ -n "$bootnum" ]]; then
+    created_bootnum="$bootnum"
+    log "Voce EFI gia' presente: Boot${created_bootnum} (${entry_label})"
+    return 0
+  fi
+
+  read -r disk part < <(detect_boot_disk_and_part)
+  loader_efi_path="\\$(printf '%s' "${loader_dir}/${loader_name}" | tr '/' '\\')"
+
+  if (( dry_run )); then
+    printf '[dry-run] sudo efibootmgr --create-only --disk %s --part %s --label %q --loader %q\n' "$disk" "$part" "$entry_label" "$loader_efi_path"
+    created_bootnum="<new>"
+    return 0
+  fi
+
+  sudo efibootmgr --create-only --disk "$disk" --part "$part" --label "$entry_label" --loader "$loader_efi_path" >/dev/null
+  created_bootnum="$(find_existing_bootnum "$entry_label" || true)"
+  [[ -n "$created_bootnum" ]] || die "unable to locate the newly created EFI boot entry"
+}
+
+set_bootnext_once() {
+  [[ -n "$created_bootnum" ]] || die "missing boot entry number"
+
+  if (( dry_run )); then
+    printf '[dry-run] sudo efibootmgr --bootnext %s\n' "$created_bootnum"
+    return 0
+  fi
+
+  sudo efibootmgr --bootnext "$created_bootnum"
+}
+
+main() {
+  parse_args "$@"
+  require_root_capable
+  ensure_source_exists "$esp_path" "ESP mountpoint"
+  resolve_limine_tool
+  detect_root_source
+  detect_root_uuid
+  detect_crypt_name
+  detect_luks_device
+  detect_luks_uuid
+  init_backup_dir
+
+  log "=== Stage Limine side-by-side ==="
+  log "ESP: ${esp_path}"
+  log "Entry label: ${entry_label}"
+  log "Loader target: ${esp_path}/${loader_dir}/${loader_name}"
+  log "Config target: ${esp_path}/limine.conf"
+  log "Root UUID: ${root_uuid}"
+  log "LUKS UUID: ${luks_uuid}"
+
+  render_limine_config
+  deploy_side_by_side
+  enroll_and_sign
+  create_or_reuse_entry
+
+  if (( set_bootnext )); then
+    set_bootnext_once
+    log "BootNext impostato su Boot${created_bootnum}"
+  fi
+
+  log
+  log "Backup: ${backup_dir}"
+  log "EFI test entry: Boot${created_bootnum}"
+  log "systemd-boot resta intatto; testare la nuova entry dal menu firmware o con BootNext."
+}
+
+main "$@"
