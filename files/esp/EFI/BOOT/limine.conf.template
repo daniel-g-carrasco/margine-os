@@ -4,7 +4,7 @@
 timeout: 5
 default_entry: Margine/Produzione
 remember_last_entry: yes
-quiet: yes
+quiet: no
 verbose: no
 editor_enabled: no
 interface_branding: Margine
