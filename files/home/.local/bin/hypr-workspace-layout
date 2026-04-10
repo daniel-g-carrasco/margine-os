@@ -9,6 +9,10 @@ external_monitor="${MARGINE_EXTERNAL_MONITOR:-}"
 sleep 1
 
 monitors="$(hyprctl monitors all 2>/dev/null || true)"
+monitor_names="$(
+  awk '/^Monitor / { print $2 }' <<<"$monitors"
+)"
+monitor_count="$(printf '%s\n' "$monitor_names" | sed '/^$/d' | wc -l)"
 
 if [[ -z "$monitors" ]]; then
   exit 0
@@ -16,19 +20,24 @@ fi
 
 if [[ -z "$external_monitor" ]]; then
   external_monitor="$(
-    awk '/^Monitor / { print $2 }' <<<"$monitors" |
+    printf '%s\n' "$monitor_names" |
       grep -v "^${internal_monitor}$" |
       head -n1
   )"
 fi
 
-if [[ -n "$external_monitor" ]] && grep -q "^Monitor ${external_monitor} " <<<"$monitors"; then
+if [[ "$monitor_count" -ge 2 ]] && grep -q "^Monitor ${internal_monitor} " <<<"$monitors" && [[ -n "$external_monitor" ]] && grep -q "^Monitor ${external_monitor} " <<<"$monitors"; then
   hyprctl dispatch moveworkspacetomonitor 1 "$external_monitor" >/dev/null 2>&1 || true
   hyprctl dispatch focusmonitor "$internal_monitor" >/dev/null 2>&1 || true
   hyprctl dispatch workspace 2 >/dev/null 2>&1 || true
   hyprctl dispatch moveworkspacetomonitor 2 "$internal_monitor" >/dev/null 2>&1 || true
 else
-  hyprctl dispatch moveworkspacetomonitor 1 "$internal_monitor" >/dev/null 2>&1 || true
-  hyprctl dispatch focusmonitor "$internal_monitor" >/dev/null 2>&1 || true
+  primary_monitor="${internal_monitor}"
+  if ! grep -q "^Monitor ${primary_monitor} " <<<"$monitors"; then
+    primary_monitor="$(printf '%s\n' "$monitor_names" | head -n1)"
+  fi
+  [[ -n "$primary_monitor" ]] || exit 0
+  hyprctl dispatch moveworkspacetomonitor 1 "$primary_monitor" >/dev/null 2>&1 || true
+  hyprctl dispatch focusmonitor "$primary_monitor" >/dev/null 2>&1 || true
   hyprctl dispatch workspace 1 >/dev/null 2>&1 || true
 fi
