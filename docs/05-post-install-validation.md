@@ -69,6 +69,18 @@ Check:
 - desktop packages are installed
 - media players and launcher stack are installed
 
+Also verify the launcher AUR baseline explicitly:
+
+```bash
+pacman -Q yay elephant elephant-calc elephant-websearch elephant-windows elephant-runner msttcorefonts walker
+elephant listproviders
+```
+
+Check:
+
+- all baseline AUR launcher packages are installed
+- `elephant` exposes `calc`, `websearch`, `windows`, and `runner`
+
 ## 4. System services
 
 ```bash
@@ -81,6 +93,12 @@ Check:
 - there are no unexpected failed units
 - the expected baseline services are enabled/running
 
+If you want the enablement state too, use:
+
+```bash
+systemctl is-enabled NetworkManager bluetooth iwd power-profiles-daemon ufw avahi-daemon cups sshd
+```
+
 ## 5. User services and session state
 
 Run these from the graphical session when possible:
@@ -88,7 +106,7 @@ Run these from the graphical session when possible:
 ```bash
 systemctl --user --failed
 systemctl --user show-environment | rg '^(DISPLAY|WAYLAND_DISPLAY|XDG_CURRENT_DESKTOP|XDG_SESSION_TYPE|XDG_SESSION_DESKTOP|DESKTOP_SESSION|HYPRLAND_INSTANCE_SIGNATURE|XDG_RUNTIME_DIR)='
-systemctl --user status elephant.service --no-pager
+systemctl --user status elephant.service keep-awake.service hypr-refresh-rate.service margine-maintenance-check.timer --no-pager
 ```
 
 Check:
@@ -96,6 +114,8 @@ Check:
 - no unexpected failed user units
 - Wayland / Hyprland session variables exist
 - `elephant.service` is alive if `walker` depends on it
+- `keep-awake.service` exists and can be toggled
+- the maintenance timer exists
 
 ## 6. Networking
 
@@ -129,7 +149,8 @@ Check:
 ## 8. Desktop stack
 
 ```bash
-which walker elephant hyprlauncher grim slurp wl-copy
+which walker elephant hyprlauncher grim slurp wl-copy waybar swaync-client hyprlock hyprpaper
+ls ~/.local/bin/{battery-status,network-status,notification-status,keep-awake-daemon,keep-awake-status,keep-awake-toggle,easyeffects-status,screenshot-menu,open-network-tui,open-network-settings,open-bluetooth-tui}
 hyprctl version
 hyprctl monitors
 hyprctl clients
@@ -138,21 +159,26 @@ hyprctl clients
 Check:
 
 - launcher and screenshot stack binaries exist
+- versioned helper scripts actually landed in the target home
 - Hyprland is responsive and reports outputs/windows normally
 
 ## 9. User config deployment
 
 ```bash
 ls ~/.config/hypr
+ls ~/.config/elephant
 ls ~/.config/waybar
 ls ~/.config/swaync
 ls ~/.config/kitty
 ls ~/.config/walker
+ls ~/.config/walker/themes/default
 ```
 
 Check:
 
 - versioned config trees are actually present in the target home
+- `~/.config/elephant/websearch.toml` exists
+- Walker theme assets exist, not just `config.toml`
 
 ## 10. Snapper and rollback
 
@@ -206,12 +232,13 @@ nmcli general
 wpctl status
 snapper list-configs
 snapper -c root list
+journalctl --user -b --no-pager | rg 'elephant|waybar|swaync|hyprpaper|walker' || true
 journalctl -b -p warning..alert --no-pager
 ```
 
 For the private CachyOS product, also include:
 
 ```bash
-pacman -Q linux-cachyos cachyos-keyring hyprland waybar swaync hyprlock walker elephant
+pacman -Q linux-cachyos linux-cachyos-headers cachyos-keyring cachyos-mirrorlist hyprland waybar swaync hyprlock walker elephant elephant-calc elephant-websearch elephant-windows elephant-runner yay msttcorefonts
+elephant listproviders
 ```
-
