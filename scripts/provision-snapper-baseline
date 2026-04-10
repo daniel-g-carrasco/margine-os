@@ -109,8 +109,33 @@ ensure_snapshots_dir() {
 }
 
 snapper_config_exists() {
-  snapper --no-dbus list-configs --no-headers --csvout --columns config 2>/dev/null |
-    grep -Fxq "root"
+  snapper --no-dbus -c root get-config >/dev/null 2>&1
+}
+
+bootstrap_snapper_config_if_needed() {
+  log
+  log "==> Bootstrap Snapper root config if needed"
+
+  if (( dry_run )); then
+    printf '[dry-run] snapper --no-dbus -c root get-config\n'
+    printf '[dry-run] if missing: snapper --no-dbus create-config /\n'
+    return 0
+  fi
+
+  if ! command -v snapper >/dev/null 2>&1; then
+    die "snapper command not found"
+  fi
+
+  if snapper_config_exists; then
+    log "Snapper root config already visible."
+    return 0
+  fi
+
+  snapper --no-dbus create-config /
+
+  if ! snapper_config_exists; then
+    die "Snapper config 'root' is still not visible after create-config"
+  fi
 }
 
 count_root_snapshots() {
@@ -130,10 +155,6 @@ create_initial_snapshot_if_needed() {
       "$initial_snapshot_description" \
       "important=yes,margine=yes,scope=root,source=bootstrap"
     return 0
-  fi
-
-  if ! command -v snapper >/dev/null 2>&1; then
-    die "snapper command not found"
   fi
 
   if ! snapper_config_exists; then
@@ -168,6 +189,7 @@ main() {
   (( dry_run )) && log "Modalita': dry-run"
 
   ensure_btrfs_layout
+  bootstrap_snapper_config_if_needed
   install_config_files
   ensure_snapshots_dir
   create_initial_snapshot_if_needed
