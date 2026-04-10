@@ -107,6 +107,35 @@ class KeepAwakeDaemon:
         self.cookie = result.unpack()[0]
         self.mark_active()
 
+    def reassert_inhibit(self) -> bool:
+        if not self.ensure_proxy():
+            return False
+
+        old_cookie = self.cookie
+        result = self.proxy.call_sync(
+            "Inhibit",
+            GLib.Variant("(ss)", (APP_NAME, REASON)),
+            Gio.DBusCallFlags.NONE,
+            -1,
+            None,
+        )
+        self.cookie = result.unpack()[0]
+
+        if old_cookie is not None:
+            try:
+                self.proxy.call_sync(
+                    "UnInhibit",
+                    GLib.Variant("(u)", (old_cookie,)),
+                    Gio.DBusCallFlags.NONE,
+                    -1,
+                    None,
+                )
+            except Exception:
+                pass
+
+        self.mark_active()
+        return True
+
     def uninhibit(self) -> None:
         if self.cookie is None:
             self.mark_inactive()
@@ -126,11 +155,11 @@ class KeepAwakeDaemon:
             self.mark_inactive()
 
     def refresh_inhibit(self) -> bool:
-        if self.cookie is not None and self.ensure_proxy():
-            self.mark_active()
-            return True
         try:
-            self.inhibit()
+            if self.cookie is None:
+                self.inhibit()
+            else:
+                self.reassert_inhibit()
         except Exception:
             self.cookie = None
             self.mark_inactive()
