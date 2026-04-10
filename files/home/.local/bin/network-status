@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+wifi_icon_connected="󰖩"
+wifi_icon_disconnected="󰖪"
+wifi_icon_off="󰖱"
+ethernet_icon="󰈀"
+
+tooltip="Network unavailable"
+class="disconnected"
+text="$wifi_icon_disconnected"
+
+if ! command -v nmcli >/dev/null 2>&1; then
+  printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$text" "$tooltip" "$class"
+  exit 0
+fi
+
+running="$(nmcli -t -g RUNNING general 2>/dev/null || printf 'no')"
+if [[ "$running" != "running" ]]; then
+  tooltip="NetworkManager not running"
+  printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$text" "$tooltip" "$class"
+  exit 0
+fi
+
+wifi_device="$(nmcli -t -f DEVICE,TYPE device status 2>/dev/null | awk -F: '$2 == "wifi" {print $1; exit}')"
+wifi_enabled="$(nmcli -t -g WIFI general status 2>/dev/null || printf 'disabled')"
+
+if [[ -n "$wifi_device" ]]; then
+  state="$(nmcli -t -g GENERAL.STATE,GENERAL.CONNECTION device show "$wifi_device" 2>/dev/null || true)"
+  device_state="$(printf '%s\n' "$state" | sed -n '1p')"
+  connection_name="$(printf '%s\n' "$state" | sed -n '2p')"
+
+  if [[ "$device_state" == 100* ]]; then
+    signal="$(nmcli -t -f IN-USE,SIGNAL dev wifi list ifname "$wifi_device" 2>/dev/null | awk -F: '$1 == "*" {print $2; exit}')"
+    signal="${signal:-?}"
+    class="connected"
+    text="$wifi_icon_connected  ${signal}%"
+    tooltip="${connection_name:-Connected}\n${signal}%"
+  elif [[ "$wifi_enabled" == "enabled" ]]; then
+    class="disconnected"
+    text="$wifi_icon_disconnected"
+    tooltip="Wi-Fi disconnected"
+  else
+    class="off"
+    text="$wifi_icon_off"
+    tooltip="Wi-Fi off"
+  fi
+
+  printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$text" "$tooltip" "$class"
+  exit 0
+fi
+
+ethernet_row="$(nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device status 2>/dev/null | awk -F: '$2 == "ethernet" {print; exit}')"
+if [[ -n "$ethernet_row" ]]; then
+  eth_state="$(printf '%s\n' "$ethernet_row" | awk -F: '{print $3}')"
+  eth_conn="$(printf '%s\n' "$ethernet_row" | awk -F: '{print $4}')"
+  if [[ "$eth_state" == "connected" ]]; then
+    class="ethernet"
+    text="$ethernet_icon"
+    tooltip="${eth_conn:-Ethernet connected}"
+    printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$text" "$tooltip" "$class"
+    exit 0
+  fi
+fi
+
+printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$text" "No network" "$class"

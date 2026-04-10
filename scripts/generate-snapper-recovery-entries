@@ -25,7 +25,7 @@ Options:
   --limit N                   Numero massimo di snapshot da esporre (default: 12)
   --template PATH             Template entry da usare
   --output PATH               Scrive su file invece che su stdout
-  --help                      Mostra questo aiuto
+  --help                      Show this help
 EOF
 }
 

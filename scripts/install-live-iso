@@ -15,6 +15,7 @@ user_shell="/bin/bash"
 extra_groups=""
 user_password_hash=""
 wifi_regdom="IT"
+greetd_login_mode="autologin-lock"
 run_chroot=0
 confirm_destroy=0
 crypt_name="cryptroot"
@@ -29,26 +30,27 @@ Usage:
   install-live-iso --disk PATH --yes-really-destroy-disk [options]
 
 Options:
-  --disk PATH                    Disco target, per esempio /dev/nvme0n1
-  --target-root PATH             Mountpoint finale (default: /mnt)
-  --repo-source PATH             Repo locale da copiare nel target
-  --repo-dest PATH               Destinazione assoluta nel target (default: /root/margine-os)
-  --hostname NAME                Hostname da passare alla fase chroot
-  --username NAME                Utente amministrativo da creare
-  --real-name NAME               Nome reale/commento dell'utente
-  --shell PATH                   Shell login dell'utente (default: /bin/bash)
-  --extra-groups CSV             Gruppi aggiuntivi separati da virgola
-  --user-password-hash HASH      Hash password per l'utente amministrativo
+  --disk PATH                    Target disk, for example /dev/nvme0n1
+  --target-root PATH             Final mountpoint (default: /mnt)
+  --repo-source PATH             Local repo to copy into the target
+  --repo-dest PATH               Absolute destination inside the target (default: /root/margine-os)
+  --hostname NAME                Hostname to pass to the chroot phase
+  --username NAME                Administrative user to create
+  --real-name NAME               User real name/comment
+  --shell PATH                   User login shell (default: /bin/bash)
+  --extra-groups CSV             Extra groups, comma-separated
+  --user-password-hash HASH      Password hash for the administrative user
   --wifi-regdom CODE             Regulatory domain Wi-Fi (default: IT)
-  --run-chroot                   Avvia subito la fase 2 via arch-chroot
+  --greetd-login-mode MODE       greetd mode: autologin-lock | tuigreet-only
+  --run-chroot                   Immediately start phase 2 via arch-chroot
   --crypt-name NAME              Nome mapper LUKS (default: cryptroot)
-  --esp-size-mib NUM             Dimensione ESP in MiB (default: 4096)
+  --esp-size-mib NUM             ESP size in MiB (default: 4096)
   --esp-label LABEL              Label FAT32 della ESP
   --btrfs-label LABEL            Label del filesystem Btrfs
-  --mount-opts OPTS              Opzioni mount Btrfs
-  --yes-really-destroy-disk      Conferma esplicita dell'operazione distruttiva
-  --dry-run                      Mostra il piano senza eseguirlo
-  --help                         Mostra questo aiuto
+  --mount-opts OPTS              Btrfs mount options
+  --yes-really-destroy-disk      Explicit confirmation for the destructive operation
+  --dry-run                      Show the plan without executing it
+  --help                         Show this help
 EOF
 }
 
@@ -117,6 +119,11 @@ parse_args() {
       --wifi-regdom)
         [[ $# -ge 2 ]] || die "missing value for --wifi-regdom"
         wifi_regdom="${2^^}"
+        shift 2
+        ;;
+      --greetd-login-mode)
+        [[ $# -ge 2 ]] || die "missing value for --greetd-login-mode"
+        greetd_login_mode="$2"
         shift 2
         ;;
       --run-chroot)
@@ -225,6 +232,7 @@ run_bootstrap_phase() {
   [[ -n "$extra_groups" ]] && args+=(--extra-groups "$extra_groups")
   [[ -n "$user_password_hash" ]] && args+=(--user-password-hash "$user_password_hash")
   [[ -n "$wifi_regdom" ]] && args+=(--wifi-regdom "$wifi_regdom")
+  [[ -n "$greetd_login_mode" ]] && args+=(--greetd-login-mode "$greetd_login_mode")
   (( run_chroot )) && args+=(--run-chroot)
   (( dry_run )) && args+=(--dry-run)
 

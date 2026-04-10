@@ -1,11 +1,35 @@
 # Workflow creativo: fotografia, audio, video.
+# Qui rendo esplicito anche il runtime codec, per non dipendere da optional
+# deps implicite o da singole app troppo "fortunate".
 
 argyllcms
+aom
 calf
 colord
 darktable
+dav1d
 displaycal
 easyeffects
+ffmpeg
+flac
+fluidsynth
 gimp
+gst-libav
+gst-plugin-pipewire
+gst-plugin-va
+gst-plugins-bad
+gst-plugins-base
+gst-plugins-good
+gst-plugins-ugly
+lame
 lazygit
+libavif
+libdvdcss
+libdvdnav
+libdvdread
+libheif
+libmad
+libmpeg2
 lsp-plugins-lv2
+openh264
+opus-tools

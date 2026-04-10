@@ -1,15 +1,15 @@
 # Files
 
-Questa cartella conterrà i file da installare nel sistema target.
+This directory contains the files that get installed onto the target system.
 
-Struttura prevista:
+Expected structure:
 
-- `etc/` per file destinati a `/etc`
-- `usr/` per file destinati a `/usr`
-- `home/` per file utente da distribuire nella home
-- `esp/` per file destinati alla EFI System Partition
+- `etc/` for files destined for `/etc`
+- `usr/` for files destined for `/usr`
+- `home/` for user files to distribute into the home directory
+- `esp/` for files destined for the EFI System Partition
 
-Esempi già presenti:
+Examples already present:
 
 - `etc/snap-pac.ini`
 - `etc/snapper/configs/root`
@@ -17,14 +17,14 @@ Esempi già presenti:
 - `home/.local/share/easyeffects/output/fw13-easy-effects.json`
 - `home/.config/systemd/user/margine-framework-audio.service`
 
-Nota:
+Note:
 
-- i file sotto `home/` sono file utente versionati che il provisioning copia
-  nella home target solo quando hanno davvero senso per quel profilo hardware o
-  workflow.
+- files under `home/` are versioned user files that provisioning copies into
+  the target home only when they genuinely make sense for that hardware profile
+  or workflow.
 
-Regola:
+Rule:
 
-- nessun file qui dentro deve essere "misterioso";
-- ogni file importante deve essere spiegato da un ADR, da una nota didattica,
-  oppure da commenti locali chiari.
+- no file here should be "mysterious";
+- every important file should be explained by an ADR, a learning note, or clear
+  local comments.

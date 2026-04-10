@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/margine"
+state_file="${state_dir}/maintenance-check.state"
+force_notify=0
+test_notify=0
+
+mkdir -p "$state_dir"
+
+while (($#)); do
+  case "$1" in
+    --force)
+      force_notify=1
+      ;;
+    --test-notification)
+      force_notify=1
+      test_notify=1
+      ;;
+    *)
+      printf 'Usage: %s [--force] [--test-notification]\n' "$0" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
+count_lines() {
+  awk 'NF { count += 1 } END { print count + 0 }'
+}
+
+trim_empty() {
+  sed '/^[[:space:]]*$/d'
+}
+
+updates_output=""
+updates_count=0
+updates_rc=0
+
+if updates_output="$(checkupdates --nocolor 2>/dev/null)"; then
+  updates_output="$(printf '%s\n' "$updates_output" | trim_empty)"
+  updates_count="$(printf '%s\n' "$updates_output" | count_lines)"
+else
+  updates_rc=$?
+  if (( updates_rc == 2 )); then
+    updates_output=""
+    updates_count=0
+  else
+    updates_output=""
+    updates_count=0
+  fi
+fi
+
+advisories_output=""
+advisories_count=0
+if command -v arch-audit >/dev/null 2>&1; then
+  advisories_output="$(arch-audit -u 2>/dev/null || true)"
+  advisories_output="$(printf '%s\n' "$advisories_output" | trim_empty)"
+  advisories_count="$(printf '%s\n' "$advisories_output" | count_lines)"
+fi
+
+title="Margine: manutenzione richiesta"
+urgency="normal"
+
+if (( advisories_count > 0 )); then
+  title="Margine: advisory di sicurezza"
+  urgency="critical"
+fi
+
+summary=()
+if (( advisories_count > 0 )); then
+  summary+=("${advisories_count} pacchetti con advisory")
+fi
+if (( updates_count > 0 )); then
+  summary+=("${updates_count} aggiornamenti disponibili")
+fi
+
+if (( test_notify )); then
+  title="Margine: test manutenzione"
+  urgency="normal"
+  body=$'Questa e\' la notifica reale di manutenzione.\n\nClicca direttamente sul corpo per aprire update-all.'
+else
+  current_state="$(printf 'updates=%s\nadvisories=%s\n---\n%s\n---\n%s\n' \
+    "$updates_count" \
+    "$advisories_count" \
+    "$updates_output" \
+    "$advisories_output" | sha256sum | awk '{print $1}')"
+  previous_state="$(cat "$state_file" 2>/dev/null || true)"
+  printf '%s\n' "$current_state" >"$state_file"
+
+  (( updates_count > 0 || advisories_count > 0 )) || exit 0
+  (( force_notify )) || [[ "$current_state" != "$previous_state" ]] || exit 0
+
+  body="$(printf '%s\n' "${summary[@]}")"
+
+  if (( advisories_count > 0 )); then
+    advisory_preview="$(printf '%s\n' "$advisories_output" | head -n 3)"
+    body="${body}\n\nAdvisory:\n${advisory_preview}"
+  fi
+
+  if (( updates_count > 0 )); then
+    updates_preview="$(printf '%s\n' "$updates_output" | head -n 4 | awk '{print $1}')"
+    body="${body}\n\nUpdate:\n${updates_preview}"
+  fi
+
+  body="${body}\n\nClicca la notifica per aprire update-all."
+fi
+
+launch_update_all() {
+  if command -v update-all-launcher >/dev/null 2>&1; then
+    printf '%s\n' "$(command -v update-all-launcher)"
+  elif [[ -x "${HOME}/.local/bin/update-all-launcher" ]]; then
+    printf '%s\n' "${HOME}/.local/bin/update-all-launcher"
+  fi
+}
+
+launcher_path="$(launch_update_all || true)"
+[[ -n "$launcher_path" ]] || exit 0
+
+TITLE="$title" \
+BODY="$body" \
+URGENCY="$urgency" \
+ICON="software-update-available" \
+ACTION_CMD="$launcher_path" \
+python3 - <<'PY'
+import os
+import subprocess
+from gi.repository import Gio, GLib
+
+urgency_map = {"low": 0, "normal": 1, "critical": 2}
+title = os.environ["TITLE"]
+body = os.environ["BODY"]
+icon = os.environ["ICON"]
+command = os.environ["ACTION_CMD"]
+urgency = urgency_map.get(os.environ.get("URGENCY", "normal"), 1)
+
+loop = GLib.MainLoop()
+bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+state = {"nid": None}
+
+
+def launch():
+    subprocess.Popen(
+        [command],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        preexec_fn=os.setsid,
+    )
+
+
+def on_signal(conn, sender, obj, iface, signal, params, data=None):
+    if signal == "ActionInvoked":
+        nid, action = params.unpack()
+        if nid == state["nid"] and action == "default":
+            launch()
+            loop.quit()
+    elif signal == "NotificationClosed":
+        nid, reason = params.unpack()
+        if nid == state["nid"]:
+            loop.quit()
+
+
+bus.signal_subscribe(
+    "org.freedesktop.Notifications",
+    "org.freedesktop.Notifications",
+    None,
+    "/org/freedesktop/Notifications",
+    None,
+    Gio.DBusSignalFlags.NONE,
+    on_signal,
+)
+
+result = bus.call_sync(
+    "org.freedesktop.Notifications",
+    "/org/freedesktop/Notifications",
+    "org.freedesktop.Notifications",
+    "Notify",
+    GLib.Variant(
+        "(susssasa{sv}i)",
+        (
+            "Margine",
+            0,
+            icon,
+            title,
+            body,
+            ["default", ""],
+            {"urgency": GLib.Variant("y", urgency)},
+            30000,
+        ),
+    ),
+    GLib.VariantType("(u)"),
+    Gio.DBusCallFlags.NONE,
+    -1,
+    None,
+)
+state["nid"] = result.unpack()[0]
+GLib.timeout_add_seconds(35, lambda: (loop.quit(), False)[1])
+loop.run()
+PY

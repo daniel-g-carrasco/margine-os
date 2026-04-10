@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+import os
+import signal
+import sys
+from pathlib import Path
+
+import gi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib
+
+
+APP_NAME = "Margine Keep Awake"
+REASON = "Keep the display on and prevent the session from idling"
+BUS_NAME = "org.freedesktop.ScreenSaver"
+OBJECT_PATH = "/org/freedesktop/ScreenSaver"
+INTERFACE = "org.freedesktop.ScreenSaver"
+DBUS_NAME = "org.freedesktop.DBus"
+DBUS_PATH = "/org/freedesktop/DBus"
+DBUS_INTERFACE = "org.freedesktop.DBus"
+STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local" / "state"))) / "keep-awake"
+STATE_FILE = STATE_DIR / "active"
+
+
+class KeepAwakeDaemon:
+    def __init__(self) -> None:
+        self.loop = GLib.MainLoop()
+        self.connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        self.dbus_proxy = Gio.DBusProxy.new_sync(
+            self.connection,
+            Gio.DBusProxyFlags.NONE,
+            None,
+            DBUS_NAME,
+            DBUS_PATH,
+            DBUS_INTERFACE,
+            None,
+        )
+        self.proxy = None
+        self.cookie = None
+        self.owner = None
+        self.mark_inactive()
+        self.connection.signal_subscribe(
+            DBUS_NAME,
+            DBUS_INTERFACE,
+            "NameOwnerChanged",
+            DBUS_PATH,
+            BUS_NAME,
+            Gio.DBusSignalFlags.NONE,
+            self.on_name_owner_changed,
+            None,
+        )
+
+    def mark_active(self) -> None:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        STATE_FILE.write_text("active\n", encoding="utf-8")
+
+    def mark_inactive(self) -> None:
+        try:
+            STATE_FILE.unlink()
+        except FileNotFoundError:
+            pass
+
+    def get_owner(self) -> str | None:
+        try:
+            result = self.dbus_proxy.call_sync(
+                "GetNameOwner",
+                GLib.Variant("(s)", (BUS_NAME,)),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                None,
+            )
+        except Exception:
+            return None
+        return result.unpack()[0]
+
+    def ensure_proxy(self) -> bool:
+        owner = self.get_owner()
+        if not owner:
+            self.owner = None
+            self.proxy = None
+            self.cookie = None
+            self.mark_inactive()
+            return False
+        if self.proxy is None or self.owner != owner:
+            self.owner = owner
+            self.proxy = Gio.DBusProxy.new_sync(
+                self.connection,
+                Gio.DBusProxyFlags.NONE,
+                None,
+                BUS_NAME,
+                OBJECT_PATH,
+                INTERFACE,
+                None,
+            )
+        return True
+
+    def inhibit(self) -> None:
+        if not self.ensure_proxy():
+            return
+        result = self.proxy.call_sync(
+            "Inhibit",
+            GLib.Variant("(ss)", (APP_NAME, REASON)),
+            Gio.DBusCallFlags.NONE,
+            -1,
+            None,
+        )
+        self.cookie = result.unpack()[0]
+        self.mark_active()
+
+    def uninhibit(self) -> None:
+        if self.cookie is None:
+            self.mark_inactive()
+            return
+        try:
+            self.proxy.call_sync(
+                "UnInhibit",
+                GLib.Variant("(u)", (self.cookie,)),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                None,
+            )
+        except Exception:
+            pass
+        finally:
+            self.cookie = None
+            self.mark_inactive()
+
+    def refresh_inhibit(self) -> bool:
+        if self.cookie is not None and self.ensure_proxy():
+            self.mark_active()
+            return True
+        try:
+            self.inhibit()
+        except Exception:
+            self.cookie = None
+            self.mark_inactive()
+        return True
+
+    def on_name_owner_changed(self, _conn, _sender, _path, _iface, _signal, params, _data) -> None:
+        _name, _old_owner, new_owner = params.unpack()
+        self.cookie = None
+        self.owner = None
+        self.proxy = None
+        if new_owner:
+            GLib.idle_add(self.refresh_inhibit)
+        else:
+            self.mark_inactive()
+
+    def stop(self, *_args) -> None:
+        self.uninhibit()
+        self.loop.quit()
+
+    def run(self) -> int:
+        self.refresh_inhibit()
+        GLib.timeout_add_seconds(10, self.refresh_inhibit)
+        signal.signal(signal.SIGTERM, self.stop)
+        signal.signal(signal.SIGINT, self.stop)
+        self.loop.run()
+        return 0
+
+
+if __name__ == "__main__":
+    daemon = KeepAwakeDaemon()
+    sys.exit(daemon.run())

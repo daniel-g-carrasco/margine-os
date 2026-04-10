@@ -1,5 +1,13 @@
 # Font utili per compatibilita', leggibilita' e UI.
+# Obiettivo:
+# - buona copertura Unicode;
+# - compatibilita' con documenti Office;
+# - fallback sensati per Wine e software cross-platform.
 
+adobe-source-code-pro-fonts
+adobe-source-sans-fonts
+adobe-source-serif-fonts
+gnu-free-fonts
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji
@@ -10,5 +18,6 @@ ttf-atkinson-hyperlegible
 ttf-caladea
 ttf-carlito
 ttf-croscore
+ttf-dejavu
 ttf-ibm-plex
 ttf-liberation

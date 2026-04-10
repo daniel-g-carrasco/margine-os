@@ -48,7 +48,7 @@ if pgrep -x easyeffects >/dev/null 2>&1; then
 
   case "$bypass_state" in
     1)
-      tooltip="EasyEffects aperto ma bypassato"
+      tooltip="EasyEffects open but bypassed"
       if (( have_wpctl )); then
         tooltip="${tooltip}\\nSink: ${sink_present}\\nSource: ${source_present}"
       fi
@@ -56,7 +56,7 @@ if pgrep -x easyeffects >/dev/null 2>&1; then
       exit 0
       ;;
     2)
-      tooltip="EasyEffects attivo"
+      tooltip="EasyEffects active"
       if (( have_wpctl )); then
         tooltip="${tooltip}\\nSink: ${sink_present}\\nSource: ${source_present}"
       fi
@@ -65,7 +65,7 @@ if pgrep -x easyeffects >/dev/null 2>&1; then
       ;;
   esac
 
-  tooltip="EasyEffects in esecuzione"
+  tooltip="EasyEffects running"
   if (( have_wpctl )); then
     tooltip="${tooltip}\\nSink: ${sink_present}\\nSource: ${source_present}"
   fi
@@ -73,5 +73,5 @@ if pgrep -x easyeffects >/dev/null 2>&1; then
   exit 0
 fi
 
-tooltip="EasyEffects non attivo\\nClick: avvia"
+tooltip="EasyEffects inactive\\nClick: launch"
 printf '{"text":"FX","class":"inactive","tooltip":"%s"}\n' "$tooltip"

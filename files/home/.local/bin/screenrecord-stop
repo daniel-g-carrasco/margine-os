@@ -28,5 +28,5 @@ rm -f "${pidfiles[@]}"
 pkill --signal SIGRTMIN+8 -x waybar >/dev/null 2>&1 || true
 
 if [[ "$stopped" -eq 1 ]]; then
-  notify-send -a "Screen Recorder" "Registrazione" "Registrazione fermata"
+  notify-send -a "Screen Recorder" "Recording" "Recording stopped"
 fi

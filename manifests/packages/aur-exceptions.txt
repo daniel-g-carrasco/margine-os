@@ -1,11 +1,11 @@
-# AUR solo per eccezioni motivate.
+# AUR only for justified exceptions.
 #
-# Approvate per requisito esplicito:
+# Approved for explicit requirements:
 
 davinci-resolve
 koofr-desktop-bin
 
-# Note:
-# - `walker` ed `elephant` fanno ormai parte del baseline AUR automatico,
-#   perche' la UX desktop di Margine li considera componenti fondamentali.
-# - qui restano solo eccezioni AUR non essenziali al bootstrap base.
+# Notes:
+# - `walker` and `elephant` are now part of the automatic AUR baseline,
+#   because the Margine desktop UX considers them fundamental components.
+# - only AUR exceptions that are not essential to the base bootstrap remain here.

@@ -32,7 +32,7 @@ Options:
   --yes-really-destroy-disk     Conferma esplicita dell'operazione distruttiva
   --no-next-step                Non mostra il prossimo comando consigliato
   --dry-run                     Mostra il piano senza eseguirlo
-  --help                        Mostra questo aiuto
+  --help                        Show this help
 EOF
 }
 

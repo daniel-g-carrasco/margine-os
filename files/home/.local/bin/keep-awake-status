@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_file="${XDG_STATE_HOME:-$HOME/.local/state}/keep-awake/active"
+
+if systemctl --user --quiet is-active keep-awake.service && [[ -s "$state_file" ]]; then
+  printf '{"text":"","tooltip":"Keep Awake: enabled","class":"active"}\n'
+else
+  printf '{"text":"","tooltip":"Keep Awake: disabled","class":"inactive"}\n'
+fi

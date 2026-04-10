@@ -8,6 +8,9 @@ bitwarden
 blanket
 firefox
 firefox-i18n-it
+gnome-calendar
+gnome-calculator
+gnome-clocks
 hunspell-it
 hyphen-it
 libreoffice-fresh
@@ -15,8 +18,14 @@ libreoffice-fresh-it
 mythes-it
 neovim
 python-pip
+python-gobject
 python-pynvim
 rclone
 thunderbird
 thunderbird-i18n-it
 vlc
+vkd3d
+wine
+wine-gecko
+wine-mono
+winetricks

@@ -18,6 +18,7 @@ user_shell="/bin/bash"
 extra_groups=""
 user_password_hash=""
 wifi_regdom="IT"
+greetd_login_mode="autologin-lock"
 
 phase2_layers=(
   connectivity-stack
@@ -49,10 +50,12 @@ Options:
   --locale-line LINE     Riga da abilitare in /etc/locale.gen
   --lang LANG            LANG finale (default: it_IT.UTF-8)
   --wifi-regdom CODE     Regulatory domain Wi-Fi (default: IT)
+  --greetd-login-mode MODE
+                        Modalita' greetd: autologin-lock | tuigreet-only
   --include-aur          Include il manifest AUR
   --include-flatpak      Include il manifest Flatpak
   --dry-run              Mostra il piano senza eseguirlo
-  --help                 Mostra questo aiuto
+  --help                 Show this help
 EOF
 }
 
@@ -128,6 +131,11 @@ parse_args() {
       --wifi-regdom)
         [[ $# -ge 2 ]] || die "missing value for --wifi-regdom"
         wifi_regdom="${2^^}"
+        shift 2
+        ;;
+      --greetd-login-mode)
+        [[ $# -ge 2 ]] || die "missing value for --greetd-login-mode"
+        greetd_login_mode="$2"
         shift 2
         ;;
       --include-aur)
@@ -321,6 +329,7 @@ run_framework_audio_provisioner() {
   local provisioner="${repo_root}/scripts/provision-framework-audio"
   local -a args=(
     --username "$username"
+    --login-mode "$greetd_login_mode"
   )
 
   (( dry_run )) && args+=(--dry-run)

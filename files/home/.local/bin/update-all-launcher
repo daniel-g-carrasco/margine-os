@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cmd="update-all"
-hold='echo; read -n1 -rsp "Premi un tasto per chiudere..."'
+if [[ -x /usr/local/bin/update-all ]]; then
+  cmd="/usr/local/bin/update-all"
+elif [[ -x "${HOME}/.local/bin/update-all" ]]; then
+  cmd="${HOME}/.local/bin/update-all"
+else
+  cmd="update-all"
+fi
+hold='echo; read -n1 -rsp "Press any key to close..."'
 
 if command -v kitty >/dev/null 2>&1; then
   exec kitty --class update-all -e bash -lc "$cmd; $hold"
@@ -13,7 +19,7 @@ elif command -v gnome-terminal >/dev/null 2>&1; then
 elif command -v xterm >/dev/null 2>&1; then
   exec xterm -e bash -lc "$cmd; $hold"
 else
-  echo "Nessun terminale trovato (kgx/gnome-terminal/xterm)."
-  echo "Esegui a mano: $cmd"
+  echo "No terminal found (kgx/gnome-terminal/xterm)."
+  echo "Run manually: $cmd"
   exit 1
 fi

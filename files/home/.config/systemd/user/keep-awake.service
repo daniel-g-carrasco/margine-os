@@ -1,0 +1,15 @@
+[Unit]
+Description=Margine keep-awake idle inhibitor
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStartPre=/usr/bin/mkdir -p %h/.local/state/keep-awake
+ExecStartPre=/usr/bin/rm -f %h/.local/state/keep-awake/active
+ExecStart=%h/.local/bin/keep-awake-daemon
+ExecStopPost=/usr/bin/rm -f %h/.local/state/keep-awake/active
+Restart=no
+
+[Install]
+WantedBy=default.target

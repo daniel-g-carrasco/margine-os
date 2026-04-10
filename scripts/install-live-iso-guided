@@ -24,7 +24,7 @@ Usage:
 
 Options:
   --dry-run   Mostra i comandi finali senza eseguirli
-  --help      Mostra questo aiuto
+  --help      Show this help
 EOF
 }
 
@@ -259,13 +259,13 @@ confirm_execution() {
 
   log
   if [[ "$mode" = "erase-disk" ]]; then
-    printf "ATTENZIONE: questa modalita' puo' cancellare il disco indicato.\n"
-    reply="$(prompt_yes_no "Confermi di voler proseguire?" "n")"
+    printf "WARNING: this mode can erase the selected disk.\n"
+    reply="$(prompt_yes_no "Do you want to continue?" "n")"
   else
-    reply="$(prompt_yes_no "Confermi di voler proseguire?" "y")"
+    reply="$(prompt_yes_no "Do you want to continue?" "y")"
   fi
 
-  [[ "$reply" = "y" ]] || die "installazione annullata"
+  [[ "$reply" = "y" ]] || die "installation cancelled"
 }
 
 run_erase_disk_mode() {

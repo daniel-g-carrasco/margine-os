@@ -8,6 +8,4 @@ source_profile = true
 command = "tuigreet --time --remember --remember-session --user-menu --user-menu-min-uid 1000 --asterisks --cmd /usr/bin/start-hyprland"
 user = "greeter"
 
-[initial_session]
-command = "/usr/bin/start-hyprland"
-user = "__MARGINE_MAIN_USER__"
+__MARGINE_INITIAL_SESSION_BLOCK__

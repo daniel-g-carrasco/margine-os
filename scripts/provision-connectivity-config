@@ -19,7 +19,7 @@ Usage:
 Options:
   --wifi-regdom CODE  Regulatory domain Wi-Fi da applicare (default: IT)
   --dry-run           Mostra il piano senza eseguirlo
-  --help              Mostra questo aiuto
+  --help              Show this help
 EOF
 }
 

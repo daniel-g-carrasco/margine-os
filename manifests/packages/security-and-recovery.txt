@@ -2,6 +2,7 @@
 # Nota: in Margine la baseline resta Snapper; Timeshift e' un layer di
 # comodita', non il motore architetturale principale dei rollback.
 
+arch-audit
 cryptsetup
 fprintd
 libfprint

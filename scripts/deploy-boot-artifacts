@@ -27,7 +27,7 @@ Options:
   --main-uki PATH       UKI principale da installare come margine-linux.efi
   --fallback-uki PATH   UKI fallback da installare come margine-linux-fallback.efi
   --recovery-uki PATH   UKI recovery da installare come margine-recovery.efi
-  --help                Mostra questo aiuto
+  --help                Show this help
 EOF
 }
 

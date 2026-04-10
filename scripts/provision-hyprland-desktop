@@ -53,7 +53,7 @@ Usage:
 Options:
   --username NAME   Utente target che ricevera' il desktop payload
   --dry-run         Mostra il piano senza eseguirlo
-  --help            Mostra questo aiuto
+  --help            Show this help
 EOF
 }
 

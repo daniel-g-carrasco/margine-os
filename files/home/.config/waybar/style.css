@@ -39,8 +39,12 @@ window#waybar {
 #clock,
 #custom-recording,
 #custom-vpn,
+#custom-notification-count,
 #custom-notification,
 #custom-easyeffects,
+#custom-keepawake,
+#custom-network,
+#custom-battery,
 #network,
 #bluetooth,
 #pulseaudio,
@@ -149,16 +153,21 @@ window#waybar {
 
 #custom-recording,
 #custom-vpn,
+#custom-notification-count,
 #custom-notification,
 #custom-easyeffects,
+#custom-keepawake,
+#custom-network,
+#custom-battery,
 #network,
 #bluetooth,
 #pulseaudio,
 #battery,
 #tray {
-  padding: 0 8px;
+  padding: 0 6px;
 }
 
+#custom-network,
 #network {
   min-width: 74px;
 }
@@ -167,15 +176,21 @@ window#waybar {
   min-width: 72px;
 }
 
+#custom-battery {
+  min-width: 56px;
+}
+
 #custom-vpn,
+#custom-notification-count,
 #custom-notification,
-#custom-easyeffects {
+#custom-easyeffects,
+#custom-keepawake {
   font-size: 13px;
   font-weight: 500;
 }
 
 #tray {
-  margin-right: 10px;
+  margin-right: 0;
 }
 
 #tray > .passive {
@@ -195,13 +210,29 @@ window#waybar {
   color: @accent;
 }
 
+#custom-notification-count {
+  font-family: "IBM Plex Sans";
+  font-size: 11px;
+  font-weight: 600;
+  color: @ws5;
+  min-width: 20px;
+  padding-left: 0;
+  padding-right: 0;
+  margin-right: -6px;
+}
+
+#custom-notification-count.count-hidden {
+  color: transparent;
+  opacity: 0;
+}
+
 #custom-notification {
   font-family: "JetBrainsMono Nerd Font Mono", "JetBrainsMono Nerd Font", "IBM Plex Sans Condensed";
   color: @muted;
   font-size: 17px;
   font-weight: 500;
-  padding-left: 10px;
-  padding-right: 10px;
+  padding-left: 0;
+  padding-right: 6px;
   min-width: 30px;
 }
 
@@ -226,6 +257,33 @@ window#waybar {
   color: @warning;
 }
 
+#custom-recording,
+#custom-vpn,
+#custom-notification-count,
+#custom-notification,
+#custom-easyeffects,
+#custom-keepawake,
+#bluetooth {
+  min-width: 28px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+#custom-recording,
+#custom-vpn,
+#custom-easyeffects,
+#custom-keepawake {
+  min-width: 30px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+#bluetooth {
+  min-width: 30px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
 #custom-easyeffects.active {
   color: @accent;
 }
@@ -238,10 +296,28 @@ window#waybar {
   color: @warning;
 }
 
+#custom-battery.warning {
+  color: @warning;
+}
+
+#custom-battery.critical {
+  color: @critical;
+}
+
+#custom-keepawake.active {
+  color: @accent;
+}
+
+#custom-keepawake.inactive {
+  color: @muted;
+}
+
 #custom-recording:hover,
 #custom-vpn:hover,
 #custom-notification:hover,
 #custom-easyeffects:hover,
+#custom-keepawake:hover,
+#custom-network:hover,
 #window:hover,
 #clock:hover,
 #network:hover,

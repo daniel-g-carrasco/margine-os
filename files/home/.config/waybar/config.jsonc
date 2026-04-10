@@ -4,7 +4,7 @@
   "layer": "top",
   "position": "top",
   "height": 36,
-  "spacing": 8,
+  "spacing": 5,
   "margin": "0 0 0 0",
 
   "modules-left": [
@@ -18,11 +18,13 @@
     "tray",
     "custom/recording",
     "custom/vpn",
-    "network",
+    "custom/network",
     "bluetooth",
+    "custom/keepawake",
     "custom/easyeffects",
     "pulseaudio",
-    "battery",
+    "custom/battery",
+    "custom/notification-count",
     "custom/notification"
   ],
 
@@ -71,15 +73,13 @@
     "on-click": "gnome-calendar"
   },
 
-  "network": {
-    "format-wifi": "󰖩   {signalStrength}%",
-    "format-linked": "󰖩",
-    "format-ethernet": "󰈀",
-    "format-disconnected": "󰖪",
-    "tooltip-format-wifi": "{essid}\n{signalStrength}%\n{ipaddr}",
-    "tooltip-format-ethernet": "{ifname}\n{ipaddr}",
-    "tooltip-format-disconnected": "Disconnected",
-    "on-click": "~/.local/bin/open-network-tui"
+  "custom/network": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.local/bin/network-status",
+    "interval": 5,
+    "on-click": "~/.local/bin/open-network-tui",
+    "escape": true
   },
 
   "custom/vpn": {
@@ -123,6 +123,15 @@
     "escape": true
   },
 
+  "custom/keepawake": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.local/bin/keep-awake-status",
+    "interval": 2,
+    "on-click": "~/.local/bin/keep-awake-toggle",
+    "escape": true
+  },
+
   "pulseaudio": {
     "scroll-step": 5,
     "format": "{icon}  {volume}%",
@@ -142,24 +151,22 @@
     "on-scroll-down": "~/.local/bin/volume-osd down"
   },
 
-  "battery": {
-    "states": {
-      "warning": 30,
-      "critical": 15
-    },
-    "format": "{icon} {capacity}%",
-    "format-charging": "󰂄 {capacity}%",
-    "format-plugged": "󰚥 {capacity}%",
-    "format-icons": [
-      "󰂎",
-      "󰁺",
-      "󰁼",
-      "󰁾",
-      "󰂀",
-      "󰂂",
-      "󰁹"
-    ],
-    "on-click": "~/.local/bin/open-power-settings"
+  "custom/battery": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.local/bin/battery-status",
+    "interval": 10,
+    "on-click": "~/.local/bin/open-power-settings",
+    "escape": true
+  },
+
+  "custom/notification-count": {
+    "tooltip": false,
+    "format": "{}",
+    "return-type": "json",
+    "exec-if": "command -v swaync-client >/dev/null 2>&1",
+    "exec": "~/.local/bin/notification-status",
+    "escape": true
   },
 
   "custom/notification": {
@@ -185,6 +192,6 @@
 
   "tray": {
     "icon-size": 16,
-    "spacing": 10
+    "spacing": 6
   }
 }

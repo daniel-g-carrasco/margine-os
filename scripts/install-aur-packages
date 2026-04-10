@@ -5,6 +5,7 @@ dry_run=0
 upgrade=0
 build_user="aurbuilder"
 build_root="/var/cache/margine-aur"
+yay_flags=(--noconfirm --answerclean None --answerdiff None --answeredit None --removemake --cleanafter --sudoloop)
 declare -a manifests=()
 declare -a packages=()
 
@@ -18,7 +19,7 @@ Options:
   --build-user NAME      Utente non-root usato per il build (default: aurbuilder)
   --upgrade              Ricostruisce anche i pacchetti gia' installati
   --dry-run              Mostra il piano senza eseguirlo
-  --help                 Mostra questo aiuto
+  --help                 Show this help
 EOF
 }
 
@@ -143,6 +144,10 @@ ${build_user} ALL=(root) NOPASSWD: /usr/bin/pacman
 EOF
 }
 
+have_yay() {
+  command -v yay >/dev/null 2>&1
+}
+
 refresh_repo() {
   local package="$1"
   local repo_dir="${build_root}/src/${package}"
@@ -179,10 +184,40 @@ build_package() {
   sudo -u "$build_user" bash -lc "$cmd"
 }
 
+bootstrap_yay() {
+  if have_yay; then
+    return 0
+  fi
+
+  log
+  log "==> Bootstrap AUR helper: yay"
+  refresh_repo "yay"
+  build_package "yay"
+}
+
+install_with_yay() {
+  local package="$1"
+  local -a cmd=(yay -S --needed "${yay_flags[@]}" "$package")
+
+  if (( dry_run )); then
+    printf '[dry-run] sudo -u %s %q' "$build_user" "${cmd[0]}"
+    local arg=""
+    for arg in "${cmd[@]:1}"; do
+      printf ' %q' "$arg"
+    done
+    printf '\n'
+    return 0
+  fi
+
+  sudo -u "$build_user" "${cmd[@]}"
+}
+
 install_packages() {
   local package=""
 
   log "Pacchetti AUR risolti: ${#packages[@]}"
+
+  bootstrap_yay
 
   for package in "${packages[@]}"; do
     if (( ! upgrade )) && pacman -Q "$package" >/dev/null 2>&1; then
@@ -190,10 +225,14 @@ install_packages() {
       continue
     fi
 
+    if [[ "$package" == "yay" ]] && have_yay; then
+      log "==> Skip AUR helper gia' installato: yay"
+      continue
+    fi
+
     log
     log "==> Build/install AUR: ${package}"
-    refresh_repo "$package"
-    build_package "$package"
+    install_with_yay "$package"
   done
 }
 

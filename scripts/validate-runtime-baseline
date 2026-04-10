@@ -97,6 +97,14 @@ session_env_section() {
   fi
 }
 
+maintenance_section() {
+  section "Maintenance"
+  show_service_state "margine-maintenance-check.timer" user
+  show_user_enablement_state "margine-maintenance-check.timer"
+  status_line "maintenance checker: $( [[ -x ${home_dir}/.local/bin/margine-maintenance-check ]] && echo yes || echo no )"
+  status_line "update-all-launcher: $( [[ -x ${home_dir}/.local/bin/update-all-launcher ]] && echo yes || echo no )"
+}
+
 launcher_section() {
   local walker_path=""
   local elephant_path=""
@@ -337,6 +345,7 @@ EOF
 
 main() {
   session_env_section
+  maintenance_section
   launcher_section
   ownership_section
   power_section

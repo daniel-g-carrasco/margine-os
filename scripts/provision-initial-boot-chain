@@ -32,7 +32,7 @@ Options:
   --root-subvol NAME   Subvolume root Btrfs (default: @)
   --crypt-name NAME    Nome mapper LUKS; se omesso prova a rilevarlo
   --dry-run            Mostra il piano senza eseguirlo
-  --help               Mostra questo aiuto
+  --help               Show this help
 EOF
 }
 

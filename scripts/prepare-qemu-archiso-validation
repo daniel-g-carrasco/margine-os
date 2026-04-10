@@ -33,18 +33,18 @@ Usage:
   prepare-qemu-archiso-validation [options]
 
 Options:
-  --workdir PATH          Directory di lavoro (default: build/qemu-archiso-validation)
-  --iso PATH              Arch ISO locale da usare
-  --disk PATH             Disco qcow2 da usare (default: WORKDIR/margine-test.qcow2)
-  --disk-size SIZE        Dimensione disco qcow2 (default: 80G)
+  --workdir PATH          Working directory (default: build/qemu-archiso-validation)
+  --iso PATH              Local Arch ISO to use
+  --disk PATH             qcow2 disk to use (default: WORKDIR/margine-test.qcow2)
+  --disk-size SIZE        qcow2 disk size (default: 80G)
   --memory-mib N          RAM VM in MiB (default: 8192)
   --cpus N                vCPU VM (default: 6)
-  --ssh-forward-port N    Porta host da inoltrare a guest:22 (default: 2222)
-  --download-iso          Scarica la Arch ISO ufficiale e i file di verifica
-  --run                   Avvia subito QEMU dopo la preparazione
-  --headless              Avvia QEMU senza finestra grafica
-  --dry-run               Mostra il piano senza eseguirlo
-  --help                  Mostra questo aiuto
+  --ssh-forward-port N    Host port forwarded to guest:22 (default: 2222)
+  --download-iso          Download the official Arch ISO and verification files
+  --run                   Start QEMU immediately after preparation
+  --headless              Start QEMU without a graphical window
+  --dry-run               Show the plan without executing it
+  --help                  Show this help
 EOF
 }
 
@@ -334,37 +334,37 @@ write_guest_guide() {
   fi
 
   cat >"$guide_path" <<'EOF'
-# Validazione Margine in QEMU con Arch live ISO
+# Margine validation in QEMU with the Arch live ISO
 
-Questa guida e' pensata per essere eseguita con calma, come se stessi facendo
-la prima installazione reale del sistema.
+This guide is meant to be executed calmly, as if you were performing the first
+real installation of the system.
 
-Obiettivo:
+Goal:
 
-1. avviare la live ISO Arch dentro QEMU;
-2. montare il repository `Margine` dentro la live;
-3. lanciare l'installer;
-4. verificare che gli artefatti di boot vengano davvero generati;
-5. fare il primo boot del sistema installato.
+1. boot the Arch live ISO inside QEMU;
+2. mount the `Margine` repository inside the live environment;
+3. launch the installer;
+4. verify that the boot artifacts are actually generated;
+5. perform the first boot of the installed system.
 
-## 0. Sul sistema host
+## 0. On the host system
 
-Hai gia' due launcher:
+You already have two launchers:
 
 - `run-qemu.sh`
-  Usa la live ISO Arch per l'installazione.
+  Uses the Arch live ISO for installation.
 - `run-qemu-installed.sh`
-  Avvia il disco installato senza rientrare nella live ISO.
+  Boots the installed disk without re-entering the live ISO.
 
-Flusso corretto:
+Correct flow:
 
-1. avvia `run-qemu.sh`
-2. installa `Margine`
-3. spegni o riavvia la VM
-4. chiudi la finestra della live ISO se necessario
-5. avvia `run-qemu-installed.sh`
+1. start `run-qemu.sh`
+2. install `Margine`
+3. power off or reboot the VM
+4. close the live ISO window if needed
+5. start `run-qemu-installed.sh`
 
-## 1. Avvio della live ISO
+## 1. Booting the live ISO
 
 Dal sistema host:
 
@@ -372,17 +372,17 @@ Dal sistema host:
 ~/dev/margine-os/build/qemu-archiso-validation/run-qemu.sh
 ```
 
-Quando compare il menu Arch:
+When the Arch menu appears:
 
-- scegli `Arch Linux install medium`
-- premi `Invio`
+- choose `Arch Linux install medium`
+- press `Enter`
 
-Secondo la guida ufficiale Arch, entrerai nella live come `root` sulla prima
-console, con shell `zsh`.
+According to the official Arch guide, you will enter the live environment as
+`root` on the first console, with a `zsh` shell.
 
-## 2. Primo orientamento dentro la live
+## 2. Initial orientation inside the live environment
 
-Appena hai il prompt, esegui:
+As soon as you have a prompt, run:
 
 ```bash
 timedatectl status
@@ -390,20 +390,20 @@ ip addr
 lsblk
 ```
 
-Cosa ti aspetti di vedere:
+What you should expect to see:
 
-- rete funzionante
-- disco virtuale principale come `/dev/vda`
-- nessun sistema ancora installato su quel disco
+- working network
+- the main virtual disk as `/dev/vda`
+- no system installed on that disk yet
 
-## 3. Montare il repository Margine dentro la live
+## 3. Mounting the Margine repository inside the live environment
 
-Il repository e' esposto alla VM tramite `virtfs/9p`.
-Importante:
+The repository is exposed to the VM through `virtfs/9p`.
+Important:
 
-- non montarlo sotto `/mnt`
-- `/mnt` e' il `target_root` dell'installazione
-- durante la fase storage viene smontato e il repo sparirebbe
+- do not mount it under `/mnt`
+- `/mnt` is the installation `target_root`
+- the storage phase unmounts it and the repo would disappear
 
 Esegui:
 
@@ -413,43 +413,43 @@ mount -t 9p -o trans=virtio,version=9p2000.L margine /root/margine-repo
 ls /root/margine-repo
 ```
 
-Se l'ultimo comando mostra file come `scripts`, `docs`, `manifests`, allora il
-mount e' corretto.
+If the last command shows files such as `scripts`, `docs`, and `manifests`, the
+mount is correct.
 
-## 4. Installazione guidata: percorso consigliato
+## 4. Guided installation: recommended path
 
-Avvia il wrapper guidato:
+Start the guided wrapper:
 
 ```bash
 /root/margine-repo/scripts/install-live-iso-guided
 ```
 
-Quando ti fa le domande, in VM usa queste risposte consigliate:
+When it asks questions, use these recommended answers in the VM:
 
-### Modalita'
+### Mode
 
-Scegli:
+Choose:
 
 - `1`
 
-Significa:
+It means:
 
-- disco dedicato
-- partizionamento distruttivo del disco virtuale
+- dedicated disk
+- destructive partitioning of the virtual disk
 
-In VM e' la scelta giusta.
+In a VM this is the right choice.
 
-### Disco target
+### Target disk
 
-Inserisci:
+Enter:
 
 ```text
 /dev/vda
 ```
 
-### Mountpoint target
+### Target mountpoint
 
-Lascia:
+Leave:
 
 ```text
 /mnt
@@ -463,33 +463,33 @@ Puoi usare:
 margine-vm
 ```
 
-### Username amministrativo
+### Administrative username
 
-Puoi usare:
+You can use:
 
 ```text
 daniel
 ```
 
-### Nome reale
+### Real name
 
-Puoi lasciare:
+You can leave:
 
 ```text
 Daniel Carrasco
 ```
 
-### Shell login
+### Login shell
 
-Lascia:
+Leave:
 
 ```text
 /bin/bash
 ```
 
-### Gruppi aggiuntivi
+### Extra groups
 
-Per la VM puoi lasciare vuoto.
+For the VM you can leave this empty.
 
 ### Regulatory domain Wi-Fi
 
@@ -499,47 +499,47 @@ Lascia:
 IT
 ```
 
-### Chroot automatico
+### Automatic chroot
 
-Rispondi:
+Answer:
 
 ```text
 y
 ```
 
-Questa e' la scelta giusta se vuoi che la pipeline faccia tutto in un colpo.
+This is the right choice if you want the pipeline to do everything in one go.
 
-### Password utente
+### User password
 
-Se vuoi testare anche il login utente subito, imposta gia' una password.
+If you also want to test user login immediately, set a password now.
 
-Se preferisci fare prima, puoi anche saltarla e sistemarla dopo con `passwd`
-da chroot.
+If you prefer to move faster, you can skip it and set it later with `passwd`
+from inside the chroot.
 
-## 5. Cosa succede durante l'installazione
+## 5. What happens during installation
 
-La pipeline corretta e' questa:
+The correct pipeline is:
 
 1. provisioning storage
-2. `pacstrap` dei layer iniziali
+2. `pacstrap` of the initial layers
 3. `genfstab`
-4. copia repo nel target
+4. copy the repo into the target
 5. `arch-chroot`
-6. installazione layer rimanenti
-7. provisioning della boot chain iniziale
-8. provisioning desktop, rete, firewall, stampa, VM, ecc.
+6. install the remaining layers
+7. provision the initial boot chain
+8. provision desktop, network, firewall, printing, VM, etc.
 
-Quindi, se vedi che sta facendo:
+So if you see it doing:
 
 - `mkinitcpio -P`
-- scrittura di `/boot/EFI/BOOT/limine.conf`
-- scrittura di `/boot/EFI/Linux/*.efi`
+- writing `/boot/EFI/BOOT/limine.conf`
+- writing `/boot/EFI/Linux/*.efi`
 
-sei nel punto giusto.
+you are in the right place.
 
-## 6. Verifiche minime prima del reboot
+## 6. Minimal checks before reboot
 
-Quando l'installazione finisce, prima di riavviare esegui:
+When installation finishes, run this before rebooting:
 
 ```bash
 arch-chroot /mnt ls -l /boot/EFI/BOOT
@@ -548,7 +548,7 @@ arch-chroot /mnt cat /boot/EFI/BOOT/limine.conf
 arch-chroot /mnt cat /etc/kernel/cmdline
 ```
 
-Ti aspetti almeno:
+You should expect at least:
 
 - `BOOTX64.EFI`
 - `limine.conf`
@@ -556,34 +556,34 @@ Ti aspetti almeno:
 - `margine-linux-fallback.efi`
 - `margine-recovery.efi`
 
-Nota importante:
+Important note:
 
-- `bootctl status` qui non e' il controllo principale, perche' `Margine`
-  punta a `Limine`, non a `systemd-boot`
+- `bootctl status` is not the primary check here, because `Margine`
+  targets `Limine`, not `systemd-boot`
 
-## 7. Spegnimento della live e primo boot del sistema installato
+## 7. Shutting down the live environment and first boot of the installed system
 
-Quando sei soddisfatto delle verifiche:
+When you are satisfied with the checks:
 
 ```bash
 sync
 poweroff
 ```
 
-Poi, dal sistema host:
+Then, from the host system:
 
 ```bash
 ~/dev/margine-os/build/qemu-archiso-validation/run-qemu-installed.sh
 ```
 
-Questo passaggio e' importante:
+This step is important:
 
-- `run-qemu.sh` riavvia sempre la live ISO
-- `run-qemu-installed.sh` prova davvero il disco installato
+- `run-qemu.sh` always reboots into the live ISO
+- `run-qemu-installed.sh` actually tests the installed disk
 
-## 8. Cosa controllare al primo boot
+## 8. What to check on the first boot
 
-Dopo il primo boot del sistema installato, verifica:
+After the first boot of the installed system, verify:
 
 ```bash
 cat /proc/cmdline
@@ -597,26 +597,26 @@ sudo snapper -c root list
 which grim slurp satty wf-recorder
 ```
 
-Se arrivi alla sessione o almeno al login path previsto, il test ha superato il
-primo gate serio.
+If you reach the session, or at least the expected login path, the test has
+passed the first serious gate.
 
-Per la regressione `Walker/Elephant`, qui il controllo importante e' questo:
+For the `Walker/Elephant` regression, the important check here is:
 
-- il blocco di variabili sopra deve essere presente dentro `systemd --user`
-- `elephant.service` deve essere attivo
-- `walker` deve esistere; se per qualunque motivo manca, deve almeno esserci
-  `hyprlauncher` come fallback coerente
-- `snapper` deve mostrare davvero la config `root`, non solo il pacchetto installato
-- lo stack screenshot/recording deve avere i binari ufficiali presenti anche se
-  `hyprcap` non esiste
+- the variable block above must be present inside `systemd --user`
+- `elephant.service` must be active
+- `walker` must exist; if it is missing for any reason, there must at least be
+  `hyprlauncher` as a coherent fallback
+- `snapper` must actually show the `root` config, not just the package installed
+- the screenshot/recording stack must have the official binaries available even
+  if `hyprcap` is missing
 
-## 9. Se qualcosa va storto
+## 9. If something goes wrong
 
-I problemi piu' probabili sono questi:
+The most likely problems are:
 
-### Torni sempre nella live ISO
+### You always return to the live ISO
 
-Stai usando il launcher sbagliato.
+You are using the wrong launcher.
 
 Usa:
 
@@ -624,27 +624,27 @@ Usa:
 run-qemu-installed.sh
 ```
 
-### Il mount 9p non funziona
+### The 9p mount does not work
 
-Ricontrolla il comando:
+Check the command again:
 
 ```bash
 mount -t 9p -o trans=virtio,version=9p2000.L margine /root/margine-repo
 ```
 
-### L'installer non trova il disco
+### The installer cannot find the disk
 
-Dentro la live ricontrolla:
+Inside the live environment, check again:
 
 ```bash
 lsblk
 ```
 
-In questa VM il target atteso e' `/dev/vda`.
+In this VM the expected target is `/dev/vda`.
 
-### Il bootloader non parte
+### The bootloader does not start
 
-Le prime cose da controllare sono:
+The first things to check are:
 
 ```bash
 ls /boot/EFI/BOOT
@@ -652,9 +652,9 @@ ls /boot/EFI/Linux
 cat /boot/EFI/BOOT/limine.conf
 ```
 
-## 10. Variante non interattiva
+## 10. Non-interactive variant
 
-Se vuoi evitare il wizard e ripetere sempre lo stesso test:
+If you want to avoid the wizard and repeat the same test every time:
 
 ```bash
 /root/margine-repo/scripts/install-live-iso \
@@ -666,10 +666,11 @@ Se vuoi evitare il wizard e ripetere sempre lo stesso test:
   --hostname margine-vm \
   --username daniel \
   --real-name "Daniel Carrasco" \
+  --greetd-login-mode tuigreet-only \
   --run-chroot
 ```
 
-Questa e' la forma piu' adatta ai test ripetibili.
+This is the form best suited to repeatable tests.
 EOF
 }
 

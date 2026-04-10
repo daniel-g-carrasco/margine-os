@@ -1,7 +1,15 @@
-# AUR di baseline necessari per rendere coerente il desktop Margine.
+# Baseline AUR packages required to keep the Margine desktop coherent.
 #
-# Ordine importante:
-# - `elephant` prima di `walker`, perche' Walker lo usa per lanciare le app.
+# Important order:
+# - `yay` first, because the AUR is managed through it after bootstrap;
+# - `elephant-*` providers before `walker`, because Walker prefixes
+#   (`=`, `@`, `$`, `>`) depend on them.
 
+yay
 elephant
+elephant-calc
+elephant-websearch
+elephant-windows
+elephant-runner
+msttcorefonts
 walker

@@ -1,9 +1,9 @@
-# Connettivita' di sistema: rete, Wi-Fi, VPN e Bluetooth.
+# System connectivity: network, Wi-Fi, VPN, and Bluetooth.
 # Baseline target per Framework 13 AMD:
-# - NetworkManager come orchestratore principale;
-# - iwd come backend Wi-Fi preferito;
-# - nm-connection-editor / network-manager-applet / blueman per l'accesso GUI;
-# - bluetui / impala come fallback TUI coerenti col workflow terminal-first.
+# - NetworkManager as the main orchestrator;
+# - iwd as the preferred Wi-Fi backend;
+# - nm-connection-editor / network-manager-applet / blueman for GUI access;
+# - bluetui / impala as TUI fallbacks coherent with a terminal-first workflow.
 
 blueman
 bluetui

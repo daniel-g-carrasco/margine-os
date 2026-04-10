@@ -25,5 +25,5 @@ if command -v hyprlauncher >/dev/null 2>&1; then
   exec hyprlauncher "$@"
 fi
 
-printf 'Nessun launcher disponibile: servono walker o hyprlauncher.\n' >&2
+printf 'No launcher available: walker or hyprlauncher is required.\n' >&2
 exit 1

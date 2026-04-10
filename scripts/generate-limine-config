@@ -21,7 +21,7 @@ Options:
   --root-uuid UUID         UUID del filesystem root Btrfs
   --luks-uuid UUID         UUID del contenitore LUKS2
   --recovery-entries PATH  File con entry recovery da inserire tra i marker
-  --help                   Mostra questo aiuto
+  --help                   Show this help
 EOF
 }
 

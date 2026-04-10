@@ -41,7 +41,7 @@ Options:
   --include-aur           Include anche le eccezioni AUR opzionali
   --include-flatpak       Include il manifest Flatpak
   --list-layers           Mostra i layer disponibili ed esce
-  --help                  Mostra questo aiuto
+  --help                  Show this help
 EOF
 }
 
@@ -175,7 +175,7 @@ install_official_layers() {
 
   log
   log "Pacchetti ufficiali risolti: ${#packages[@]}"
-  run_cmd sudo pacman -S --needed --asexplicit "${packages[@]}"
+  run_cmd sudo pacman -S --needed --asexplicit --noconfirm "${packages[@]}"
 }
 
 install_aur_manifest() {
@@ -216,7 +216,7 @@ install_flatpak_layer() {
 
   log
   log "Manifest Flatpak incluso: ${#apps[@]} app"
-  run_cmd flatpak install flathub "${apps[@]}"
+  run_cmd flatpak install --or-update --assumeyes --noninteractive flathub "${apps[@]}"
 }
 
 main() {

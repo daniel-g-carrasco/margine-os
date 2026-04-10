@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodic Margine update and advisory check
+
+[Timer]
+OnBootSec=10m
+OnUnitActiveSec=6h
+Persistent=true
+Unit=margine-maintenance-check.service
+
+[Install]
+WantedBy=timers.target

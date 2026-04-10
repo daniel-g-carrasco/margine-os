@@ -11,7 +11,10 @@ home_dir=""
 declare -a home_payload=(
   ".config/systemd/user/elephant.service"
   ".config/systemd/user/hypr-refresh-rate.service"
+  ".config/systemd/user/margine-maintenance-check.service"
+  ".config/systemd/user/margine-maintenance-check.timer"
   ".local/bin/margine-import-session-environment"
+  ".local/bin/margine-maintenance-check"
   ".local/bin/margine-launcher"
   ".local/bin/margine-launcher-service"
   ".local/bin/hypr-refresh-rate-watch"
@@ -29,7 +32,7 @@ Usage:
 Options:
   --username NAME   Utente target che ricevera' i tool runtime utente
   --dry-run         Mostra il piano senza eseguirlo
-  --help            Mostra questo aiuto
+  --help            Show this help
 EOF
 }
 
@@ -112,20 +115,36 @@ copy_payload() {
 
 enable_user_units() {
   local wants_dir="${home_dir}/.config/systemd/user/default.target.wants"
+  local timers_wants_dir="${home_dir}/.config/systemd/user/timers.target.wants"
   local elephant_legacy_link="${wants_dir}/elephant.service"
   local unit=""
   local link_path=""
   local -a units=(
     hypr-refresh-rate.service
   )
+  local -a timers=(
+    margine-maintenance-check.timer
+  )
 
   log
   log "==> Enable user services"
 
   run_cmd install -d "$wants_dir"
+  run_cmd install -d "$timers_wants_dir"
 
   for unit in "${units[@]}"; do
     link_path="${wants_dir}/${unit}"
+
+    if (( dry_run )); then
+      printf '[dry-run] ln -sfn ../%s %s\n' "$unit" "$link_path"
+      continue
+    fi
+
+    ln -sfn "../${unit}" "$link_path"
+  done
+
+  for unit in "${timers[@]}"; do
+    link_path="${timers_wants_dir}/${unit}"
 
     if (( dry_run )); then
       printf '[dry-run] ln -sfn ../%s %s\n' "$unit" "$link_path"

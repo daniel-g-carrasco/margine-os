@@ -18,7 +18,7 @@ Options:
   --description PREFIX     Prefisso descrizione snapshot
   --cleanup ALGO           Cleanup algorithm (default: number)
   --userdata DATA          Userdata da associare allo snapshot
-  --help                   Mostra questo aiuto
+  --help                   Show this help
 EOF
 }
 

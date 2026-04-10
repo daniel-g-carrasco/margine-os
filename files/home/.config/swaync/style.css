@@ -183,12 +183,18 @@ widget-notifications list {
   box-shadow: none;
 }
 
-/* Hide scrollbars: if they come back, remove this block first. */
-scrollbar,
-scrollbar slider {
+.control-center scrollbar {
   background: transparent;
   border: none;
   box-shadow: none;
+  min-width: 0;
+  min-height: 0;
+  opacity: 0;
+}
+
+.control-center scrollbar slider {
+  background: transparent;
+  border: none;
   min-width: 0;
   min-height: 0;
   opacity: 0;

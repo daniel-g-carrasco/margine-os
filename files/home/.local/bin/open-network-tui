@@ -47,5 +47,5 @@ if command -v nmtui >/dev/null 2>&1; then
   exec "${kitty_network_window[@]}" -e nmtui
 fi
 
-printf 'Nessun TUI rete disponibile: servono nmtui o impala.\n' >&2
+printf 'No network TUI available: nmtui or impala is required.\n' >&2
 exit 1

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 pid=""
-mode="schermo"
+mode="screen"
 
 runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
 
@@ -11,7 +11,7 @@ if [[ -f "${runtime_dir}/wf-recorder-region.pid" ]]; then
   region_pid="$(cat "${runtime_dir}/wf-recorder-region.pid" 2>/dev/null || true)"
   if [[ -n "$region_pid" ]] && kill -0 "$region_pid" 2>/dev/null; then
     pid="$region_pid"
-    mode="area"
+    mode="region"
   fi
 fi
 
@@ -32,4 +32,4 @@ fi
 
 elapsed="$(ps -o etime= -p "$pid" | xargs)"
 
-printf '{"text":"REC","class":"recording","tooltip":"Registrazione %s in corso\\nDurata: %s\\nClick per fermare"}\n' "$mode" "$elapsed"
+printf '{"text":"REC","class":"recording","tooltip":"Recording %s in progress\\nDuration: %s\\nClick to stop"}\n' "$mode" "$elapsed"

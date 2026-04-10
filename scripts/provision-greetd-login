@@ -7,6 +7,7 @@ template_source="${repo_root}/files/etc/greetd/config.toml.template"
 
 dry_run=0
 username=""
+login_mode="autologin-lock"
 
 usage() {
   cat <<'EOF'
@@ -15,8 +16,9 @@ Usage:
 
 Options:
   --username NAME   Utente principale da usare per l'autologin iniziale
+  --login-mode MODE Modalita' login: autologin-lock | tuigreet-only
   --dry-run         Mostra il piano senza eseguirlo
-  --help            Mostra questo aiuto
+  --help            Show this help
 EOF
 }
 
@@ -43,6 +45,11 @@ parse_args() {
       --username)
         [[ $# -ge 2 ]] || die "missing value for --username"
         username="$2"
+        shift 2
+        ;;
+      --login-mode)
+        [[ $# -ge 2 ]] || die "missing value for --login-mode"
+        login_mode="$2"
         shift 2
         ;;
       --dry-run)
@@ -73,7 +80,35 @@ ensure_sources() {
 }
 
 render_config() {
-  sed "s|__MARGINE_MAIN_USER__|${username}|g" "$template_source"
+  local initial_session_block=""
+
+  case "$login_mode" in
+    autologin-lock)
+      initial_session_block=$(cat <<EOF
+[initial_session]
+command = "/usr/bin/start-hyprland"
+user = "${username}"
+EOF
+)
+      ;;
+    tuigreet-only)
+      initial_session_block=""
+      ;;
+    *)
+      die "unsupported --login-mode: ${login_mode}"
+      ;;
+  esac
+
+  python - <<'PY' "$template_source" "$initial_session_block"
+import pathlib
+import sys
+
+template_path = pathlib.Path(sys.argv[1])
+initial_session_block = sys.argv[2]
+content = template_path.read_text()
+content = content.replace("__MARGINE_INITIAL_SESSION_BLOCK__", initial_session_block)
+sys.stdout.write(content)
+PY
 }
 
 install_config() {
@@ -111,7 +146,14 @@ main() {
   enable_service
 
   log
-  log "greetd configurato: autologin iniziale verso Hyprland, fallback successivo a tuigreet."
+  case "$login_mode" in
+    autologin-lock)
+      log "greetd configurato: autologin iniziale verso Hyprland, fallback successivo a tuigreet."
+      ;;
+    tuigreet-only)
+      log "greetd configurato: login sempre via tuigreet, senza initial_session."
+      ;;
+  esac
 }
 
 main "$@"

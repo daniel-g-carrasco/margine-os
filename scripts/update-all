@@ -37,31 +37,31 @@ Usage:
   update-all [options]
 
 Options:
-  --dry-run              Mostra i comandi senza eseguirli
-  --no-aur               Salta il layer AUR
-  --no-flatpak           Salta il layer Flatpak
-  --no-fwupd             Salta il layer firmware
-  --no-boot              Salta la fase di rigenerazione boot
-  --deploy-boot          Esegue il deploy degli artefatti sulla ESP
-  --no-trust-refresh     Non esegue enroll-config e firma EFI dopo il deploy
-  --no-snapper-recovery  Non genera entry recovery da snapshot Snapper
-  --no-pre-update-snap   Non crea lo snapshot iniziale di update-all
-  --esp-path PATH        Mountpoint della EFI System Partition
-  --backup-dir PATH      Directory backup per il deploy su ESP
-  --limine-binary PATH   Binario EFI di Limine da deployare
-  --limine-tool PATH     Path esplicito al tool host `limine`
-  --main-uki PATH        UKI principale da deployare
-  --fallback-uki PATH    UKI fallback da deployare
-  --recovery-uki PATH    UKI recovery da deployare
-  --snapper-config NAME  Config Snapper per le entry recovery (default: root)
+  --dry-run              Show commands without executing them
+  --no-aur               Skip the AUR layer
+  --no-flatpak           Skip the Flatpak layer
+  --no-fwupd             Skip the firmware layer
+  --no-boot              Skip the boot regeneration phase
+  --deploy-boot          Deploy artifacts to the ESP
+  --no-trust-refresh     Do not run enroll-config and EFI signing after deploy
+  --no-snapper-recovery  Do not generate recovery entries from Snapper snapshots
+  --no-pre-update-snap   Do not create the initial update-all snapshot
+  --esp-path PATH        EFI System Partition mountpoint
+  --backup-dir PATH      Backup directory for ESP deployment
+  --limine-binary PATH   Limine EFI binary to deploy
+  --limine-tool PATH     Explicit path to the host `limine` tool
+  --main-uki PATH        Main UKI to deploy
+  --fallback-uki PATH    Fallback UKI to deploy
+  --recovery-uki PATH    Recovery UKI to deploy
+  --snapper-config NAME  Snapper config for recovery entries (default: root)
   --snapshots-subvolume PATH
-                         Subvolume snapshot root (default: @snapshots)
+                         Snapshot root subvolume (default: @snapshots)
   --recovery-entry-limit N
-                         Numero max di snapshot da mostrare (default: 12)
-  --root-uuid UUID       UUID del filesystem root Btrfs
-  --luks-uuid UUID       UUID del contenitore LUKS2
-  --limine-output PATH   Dove renderizzare limine.conf
-  --help                 Mostra questo aiuto
+                         Maximum number of snapshots to show (default: 12)
+  --root-uuid UUID       UUID of the Btrfs root filesystem
+  --luks-uuid UUID       UUID of the LUKS2 container
+  --limine-output PATH   Where to render limine.conf
+  --help                 Show this help
 EOF
 }
 
@@ -255,21 +255,22 @@ run_pre_update_snapshot() {
 run_pacman_update() {
   log
   log "==> 1) Pacman"
-  run_cmd sudo pacman -Syu
+  run_cmd sudo pacman -Syu --noconfirm
 }
 
 run_aur_update() {
   local aur_installer="${repo_root}/scripts/install-aur-packages"
   local aur_baseline_manifest="${repo_root}/manifests/packages/aur-baseline.txt"
+  local -a yay_flags=(--noconfirm --answerclean None --answerdiff None --answeredit None --removemake --cleanafter --sudoloop)
   (( use_aur )) || return 0
 
   log
   log "==> 2) AUR"
 
   if have_cmd yay; then
-    run_optional "AUR update via yay" yay -Syu
+    run_optional "AUR update via yay" yay -Syu "${yay_flags[@]}"
   elif have_cmd paru; then
-    run_optional "AUR update via paru" paru -Syu
+    run_optional "AUR update via paru" paru -Syu --noconfirm
   elif [[ -x "$aur_installer" && -f "$aur_baseline_manifest" ]]; then
     run_optional "AUR baseline rebuild" sudo "$aur_installer" --manifest "$aur_baseline_manifest" --upgrade
   else
@@ -284,8 +285,8 @@ run_flatpak_update() {
   log "==> 3) Flatpak"
 
   if have_cmd flatpak; then
-    run_optional "flatpak update" flatpak update
-    run_optional "flatpak uninstall --unused" flatpak uninstall --unused
+    run_optional "flatpak update" flatpak update --assumeyes --noninteractive
+    run_optional "flatpak uninstall --unused" flatpak uninstall --unused --assumeyes --noninteractive
   else
     log "flatpak non trovato, salto."
   fi
@@ -480,7 +481,7 @@ main() {
     die "--deploy-boot requires boot phase enabled"
   fi
 
-  log "=== Aggiornamento Margine ==="
+  log "=== Margine update ==="
   if (( dry_run )); then
     log "Modalita': dry-run"
   fi

@@ -35,7 +35,7 @@ Options:
   --limine-tool PATH   Path esplicito al tool host `limine`
   --set-bootnext       Imposta la nuova entry come prossimo boot una sola volta
   --dry-run            Mostra il piano senza eseguire modifiche
-  --help               Mostra questo aiuto
+  --help               Show this help
 EOF
 }
 

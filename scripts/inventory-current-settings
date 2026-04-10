@@ -18,7 +18,7 @@ Usage:
 Options:
   --source-home PATH       Home sorgente da analizzare (default: $HOME)
   --output PATH            Scrive il report su file invece che su stdout
-  --help                   Mostra questo aiuto
+  --help                   Show this help
 EOF
 }
 

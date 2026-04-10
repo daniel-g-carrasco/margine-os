@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+unit="keep-awake.service"
+
+if systemctl --user --quiet is-active "$unit"; then
+  systemctl --user stop "$unit"
+else
+  systemctl --user start "$unit"
+fi

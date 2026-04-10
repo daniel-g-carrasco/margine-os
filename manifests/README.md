@@ -1,24 +1,24 @@
 # Manifests
 
-Qui andranno le liste curate dei componenti da installare.
+This directory contains curated lists of components to install.
 
-Regola:
-- manifest piccoli;
-- nomi espliciti;
-- niente dump indiscriminati da `pacman -Qqe`.
+Rule:
+- keep manifests small;
+- use explicit names;
+- do not dump `pacman -Qqe` indiscriminately.
 
-Stato attuale della macchina di partenza:
+Current state of the source machine:
 
-- `230` pacchetti espliciti installati;
-- solo una parte entrerà davvero in `Margine`.
+- `230` explicitly installed packages;
+- only part of them will actually enter `Margine`.
 
-Approccio:
+Approach:
 
-- i manifest devono descrivere il sistema target;
-- non devono fotografare la macchina attuale;
-- i casi ambigui vanno parcheggiati in note separate finché non sono chiari.
+- manifests must describe the target system;
+- they must not snapshot the current machine;
+- ambiguous cases should stay in separate notes until clarified.
 
-Struttura iniziale:
+Initial structure:
 
 - `packages/base-system.txt`
 - `packages/hardware-framework13-amd.txt`

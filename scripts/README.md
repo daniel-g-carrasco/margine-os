@@ -1,61 +1,60 @@
 # Scripts
 
-Questa cartella conterrà gli script operativi del progetto.
+This directory contains the project's operational scripts.
 
-Categorie attese:
+Expected categories:
 
-- bootstrap da live ISO;
+- live ISO bootstrap;
 - post-install;
-- generazione configurazioni;
-- verifica del sistema;
-- manutenzione e aggiornamento.
+- configuration generation;
+- system validation;
+- maintenance and updates.
 
-Regola:
+Rule:
 
-- script piccoli;
-- idempotenti quando possibile;
-- leggibili prima che "furbi".
+- keep scripts small;
+- make them idempotent when possible;
+- prefer readability over being "clever".
 
-Primo script operativo:
+Operational scripts:
 
-- `generate-limine-config`: renderizza `limine.conf` dal template versionato e
-  dai dati macchina minimi.
-- `update-all`: orchestratore del ciclo di update, con supporto `dry-run` e
-  distinzione tra layer core e accessori.
-- `deploy-boot-artifacts`: installa su `ESP` gli artefatti generati, con backup
-  preventivo dei file sovrascritti.
-- `refresh-efi-trust`: calcola l'hash di `limine.conf`, esegue
-  `limine enroll-config` e firma la catena EFI con `sbctl`.
-- `provision-secure-boot`: gestisce il bootstrap iniziale di `sbctl`,
-  l'enrollment delle chiavi nel firmware e, opzionalmente, il primo refresh
-  della trust chain EFI.
-- `provision-system-user`: crea o riallinea l'utente amministrativo,
-  installa il drop-in `sudoers` e inizializza le directory utente.
-- `install-from-manifests`: installa i layer definiti nei manifest, separando
-  repo ufficiali, AUR e Flatpak tramite flag espliciti.
-- `provision-storage`: prepara disco, `LUKS2`, `Btrfs` e subvolumi dalla live ISO.
-- `install-live-iso`: orchestra `provision-storage` e `bootstrap-live-iso`
-  in una pipeline unica da live ISO.
-- `install-live-iso-guided`: wrapper interattivo passo passo sopra
-  `install-live-iso` e `bootstrap-live-iso`.
-- `bootstrap-live-iso`: fase 1 del bootstrap, pensata per la live ISO Arch.
-- `bootstrap-in-chroot`: fase 2 del bootstrap, pensata per il sistema target.
-- `provision-initial-boot-chain`: chiude il bootstrap installando la boot
-  chain iniziale `mkinitcpio + UKI + Limine` sul sistema target.
-- `provision-boot-baseline`: installa i file di baseline del boot locale
-  (`mkinitcpio`, `vconsole`, `plymouth`, splash UKI) prima della rigenerazione.
-- `stage-limine-side-by-side`: prepara `Limine` come applicazione EFI
-  separata, con config sulla root della ESP e voce UEFI dedicata, senza
-  sostituire il bootloader corrente.
-- `validate-printing-scanning-baseline`: verifica pacchetti, servizi,
-  discovery, stampanti e scanner rispetto alla baseline `Margine`.
-- `provision-virtualization-containers-baseline`: installa i file di baseline
-  per `libvirt` e gli helper minimi lato virtualizzazione.
-- `validate-runtime-baseline`: verifica power, resume, audio, rete, Bluetooth e
-  tooling screenshot/recording sulla macchina reale.
-- `validate-boot-recovery-baseline`: verifica stato reale di Secure Boot, UKI,
-  bootloader e Snapper.
-- `validate-virtualization-containers-baseline`: verifica supporto CPU/KVM,
-  pacchetti e stato reale di `libvirt` e `podman`.
-- `prepare-qemu-archiso-validation`: prepara una VM QEMU/OVMF con Arch ISO
-  ufficiale e una guida per validare `Margine` in installazione reale.
+- `generate-limine-config`: renders `limine.conf` from the versioned template
+  and the minimal machine data.
+- `update-all`: canonical update orchestrator, with `dry-run` support and a
+  distinction between core and optional layers.
+- `deploy-boot-artifacts`: installs generated artifacts to the `ESP`, with
+  preventive backups of overwritten files.
+- `refresh-efi-trust`: computes the `limine.conf` hash, runs
+  `limine enroll-config`, and signs the EFI chain with `sbctl`.
+- `provision-secure-boot`: handles the initial `sbctl` bootstrap, firmware key
+  enrollment, and optionally the first EFI trust-chain refresh.
+- `provision-system-user`: creates or realigns the administrative user,
+  installs the `sudoers` drop-in, and initializes user directories.
+- `install-from-manifests`: installs manifest-defined layers, separating
+  official repos, AUR, and Flatpak through explicit flags.
+- `provision-storage`: prepares disk, `LUKS2`, `Btrfs`, and subvolumes from the live ISO.
+- `install-live-iso`: orchestrates `provision-storage` and `bootstrap-live-iso`
+  in a single live-ISO pipeline.
+- `install-live-iso-guided`: step-by-step interactive wrapper around
+  `install-live-iso` and `bootstrap-live-iso`.
+- `bootstrap-live-iso`: bootstrap phase 1, intended for the Arch live ISO.
+- `bootstrap-in-chroot`: bootstrap phase 2, intended for the target system.
+- `provision-initial-boot-chain`: closes the bootstrap by installing the
+  initial `mkinitcpio + UKI + Limine` boot chain on the target system.
+- `provision-boot-baseline`: installs the local boot baseline files
+  (`mkinitcpio`, `vconsole`, `plymouth`, UKI splash) before regeneration.
+- `stage-limine-side-by-side`: stages `Limine` as a separate EFI application,
+  with config at the ESP root and a dedicated UEFI entry, without replacing the
+  current bootloader.
+- `validate-printing-scanning-baseline`: validates packages, services,
+  discovery, printers, and scanners against the `Margine` baseline.
+- `provision-virtualization-containers-baseline`: installs baseline files for
+  `libvirt` and the minimal virtualization-side helpers.
+- `validate-runtime-baseline`: validates power, resume, audio, network,
+  Bluetooth, and screenshot/recording tooling on the real machine.
+- `validate-boot-recovery-baseline`: validates the real Secure Boot, UKI,
+  bootloader, and Snapper state.
+- `validate-virtualization-containers-baseline`: validates CPU/KVM support,
+  packages, and the real `libvirt` and `podman` state.
+- `prepare-qemu-archiso-validation`: prepares a QEMU/OVMF VM with the official
+  Arch ISO and a guide to validate `Margine` through a real install flow.

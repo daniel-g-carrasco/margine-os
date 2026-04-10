@@ -29,11 +29,11 @@ notify_capture() {
       -i "$file" \
       -h "string:image-path:$file" \
       -c "transfer.complete" \
-      -A "annotate=Annota" \
-      -A "open=Apri" \
-      -A "folder=Cartella" \
-      -A "copy=Copia" \
-      "Screenshot salvato" \
+      -A "annotate=Annotate" \
+      -A "open=Open" \
+      -A "folder=Folder" \
+      -A "copy=Copy" \
+      "Screenshot saved" \
       "$(basename "$file")" 2>/dev/null || true)"
 
     case "$action" in
@@ -48,7 +48,7 @@ notify_capture() {
         ;;
       copy)
         wl-copy --type image/png < "$file"
-        notify-send -a "Screenshot" -u low -t 2500 "Screenshot copiata" "$(basename "$file")"
+        notify-send -a "Screenshot" -u low -t 2500 "Screenshot copied" "$(basename "$file")"
         ;;
     esac
   ) >/dev/null 2>&1 &
@@ -96,7 +96,7 @@ monitor_choices() {
 
 window_choices() {
   hyprctl -j clients 2>/dev/null |
-    jq -r '.[] | select(.mapped == true and (.at | length) == 2 and (.size | length) == 2) | "\(.workspace.name)\t\(.class // "-")\t\(.title // "(senza titolo)")\t\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"' || true
+    jq -r '.[] | select(.mapped == true and (.at | length) == 2 and (.size | length) == 2) | "\(.workspace.name)\t\(.class // "-")\t\(.title // "(untitled)")\t\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"' || true
 }
 
 capture_monitor() {
@@ -116,21 +116,21 @@ capture_geometry() {
 resolve_selection() {
   case "${1:-menu}" in
     menu|"")
-      choice="$(choose_from_menu "Screenshot" $'Monitor attivo\nMonitor...\nFinestra attiva\nFinestra...\nRegione' || true)"
+      choice="$(choose_from_menu "Screenshot" $'󰍹  Active monitor\n󰍺  Select monitor\n󰖲  Active window\n󰖯  Select window\n󰹑  Region' || true)"
       case "$choice" in
-        'Monitor attivo')
+        '󰍹  Active monitor')
           printf '%s\n' 'monitor:active'
           ;;
-        'Monitor...')
+        '󰍺  Select monitor')
           printf '%s\n' 'monitor'
           ;;
-        'Finestra attiva')
+        '󰖲  Active window')
           printf '%s\n' 'window:active'
           ;;
-        'Finestra...')
+        '󰖯  Select window')
           printf '%s\n' 'window'
           ;;
-        'Regione')
+        '󰹑  Region')
           printf '%s\n' 'region'
           ;;
       esac
@@ -162,7 +162,7 @@ capture_selection() {
       capture_geometry "$geometry"
       ;;
     window)
-      choice="$(choose_from_menu "Finestra" "$(window_choices)" || true)"
+      choice="$(choose_from_menu "Window" "$(window_choices)" || true)"
       geometry="${choice##*$'\t'}"
       capture_geometry "$geometry"
       ;;
@@ -177,7 +177,7 @@ capture_selection() {
 }
 
 if ! have_cmd grim || ! have_cmd slurp || ! have_cmd jq || ! have_cmd hyprctl; then
-  notify-send -u normal "Screenshot" "Stack screenshot incompleto: servono grim, slurp, jq e hyprctl"
+  notify-send -u normal "Screenshot" "Incomplete screenshot stack: grim, slurp, jq, and hyprctl are required"
   exit 1
 fi
 
@@ -191,7 +191,7 @@ filename="$(date '+%Y-%m-%d_%H-%M-%S').png"
 filepath="${output_dir}/${filename}"
 
 if ! capture_selection "$selection"; then
-  notify-send -u normal "Screenshot" "Acquisizione non riuscita"
+  notify-send -u normal "Screenshot" "Capture failed"
   exit 0
 fi
 

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Update All
+Comment=Update pacman + AUR + Flatpak + firmware
+Exec=/home/daniel/.local/bin/update-all-launcher
+Icon=software-update-available
+Categories=System;
+Terminal=false

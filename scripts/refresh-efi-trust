@@ -24,7 +24,7 @@ Options:
   --main-uki PATH        UKI principale gia' deployata
   --fallback-uki PATH    UKI fallback gia' deployata
   --recovery-uki PATH    UKI recovery gia' deployata
-  --help                 Mostra questo aiuto
+  --help                 Show this help
 EOF
 }
 

@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+display_device="/org/freedesktop/UPower/devices/DisplayDevice"
+
+read_upower_field() {
+  local key="$1"
+  upower -i "$display_device" 2>/dev/null | awk -F: -v k="$key" '
+    $1 ~ "^[[:space:]]*" k "$" {
+      sub(/^[[:space:]]+/, "", $2)
+      print $2
+      exit
+    }
+  '
+}
+
+battery_icon() {
+  local capacity="$1"
+  if (( capacity <= 10 )); then
+    printf '󰂎'
+  elif (( capacity <= 20 )); then
+    printf '󰁺'
+  elif (( capacity <= 35 )); then
+    printf '󰁼'
+  elif (( capacity <= 50 )); then
+    printf '󰁾'
+  elif (( capacity <= 65 )); then
+    printf '󰂀'
+  elif (( capacity <= 80 )); then
+    printf '󰂂'
+  else
+    printf '󰁹'
+  fi
+}
+
+profile="$(powerprofilesctl get 2>/dev/null || printf 'unknown')"
+state="$(read_upower_field state)"
+percentage="$(read_upower_field percentage)"
+rate="$(read_upower_field energy-rate)"
+time_to_empty="$(read_upower_field time\ to\ empty)"
+time_to_full="$(read_upower_field time\ to\ full)"
+
+percentage="${percentage:-0%}"
+capacity="${percentage%%%}"
+capacity="${capacity:-0}"
+
+class="normal"
+if (( capacity <= 15 )); then
+  class="critical"
+elif (( capacity <= 30 )); then
+  class="warning"
+elif [[ "$state" == "charging" ]]; then
+  class="charging"
+elif [[ "$state" == "fully-charged" || "$state" == "pending-charge" ]]; then
+  class="plugged"
+fi
+
+case "$state" in
+  charging)
+    text="󰂄 ${capacity}%"
+    eta_line="Time to full charge: ${time_to_full:-n/a}"
+    ;;
+  fully-charged|pending-charge)
+    text="󰚥 ${capacity}%"
+    eta_line="Connected to power"
+    ;;
+  *)
+    text="$(battery_icon "$capacity") ${capacity}%"
+    eta_line="Remaining runtime: ${time_to_empty:-n/a}"
+    ;;
+esac
+
+profile_label="$profile"
+case "$profile" in
+  power-saver) profile_label="Power Saver" ;;
+  balanced) profile_label="Balanced" ;;
+  performance) profile_label="Performance" ;;
+  *) profile_label="Unknown" ;;
+esac
+
+state_label="$state"
+case "$state" in
+  charging) state_label="Charging" ;;
+  discharging) state_label="Discharging" ;;
+  fully-charged) state_label="Fully Charged" ;;
+  pending-charge) state_label="Plugged In" ;;
+  empty) state_label="Empty" ;;
+  *) state_label="Unknown" ;;
+esac
+
+tooltip="Power Profile: ${profile_label}\\nState: ${state_label}\\nDraw: ${rate:-n/a}\\n${eta_line}"
+
+printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$text" "$tooltip" "$class"

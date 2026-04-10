@@ -21,16 +21,16 @@ Usage:
   provision-secure-boot [options]
 
 Options:
-  --dry-run               Mostra i comandi senza eseguirli
-  --keys-only             Esegue solo create-keys/enroll-keys, senza refresh EFI
-  --no-microsoft          Non aggiunge i certificati Microsoft durante l'enrollment
-  --esp-path PATH         Mountpoint della EFI System Partition
-  --export-keys PATH      Export esplicito delle chiavi create da sbctl
-  --limine-tool PATH      Path esplicito al tool host `limine`
-  --main-uki PATH         Path esplicito UKI principale gia' deployata
-  --fallback-uki PATH     Path esplicito UKI fallback gia' deployata
-  --recovery-uki PATH     Path esplicito UKI recovery gia' deployata
-  --help                  Mostra questo aiuto
+  --dry-run               Show commands without executing them
+  --keys-only             Run only create-keys/enroll-keys, without EFI refresh
+  --no-microsoft          Do not add Microsoft certificates during enrollment
+  --esp-path PATH         EFI System Partition mountpoint
+  --export-keys PATH      Explicit export path for keys created by sbctl
+  --limine-tool PATH      Explicit path to the host `limine` tool
+  --main-uki PATH         Explicit path to the already deployed main UKI
+  --fallback-uki PATH     Explicit path to the already deployed fallback UKI
+  --recovery-uki PATH     Explicit path to the already deployed recovery UKI
+  --help                  Show this help
 EOF
 }
 
@@ -251,7 +251,7 @@ main() {
   run_cmd sbctl status
 
   log
-  log "Passo successivo: riavvia e verifica che Secure Boot sia attivo fuori da Setup Mode."
+  log "Next step: reboot and verify that Secure Boot is active outside Setup Mode."
 }
 
 main "$@"
