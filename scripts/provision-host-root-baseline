@@ -48,6 +48,29 @@ die() {
   exit 1
 }
 
+sbctl_file_is_enrolled() {
+  local target="$1"
+
+  python - "$target" <<'PY'
+import json
+import pathlib
+import sys
+
+db_path = pathlib.Path("/var/lib/sbctl/files.json")
+target = sys.argv[1]
+
+if not db_path.exists():
+    raise SystemExit(1)
+
+try:
+    payload = json.loads(db_path.read_text())
+except Exception:
+    raise SystemExit(1)
+
+raise SystemExit(0 if target in payload else 1)
+PY
+}
+
 run_cmd() {
   if (( dry_run )); then
     printf '[dry-run] %s\n' "$*"
@@ -212,6 +235,7 @@ main() {
   local config_target=""
   local limine_tool=""
   local config_hash=""
+  local sbctl_sign_args=()
 
   parse_args "$@"
   require_root
@@ -260,12 +284,19 @@ main() {
   if (( dry_run )); then
     printf '[dry-run] b2sum %s\n' "$config_target"
     printf '[dry-run] %s enroll-config %s <b2sum>\n' "$limine_tool" "$loader_target"
-    printf '[dry-run] sbctl sign --save %s\n' "$loader_target"
+    printf '[dry-run] sbctl sign [--save if not enrolled] %s\n' "$loader_target"
     printf '[dry-run] sbctl verify\n'
   else
     config_hash="$(b2sum "$config_target" | awk '{print $1}')"
     "$limine_tool" enroll-config "$loader_target" "$config_hash"
-    sbctl sign --save "$loader_target"
+
+    if sbctl_file_is_enrolled "$loader_target"; then
+      sbctl_sign_args=("$loader_target")
+    else
+      sbctl_sign_args=(--save "$loader_target")
+    fi
+
+    sbctl sign "${sbctl_sign_args[@]}"
     if ! sbctl verify; then
       printf 'warning: sbctl verify reported issues; inspect manually with `sudo sbctl verify`\n' >&2
     fi
