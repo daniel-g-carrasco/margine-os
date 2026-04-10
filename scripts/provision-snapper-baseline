@@ -112,6 +112,11 @@ snapper_config_exists() {
   snapper --no-dbus -c root get-config >/dev/null 2>&1
 }
 
+snapshots_layout_already_present() {
+  mountpoint -q "$snapshots_dir" && return 0
+  btrfs subvolume show "$snapshots_dir" >/dev/null 2>&1
+}
+
 bootstrap_snapper_config_if_needed() {
   log
   log "==> Bootstrap Snapper root config if needed"
@@ -128,6 +133,11 @@ bootstrap_snapper_config_if_needed() {
 
   if snapper_config_exists; then
     log "Snapper root config already visible."
+    return 0
+  fi
+
+  if snapshots_layout_already_present; then
+    log "Existing /.snapshots layout detected; skipping create-config and relying on the versioned root config."
     return 0
   fi
 
@@ -192,6 +202,11 @@ main() {
   bootstrap_snapper_config_if_needed
   install_config_files
   ensure_snapshots_dir
+
+  if (( ! dry_run )) && ! snapper_config_exists; then
+    die "Snapper config 'root' is still not visible after installing the baseline config"
+  fi
+
   create_initial_snapshot_if_needed
   enable_cleanup_timer
 
