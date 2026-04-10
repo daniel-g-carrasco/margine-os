@@ -182,14 +182,31 @@ install_firefox_policy() {
 }
 
 install_global_update_all() {
+  local support_root="/usr/local/lib/margine"
+
   log
   log "==> Install global update-all"
 
   [[ -f "$global_update_source" ]] || die "required source not found: $global_update_source"
 
-  run_cmd install -Dm755 \
-    "$global_update_source" \
-    /usr/local/bin/update-all
+  if (( dry_run )); then
+    printf '[dry-run] rsync -a --delete --exclude build --exclude .git --exclude docs --exclude .github %s/ %s/\n' "$repo_root" "$support_root"
+    printf '[dry-run] install wrapper /usr/local/bin/update-all -> %s/scripts/update-all\n' "$support_root"
+    return 0
+  fi
+
+  rsync -a --delete \
+    --exclude build \
+    --exclude .git \
+    --exclude docs \
+    --exclude .github \
+    "${repo_root}/" "${support_root}/"
+
+  install -Dm755 /dev/stdin /usr/local/bin/update-all <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+exec /usr/local/lib/margine/scripts/update-all "$@"
+EOF
 }
 
 fix_ownership() {

@@ -3,6 +3,16 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
+
+if [[ -f "${script_dir}/lib/product-manifests.sh" ]]; then
+  # Running from the checked-out repository tree.
+  :
+elif [[ -f /usr/local/lib/margine/scripts/lib/product-manifests.sh ]]; then
+  # Running via the globally installed wrapper in /usr/local/bin.
+  repo_root="/usr/local/lib/margine"
+  script_dir="${repo_root}/scripts"
+fi
+
 # shellcheck source=lib/product-manifests.sh
 source "${script_dir}/lib/product-manifests.sh"
 
