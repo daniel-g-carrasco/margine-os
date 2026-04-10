@@ -21,9 +21,10 @@ python-pip
 python-gobject
 python-pynvim
 rclone
+showtime
+decibels
 thunderbird
 thunderbird-i18n-it
-vlc
 vkd3d
 wine
 wine-gecko
