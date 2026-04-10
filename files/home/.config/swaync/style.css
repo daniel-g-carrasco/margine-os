@@ -1,23 +1,4 @@
-/* ----------------------------- */
-/* Margine swaync theme          */
-/* ----------------------------- */
-/*
- * File intentionally organized by visual area.
- * The safest knobs to tweak first are the variables in :root:
- *
- * - --panel-padding: inner margin of the whole control center
- * - --section-gap: vertical gap between top sections / cards
- * - --popup-edge-gap: distance of popup notifications from screen edge
- * - --panel-card-gap: vertical gap between notifications in the control center
- * - --popup-card-gap: vertical gap between stacked popup notifications
- * - --content-padding-x: left/right padding inside a notification body
- * - --content-padding-y: top/bottom padding inside a notification body
- *
- * Border styling lives mainly in:
- * - .control-center
- * - .notification-row .notification-background .notification
- * - .close-button
- */
+/* SwayNC theme */
 
 @define-color fg #e8e6e3;
 @define-color muted #b9b5af;
@@ -29,27 +10,25 @@
 @define-color critical #f38ba8;
 
 :root {
-  /* Control center shell */
+  /* Panel */
   --panel-padding: 20px;
   --section-gap: 10px;
 
-  /* Notification list geometry */
-  --panel-card-gap: 10px;
-  --popup-card-gap: 8px;
+  /* Notifications */
+  --panel-card-gap: 5px;
+  --popup-card-gap: 5px;
   --popup-edge-gap: 10px;
   --content-padding-x: 12px;
-  --content-padding-y: 8px;
-  --control-center-action-padding-x: 8px;
+  --content-padding-y: 12px;
+  --control-center-action-padding-x: 12px;
 
-  /* Icon sizing */
+  /* Icons */
   --notification-icon-size: 48px;
   --notification-app-icon-size: 18px;
-  --mpris-album-art-icon-size: 88px;
+  --mpris-album-art-icon-size: 96px;
 }
 
-/* ----------------------------- */
-/* Global reset                  */
-/* ----------------------------- */
+/* Global defaults */
 
 * {
   border: none;
@@ -60,9 +39,7 @@
   transition: none;
 }
 
-/* ----------------------------- */
-/* Outer layer windows           */
-/* ----------------------------- */
+/* Layer windows */
 
 .blank-window,
 .floating-notifications,
@@ -71,45 +48,59 @@ blankwindow {
   background: transparent;
 }
 
-/* ----------------------------- */
-/* Control center shell          */
-/* ----------------------------- */
+/* Control center */
 
 .control-center {
   background: rgba(18, 18, 18, 0.995);
   color: @fg;
-  border: 1px solid @border;
+  border: 2px solid @border;
   padding: var(--panel-padding);
 }
 
-.control-center .control-center-list,
-.control-center .control-center-list-placeholder {
+.control-center .control-center-list {
   background: transparent;
   margin: 0;
   padding: 0;
 }
 
 .control-center .control-center-list-placeholder {
+  background: transparent;
   color: @muted;
-  font-size: 13px;
-  min-height: 0;
-  padding: 0;
   margin: 0;
+  padding: 0;
+  min-height: 0;
+  font-size: 13px;
   opacity: 1;
 }
 
-/* Granite styles GTK placeholders globally.
- * Override those defaults inside swaync so the empty-state bell disappears.
- */
-.control-center placeholder > grid,
+/* Empty state / placeholder */
+
+.control-center placeholder {
+  min-width: 0;
+  min-height: 0;
+}
+
+.control-center list placeholder {
+  min-width: 0;
+  min-height: 0;
+}
+
+.control-center placeholder > grid {
+  margin: 0;
+}
+
 .control-center list placeholder > grid {
   margin: 0;
 }
 
-.control-center placeholder > grid > .large-icons,
-.control-center placeholder image,
-.control-center list placeholder image,
-.control-center .control-center-list-placeholder image,
+.control-center placeholder > grid > .large-icons {
+  -gtk-icon-size: 0;
+  min-width: 0;
+  min-height: 0;
+  opacity: 0;
+  margin: 0;
+}
+
 .control-center list placeholder > grid > .large-icons {
   -gtk-icon-size: 0;
   min-width: 0;
@@ -118,9 +109,51 @@ blankwindow {
   margin: 0;
 }
 
-.control-center placeholder .title-1,
-.control-center placeholder .title-2,
-.control-center list placeholder .title-1,
+.control-center placeholder image {
+  -gtk-icon-size: 0;
+  min-width: 0;
+  min-height: 0;
+  opacity: 0;
+  margin: 0;
+}
+
+.control-center list placeholder image {
+  -gtk-icon-size: 0;
+  min-width: 0;
+  min-height: 0;
+  opacity: 0;
+  margin: 0;
+}
+
+.control-center .control-center-list-placeholder image {
+  -gtk-icon-size: 0;
+  min-width: 0;
+  min-height: 0;
+  opacity: 0;
+  margin: 0;
+}
+
+.control-center placeholder .title-1 {
+  font-size: 0;
+  min-height: 0;
+  opacity: 0;
+  margin: 0;
+}
+
+.control-center placeholder .title-2 {
+  font-size: 0;
+  min-height: 0;
+  opacity: 0;
+  margin: 0;
+}
+
+.control-center list placeholder .title-1 {
+  font-size: 0;
+  min-height: 0;
+  opacity: 0;
+  margin: 0;
+}
+
 .control-center list placeholder .title-2 {
   font-size: 0;
   min-height: 0;
@@ -128,8 +161,20 @@ blankwindow {
   margin: 0;
 }
 
-.control-center .control-center-list-placeholder label,
-.control-center placeholder label,
+.control-center .control-center-list-placeholder label {
+  color: @muted;
+  font-size: 13px;
+  opacity: 1;
+  margin: 0;
+}
+
+.control-center placeholder label {
+  color: @muted;
+  font-size: 13px;
+  opacity: 1;
+  margin: 0;
+}
+
 .control-center list placeholder label {
   color: @muted;
   font-size: 13px;
@@ -137,51 +182,115 @@ blankwindow {
   margin: 0;
 }
 
-.control-center placeholder box,
+.control-center placeholder box {
+  margin-top: 0;
+}
+
 .control-center list placeholder box {
   margin-top: 0;
 }
 
-.control-center placeholder,
-.control-center list placeholder,
-.control-center .control-center-list-placeholder {
-  min-width: 0;
+/* Notifications widget container */
+
+widget-notifications {
   min-height: 0;
 }
 
-/*
- * The notifications widget internally uses a GtkStack with vexpand=true.
- * These selectors try to keep the empty notifications area collapsed.
- */
-widget-notifications,
-widget-notifications > stack,
-widget-notifications > stack > box,
-widget-notifications > stack > scrolledwindow,
-widget-notifications viewport,
+widget-notifications > stack {
+  min-height: 0;
+}
+
+widget-notifications > stack > box {
+  min-height: 0;
+}
+
+widget-notifications > stack > scrolledwindow {
+  min-height: 0;
+}
+
+widget-notifications viewport {
+  min-height: 0;
+}
+
 widget-notifications list {
   min-height: 0;
 }
 
-/*
- * GTK gives rows a focus/selection background by default.
- * These overrides remove the gray highlight around the latest notification.
- */
-.control-center row,
-.control-center row:selected,
-.control-center row:focus,
-.control-center row:focus-within,
-.control-center row:hover,
-.control-center row:active,
-.notification-row,
-.notification-row:focus,
-.notification-row:focus-within,
-.notification-row:selected,
-.notification-row:hover,
+/* Row focus reset */
+
+.control-center row {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+.control-center row:selected {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+.control-center row:focus {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+.control-center row:focus-within {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+.control-center row:hover {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+.control-center row:active {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+.notification-row {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+.notification-row:selected {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+.notification-row:focus {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+.notification-row:focus-within {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+.notification-row:hover {
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
 .notification-row:active {
   background: transparent;
   outline: none;
   box-shadow: none;
 }
+
+/* Hidden scrollbar */
 
 .control-center scrollbar {
   background: transparent;
@@ -200,32 +309,30 @@ widget-notifications list {
   opacity: 0;
 }
 
-/* ----------------------------- */
-/* Notification cards            */
-/* ----------------------------- */
+/* Notification list rows */
 
 .notification-row .notification-background {
   margin: 0;
   padding: 0;
 }
 
-/* Popup notifications shown outside the panel. */
 .floating-notifications .notification-row .notification-background {
   padding: var(--popup-card-gap) var(--popup-edge-gap) 0;
 }
 
-/* Notifications inside the control center. */
 .control-center .control-center-list > row {
   margin-bottom: var(--panel-card-gap);
+}
+
+.control-center .control-center-list > row:last-child {
+  margin-bottom: 0;
 }
 
 .control-center .notification-row .notification-background {
   padding: 0;
 }
 
-.control-center .control-center-list > row:last-child {
-  margin-bottom: 0;
-}
+/* Notification card */
 
 .notification-row .notification-background .notification {
   background: rgba(26, 26, 26, 0.995);
@@ -239,9 +346,7 @@ widget-notifications list {
   border-color: @critical;
 }
 
-/* ----------------------------- */
-/* Notification body             */
-/* ----------------------------- */
+/* Notification default action */
 
 .notification-row .notification-background .notification .notification-default-action {
   background: transparent;
@@ -252,12 +357,21 @@ widget-notifications list {
   padding: var(--content-padding-y) var(--content-padding-x);
 }
 
-.notification-row .notification-background .notification .notification-default-action:hover,
-.notification-row .notification-background .notification .notification-action:hover > button {
+.control-center .notification-row .notification-background .notification .notification-default-action {
+  padding-left: var(--control-center-action-padding-x);
+  padding-right: var(--control-center-action-padding-x);
+}
+
+.notification-row .notification-background .notification .notification-default-action:hover {
   background: @hover;
 }
 
-.notification-row .notification-background .notification .notification-default-action .notification-content,
+.notification-row .notification-background .notification .notification-default-action .notification-content {
+  background: transparent;
+  margin: 0;
+  padding: 0;
+}
+
 .notification-row .notification-background .notification .notification-default-action .notification-content .text-box {
   background: transparent;
   margin: 0;
@@ -290,9 +404,7 @@ widget-notifications list {
   font-size: 13px;
 }
 
-/* ----------------------------- */
-/* Notification actions          */
-/* ----------------------------- */
+/* Notification action buttons */
 
 .notification-row .notification-background .notification .notification-action {
   margin: 0;
@@ -306,19 +418,16 @@ widget-notifications list {
   padding: var(--content-padding-y) var(--content-padding-x);
 }
 
-/*
- * Slightly tighter action buttons inside the control center.
- * Change this if action labels feel too loose horizontally.
- */
-.control-center .notification-row .notification-background .notification .notification-default-action {
-  padding-left: var(--control-center-action-padding-x);
-  padding-right: var(--control-center-action-padding-x);
-}
-
 .control-center .notification-row .notification-background .notification .notification-action > button {
   padding-left: var(--control-center-action-padding-x);
   padding-right: var(--control-center-action-padding-x);
 }
+
+.notification-row .notification-background .notification .notification-action:hover > button {
+  background: @hover;
+}
+
+/* Close button */
 
 .close-button {
   background: @panel;
@@ -336,23 +445,11 @@ widget-notifications list {
   color: @accent;
 }
 
-/* ----------------------------- */
-/* Top widgets                   */
-/* ----------------------------- */
+/* Widget title */
 
-/*
- * The top blocks all share the same outer rhythm.
- * If their alignment drifts, adjust only this block first.
- */
-.widget-title,
-.widget-dnd,
-.widget-mpris {
-  margin: 0 0 var(--section-gap);
-  padding: 0;
-}
-
-/* Title row: "Notifications" + "Clear All" */
 .widget-title {
+  margin: 2px 2px var(--section-gap);
+  padding: 0;
   min-height: 24px;
   padding-top: 4px;
   color: @fg;
@@ -360,7 +457,8 @@ widget-notifications list {
 
 .widget-title > label {
   margin: 0;
-  font-weight: 600;
+  margin-left: 1px;
+  font-weight: 500;
 }
 
 .widget-title > button {
@@ -378,8 +476,11 @@ widget-notifications list {
   color: @accent;
 }
 
-/* Do Not Disturb row */
+/* Widget DND */
+
 .widget-dnd {
+  margin: 2px 2px var(--section-gap);
+  padding: 0;
   min-height: 24px;
   color: @muted;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -388,6 +489,7 @@ widget-notifications list {
 
 .widget-dnd label {
   margin: 0;
+  margin-left: 1px;
 }
 
 .widget-dnd > switch {
@@ -395,7 +497,7 @@ widget-notifications list {
   border: 1px solid @border;
   min-width: 40px;
   min-height: 22px;
-  margin: 0;
+  margin: 1px;
 }
 
 .widget-dnd > switch:checked {
@@ -406,15 +508,14 @@ widget-notifications list {
   background: @fg;
 }
 
-/* ----------------------------- */
-/* MPRIS / media card            */
-/* ----------------------------- */
+/* Widget MPRIS */
 
 .widget-mpris {
+  margin: 2px 2px var(--section-gap);
+  padding: 0;
   background: rgba(26, 26, 26, 0.995);
   border: 1px solid @border;
   min-width: 0;
-  padding: 0;
 }
 
 .widget-mpris > box {
@@ -444,6 +545,7 @@ widget-notifications list {
 .widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-subtitle {
   color: @muted;
   font-size: 12px;
+  margin-top: 5px;
   margin-bottom: 12px;
 }
 
@@ -462,8 +564,7 @@ widget-notifications list {
   padding: 8px 8px;
 }
 
-.widget-mpris .widget-mpris-player .mpris-overlay > box > button:hover,
-.widget-mpris > box > button:hover {
+.widget-mpris .widget-mpris-player .mpris-overlay > box > button:hover {
   background: @hover;
 }
 
@@ -474,6 +575,10 @@ widget-notifications list {
   margin: 0;
   min-width: 34px;
   padding: 0;
+}
+
+.widget-mpris > box > button:hover {
+  background: @hover;
 }
 
 .widget-mpris > box > button:first-child {
