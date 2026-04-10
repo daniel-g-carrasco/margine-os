@@ -115,11 +115,10 @@ collect_snapshots() {
     return 0
   fi
 
-  snapper list-configs --no-headers --csvout --columns config 2>/dev/null |
-    grep -Fxq "$snapper_config" || {
-      warn "config Snapper non trovata: $snapper_config"
-      return 0
-    }
+  if ! snapper --no-dbus -c "$snapper_config" get-config >/dev/null 2>&1; then
+    warn "config Snapper non trovata: $snapper_config"
+    return 0
+  fi
 
   snapper --no-dbus --csvout --separator $'\t' --no-headers -c "$snapper_config" \
     list --columns number,description 2>/dev/null |

@@ -266,7 +266,9 @@ main() {
     config_hash="$(b2sum "$config_target" | awk '{print $1}')"
     "$limine_tool" enroll-config "$loader_target" "$config_hash"
     sbctl sign --save "$loader_target"
-    sbctl verify
+    if ! sbctl verify; then
+      printf 'warning: sbctl verify reported issues; inspect manually with `sudo sbctl verify`\n' >&2
+    fi
   fi
 
   log
