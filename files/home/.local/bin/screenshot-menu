@@ -78,6 +78,12 @@ choose_from_menu() {
   return 1
 }
 
+settle_after_menu() {
+  # Hyprlauncher can return the selection one frame before its layer is gone.
+  # Give the compositor a brief moment so grim does not capture the menu itself.
+  sleep 0.15
+}
+
 focused_monitor_name() {
   hyprctl -j monitors 2>/dev/null |
     jq -r '.[] | select(.focused == true) | .name' |
@@ -117,6 +123,7 @@ resolve_selection() {
   case "${1:-menu}" in
     menu|"")
       choice="$(choose_from_menu "Screenshot" $'󰍹  Active monitor\n󰍺  Select monitor\n󰖲  Active window\n󰖯  Select window\n󰹑  Region' || true)"
+      [[ -n "$choice" ]] && settle_after_menu
       case "$choice" in
         '󰍹  Active monitor')
           printf '%s\n' 'monitor:active'
@@ -154,6 +161,7 @@ capture_selection() {
       ;;
     monitor)
       choice="$(choose_from_menu "Monitor" "$(monitor_choices)" || true)"
+      [[ -n "$choice" ]] && settle_after_menu
       monitor_name="${choice%%$'\t'*}"
       capture_monitor "$monitor_name"
       ;;
@@ -163,6 +171,7 @@ capture_selection() {
       ;;
     window)
       choice="$(choose_from_menu "Window" "$(window_choices)" || true)"
+      [[ -n "$choice" ]] && settle_after_menu
       geometry="${choice##*$'\t'}"
       capture_geometry "$geometry"
       ;;
