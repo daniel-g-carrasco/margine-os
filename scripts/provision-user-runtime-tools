@@ -11,6 +11,7 @@ home_dir=""
 declare -a home_payload=(
   ".config/systemd/user/elephant.service"
   ".config/systemd/user/hypr-refresh-rate.service"
+  ".config/systemd/user/keep-awake.service"
   ".config/systemd/user/margine-maintenance-check.service"
   ".config/systemd/user/margine-maintenance-check.timer"
   ".local/bin/margine-import-session-environment"
@@ -18,6 +19,9 @@ declare -a home_payload=(
   ".local/bin/margine-launcher"
   ".local/bin/margine-launcher-service"
   ".local/bin/hypr-refresh-rate-watch"
+  ".local/bin/keep-awake-daemon"
+  ".local/bin/keep-awake-status"
+  ".local/bin/keep-awake-toggle"
   ".local/bin/open-vpn-menu"
   ".local/bin/vpn-menu"
   ".local/bin/vpn-status"
@@ -116,10 +120,10 @@ copy_payload() {
 enable_user_units() {
   local wants_dir="${home_dir}/.config/systemd/user/default.target.wants"
   local timers_wants_dir="${home_dir}/.config/systemd/user/timers.target.wants"
-  local elephant_legacy_link="${wants_dir}/elephant.service"
   local unit=""
   local link_path=""
   local -a units=(
+    elephant.service
     hypr-refresh-rate.service
   )
   local -a timers=(
@@ -154,12 +158,6 @@ enable_user_units() {
     ln -sfn "../${unit}" "$link_path"
   done
 
-  if (( dry_run )); then
-    printf '[dry-run] rm -f %s\n' "$elephant_legacy_link"
-    return 0
-  fi
-
-  rm -f "$elephant_legacy_link"
 }
 
 fix_ownership() {

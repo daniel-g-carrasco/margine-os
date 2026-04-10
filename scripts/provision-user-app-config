@@ -9,6 +9,7 @@ username=""
 home_dir=""
 
 declare -a home_payload=(
+  ".config/elephant/websearch.toml"
   ".config/darktable/darktablerc-common"
   ".config/darktable/styles"
   ".config/kitty/kitty.conf"
@@ -198,6 +199,7 @@ fix_ownership() {
   run_cmd chown -R \
     "${username}:${username}" \
     "${home_dir}/.config" \
+    "${home_dir}/.config/elephant" \
     "${home_dir}/.config/libreoffice" \
     "${home_dir}/.local" \
     "${home_dir}/.config/darktable" \
