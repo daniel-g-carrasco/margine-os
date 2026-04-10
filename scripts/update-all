@@ -3,11 +3,17 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
-# shellcheck source=lib/flavor-manifests.sh
-source "${script_dir}/lib/flavor-manifests.sh"
+# shellcheck source=lib/product-manifests.sh
+source "${script_dir}/lib/product-manifests.sh"
 
 dry_run=0
-flavor="$(margine_detect_runtime_flavor)"
+product="$(margine_detect_runtime_product "$repo_root")"
+product_manifest=""
+product_name=""
+product_base_distribution=""
+product_visibility=""
+product_redistributable=""
+flavor=""
 use_aur=1
 use_flatpak=1
 use_fwupd=1
@@ -40,6 +46,7 @@ Usage:
   update-all [options]
 
 Options:
+  --product NAME         Target product (default: runtime product)
   --flavor NAME          Target flavor (arch | cachyos)
   --dry-run              Show commands without executing them
   --no-aur               Skip the AUR layer
@@ -115,6 +122,11 @@ have_cmd() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --product)
+        [[ $# -ge 2 ]] || die "missing value for --product"
+        product="${2,,}"
+        shift 2
+        ;;
       --flavor)
         [[ $# -ge 2 ]] || die "missing value for --flavor"
         flavor="${2,,}"
@@ -238,7 +250,8 @@ parse_args() {
     esac
   done
 
-  margine_validate_flavor "$flavor" || die "unsupported flavor: $flavor"
+  eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
+    || die "unsupported product/flavor combination"
 }
 
 run_pre_update_snapshot() {
@@ -496,9 +509,11 @@ main() {
   fi
 
   log "=== Margine update ==="
+  log "Product: ${product} (${product_name})"
   log "Flavor: ${flavor}"
+  log "Base distribution: ${product_base_distribution}"
   if (( dry_run )); then
-    log "Modalita': dry-run"
+    log "Mode: dry-run"
   fi
 
   run_pre_update_snapshot

@@ -3,11 +3,17 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
-# shellcheck source=lib/flavor-manifests.sh
-source "${script_dir}/lib/flavor-manifests.sh"
+# shellcheck source=lib/product-manifests.sh
+source "${script_dir}/lib/product-manifests.sh"
 
 dry_run=0
-flavor="$(margine_default_flavor)"
+product="$(margine_default_product)"
+product_manifest=""
+product_name=""
+product_base_distribution=""
+product_visibility=""
+product_redistributable=""
+flavor=""
 mode=""
 disk=""
 target_root="/mnt"
@@ -26,9 +32,10 @@ Usage:
   install-live-iso-guided [options]
 
 Options:
-  --flavor NAME  Flavor to install (arch | cachyos)
-  --dry-run   Mostra i comandi finali senza eseguirli
-  --help      Show this help
+  --product NAME  Product to install (default: margine-public)
+  --flavor NAME   Flavor to install (arch | cachyos)
+  --dry-run       Show the final commands without executing them
+  --help          Show this help
 EOF
 }
 
@@ -56,6 +63,11 @@ have_cmd() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --product)
+        [[ $# -ge 2 ]] || die "missing value for --product"
+        product="${2,,}"
+        shift 2
+        ;;
       --flavor)
         [[ $# -ge 2 ]] || die "missing value for --flavor"
         flavor="${2,,}"
@@ -75,7 +87,8 @@ parse_args() {
     esac
   done
 
-  margine_validate_flavor "$flavor" || die "unsupported flavor: $flavor"
+  eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
+    || die "unsupported product/flavor combination"
 }
 
 ensure_prereqs() {
@@ -242,7 +255,8 @@ collect_inputs() {
 print_summary() {
   log
   log "Riepilogo:"
-  log "  Modalita': ${mode}"
+  log "  Mode: ${mode}"
+  log "  Product: ${product} (${product_name})"
   log "  Flavor: ${flavor}"
   [[ -n "$disk" ]] && log "  Disco: ${disk}"
   log "  Target root: ${target_root}"
@@ -263,7 +277,7 @@ print_summary() {
   else
     log "  Password utente: da impostare dopo con passwd"
   fi
-  (( dry_run )) && log "  Modalita' esecuzione: dry-run"
+  (( dry_run )) && log "  Execution mode: dry-run"
 }
 
 confirm_execution() {
@@ -282,6 +296,7 @@ confirm_execution() {
 
 run_erase_disk_mode() {
   local -a args=(
+    --product "$product"
     --flavor "$flavor"
     --disk "$disk"
     --target-root "$target_root"
@@ -305,6 +320,7 @@ run_erase_disk_mode() {
 
 run_mounted_target_mode() {
   local -a args=(
+    --product "$product"
     --flavor "$flavor"
     --target-root "$target_root"
     --repo-source "$repo_root"

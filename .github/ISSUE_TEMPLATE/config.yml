@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Product and repository model
+    url: https://github.com/daniel-g-carrasco/margine-os/blob/main/docs/03-products-and-repositories.md
+    about: Read the public/private product model before opening architecture-related issues.

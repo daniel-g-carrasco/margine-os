@@ -1,6 +1,6 @@
-# Arch flavor
+# Arch flavor overlay
 
-`arch` is the default `Margine` flavor.
+`arch` is the default public `Margine` flavor.
 
 At the moment it relies entirely on the shared baseline in:
 

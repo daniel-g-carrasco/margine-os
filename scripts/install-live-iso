@@ -2,14 +2,21 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/flavor-manifests.sh
-source "${script_dir}/lib/flavor-manifests.sh"
+# shellcheck source=lib/product-manifests.sh
+source "${script_dir}/lib/product-manifests.sh"
 
 dry_run=0
-flavor="$(margine_default_flavor)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+product="$(margine_default_product)"
+product_manifest=""
+product_name=""
+product_base_distribution=""
+product_visibility=""
+product_redistributable=""
+flavor=""
 disk=""
 target_root="/mnt"
-repo_source="$(cd "${script_dir}/.." && pwd)"
+repo_source="${repo_root}"
 repo_dest="/root/margine-os"
 hostname=""
 username=""
@@ -33,6 +40,7 @@ Usage:
   install-live-iso --disk PATH --yes-really-destroy-disk [options]
 
 Options:
+  --product NAME                 Product to install (default: margine-public)
   --flavor NAME                  Flavor to install (arch | cachyos)
   --disk PATH                    Target disk, for example /dev/nvme0n1
   --target-root PATH             Final mountpoint (default: /mnt)
@@ -70,6 +78,11 @@ die() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --product)
+        [[ $# -ge 2 ]] || die "missing value for --product"
+        product="${2,,}"
+        shift 2
+        ;;
       --flavor)
         [[ $# -ge 2 ]] || die "missing value for --flavor"
         flavor="${2,,}"
@@ -182,7 +195,8 @@ parse_args() {
     esac
   done
 
-  margine_validate_flavor "$flavor" || die "unsupported flavor: $flavor"
+  eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
+    || die "unsupported product/flavor combination"
 }
 
 ensure_prereqs() {
@@ -231,6 +245,7 @@ run_storage_phase() {
 
 run_bootstrap_phase() {
   local -a args=(
+    --product "$product"
     --flavor "$flavor"
     --target-root "$target_root"
     --repo-source "$repo_source"
@@ -259,14 +274,15 @@ main() {
   validate_inputs
 
   log "=== Install live ISO Margine ==="
+  log "Product: ${product} (${product_name})"
   log "Flavor: ${flavor}"
-  (( dry_run )) && log "Modalita': dry-run"
+  (( dry_run )) && log "Mode: dry-run"
 
   run_storage_phase
   run_bootstrap_phase
 
   log
-  log "=== FINITO ==="
+  log "=== DONE ==="
 }
 
 main "$@"

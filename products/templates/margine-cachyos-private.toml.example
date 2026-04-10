@@ -1,0 +1,12 @@
+id = "margine-cachyos"
+name = "Margine Personal"
+visibility = "private"
+redistributable = false
+
+base_distribution = "cachyos"
+flavor = "cachyos"
+kernel_package = "linux-cachyos"
+kernel_headers_package = "linux-cachyos-headers"
+bootloader = "limine"
+
+description = "Private personal Margine product built directly on top of CachyOS."

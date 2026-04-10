@@ -1,0 +1,25 @@
+name: Feature request
+description: Propose a new capability, provisioning baseline, or product-level change.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What gap exists today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the desired behavior and where it belongs (public product, private product, shared logic).
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Tradeoffs
+      description: Risks, compatibility concerns, maintenance cost, redistributability concerns.

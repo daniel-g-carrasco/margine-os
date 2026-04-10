@@ -15,7 +15,17 @@ Rule:
 - keep scripts small;
 - make them idempotent when possible;
 - prefer readability over being "clever".
-- prefer shared logic plus `--flavor` switches over long-lived divergent branches.
+- prefer shared logic plus product-aware metadata over long-lived divergent branches.
+
+## Product model
+
+Operational scripts now distinguish between:
+
+- `--product`: the deliverable being built or maintained;
+- `--flavor`: the manifest overlay used to resolve package layers.
+
+In normal usage, `--product` should be preferred. `--flavor` remains available
+as an escape hatch and compatibility layer.
 
 Operational scripts:
 

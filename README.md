@@ -1,67 +1,118 @@
 # Margine OS
 
-`Margine` è il nome del sistema.
-`margine-os` è il nome del repository.
+`Margine` is a reproducible Linux desktop project built around:
 
-Obiettivo: costruire una base Arch Linux riproducibile, didattica e mantenibile,
-orientata a `Hyprland`, `Framework Laptop 13 AMD`, fotografia, affidabilità e
-rollback sicuro.
+- Arch-style rolling maintenance
+- Hyprland as the primary desktop
+- Framework Laptop 13 AMD as the reference hardware
+- photography / media-friendly workstation defaults
+- real rollback, boot recovery, and reinstallability
 
-`Margine` non è pensato come fork congelato di Arch.
-È pensato come un layer riproducibile sopra Arch rolling:
+This repository is the **public and redistributable** side of the project.
 
-- Arch fornisce i pacchetti aggiornati;
-- `Margine` definisce come quei pacchetti vengono selezionati, configurati,
-  mantenuti e recuperati.
+## What this repository is
 
-Il progetto non parte da una ISO custom. Parte da una repo leggibile e
-versionata, con:
+`Margine` is not a frozen distro fork.
+It is a versioned system definition with:
 
-- documentazione chiara e aggiornata;
-- decisioni architetturali tracciate;
-- allowlist esplicita di ciò che entra nel sistema;
-- script di installazione e post-installazione;
-- configurazioni utente e di sistema separate;
-- apprendimento continuo: ogni pezzo deve essere spiegabile.
+- curated package manifests
+- operational install and maintenance scripts
+- versioned user and system configuration
+- boot chain and recovery logic
+- documentation for why each layer exists
 
-## Principi
+The project starts from a readable repository, not from a monolithic custom ISO.
 
-- `Official repos first`: AUR solo se davvero necessario e sempre documentato.
-- `Allowlist, non dump`: non copiamo la macchina attuale alla cieca.
-- `Didattica prima della magia`: ogni scelta deve essere comprensibile.
-- `Rollback reale`: snapshot, hook e procedure di ripristino devono essere
-  pensati come parte del design.
-- `Hyprland-first`: niente GNOME come ambiente principale.
-- `Framework-aware`: si segue la documentazione ufficiale/ArchWiki aggiornata
-  per AMD, power management, firmware e stabilità.
+## Public vs private model
 
-## Struttura
+`Margine` now uses a product model:
 
-- `docs/`: obiettivi, roadmap, ADR, note didattiche, stato del progetto.
-- `manifests/`: liste curate di pacchetti e componenti da includere.
-- `scripts/`: bootstrap, post-install, verifica, manutenzione.
-- `files/`: file da installare in `/etc` o nella home.
-- `inventory/`: stato macchina, note hardware, mapping servizi/config.
+- public repository: `margine-os`
+- future private sister repository: `margine-os-personal`
 
-## Stato attuale
+The public repository contains:
 
-Il progetto ha già fissato le fondamenta:
+- shared logic
+- public documentation
+- redistributable products
+- flavor overlays that remain safe to publish
 
-- approccio repo-first;
-- Arch rolling come base;
-- `Limine + UKI + Secure Boot + TPM2 + Btrfs + Snapper`;
-- layout storage target;
-- separazione tra boot `prod` e `recovery`;
-- primo template versionato di `limine.conf`;
-- primo modello completo di deploy e refresh della trust chain EFI;
-- primo modello di bootstrap iniziale di Secure Boot con `sbctl`;
-- login path `greetd + tuigreet + autologin iniziale + hyprlock`;
-- layer di connettivita' e desktop versionati;
-- primi layer applicativi e modello di migrazione selettiva.
+The private repository is expected to carry:
 
-## Prossimo passo
+- private-only product manifests
+- personal upstream integrations
+- non-public experiments such as a true CachyOS-based personal build
 
-1. Validare end-to-end snapshot bootabili e rollback operativo.
-2. Chiudere app per app le configurazioni ancora aperte.
-3. Rifinire il percorso di reinstallazione guidata e mounted-target.
-4. Affrontare la fase estetica solo dopo che il sistema e' coerente.
+See [products/README.md](products/README.md) and
+[docs/03-products-and-repositories.md](docs/03-products-and-repositories.md).
+
+## Core principles
+
+- `Official repos first`: use AUR only when there is a clear reason.
+- `Intent, not dump`: manifests describe the target system, not the current machine.
+- `Readable operations`: scripts must stay understandable and auditable.
+- `Rollback by design`: snapshots, recovery entries, and boot tooling are part of the architecture.
+- `Hyprland-first`: the primary desktop path is Wayland / Hyprland.
+- `Framework-aware`: hardware assumptions should stay explicit.
+- `Public/private boundary`: public and personal products must not be mixed accidentally.
+
+## Repository structure
+
+- [`docs/`](docs): architecture notes, ADRs, roadmap, and status
+- [`products/`](products): product manifests and templates
+- [`manifests/`](manifests): shared package layers and flavor overlays
+- [`scripts/`](scripts): installation, provisioning, validation, and update logic
+- [`files/`](files): versioned files installed into `/etc`, `/usr`, and `$HOME`
+- [`inventory/`](inventory): hardware notes and machine-specific observations
+
+## Current public product
+
+- [`margine-public`](products/margine-public.toml)
+
+It currently targets:
+
+- Arch as the public base
+- `limine` as the bootloader
+- `linux` as the default kernel package
+- the shared `arch` flavor overlay
+
+## Current project baseline
+
+The public baseline already includes:
+
+- `Limine + UKI + Secure Boot + TPM2 + Btrfs + Snapper`
+- staged recovery paths and boot artifact deployment
+- reproducible install/bootstrap scripts
+- versioned Hyprland desktop behavior
+- explicit package, AUR, and Flatpak layers
+- flavor-aware manifests
+- product-aware scaffolding for future public/private split
+
+## Quick start
+
+Prepare a QEMU validation VM:
+
+```bash
+./scripts/prepare-qemu-archiso-validation --product margine-public --download-iso
+```
+
+Run a real live-ISO install flow:
+
+```bash
+./scripts/install-live-iso-guided --product margine-public
+```
+
+Apply updates on an installed system:
+
+```bash
+update-all
+```
+
+## Current direction
+
+Near-term work:
+
+1. formalize the public/private repository split cleanly
+2. keep the public product redistributable and well documented
+3. continue validating recovery, boot, and reinstall paths
+4. evolve future private products without contaminating the public repo

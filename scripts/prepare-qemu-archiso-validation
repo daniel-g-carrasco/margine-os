@@ -3,11 +3,17 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
-# shellcheck source=lib/flavor-manifests.sh
-source "${script_dir}/lib/flavor-manifests.sh"
+# shellcheck source=lib/product-manifests.sh
+source "${script_dir}/lib/product-manifests.sh"
 
 workdir="${repo_root}/build/qemu-archiso-validation"
-flavor="$(margine_default_flavor)"
+product="$(margine_default_product)"
+product_manifest=""
+product_name=""
+product_base_distribution=""
+product_visibility=""
+product_redistributable=""
+flavor=""
 iso_path=""
 disk_path=""
 disk_size="80G"
@@ -36,6 +42,7 @@ Usage:
   prepare-qemu-archiso-validation [options]
 
 Options:
+  --product NAME         Product to validate (default: margine-public)
   --flavor NAME          Flavor to validate (arch | cachyos)
   --workdir PATH          Working directory (default: build/qemu-archiso-validation)
   --iso PATH              Local Arch ISO to use
@@ -80,6 +87,11 @@ have_cmd() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --product)
+        [[ $# -ge 2 ]] || die "missing value for --product"
+        product="${2,,}"
+        shift 2
+        ;;
       --flavor)
         [[ $# -ge 2 ]] || die "missing value for --flavor"
         flavor="${2,,}"
@@ -146,7 +158,8 @@ parse_args() {
     esac
   done
 
-  margine_validate_flavor "$flavor" || die "unsupported flavor: $flavor"
+  eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
+    || die "unsupported product/flavor combination"
 }
 
 ensure_prereqs() {
@@ -347,8 +360,8 @@ write_guest_guide() {
     return 0
   fi
 
-  guided_flavor_flag=" --flavor ${flavor}"
-  noninteractive_flavor_flag="  --flavor ${flavor} \\"
+  guided_flavor_flag=" --product ${product} --flavor ${flavor}"
+  noninteractive_flavor_flag="  --product ${product} --flavor ${flavor} \\"
 
   cat >"$guide_path" <<'EOF'
 # Margine validation in QEMU with the Arch live ISO
@@ -727,8 +740,9 @@ main() {
   init_paths
 
   log "=== Prepare QEMU Arch ISO validation ==="
+  log "Product: ${product} (${product_name})"
   log "Flavor: ${flavor}"
-  (( dry_run )) && log "Modalita': dry-run"
+  (( dry_run )) && log "Mode: dry-run"
 
   download_iso_assets
   verify_iso_assets
@@ -738,7 +752,7 @@ main() {
   write_guest_guide
 
   log
-  log "Pronto."
+  log "Ready."
   log "Launcher VM: ${run_script_path}"
   log "Guida in-guest: ${guide_path}"
   log "ISO: ${iso_path}"

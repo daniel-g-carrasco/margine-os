@@ -1,0 +1,12 @@
+id = "margine-public"
+name = "Margine OS"
+visibility = "public"
+redistributable = true
+
+base_distribution = "arch"
+flavor = "arch"
+kernel_package = "linux"
+kernel_headers_package = "linux-headers"
+bootloader = "limine"
+
+description = "Public, redistributable Margine baseline built on top of Arch Linux."

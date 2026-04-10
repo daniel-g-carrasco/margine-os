@@ -3,13 +3,20 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
-# shellcheck source=lib/flavor-manifests.sh
-source "${script_dir}/lib/flavor-manifests.sh"
+# shellcheck source=lib/product-manifests.sh
+source "${script_dir}/lib/product-manifests.sh"
 
 dry_run=0
+list_layers_only=0
 include_aur=0
 include_flatpak=0
-flavor="$(margine_detect_runtime_flavor)"
+product="$(margine_detect_runtime_product "$repo_root")"
+product_manifest=""
+product_name=""
+product_base_distribution=""
+product_visibility=""
+product_redistributable=""
+flavor=""
 aur_installer="${repo_root}/scripts/install-aur-packages"
 declare -a requested_layers=()
 
@@ -35,12 +42,13 @@ Usage:
   install-from-manifests [options]
 
 Options:
+  --product NAME          Product to install (default: runtime product)
   --flavor NAME           Flavor to install (arch | cachyos)
-  --dry-run               Mostra il piano senza eseguire installazioni
-  --layer NAME            Installa solo il layer indicato; ripetibile
-  --include-aur           Include anche le eccezioni AUR opzionali
-  --include-flatpak       Include il manifest Flatpak
-  --list-layers           Mostra i layer disponibili ed esce
+  --dry-run               Show the plan without executing installations
+  --layer NAME            Install only the specified layer; repeatable
+  --include-aur           Include the optional AUR exceptions manifest
+  --include-flatpak       Include the Flatpak manifest
+  --list-layers           Show the available layers and exit
   --help                  Show this help
 EOF
 }
@@ -71,24 +79,30 @@ have_cmd() {
 }
 
 list_layers() {
-  log "Flavor corrente: ${flavor}"
+  log "Product: ${product}"
+  log "Flavor: ${flavor}"
   log
-  log "Layer ufficiali disponibili:"
+  log "Available official layers:"
   for layer in "${default_layers[@]}"; do
     printf '  - %s\n' "$layer"
   done
   log
   log "Layer AUR:"
-  log "  - aur-baseline (automatico)"
+  log "  - aur-baseline (automatic)"
   log "  - aur-exceptions (via --include-aur)"
   log
-  log "Layer opzionali:"
+  log "Optional layers:"
   log "  - flatpaks/apps.txt (via --include-flatpak)"
 }
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --product)
+        [[ $# -ge 2 ]] || die "missing value for --product"
+        product="${2,,}"
+        shift 2
+        ;;
       --flavor)
         [[ $# -ge 2 ]] || die "missing value for --flavor"
         flavor="${2,,}"
@@ -112,8 +126,8 @@ parse_args() {
         shift
         ;;
       --list-layers)
-        list_layers
-        exit 0
+        list_layers_only=1
+        shift
         ;;
       --help|-h)
         usage
@@ -125,7 +139,13 @@ parse_args() {
     esac
   done
 
-  margine_validate_flavor "$flavor" || die "unsupported flavor: $flavor"
+  eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
+    || die "unsupported product/flavor combination"
+
+  if (( list_layers_only )); then
+    list_layers
+    exit 0
+  fi
 }
 
 ensure_layer_exists() {
@@ -168,7 +188,7 @@ install_official_layers() {
   local layer=""
   local package=""
 
-  log "Layer ufficiali selezionati:"
+  log "Selected official layers:"
   for layer in "${requested_layers[@]}"; do
     printf '  - %s\n' "$layer"
     while IFS= read -r package; do
@@ -183,7 +203,7 @@ install_official_layers() {
   (( ${#packages[@]} > 0 )) || die "no official packages resolved from selected layers"
 
   log
-  log "Pacchetti ufficiali risolti: ${#packages[@]}"
+  log "Resolved official packages: ${#packages[@]}"
   run_cmd sudo pacman -S --needed --asexplicit --noconfirm "${packages[@]}"
 }
 
@@ -207,7 +227,7 @@ install_aur_layers() {
   (( include_aur )) || return 0
   install_aur_manifest \
     "$(margine_resolve_aur_exceptions_manifest "$repo_root" "$flavor")" \
-    "Manifest AUR opzionale"
+    "Optional AUR manifest"
 }
 
 install_flatpak_layer() {
@@ -230,7 +250,7 @@ install_flatpak_layer() {
   (( ${#apps[@]} > 0 )) || return 0
 
   log
-  log "Manifest Flatpak incluso: ${#apps[@]} app"
+  log "Included Flatpak manifest: ${#apps[@]} apps"
   run_cmd flatpak install --or-update --assumeyes --noninteractive flathub "${apps[@]}"
 }
 
@@ -238,16 +258,18 @@ main() {
   parse_args "$@"
   resolve_layers
 
-  log "=== Installazione guidata dai manifest ==="
+  log "=== Manifest-driven installation ==="
+  log "Product: ${product} (${product_name})"
   log "Flavor: ${flavor}"
-  (( dry_run )) && log "Modalita': dry-run"
+  log "Base distribution: ${product_base_distribution}"
+  (( dry_run )) && log "Mode: dry-run"
 
   install_official_layers
   install_aur_layers
   install_flatpak_layer
 
   log
-  log "=== FINITO ==="
+  log "=== DONE ==="
 }
 
 main "$@"

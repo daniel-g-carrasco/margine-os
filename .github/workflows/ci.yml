@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  shell-and-manifest-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Validate shell scripts
+        run: |
+          mapfile -t bash_files < <(grep -rl '^#!/usr/bin/env bash' scripts files/home/.local/bin 2>/dev/null || true)
+          if [ "${#bash_files[@]}" -gt 0 ]; then
+            shellcheck -x "${bash_files[@]}"
+            for file in "${bash_files[@]}"; do
+              bash -n "$file"
+            done
+          fi
+
+      - name: Validate product manifests
+        run: |
+          python3 - <<'PY'
+          import pathlib, tomllib
+          for path in pathlib.Path("products").glob("*.toml"):
+              with path.open("rb") as handle:
+                  tomllib.load(handle)
+          PY
