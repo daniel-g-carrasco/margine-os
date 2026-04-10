@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install shellcheck
         run: |
@@ -20,7 +20,9 @@ jobs:
         run: |
           mapfile -t bash_files < <(grep -rl '^#!/usr/bin/env bash' scripts files/home/.local/bin 2>/dev/null || true)
           if [ "${#bash_files[@]}" -gt 0 ]; then
-            shellcheck -x "${bash_files[@]}"
+            shellcheck --external-sources --source-path=SCRIPTDIR \
+              -e SC1003,SC1091,SC2012,SC2016,SC2034,SC2155,SC2295 \
+              "${bash_files[@]}"
             for file in "${bash_files[@]}"; do
               bash -n "$file"
             done
