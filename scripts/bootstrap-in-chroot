@@ -354,7 +354,6 @@ run_framework_audio_provisioner() {
   local provisioner="${repo_root}/scripts/provision-framework-audio"
   local -a args=(
     --username "$username"
-    --login-mode "$greetd_login_mode"
   )
 
   (( dry_run )) && args+=(--dry-run)
