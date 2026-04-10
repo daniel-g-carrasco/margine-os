@@ -1,32 +1,38 @@
 {
   "$schema": "/etc/xdg/swaync/configSchema.json",
+
   "positionX": "right",
   "positionY": "top",
   "layer": "overlay",
-  "control-center-layer": "top",
   "layer-shell": true,
   "layer-shell-cover-screen": true,
-  "control-center-height": -1,
-  "control-center-width": 356,
+
+  "control-center-layer": "top",
   "control-center-exclusive-zone": false,
+  "control-center-width": 356,
+  "control-center-height": -1,
   "control-center-margin-top": 5,
+  "control-center-margin-right": 5,
   "control-center-margin-bottom": 5,
-  "control-center-margin-right": 10,
+
   "notification-window-width": 356,
   "notification-icon-size": 48,
   "notification-body-image-height": 100,
   "notification-body-image-width": 200,
   "notification-grouping": false,
-  "transition-time": 0,
-  "timeout": 6,
+
   "fit-to-screen": false,
+  "transition-time": 2,
+  "timeout": 6,
   "text-empty": "No notifications",
+
   "widgets": [
     "title",
     "dnd",
     "mpris",
     "notifications"
   ],
+
   "widget-config": {
     "notifications": {
       "vexpand": false
