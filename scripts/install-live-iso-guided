@@ -7,6 +7,7 @@ repo_root="$(cd "${script_dir}/.." && pwd)"
 source "${script_dir}/lib/product-manifests.sh"
 
 dry_run=0
+advanced=0
 product="$(margine_default_product)"
 product_manifest=""
 product_name=""
@@ -14,7 +15,8 @@ product_base_distribution=""
 product_visibility=""
 product_redistributable=""
 flavor=""
-mode=""
+mode="erase-disk"
+mode_explicit=0
 disk=""
 target_root="/mnt"
 hostname="margine"
@@ -24,7 +26,8 @@ user_shell="/bin/bash"
 extra_groups=""
 user_password_hash=""
 wifi_regdom="IT"
-run_chroot=1
+greetd_login_mode="autologin-lock"
+run_chroot="y"
 
 usage() {
   cat <<'EOF'
@@ -32,10 +35,25 @@ Usage:
   install-live-iso-guided [options]
 
 Options:
-  --product NAME  Product to install (default: margine-public)
-  --flavor NAME   Flavor to install (arch | cachyos)
-  --dry-run       Show the final commands without executing them
-  --help          Show this help
+  --product NAME            Product to install (default: repo default product)
+  --flavor NAME             Flavor to install (arch | cachyos)
+  --advanced                Prompt for non-essential install settings too
+  --mode MODE               Install mode: erase-disk | mounted-target
+  --erase-disk              Shortcut for --mode erase-disk
+  --mounted-target          Shortcut for --mode mounted-target
+  --disk PATH               Target disk, for example /dev/nvme0n1
+  --target-root PATH        Final mountpoint (default: /mnt)
+  --hostname NAME           Hostname
+  --username NAME           Administrative username
+  --real-name NAME          User real name/comment
+  --shell PATH              User login shell (default: /bin/bash)
+  --extra-groups CSV        Extra groups, comma-separated
+  --wifi-regdom CODE        Wi-Fi regulatory domain (default: IT)
+  --greetd-login-mode MODE  greetd mode: autologin-lock | tuigreet-only
+  --run-chroot              Run the chroot phase after bootstrap
+  --no-run-chroot           Stop before the chroot phase
+  --dry-run                 Show the final commands without executing them
+  --help                    Show this help
 EOF
 }
 
@@ -73,6 +91,79 @@ parse_args() {
         flavor="${2,,}"
         shift 2
         ;;
+      --advanced)
+        advanced=1
+        shift
+        ;;
+      --mode)
+        [[ $# -ge 2 ]] || die "missing value for --mode"
+        mode="$2"
+        mode_explicit=1
+        shift 2
+        ;;
+      --erase-disk)
+        mode="erase-disk"
+        mode_explicit=1
+        shift
+        ;;
+      --mounted-target)
+        mode="mounted-target"
+        mode_explicit=1
+        shift
+        ;;
+      --disk)
+        [[ $# -ge 2 ]] || die "missing value for --disk"
+        disk="$2"
+        shift 2
+        ;;
+      --target-root)
+        [[ $# -ge 2 ]] || die "missing value for --target-root"
+        target_root="$2"
+        shift 2
+        ;;
+      --hostname)
+        [[ $# -ge 2 ]] || die "missing value for --hostname"
+        hostname="$2"
+        shift 2
+        ;;
+      --username)
+        [[ $# -ge 2 ]] || die "missing value for --username"
+        username="$2"
+        shift 2
+        ;;
+      --real-name)
+        [[ $# -ge 2 ]] || die "missing value for --real-name"
+        real_name="$2"
+        shift 2
+        ;;
+      --shell)
+        [[ $# -ge 2 ]] || die "missing value for --shell"
+        user_shell="$2"
+        shift 2
+        ;;
+      --extra-groups)
+        [[ $# -ge 2 ]] || die "missing value for --extra-groups"
+        extra_groups="$2"
+        shift 2
+        ;;
+      --wifi-regdom)
+        [[ $# -ge 2 ]] || die "missing value for --wifi-regdom"
+        wifi_regdom="${2^^}"
+        shift 2
+        ;;
+      --greetd-login-mode)
+        [[ $# -ge 2 ]] || die "missing value for --greetd-login-mode"
+        greetd_login_mode="$2"
+        shift 2
+        ;;
+      --run-chroot)
+        run_chroot="y"
+        shift
+        ;;
+      --no-run-chroot)
+        run_chroot="n"
+        shift
+        ;;
       --dry-run)
         dry_run=1
         shift
@@ -89,6 +180,14 @@ parse_args() {
 
   eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
     || die "unsupported product/flavor combination"
+
+  case "$mode" in
+    erase-disk|mounted-target)
+      ;;
+    *)
+      die "unsupported install mode: ${mode}"
+      ;;
+  esac
 }
 
 ensure_prereqs() {
@@ -123,7 +222,7 @@ prompt_required() {
   while :; do
     value="$(prompt "$label" "$default_value")"
     [[ -n "$value" ]] && break
-    log "Valore richiesto."
+    log "A value is required."
   done
 
   printf '%s\n' "$value"
@@ -160,7 +259,7 @@ prompt_yes_no() {
         ;;
     esac
 
-    log "Rispondi con y o n."
+    log "Answer with y or n."
   done
 }
 
@@ -168,12 +267,12 @@ prompt_mode() {
   local reply=""
 
   log
-  log "Modalita' installazione:"
-  log "  1) Disco dedicato: partiziona, cifra e installa"
-  log "  2) Target gia' preparato: usa un mount esistente"
+  log "Install mode:"
+  log "  1) Dedicated disk: partition, encrypt, and install"
+  log "  2) Pre-mounted target: use an existing mountpoint"
 
   while :; do
-    printf 'Selezione [1]: ' >&2
+    printf 'Selection [1]: ' >&2
     read -r reply
     reply="${reply:-1}"
 
@@ -188,7 +287,7 @@ prompt_mode() {
         ;;
     esac
 
-    log "Seleziona 1 oppure 2."
+    log "Select 1 or 2."
   done
 }
 
@@ -197,29 +296,29 @@ prompt_password_hash() {
   local password1=""
   local password2=""
 
-  choice="$(prompt_yes_no "Vuoi impostare gia' la password utente durante l'installazione?" "n")"
+  choice="$(prompt_yes_no "Do you want to set the user password during installation?" "n")"
   [[ "$choice" = "y" ]] || return 0
 
   if ! have_cmd openssl; then
-    log "openssl non disponibile: la password andra' impostata dopo con passwd."
+    log "openssl is not available: set the password later with passwd."
     return 0
   fi
 
   while :; do
-    printf 'Password utente: ' >&2
+    printf 'User password: ' >&2
     read -rs password1
     printf '\n' >&2
-    printf 'Ripeti password utente: ' >&2
+    printf 'Repeat user password: ' >&2
     read -rs password2
     printf '\n' >&2
 
     if [[ "$password1" != "$password2" ]]; then
-      log "Le password non coincidono. Riprova."
+      log "Passwords do not match. Try again."
       continue
     fi
 
     if [[ -z "$password1" ]]; then
-      log "Password vuota non consentita."
+      log "Empty passwords are not allowed."
       continue
     fi
 
@@ -230,52 +329,89 @@ prompt_password_hash() {
   done
 }
 
-collect_common_inputs() {
-  target_root="$(prompt_required "Mountpoint target" "$target_root")"
+collect_quick_inputs() {
+  local real_name_default=""
+
+  if [[ "$mode" = "erase-disk" ]]; then
+    disk="$(prompt_required "Target disk, for example /dev/nvme0n1" "$disk")"
+  else
+    target_root="$(prompt_required "Mounted target root" "$target_root")"
+  fi
+
   hostname="$(prompt_required "Hostname" "$hostname")"
-  username="$(prompt_required "Username amministrativo")"
-  real_name="$(prompt "Nome reale/commento" "$username")"
-  user_shell="$(prompt_required "Shell login" "$user_shell")"
-  extra_groups="$(prompt "Gruppi aggiuntivi (CSV, opzionale)")"
-  wifi_regdom="$(prompt_required "Regulatory domain Wi-Fi" "$wifi_regdom")"
-  run_chroot="$(prompt_yes_no "Vuoi eseguire subito anche la fase chroot?" "y")"
+  username="$(prompt_required "Administrative username" "$username")"
+  real_name_default="$real_name"
+  [[ -n "$real_name_default" ]] || real_name_default="$username"
+  real_name="$(prompt "Real name/comment" "$real_name_default")"
+  prompt_password_hash
+}
+
+collect_advanced_inputs() {
+  local real_name_default=""
+
+  if [[ "$mode" = "erase-disk" ]]; then
+    disk="$(prompt_required "Target disk, for example /dev/nvme0n1" "$disk")"
+  fi
+
+  target_root="$(prompt_required "Target mountpoint" "$target_root")"
+  hostname="$(prompt_required "Hostname" "$hostname")"
+  username="$(prompt_required "Administrative username" "$username")"
+  real_name_default="$real_name"
+  [[ -n "$real_name_default" ]] || real_name_default="$username"
+  real_name="$(prompt "Real name/comment" "$real_name_default")"
+  user_shell="$(prompt_required "Login shell" "$user_shell")"
+  extra_groups="$(prompt "Extra groups (CSV, optional)" "$extra_groups")"
+  wifi_regdom="$(prompt_required "Wi-Fi regulatory domain" "$wifi_regdom")"
+  run_chroot="$(prompt_yes_no "Run the chroot phase immediately too?" "$run_chroot")"
   prompt_password_hash
 }
 
 collect_inputs() {
-  prompt_mode
-
-  if [[ "$mode" = "erase-disk" ]]; then
-    disk="$(prompt_required "Disco target, per esempio /dev/nvme0n1")"
+  if (( advanced )) && (( ! mode_explicit )); then
+    prompt_mode
   fi
 
-  collect_common_inputs
+  if (( advanced )); then
+    collect_advanced_inputs
+  else
+    collect_quick_inputs
+  fi
 }
 
 print_summary() {
   log
-  log "Riepilogo:"
-  log "  Mode: ${mode}"
+  log "Summary:"
+  log "  Install mode: ${mode}"
   log "  Product: ${product} (${product_name})"
   log "  Flavor: ${flavor}"
-  [[ -n "$disk" ]] && log "  Disco: ${disk}"
+  if (( advanced )); then
+    log "  Prompt profile: advanced"
+  else
+    log "  Prompt profile: quick defaults"
+  fi
+  [[ -n "$disk" ]] && log "  Disk: ${disk}"
   log "  Target root: ${target_root}"
   log "  Hostname: ${hostname}"
   log "  Username: ${username}"
-  log "  Nome reale: ${real_name}"
+  log "  Real name: ${real_name}"
   log "  Shell: ${user_shell}"
   if [[ -n "$extra_groups" ]]; then
-    log "  Gruppi aggiuntivi: ${extra_groups}"
+    log "  Extra groups: ${extra_groups}"
   else
-    log "  Gruppi aggiuntivi: nessuno"
+    log "  Extra groups: none"
   fi
-  log "  Regulatory domain Wi-Fi: ${wifi_regdom}"
-  log "  Gruppi default aggiunti dal bootstrap: wheel, video, render, kvm, libvirt, colord"
-  log "  Chroot automatico: ${run_chroot}"
-  if [[ -n "$user_password_hash" ]]; then
-    log "  Password utente: verra' impostata durante il bootstrap"
+  log "  Wi-Fi regulatory domain: ${wifi_regdom}"
+  log "  Default groups added by bootstrap: wheel, video, render, kvm, libvirt, colord"
+  log "  greetd login mode: ${greetd_login_mode}"
+  if [[ "$run_chroot" = "y" ]]; then
+    log "  Automatic chroot: yes"
   else
-    log "  Password utente: da impostare dopo con passwd"
+    log "  Automatic chroot: no"
+  fi
+  if [[ -n "$user_password_hash" ]]; then
+    log "  User password: will be set during bootstrap"
+  else
+    log "  User password: set later with passwd"
   fi
   (( dry_run )) && log "  Execution mode: dry-run"
 }
@@ -285,7 +421,7 @@ confirm_execution() {
 
   log
   if [[ "$mode" = "erase-disk" ]]; then
-    printf "WARNING: this mode can erase the selected disk.\n"
+    printf 'WARNING: this mode can erase the selected disk.\n'
     reply="$(prompt_yes_no "Do you want to continue?" "n")"
   else
     reply="$(prompt_yes_no "Do you want to continue?" "y")"
@@ -304,6 +440,7 @@ run_erase_disk_mode() {
     --username "$username"
     --real-name "$real_name"
     --shell "$user_shell"
+    --greetd-login-mode "$greetd_login_mode"
     --yes-really-destroy-disk
   )
 
@@ -314,7 +451,7 @@ run_erase_disk_mode() {
   (( dry_run )) && args+=(--dry-run)
 
   log
-  log "==> Avvio installazione guidata su disco dedicato"
+  log "==> Start guided install on dedicated disk"
   run_cmd "${script_dir}/install-live-iso" "${args[@]}"
 }
 
@@ -329,6 +466,7 @@ run_mounted_target_mode() {
     --username "$username"
     --real-name "$real_name"
     --shell "$user_shell"
+    --greetd-login-mode "$greetd_login_mode"
   )
 
   [[ -n "$extra_groups" ]] && args+=(--extra-groups "$extra_groups")
@@ -338,7 +476,7 @@ run_mounted_target_mode() {
   (( dry_run )) && args+=(--dry-run)
 
   log
-  log "==> Avvio bootstrap guidato su target gia' montato"
+  log "==> Start guided bootstrap on pre-mounted target"
   run_cmd "${script_dir}/bootstrap-live-iso" "${args[@]}"
 }
 
@@ -347,6 +485,10 @@ main() {
   ensure_prereqs
 
   log "=== Margine Guided Install ==="
+  if (( ! advanced )); then
+    log "Quick mode: only essential questions will be asked."
+    log "Use --advanced if you want to override install defaults interactively."
+  fi
   collect_inputs
   print_summary
   confirm_execution
@@ -358,7 +500,7 @@ main() {
   fi
 
   log
-  log "=== FINITO ==="
+  log "=== DONE ==="
 }
 
 main "$@"
