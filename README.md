@@ -108,6 +108,10 @@ Apply updates on an installed system:
 update-all
 ```
 
+Post-install validation checklist:
+
+- [docs/05-post-install-validation.md](docs/05-post-install-validation.md)
+
 ## Current direction
 
 Near-term work:
