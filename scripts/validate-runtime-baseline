@@ -109,6 +109,17 @@ launcher_section() {
   local walker_path=""
   local elephant_path=""
   local hyprlauncher_path=""
+  local pkg=""
+  local -a aur_baseline_packages=(
+    yay
+    elephant
+    elephant-calc
+    elephant-websearch
+    elephant-windows
+    elephant-runner
+    msttcorefonts
+    walker
+  )
 
   section "Launcher"
 
@@ -119,6 +130,18 @@ launcher_section() {
   status_line "walker: ${walker_path:-missing}"
   status_line "elephant: ${elephant_path:-missing}"
   status_line "hyprlauncher: ${hyprlauncher_path:-missing}"
+
+  for pkg in "${aur_baseline_packages[@]}"; do
+    if pacman -Q "$pkg" >/dev/null 2>&1; then
+      status_line "package ${pkg}: installed"
+    else
+      status_line "package ${pkg}: missing"
+    fi
+  done
+
+  if [[ -n "$elephant_path" ]]; then
+    status_line "elephant providers: $(elephant listproviders 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]\\+/ /g; s/[[:space:]]$//')"
+  fi
 
   if [[ -n "$walker_path" && -n "$elephant_path" ]]; then
     status_line "launcher baseline: walker+elephant"
