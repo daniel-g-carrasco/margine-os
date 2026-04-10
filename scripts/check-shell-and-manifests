@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "${script_dir}/.." && pwd)"
+
+cd "$repo_root"
+
+command -v shellcheck >/dev/null 2>&1 || {
+  printf 'error: shellcheck is required. Install it before pushing.\n' >&2
+  exit 1
+}
+
+mapfile -t bash_files < <(grep -rl '^#!/usr/bin/env bash' scripts files/home/.local/bin 2>/dev/null || true)
+
+if (( ${#bash_files[@]} > 0 )); then
+  shellcheck --external-sources --source-path=SCRIPTDIR \
+    -e SC1003,SC1091,SC2012,SC2016,SC2034,SC2155,SC2295 \
+    "${bash_files[@]}"
+
+  for file in "${bash_files[@]}"; do
+    bash -n "$file"
+  done
+fi
+
+python3 - <<'PY'
+import pathlib, tomllib
+
+for path in pathlib.Path("products").glob("*.toml"):
+    with path.open("rb") as handle:
+        tomllib.load(handle)
+PY

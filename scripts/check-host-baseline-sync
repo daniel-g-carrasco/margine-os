@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "${script_dir}/.." && pwd)"
+payload_root="${repo_root}/files/home"
+manifest_file="${repo_root}/inventory/host-sync.manifest"
+host_home="${HOME}"
+
+[[ -d "$payload_root" ]] || {
+  printf 'error: payload root not found: %s\n' "$payload_root" >&2
+  exit 1
+}
+
+[[ -f "$manifest_file" ]] || {
+  printf 'error: host sync manifest not found: %s\n' "$manifest_file" >&2
+  exit 1
+}
+
+show_diff() {
+  local host_file="$1"
+  local repo_file="$2"
+
+  if diff -u --label "host:${host_file}" --label "repo:${repo_file}" \
+    "$host_file" "$repo_file" >/tmp/margine-host-sync.diff 2>/dev/null; then
+    return 0
+  fi
+
+  if grep -Iq . "$host_file" 2>/dev/null && grep -Iq . "$repo_file" 2>/dev/null; then
+    sed -n '1,80p' /tmp/margine-host-sync.diff
+  else
+    printf 'binary-or-nontext mismatch: %s\n' "$host_file"
+  fi
+}
+
+status=0
+
+while IFS= read -r pattern; do
+  [[ -n "$pattern" && "${pattern:0:1}" != "#" ]] || continue
+
+  matches=()
+  while IFS= read -r match; do
+    [[ -n "$match" ]] && matches+=("$match")
+  done < <(
+    cd "$payload_root"
+    compgen -G "$pattern" || :
+  )
+
+  if (( ${#matches[@]} == 0 )); then
+    printf 'warning: manifest pattern matched nothing: %s\n' "$pattern" >&2
+    status=1
+    continue
+  fi
+
+  for rel in "${matches[@]}"; do
+    repo_file="${payload_root}/${rel}"
+    host_file="${host_home}/${rel}"
+
+    if [[ ! -e "$host_file" ]]; then
+      printf 'missing on host: %s\n' "$rel" >&2
+      status=1
+      continue
+    fi
+
+    if ! cmp -s "$host_file" "$repo_file"; then
+      printf '\n=== drift: %s ===\n' "$rel" >&2
+      show_diff "$host_file" "$repo_file" >&2 || true
+      status=1
+    fi
+  done
+done < "$manifest_file"
+
+rm -f /tmp/margine-host-sync.diff
+exit "$status"

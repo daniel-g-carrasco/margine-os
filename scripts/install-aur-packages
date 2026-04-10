@@ -133,15 +133,17 @@ ensure_prereqs() {
 }
 
 migrate_elephant_all() {
-  local package=""
+  local requested_package=""
+  local split_package=""
+  local installed_package=""
   local installed=()
 
-  for package in "${packages[@]}"; do
-    [[ "$package" == "elephant-all" ]] || continue
+  for requested_package in "${packages[@]}"; do
+    [[ "$requested_package" == "elephant-all" ]] || continue
 
-    for package in "${elephant_split_packages[@]}"; do
-      if pacman -Q "$package" >/dev/null 2>&1; then
-        installed+=("$package")
+    for split_package in "${elephant_split_packages[@]}"; do
+      if pacman -Q "$split_package" >/dev/null 2>&1; then
+        installed+=("$split_package")
       fi
     done
 
@@ -152,8 +154,8 @@ migrate_elephant_all() {
 
     if (( dry_run )); then
       printf '[dry-run] pacman -Rns --noconfirm'
-      for package in "${installed[@]}"; do
-        printf ' %q' "$package"
+      for installed_package in "${installed[@]}"; do
+        printf ' %q' "$installed_package"
       done
       printf '\n'
       return 0

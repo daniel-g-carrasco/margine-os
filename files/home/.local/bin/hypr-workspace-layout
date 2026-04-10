@@ -3,7 +3,7 @@
 set -euo pipefail
 
 internal_monitor="eDP-1"
-external_monitor="${MARGINE_EXTERNAL_MONITOR:-}"
+external_monitor="${MARGINE_EXTERNAL_MONITOR:-DP-11}"
 
 # Give Hyprland a moment to finish registering outputs at session start.
 sleep 1
