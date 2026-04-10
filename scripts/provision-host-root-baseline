@@ -1,0 +1,225 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+esp_path="/boot"
+snapper_config="root"
+snapshots_subvolume="@snapshots"
+recovery_entry_limit=12
+root_source=""
+root_uuid=""
+crypt_name=""
+luks_device=""
+luks_uuid=""
+recovery_entries_output=""
+limine_output=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-host-root-baseline [options]
+
+Options:
+  --esp-path PATH          EFI System Partition mountpoint (default: /boot)
+  --snapper-config NAME    Snapper config to expose in Limine (default: root)
+  --snapshots-subvolume P  Snapshot root subvolume (default: @snapshots)
+  --recovery-entry-limit N Maximum recovery entries in Limine (default: 12)
+  --crypt-name NAME        LUKS mapper name; auto-detected when possible
+  --dry-run                Show the plan without changing the host
+  --help                   Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --esp-path)
+        [[ $# -ge 2 ]] || die "missing value for --esp-path"
+        esp_path="$2"
+        shift 2
+        ;;
+      --snapper-config)
+        [[ $# -ge 2 ]] || die "missing value for --snapper-config"
+        snapper_config="$2"
+        shift 2
+        ;;
+      --snapshots-subvolume)
+        [[ $# -ge 2 ]] || die "missing value for --snapshots-subvolume"
+        snapshots_subvolume="${2#/}"
+        shift 2
+        ;;
+      --recovery-entry-limit)
+        [[ $# -ge 2 ]] || die "missing value for --recovery-entry-limit"
+        recovery_entry_limit="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+  [[ "$(id -u)" -eq 0 ]] || die "provision-host-root-baseline must run as root"
+}
+
+ensure_exec() {
+  local path="$1"
+  [[ -x "$path" ]] || die "required executable not found: $path"
+}
+
+detect_root_source() {
+  root_source="$(findmnt -no SOURCE / 2>/dev/null || true)"
+  root_source="${root_source%%[*}"
+  [[ -n "$root_source" ]] || die "unable to detect root source"
+}
+
+detect_root_uuid() {
+  root_uuid="$(findmnt -no UUID / 2>/dev/null || true)"
+  if [[ -z "$root_uuid" ]]; then
+    root_uuid="$(blkid -s UUID -o value "$root_source" 2>/dev/null || true)"
+  fi
+  [[ -n "$root_uuid" ]] || die "unable to detect root UUID"
+}
+
+detect_crypt_name() {
+  if [[ -n "$crypt_name" ]]; then
+    return 0
+  fi
+
+  if [[ "$root_source" == /dev/mapper/* ]]; then
+    crypt_name="${root_source##*/}"
+    return 0
+  fi
+
+  die "unable to infer LUKS mapper name from ${root_source}; use --crypt-name"
+}
+
+detect_luks_device() {
+  luks_device="$(
+    (cryptsetup status "$crypt_name" 2>/dev/null || true) |
+      awk '/device:/ { print $2; exit }'
+  )"
+  [[ -n "$luks_device" ]] || die "unable to detect LUKS backing device"
+}
+
+detect_luks_uuid() {
+  luks_uuid="$(blkid -s UUID -o value "$luks_device" 2>/dev/null || true)"
+  [[ -n "$luks_uuid" ]] || die "unable to detect LUKS UUID"
+}
+
+render_limine_assets() {
+  local recovery_generator="${repo_root}/scripts/generate-snapper-recovery-entries"
+  local limine_generator="${repo_root}/scripts/generate-limine-config"
+
+  ensure_exec "$recovery_generator"
+  ensure_exec "$limine_generator"
+
+  recovery_entries_output="${repo_root}/build/host-limine-recovery-entries.conf"
+  limine_output="${repo_root}/build/host-limine.conf"
+
+  run_cmd "$recovery_generator" \
+    --root-uuid "$root_uuid" \
+    --luks-uuid "$luks_uuid" \
+    --snapper-config "$snapper_config" \
+    --snapshots-subvolume "$snapshots_subvolume" \
+    --limit "$recovery_entry_limit" \
+    --output "$recovery_entries_output"
+
+  run_cmd "$limine_generator" \
+    --root-uuid "$root_uuid" \
+    --luks-uuid "$luks_uuid" \
+    --recovery-entries "$recovery_entries_output" \
+    --output "$limine_output"
+}
+
+main() {
+  local fingerprint_script="${repo_root}/scripts/provision-fingerprint-resume-hook"
+  local snapper_script="${repo_root}/scripts/provision-snapper-baseline"
+  local deploy_script="${repo_root}/scripts/deploy-boot-artifacts"
+  local trust_script="${repo_root}/scripts/refresh-efi-trust"
+
+  parse_args "$@"
+  require_root
+
+  ensure_exec "$fingerprint_script"
+  ensure_exec "$snapper_script"
+  ensure_exec "$deploy_script"
+  ensure_exec "$trust_script"
+
+  detect_root_source
+  detect_root_uuid
+  detect_crypt_name
+  detect_luks_device
+  detect_luks_uuid
+
+  log "=== Provision host root baseline ==="
+  log "ESP: ${esp_path}"
+  log "Root UUID: ${root_uuid}"
+  log "LUKS UUID: ${luks_uuid}"
+
+  log
+  log "==> Fingerprint auth baseline"
+  run_cmd "$fingerprint_script"
+
+  log
+  log "==> Snapper recovery baseline"
+  run_cmd "$snapper_script"
+
+  log
+  log "==> Render Limine config with recovery entries"
+  render_limine_assets
+
+  log
+  log "==> Deploy Limine config to ESP"
+  run_cmd "$deploy_script" \
+    --esp-path "$esp_path" \
+    --limine-config "$limine_output"
+
+  log
+  log "==> Refresh Limine trust chain"
+  run_cmd "$trust_script" \
+    --esp-path "$esp_path"
+
+  log
+  log "=== Host root baseline ready ==="
+}
+
+main "$@"

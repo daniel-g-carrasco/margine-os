@@ -33,9 +33,6 @@
     "disable-scroll": true,
     "sort-by-number": true,
     "show-special": false,
-    "persistent-workspaces": {
-      "*": 10
-    },
     "format": "{icon}",
     "format-icons": {
       "1": "1",
