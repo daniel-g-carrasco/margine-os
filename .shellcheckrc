@@ -1,0 +1,5 @@
+# Margine uses helper sourcing, intentional placeholder variables, and a few
+# shell patterns that are acceptable in this codebase for now.
+external-sources=true
+source-path=SCRIPTDIR
+exclude=SC1003,SC1091,SC2012,SC2016,SC2034,SC2155,SC2295
