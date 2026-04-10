@@ -1,4 +1,4 @@
-/* Derived from j5onrf/dots: Adwaita-CT-Iosevka-Pro-Thin */
+/* Waybar theme */
 
 @define-color fg #e8e6e3;
 @define-color muted #b9b5af;
@@ -19,9 +19,12 @@
 @define-color ws9 #d5ba92;
 @define-color ws10 #e6cfaa;
 
+/* Global defaults */
+
 * {
   border: none;
   border-radius: 0;
+  box-shadow: none;
   font-family: "IBM Plex Sans Condensed";
   font-size: 14px;
   font-weight: 500;
@@ -34,29 +37,13 @@ window#waybar {
   border-bottom: 1px solid @border;
 }
 
-#workspaces,
-#window,
-#clock,
-#custom-recording,
-#custom-vpn,
-#custom-notification-count,
-#custom-notification,
-#custom-easyeffects,
-#custom-keepawake,
-#custom-network,
-#custom-battery,
-#network,
-#bluetooth,
-#pulseaudio,
-#battery,
-#tray {
-  background: transparent;
-  color: @fg;
-  margin: 0;
-}
+/* Workspaces */
 
 #workspaces {
-  margin-left: 8px;
+  background: transparent;
+  color: @fg;
+  margin: 0 0 0 8px;
+  padding: 0;
 }
 
 #workspaces button {
@@ -140,66 +127,59 @@ window#waybar {
   box-shadow: inset 0 -3px 0 @critical;
 }
 
+/* Window title */
+
 #window {
+  background: transparent;
+  color: @muted;
+  margin: 0;
   min-width: 180px;
   padding: 0 12px;
-  color: @muted;
 }
+
+/* Clock */
 
 #clock {
-  font-weight: 500;
+  background: transparent;
+  color: @fg;
+  margin: 0;
   padding: 0 6px;
 }
 
-#custom-recording,
-#custom-vpn,
-#custom-notification-count,
-#custom-notification,
-#custom-easyeffects,
-#custom-keepawake,
-#custom-network,
-#custom-battery,
-#network,
-#bluetooth,
-#pulseaudio,
-#battery,
+/* Tray */
+
 #tray {
+  background: transparent;
+  color: @fg;
+  margin: 0;
   padding: 0 6px;
-}
-
-#custom-network,
-#network {
-  min-width: 74px;
-}
-
-#pulseaudio {
-  min-width: 72px;
-}
-
-#custom-battery {
-  min-width: 56px;
-}
-
-#custom-vpn,
-#custom-notification-count,
-#custom-notification,
-#custom-easyeffects,
-#custom-keepawake {
-  font-size: 13px;
-  font-weight: 500;
-}
-
-#tray {
-  margin-right: 0;
 }
 
 #tray > .passive {
   -gtk-icon-effect: dim;
 }
 
+/* Screen recording */
+
 #custom-recording {
+  background: transparent;
   color: @critical;
+  margin: 0;
+  min-width: 30px;
+  padding: 0 8px;
   font-weight: 600;
+}
+
+/* VPN */
+
+#custom-vpn {
+  background: transparent;
+  color: @fg;
+  margin: 0;
+  min-width: 30px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 #custom-vpn.inactive {
@@ -210,15 +190,113 @@ window#waybar {
   color: @accent;
 }
 
+/* Network */
+
+#custom-network {
+  background: transparent;
+  color: @fg;
+  margin: 0;
+  min-width: 50px;
+  padding: 0 6px;
+}
+
+/* Bluetooth */
+
+#bluetooth {
+  background: transparent;
+  color: @fg;
+  margin: 0;
+  min-width: 30px;
+  padding: 0 10px;
+}
+
+/* Keep awake */
+
+#custom-keepawake {
+  background: transparent;
+  color: @fg;
+  margin: 0;
+  min-width: 30px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+#custom-keepawake.active {
+  color: @accent;
+}
+
+#custom-keepawake.inactive {
+  color: @muted;
+}
+
+/* EasyEffects */
+
+#custom-easyeffects {
+  background: transparent;
+  color: @fg;
+  margin: 0;
+  min-width: 30px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+#custom-easyeffects.active {
+  color: @accent;
+}
+
+#custom-easyeffects.inactive {
+  color: @muted;
+}
+
+#custom-easyeffects.bypassed {
+  color: @warning;
+}
+
+/* Audio */
+
+#pulseaudio {
+  background: transparent;
+  color: @fg;
+  margin: 0;
+  min-width: 50px;
+  padding: 0 6px;
+}
+
+#pulseaudio.muted {
+  color: @muted;
+}
+
+/* Battery */
+
+#custom-battery {
+  background: transparent;
+  color: @fg;
+  margin: 0;
+  min-width: 56px;
+  padding: 0 6px;
+}
+
+#custom-battery.warning {
+  color: @warning;
+}
+
+#custom-battery.critical {
+  color: @critical;
+}
+
+/* Notification count */
+
 #custom-notification-count {
+  background: transparent;
+  color: @ws5;
+  margin: 0 0 0 10px;
+  min-width: 10px;
+  padding: 0;
   font-family: "IBM Plex Sans";
   font-size: 11px;
   font-weight: 600;
-  color: @ws5;
-  min-width: 20px;
-  padding-left: 0;
-  padding-right: 0;
-  margin-right: -6px;
 }
 
 #custom-notification-count.count-hidden {
@@ -226,14 +304,17 @@ window#waybar {
   opacity: 0;
 }
 
+/* Notification bell */
+
 #custom-notification {
-  font-family: "JetBrainsMono Nerd Font Mono", "JetBrainsMono Nerd Font", "IBM Plex Sans Condensed";
+  background: transparent;
   color: @muted;
-  font-size: 17px;
+  margin: 0 10px 0 0;
+  min-width: 20px;
+  padding: 0 10px 0 0;
+  font-family: "IBM Plex Sans Condensed";
+  font-size: 15px;
   font-weight: 500;
-  padding-left: 0;
-  padding-right: 6px;
-  min-width: 30px;
 }
 
 #custom-notification.none,
@@ -257,89 +338,7 @@ window#waybar {
   color: @warning;
 }
 
-#custom-recording,
-#custom-vpn,
-#custom-notification-count,
-#custom-notification,
-#custom-easyeffects,
-#custom-keepawake,
-#bluetooth {
-  min-width: 28px;
-  padding-left: 6px;
-  padding-right: 6px;
-}
-
-#custom-recording,
-#custom-vpn,
-#custom-easyeffects,
-#custom-keepawake {
-  min-width: 30px;
-  padding-left: 8px;
-  padding-right: 8px;
-}
-
-#bluetooth {
-  min-width: 30px;
-  padding-left: 10px;
-  padding-right: 10px;
-}
-
-#custom-easyeffects.active {
-  color: @accent;
-}
-
-#custom-easyeffects.inactive {
-  color: @muted;
-}
-
-#custom-easyeffects.bypassed {
-  color: @warning;
-}
-
-#custom-battery.warning {
-  color: @warning;
-}
-
-#custom-battery.critical {
-  color: @critical;
-}
-
-#custom-keepawake.active {
-  color: @accent;
-}
-
-#custom-keepawake.inactive {
-  color: @muted;
-}
-
-#custom-recording:hover,
-#custom-vpn:hover,
-#custom-notification:hover,
-#custom-easyeffects:hover,
-#custom-keepawake:hover,
-#custom-network:hover,
-#window:hover,
-#clock:hover,
-#network:hover,
-#bluetooth:hover,
-#pulseaudio:hover,
-#battery:hover,
-#tray:hover {
-  background: transparent;
-  }
-
-
-#pulseaudio.muted {
-  color: @muted;
-}
-
-#battery.warning {
-  color: @warning;
-}
-
-#battery.critical {
-  color: @critical;
-}
+/* Tooltips */
 
 tooltip {
   background: rgba(18, 18, 18, 0.98);
@@ -349,10 +348,12 @@ tooltip {
 
 tooltip label {
   color: @fg;
-  font-size: 13px;
   font-family: "IBM Plex Sans Condensed";
+  font-size: 13px;
   font-weight: 500;
 }
+
+/* Menus */
 
 menu {
   background: rgba(18, 18, 18, 0.99);
