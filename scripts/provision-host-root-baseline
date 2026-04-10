@@ -6,6 +6,8 @@ repo_root="$(cd "${script_dir}/.." && pwd)"
 
 dry_run=0
 esp_path="/boot"
+loader_dir="EFI/Margine"
+loader_name="BOOTX64.EFI"
 snapper_config="root"
 snapshots_subvolume="@snapshots"
 recovery_entry_limit=12
@@ -24,6 +26,10 @@ Usage:
 
 Options:
   --esp-path PATH          EFI System Partition mountpoint (default: /boot)
+  --loader-dir PATH        Relative EFI directory for the Limine loader
+                           (default: EFI/Margine)
+  --loader-name NAME       EFI filename for the Limine loader
+                           (default: BOOTX64.EFI)
   --snapper-config NAME    Snapper config to expose in Limine (default: root)
   --snapshots-subvolume P  Snapshot root subvolume (default: @snapshots)
   --recovery-entry-limit N Maximum recovery entries in Limine (default: 12)
@@ -61,6 +67,16 @@ parse_args() {
       --snapper-config)
         [[ $# -ge 2 ]] || die "missing value for --snapper-config"
         snapper_config="$2"
+        shift 2
+        ;;
+      --loader-dir)
+        [[ $# -ge 2 ]] || die "missing value for --loader-dir"
+        loader_dir="${2#/}"
+        shift 2
+        ;;
+      --loader-name)
+        [[ $# -ge 2 ]] || die "missing value for --loader-name"
+        loader_name="$2"
         shift 2
         ;;
       --snapshots-subvolume)
@@ -192,16 +208,23 @@ render_limine_assets() {
 main() {
   local fingerprint_script="${repo_root}/scripts/provision-fingerprint-resume-hook"
   local snapper_script="${repo_root}/scripts/provision-snapper-baseline"
-  local deploy_script="${repo_root}/scripts/deploy-boot-artifacts"
-  local trust_script="${repo_root}/scripts/refresh-efi-trust"
+  local loader_target=""
+  local config_target=""
+  local limine_tool=""
+  local config_hash=""
 
   parse_args "$@"
   require_root
 
   ensure_exec "$fingerprint_script"
   ensure_exec "$snapper_script"
-  ensure_exec "$deploy_script"
-  ensure_exec "$trust_script"
+
+  loader_target="${esp_path}/${loader_dir}/${loader_name}"
+  config_target="${esp_path}/limine.conf"
+  limine_tool="$(command -v limine 2>/dev/null || true)"
+
+  [[ -n "$limine_tool" ]] || die "limine host tool not found"
+  [[ -f "$loader_target" ]] || die "Limine loader not found: $loader_target"
 
   detect_root_source
   detect_root_uuid
@@ -211,6 +234,8 @@ main() {
 
   log "=== Provision host root baseline ==="
   log "ESP: ${esp_path}"
+  log "Loader: ${loader_target}"
+  log "Config: ${config_target}"
   log "Root UUID: ${root_uuid}"
   log "LUKS UUID: ${luks_uuid}"
 
@@ -227,15 +252,22 @@ main() {
   render_limine_assets
 
   log
-  log "==> Deploy Limine config to ESP"
-  run_cmd "$deploy_script" \
-    --esp-path "$esp_path" \
-    --limine-config "$limine_output"
+  log "==> Install Limine config on the current side-by-side path"
+  run_cmd install -Dm644 "$limine_output" "$config_target"
 
   log
   log "==> Refresh Limine trust chain"
-  run_cmd "$trust_script" \
-    --esp-path "$esp_path"
+  if (( dry_run )); then
+    printf '[dry-run] b2sum %s\n' "$config_target"
+    printf '[dry-run] %s enroll-config %s <b2sum>\n' "$limine_tool" "$loader_target"
+    printf '[dry-run] sbctl sign --save %s\n' "$loader_target"
+    printf '[dry-run] sbctl verify\n'
+  else
+    config_hash="$(b2sum "$config_target" | awk '{print $1}')"
+    "$limine_tool" enroll-config "$loader_target" "$config_hash"
+    sbctl sign --save "$loader_target"
+    sbctl verify
+  fi
 
   log
   log "=== Host root baseline ready ==="
