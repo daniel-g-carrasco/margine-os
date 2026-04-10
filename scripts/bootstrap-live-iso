@@ -33,6 +33,8 @@ stage1_layers=(
   security-and-recovery
 )
 
+vconsole_source="${repo_root}/files/etc/vconsole.conf"
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -191,6 +193,10 @@ ensure_prereqs() {
   done
 }
 
+ensure_baseline_sources() {
+  [[ -f "$vconsole_source" ]] || die "vconsole baseline not found: $vconsole_source"
+}
+
 ensure_layer_exists() {
   local layer="$1"
   margine_resolve_package_layer "$repo_root" "$flavor" "$layer" >/dev/null \
@@ -253,6 +259,18 @@ ensure_repo_paths() {
 
 validate_inputs() {
   [[ -n "$username" ]] || die "--username is required"
+}
+
+install_pre_pacstrap_baselines() {
+  log
+  log "==> Install pre-pacstrap baselines"
+
+  if (( dry_run )); then
+    printf '[dry-run] install -Dm644 %s %s/etc/vconsole.conf\n' "$vconsole_source" "$target_root"
+    return 0
+  fi
+
+  install -Dm644 "$vconsole_source" "${target_root}/etc/vconsole.conf"
 }
 
 run_pacstrap_phase() {
@@ -372,12 +390,14 @@ main() {
   validate_inputs
   ensure_target_root
   ensure_repo_paths
+  ensure_baseline_sources
 
   log "=== Bootstrap live ISO Margine ==="
   log "Product: ${product} (${product_name})"
   log "Flavor: ${flavor}"
   (( dry_run )) && log "Mode: dry-run"
 
+  install_pre_pacstrap_baselines
   run_pacstrap_phase
   generate_fstab
   copy_repo_into_target
