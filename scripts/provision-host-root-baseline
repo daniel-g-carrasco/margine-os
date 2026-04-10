@@ -133,15 +133,34 @@ detect_crypt_name() {
 }
 
 detect_luks_device() {
+  local pkname=""
+
   luks_device="$(
     (cryptsetup status "$crypt_name" 2>/dev/null || true) |
       awk '/device:/ { print $2; exit }'
   )"
+
+  if [[ -z "$luks_device" ]]; then
+    pkname="$(
+      lsblk -rno NAME,PKNAME |
+        awk -v name="$crypt_name" '$1 == name && $2 != "" { print $2; exit }'
+    )"
+    if [[ -n "$pkname" ]]; then
+      luks_device="/dev/${pkname}"
+    fi
+  fi
+
   [[ -n "$luks_device" ]] || die "unable to detect LUKS backing device"
 }
 
 detect_luks_uuid() {
   luks_uuid="$(blkid -s UUID -o value "$luks_device" 2>/dev/null || true)"
+  if [[ -z "$luks_uuid" ]]; then
+    luks_uuid="$(
+      lsblk -rno NAME,UUID |
+        awk -v name="$(basename "$luks_device")" '$1 == name && $2 != "" { print $2; exit }'
+    )"
+  fi
   [[ -n "$luks_uuid" ]] || die "unable to detect LUKS UUID"
 }
 
