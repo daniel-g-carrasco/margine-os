@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Koofr
+Exec=/usr/bin/koofr -silent
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true

@@ -3,6 +3,10 @@ set -euo pipefail
 
 display_device="/org/freedesktop/UPower/devices/DisplayDevice"
 
+if ! upower -e 2>/dev/null | grep -q 'BAT'; then
+  exit 1
+fi
+
 read_upower_field() {
   local key="$1"
   upower -i "$display_device" 2>/dev/null | awk -F: -v k="$key" '

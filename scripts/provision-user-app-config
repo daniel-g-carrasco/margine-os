@@ -9,9 +9,12 @@ username=""
 home_dir=""
 
 declare -a home_payload=(
+  ".config/autostart/koofr.desktop"
   ".config/elephant/websearch.toml"
   ".config/darktable/darktablerc-common"
   ".config/darktable/styles"
+  ".config/gtk-3.0/settings.ini"
+  ".config/gtk-4.0/settings.ini"
   ".config/kitty/kitty.conf"
   ".config/mimeapps.list"
   ".config/nvim"
@@ -217,6 +220,8 @@ fix_ownership() {
     "${username}:${username}" \
     "${home_dir}/.config" \
     "${home_dir}/.config/elephant" \
+    "${home_dir}/.config/gtk-3.0" \
+    "${home_dir}/.config/gtk-4.0" \
     "${home_dir}/.config/libreoffice" \
     "${home_dir}/.local" \
     "${home_dir}/.config/darktable" \

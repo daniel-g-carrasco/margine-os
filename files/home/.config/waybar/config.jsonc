@@ -154,6 +154,7 @@
   "custom/battery": {
     "format": "{}",
     "return-type": "json",
+    "exec-if": "upower -e 2>/dev/null | grep -q BAT",
     "exec": "~/.local/bin/battery-status",
     "interval": 10,
     "on-click": "~/.local/bin/open-power-settings",

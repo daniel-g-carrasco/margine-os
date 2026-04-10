@@ -22,6 +22,7 @@ declare -a home_payload=(
   ".local/bin/keep-awake-daemon"
   ".local/bin/keep-awake-status"
   ".local/bin/keep-awake-toggle"
+  ".local/bin/margine-apply-desktop-defaults"
   ".local/bin/open-vpn-menu"
   ".local/bin/vpn-menu"
   ".local/bin/vpn-status"

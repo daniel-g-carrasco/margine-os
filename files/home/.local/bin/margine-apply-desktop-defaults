@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+command -v gsettings >/dev/null 2>&1 || exit 0
+
+gsettings set org.gnome.desktop.interface color-scheme prefer-dark >/dev/null 2>&1 || true
+gsettings set org.gnome.desktop.interface gtk-theme Adwaita >/dev/null 2>&1 || true
+gsettings set org.gnome.desktop.interface icon-theme Adwaita >/dev/null 2>&1 || true
