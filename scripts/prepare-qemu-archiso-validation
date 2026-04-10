@@ -3,8 +3,11 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
+# shellcheck source=lib/flavor-manifests.sh
+source "${script_dir}/lib/flavor-manifests.sh"
 
 workdir="${repo_root}/build/qemu-archiso-validation"
+flavor="$(margine_default_flavor)"
 iso_path=""
 disk_path=""
 disk_size="80G"
@@ -33,6 +36,7 @@ Usage:
   prepare-qemu-archiso-validation [options]
 
 Options:
+  --flavor NAME          Flavor to validate (arch | cachyos)
   --workdir PATH          Working directory (default: build/qemu-archiso-validation)
   --iso PATH              Local Arch ISO to use
   --disk PATH             qcow2 disk to use (default: WORKDIR/margine-test.qcow2)
@@ -76,6 +80,11 @@ have_cmd() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="${2,,}"
+        shift 2
+        ;;
       --workdir)
         [[ $# -ge 2 ]] || die "missing value for --workdir"
         workdir="$2"
@@ -136,6 +145,8 @@ parse_args() {
         ;;
     esac
   done
+
+  margine_validate_flavor "$flavor" || die "unsupported flavor: $flavor"
 }
 
 ensure_prereqs() {
@@ -325,6 +336,9 @@ EOF
 }
 
 write_guest_guide() {
+  local guided_flavor_flag=""
+  local noninteractive_flavor_flag=""
+
   log
   log "==> Write guest guide"
 
@@ -333,11 +347,16 @@ write_guest_guide() {
     return 0
   fi
 
+  guided_flavor_flag=" --flavor ${flavor}"
+  noninteractive_flavor_flag="  --flavor ${flavor} \\"
+
   cat >"$guide_path" <<'EOF'
 # Margine validation in QEMU with the Arch live ISO
 
 This guide is meant to be executed calmly, as if you were performing the first
 real installation of the system.
+
+Target flavor: `__TARGET_FLAVOR__`
 
 Goal:
 
@@ -421,7 +440,7 @@ mount is correct.
 Start the guided wrapper:
 
 ```bash
-/root/margine-repo/scripts/install-live-iso-guided
+/root/margine-repo/scripts/install-live-iso-guided__GUIDED_FLAVOR_FLAG__
 ```
 
 When it asks questions, use these recommended answers in the VM:
@@ -666,12 +685,25 @@ If you want to avoid the wizard and repeat the same test every time:
   --hostname margine-vm \
   --username daniel \
   --real-name "Daniel Carrasco" \
+__NONINTERACTIVE_FLAVOR_FLAG__
   --greetd-login-mode tuigreet-only \
   --run-chroot
 ```
 
 This is the form best suited to repeatable tests.
 EOF
+
+  python - "$guide_path" "$flavor" "$guided_flavor_flag" "$noninteractive_flavor_flag" <<'PY'
+from pathlib import Path
+import sys
+
+guide_path, flavor, guided_flag, noninteractive_flag = sys.argv[1:]
+text = Path(guide_path).read_text()
+text = text.replace("__TARGET_FLAVOR__", flavor)
+text = text.replace("__GUIDED_FLAVOR_FLAG__", guided_flag)
+text = text.replace("__NONINTERACTIVE_FLAVOR_FLAG__", noninteractive_flag)
+Path(guide_path).write_text(text)
+PY
 }
 
 maybe_run_vm() {
@@ -695,6 +727,7 @@ main() {
   init_paths
 
   log "=== Prepare QEMU Arch ISO validation ==="
+  log "Flavor: ${flavor}"
   (( dry_run )) && log "Modalita': dry-run"
 
   download_iso_assets

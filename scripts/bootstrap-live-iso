@@ -3,9 +3,11 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
-packages_dir="${repo_root}/manifests/packages"
+# shellcheck source=lib/flavor-manifests.sh
+source "${script_dir}/lib/flavor-manifests.sh"
 
 dry_run=0
+flavor="$(margine_default_flavor)"
 target_root=""
 repo_source="${repo_root}"
 repo_dest="/root/margine-os"
@@ -31,6 +33,7 @@ Usage:
   bootstrap-live-iso --target-root PATH [options]
 
 Options:
+  --flavor NAME           Flavor to bootstrap (arch | cachyos)
   --target-root PATH      Target system mountpoint, for example /mnt
   --repo-source PATH      Local repo to copy into the target
   --repo-dest PATH        Absolute destination inside the target (default: /root/margine-os)
@@ -78,6 +81,11 @@ have_cmd() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="${2,,}"
+        shift 2
+        ;;
       --target-root)
         [[ $# -ge 2 ]] || die "missing value for --target-root"
         target_root="$2"
@@ -150,6 +158,8 @@ parse_args() {
         ;;
     esac
   done
+
+  margine_validate_flavor "$flavor" || die "unsupported flavor: $flavor"
 }
 
 ensure_prereqs() {
@@ -170,8 +180,8 @@ ensure_prereqs() {
 
 ensure_layer_exists() {
   local layer="$1"
-  local path="${packages_dir}/${layer}.txt"
-  [[ -f "$path" ]] || die "missing manifest layer: ${layer}"
+  margine_resolve_package_layer "$repo_root" "$flavor" "$layer" >/dev/null \
+    || die "missing manifest layer for flavor ${flavor}: ${layer}"
 }
 
 read_manifest_lines() {
@@ -193,7 +203,7 @@ resolve_stage1_packages() {
         packages+=("$package")
         seen["$package"]=1
       fi
-    done < <(read_manifest_lines "${packages_dir}/${layer}.txt")
+    done < <(read_manifest_lines "$(margine_resolve_package_layer "$repo_root" "$flavor" "$layer")")
   done
 
   printf '%s\n' "${packages[@]}"
@@ -273,9 +283,25 @@ copy_repo_into_target() {
   run_cmd rsync -a "$repo_source/" "$destination/"
 }
 
+persist_flavor_state() {
+  local state_path="${target_root}/var/lib/margine/flavor"
+
+  log
+  log "==> Persist flavor metadata"
+
+  if (( dry_run )); then
+    printf '[dry-run] write %s: %s\n' "$state_path" "$flavor"
+    return 0
+  fi
+
+  install -d "$(dirname "$state_path")"
+  printf '%s\n' "$flavor" > "$state_path"
+}
+
 run_chroot_handoff() {
   local phase2_script="${repo_dest}/scripts/bootstrap-in-chroot"
   local -a args=(
+    --flavor "$flavor"
     --username "$username"
     --shell "$user_shell"
     --greetd-login-mode "$greetd_login_mode"
@@ -297,7 +323,7 @@ run_chroot_handoff() {
 }
 
 print_next_step() {
-  local command="arch-chroot ${target_root} ${repo_dest}/scripts/bootstrap-in-chroot --username ${username} --shell ${user_shell}"
+  local command="arch-chroot ${target_root} ${repo_dest}/scripts/bootstrap-in-chroot --flavor ${flavor} --username ${username} --shell ${user_shell}"
 
   if [[ -n "$hostname" ]]; then
     command+=" --hostname ${hostname}"
@@ -331,11 +357,13 @@ main() {
   ensure_repo_paths
 
   log "=== Bootstrap live ISO Margine ==="
+  log "Flavor: ${flavor}"
   (( dry_run )) && log "Modalita': dry-run"
 
   run_pacstrap_phase
   generate_fstab
   copy_repo_into_target
+  persist_flavor_state
 
   if (( run_chroot )); then
     run_chroot_handoff

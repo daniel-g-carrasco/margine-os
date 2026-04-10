@@ -3,8 +3,11 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
+# shellcheck source=lib/flavor-manifests.sh
+source "${script_dir}/lib/flavor-manifests.sh"
 
 dry_run=0
+flavor="$(margine_detect_runtime_flavor)"
 use_aur=1
 use_flatpak=1
 use_fwupd=1
@@ -37,6 +40,7 @@ Usage:
   update-all [options]
 
 Options:
+  --flavor NAME          Target flavor (arch | cachyos)
   --dry-run              Show commands without executing them
   --no-aur               Skip the AUR layer
   --no-flatpak           Skip the Flatpak layer
@@ -111,6 +115,11 @@ have_cmd() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="${2,,}"
+        shift 2
+        ;;
       --dry-run)
         dry_run=1
         shift
@@ -228,6 +237,8 @@ parse_args() {
         ;;
     esac
   done
+
+  margine_validate_flavor "$flavor" || die "unsupported flavor: $flavor"
 }
 
 run_pre_update_snapshot() {
@@ -260,9 +271,12 @@ run_pacman_update() {
 
 run_aur_update() {
   local aur_installer="${repo_root}/scripts/install-aur-packages"
-  local aur_baseline_manifest="${repo_root}/manifests/packages/aur-baseline.txt"
+  local aur_baseline_manifest=""
   local -a yay_flags=(--noconfirm --answerclean None --answerdiff None --answeredit None --removemake --cleanafter --sudoloop)
   (( use_aur )) || return 0
+
+  aur_baseline_manifest="$(margine_resolve_aur_baseline_manifest "$repo_root" "$flavor")" \
+    || die "missing AUR baseline manifest for flavor ${flavor}"
 
   log
   log "==> 2) AUR"
@@ -482,6 +496,7 @@ main() {
   fi
 
   log "=== Margine update ==="
+  log "Flavor: ${flavor}"
   if (( dry_run )); then
     log "Modalita': dry-run"
   fi

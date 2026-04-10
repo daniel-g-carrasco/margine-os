@@ -3,8 +3,11 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
+# shellcheck source=lib/flavor-manifests.sh
+source "${script_dir}/lib/flavor-manifests.sh"
 
 dry_run=0
+flavor="$(margine_default_flavor)"
 mode=""
 disk=""
 target_root="/mnt"
@@ -23,6 +26,7 @@ Usage:
   install-live-iso-guided [options]
 
 Options:
+  --flavor NAME  Flavor to install (arch | cachyos)
   --dry-run   Mostra i comandi finali senza eseguirli
   --help      Show this help
 EOF
@@ -52,6 +56,11 @@ have_cmd() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="${2,,}"
+        shift 2
+        ;;
       --dry-run)
         dry_run=1
         shift
@@ -65,6 +74,8 @@ parse_args() {
         ;;
     esac
   done
+
+  margine_validate_flavor "$flavor" || die "unsupported flavor: $flavor"
 }
 
 ensure_prereqs() {
@@ -232,6 +243,7 @@ print_summary() {
   log
   log "Riepilogo:"
   log "  Modalita': ${mode}"
+  log "  Flavor: ${flavor}"
   [[ -n "$disk" ]] && log "  Disco: ${disk}"
   log "  Target root: ${target_root}"
   log "  Hostname: ${hostname}"
@@ -270,6 +282,7 @@ confirm_execution() {
 
 run_erase_disk_mode() {
   local -a args=(
+    --flavor "$flavor"
     --disk "$disk"
     --target-root "$target_root"
     --hostname "$hostname"
@@ -292,6 +305,7 @@ run_erase_disk_mode() {
 
 run_mounted_target_mode() {
   local -a args=(
+    --flavor "$flavor"
     --target-root "$target_root"
     --repo-source "$repo_root"
     --repo-dest /root/margine-os

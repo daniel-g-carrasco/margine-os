@@ -3,14 +3,13 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
+# shellcheck source=lib/flavor-manifests.sh
+source "${script_dir}/lib/flavor-manifests.sh"
 
 dry_run=0
 include_aur=0
 include_flatpak=0
-packages_dir="${repo_root}/manifests/packages"
-flatpaks_file="${repo_root}/manifests/flatpaks/apps.txt"
-aur_baseline_manifest="${repo_root}/manifests/packages/aur-baseline.txt"
-aur_manifest="${repo_root}/manifests/packages/aur-exceptions.txt"
+flavor="$(margine_detect_runtime_flavor)"
 aur_installer="${repo_root}/scripts/install-aur-packages"
 declare -a requested_layers=()
 
@@ -36,6 +35,7 @@ Usage:
   install-from-manifests [options]
 
 Options:
+  --flavor NAME           Flavor to install (arch | cachyos)
   --dry-run               Mostra il piano senza eseguire installazioni
   --layer NAME            Installa solo il layer indicato; ripetibile
   --include-aur           Include anche le eccezioni AUR opzionali
@@ -71,6 +71,8 @@ have_cmd() {
 }
 
 list_layers() {
+  log "Flavor corrente: ${flavor}"
+  log
   log "Layer ufficiali disponibili:"
   for layer in "${default_layers[@]}"; do
     printf '  - %s\n' "$layer"
@@ -87,6 +89,11 @@ list_layers() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="${2,,}"
+        shift 2
+        ;;
       --dry-run)
         dry_run=1
         shift
@@ -117,12 +124,14 @@ parse_args() {
         ;;
     esac
   done
+
+  margine_validate_flavor "$flavor" || die "unsupported flavor: $flavor"
 }
 
 ensure_layer_exists() {
   local layer="$1"
-  local path="${packages_dir}/${layer}.txt"
-  [[ -f "$path" ]] || die "layer not found: ${layer}"
+  margine_resolve_package_layer "$repo_root" "$flavor" "$layer" >/dev/null \
+    || die "layer not found for flavor ${flavor}: ${layer}"
 }
 
 read_manifest_lines() {
@@ -168,7 +177,7 @@ install_official_layers() {
         packages+=("$package")
         seen["$package"]=1
       fi
-    done < <(read_manifest_lines "${packages_dir}/${layer}.txt")
+    done < <(read_manifest_lines "$(margine_resolve_package_layer "$repo_root" "$flavor" "$layer")")
   done
 
   (( ${#packages[@]} > 0 )) || die "no official packages resolved from selected layers"
@@ -191,10 +200,14 @@ install_aur_manifest() {
 }
 
 install_aur_layers() {
-  install_aur_manifest "$aur_baseline_manifest" "Manifest AUR baseline"
+  install_aur_manifest \
+    "$(margine_resolve_aur_baseline_manifest "$repo_root" "$flavor")" \
+    "Manifest AUR baseline"
 
   (( include_aur )) || return 0
-  install_aur_manifest "$aur_manifest" "Manifest AUR opzionale"
+  install_aur_manifest \
+    "$(margine_resolve_aur_exceptions_manifest "$repo_root" "$flavor")" \
+    "Manifest AUR opzionale"
 }
 
 install_flatpak_layer() {
@@ -204,7 +217,9 @@ install_flatpak_layer() {
   (( include_flatpak )) || return 0
 
   have_cmd flatpak || die "flatpak not found; add it to the system before using --include-flatpak"
-  [[ -f "$flatpaks_file" ]] || die "Flatpak manifest not found: $flatpaks_file"
+  local flatpaks_file=""
+  flatpaks_file="$(margine_resolve_flatpaks_manifest "$repo_root" "$flavor")" \
+    || die "Flatpak manifest not found for flavor ${flavor}"
   ensure_flathub_remote
 
   while IFS= read -r app; do
@@ -224,6 +239,7 @@ main() {
   resolve_layers
 
   log "=== Installazione guidata dai manifest ==="
+  log "Flavor: ${flavor}"
   (( dry_run )) && log "Modalita': dry-run"
 
   install_official_layers

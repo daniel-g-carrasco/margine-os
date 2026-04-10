@@ -3,8 +3,11 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
+# shellcheck source=lib/flavor-manifests.sh
+source "${script_dir}/lib/flavor-manifests.sh"
 
 dry_run=0
+flavor="$(margine_detect_runtime_flavor)"
 hostname=""
 timezone="Europe/Rome"
 locale_line="it_IT.UTF-8 UTF-8"
@@ -39,6 +42,7 @@ Usage:
   bootstrap-in-chroot [options]
 
 Options:
+  --flavor NAME          Flavor to bootstrap (arch | cachyos)
   --hostname NAME        Hostname del sistema target
   --username NAME        Utente amministrativo da creare
   --real-name NAME       Nome reale/commento dell'utente
@@ -83,6 +87,11 @@ run_cmd() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="${2,,}"
+        shift 2
+        ;;
       --hostname)
         [[ $# -ge 2 ]] || die "missing value for --hostname"
         hostname="$2"
@@ -159,6 +168,8 @@ parse_args() {
         ;;
     esac
   done
+
+  margine_validate_flavor "$flavor" || die "unsupported flavor: $flavor"
 }
 
 require_root() {
@@ -250,6 +261,7 @@ run_manifest_installer() {
   for layer in "${phase2_layers[@]}"; do
     args+=(--layer "$layer")
   done
+  args+=(--flavor "$flavor")
   (( include_aur )) && args+=(--include-aur)
   (( include_flatpak )) && args+=(--include-flatpak)
   (( dry_run )) && args+=(--dry-run)
@@ -520,6 +532,7 @@ main() {
   validate_inputs
 
   log "=== Bootstrap in chroot Margine ==="
+  log "Flavor: ${flavor}"
   (( dry_run )) && log "Modalita': dry-run"
 
   configure_timezone

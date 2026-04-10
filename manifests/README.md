@@ -38,3 +38,15 @@ Initial structure:
 - `packages/open-questions.md`
 - `flatpaks/apps.txt`
 - `storage-subvolumes.txt`
+
+Flavor model:
+
+- `packages/` and `flatpaks/` are the shared baseline used by every flavor;
+- `flavors/<name>/packages/*.txt` can replace individual package manifests;
+- `flavors/<name>/flatpaks/apps.txt` can replace the shared Flatpak list;
+- if a flavor-specific manifest does not exist, the shared baseline is used.
+
+Current supported flavors:
+
+- `arch`
+- `cachyos`

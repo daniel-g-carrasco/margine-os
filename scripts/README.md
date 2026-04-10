@@ -15,6 +15,7 @@ Rule:
 - keep scripts small;
 - make them idempotent when possible;
 - prefer readability over being "clever".
+- prefer shared logic plus `--flavor` switches over long-lived divergent branches.
 
 Operational scripts:
 
@@ -31,7 +32,8 @@ Operational scripts:
 - `provision-system-user`: creates or realigns the administrative user,
   installs the `sudoers` drop-in, and initializes user directories.
 - `install-from-manifests`: installs manifest-defined layers, separating
-  official repos, AUR, and Flatpak through explicit flags.
+  official repos, AUR, and Flatpak through explicit flags, with per-flavor
+  manifest overrides.
 - `provision-storage`: prepares disk, `LUKS2`, `Btrfs`, and subvolumes from the live ISO.
 - `install-live-iso`: orchestrates `provision-storage` and `bootstrap-live-iso`
   in a single live-ISO pipeline.

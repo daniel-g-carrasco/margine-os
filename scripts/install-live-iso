@@ -2,8 +2,11 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/flavor-manifests.sh
+source "${script_dir}/lib/flavor-manifests.sh"
 
 dry_run=0
+flavor="$(margine_default_flavor)"
 disk=""
 target_root="/mnt"
 repo_source="$(cd "${script_dir}/.." && pwd)"
@@ -30,6 +33,7 @@ Usage:
   install-live-iso --disk PATH --yes-really-destroy-disk [options]
 
 Options:
+  --flavor NAME                  Flavor to install (arch | cachyos)
   --disk PATH                    Target disk, for example /dev/nvme0n1
   --target-root PATH             Final mountpoint (default: /mnt)
   --repo-source PATH             Local repo to copy into the target
@@ -66,6 +70,11 @@ die() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="${2,,}"
+        shift 2
+        ;;
       --disk)
         [[ $# -ge 2 ]] || die "missing value for --disk"
         disk="$2"
@@ -172,6 +181,8 @@ parse_args() {
         ;;
     esac
   done
+
+  margine_validate_flavor "$flavor" || die "unsupported flavor: $flavor"
 }
 
 ensure_prereqs() {
@@ -220,6 +231,7 @@ run_storage_phase() {
 
 run_bootstrap_phase() {
   local -a args=(
+    --flavor "$flavor"
     --target-root "$target_root"
     --repo-source "$repo_source"
     --repo-dest "$repo_dest"
@@ -247,6 +259,7 @@ main() {
   validate_inputs
 
   log "=== Install live ISO Margine ==="
+  log "Flavor: ${flavor}"
   (( dry_run )) && log "Modalita': dry-run"
 
   run_storage_phase
