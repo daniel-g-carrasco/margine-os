@@ -136,10 +136,13 @@ urgency = urgency_map.get(os.environ.get("URGENCY", "normal"), 1)
 
 loop = GLib.MainLoop()
 bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-state = {"nid": None}
+state = {"nid": None, "launched": False, "closed": False}
 
 
 def launch():
+    if state["launched"]:
+        return
+    state["launched"] = True
     subprocess.Popen(
         [command],
         stdin=subprocess.DEVNULL,
@@ -149,16 +152,24 @@ def launch():
     )
 
 
+def quit_later():
+    if state["launched"]:
+        return False
+    loop.quit()
+    return False
+
+
 def on_signal(conn, sender, obj, iface, signal, params, data=None):
     if signal == "ActionInvoked":
         nid, action = params.unpack()
-        if nid == state["nid"] and action == "default":
+        if nid == state["nid"] and action in ("default", ""):
             launch()
             loop.quit()
     elif signal == "NotificationClosed":
         nid, reason = params.unpack()
         if nid == state["nid"]:
-            loop.quit()
+            state["closed"] = True
+            GLib.timeout_add(350, quit_later)
 
 
 bus.signal_subscribe(
