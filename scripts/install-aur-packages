@@ -8,6 +8,17 @@ build_root="/var/cache/margine-aur"
 yay_flags=(--noconfirm --answerclean None --answerdiff None --answeredit None --removemake --cleanafter --sudoloop)
 declare -a manifests=()
 declare -a packages=()
+declare -a elephant_split_packages=(
+  elephant
+  elephant-providerlist
+  elephant-desktopapplications
+  elephant-files
+  elephant-clipboard
+  elephant-calc
+  elephant-websearch
+  elephant-windows
+  elephant-runner
+)
 
 usage() {
   cat <<'EOF'
@@ -118,6 +129,38 @@ ensure_prereqs() {
   local cmd=""
   for cmd in git makepkg sudo pacman; do
     command -v "$cmd" >/dev/null 2>&1 || die "required command not found: $cmd"
+  done
+}
+
+migrate_elephant_all() {
+  local package=""
+  local installed=()
+
+  for package in "${packages[@]}"; do
+    [[ "$package" == "elephant-all" ]] || continue
+
+    for package in "${elephant_split_packages[@]}"; do
+      if pacman -Q "$package" >/dev/null 2>&1; then
+        installed+=("$package")
+      fi
+    done
+
+    (( ${#installed[@]} == 0 )) && return 0
+
+    log
+    log "==> Replace split Elephant providers with elephant-all"
+
+    if (( dry_run )); then
+      printf '[dry-run] pacman -Rns --noconfirm'
+      for package in "${installed[@]}"; do
+        printf ' %q' "$package"
+      done
+      printf '\n'
+      return 0
+    fi
+
+    pacman -Rns --noconfirm "${installed[@]}"
+    return 0
   done
 }
 
@@ -241,6 +284,7 @@ main() {
   require_root
   resolve_packages
   ensure_prereqs
+  migrate_elephant_all
   ensure_build_user
   install_packages
 }

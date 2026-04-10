@@ -72,7 +72,7 @@ Check:
 Also verify the launcher AUR baseline explicitly:
 
 ```bash
-pacman -Q yay elephant elephant-providerlist elephant-desktopapplications elephant-files elephant-clipboard elephant-calc elephant-websearch elephant-windows elephant-runner msttcorefonts walker
+pacman -Q yay elephant-all msttcorefonts walker
 elephant listproviders
 ```
 
@@ -239,6 +239,6 @@ journalctl -b -p warning..alert --no-pager
 For the private CachyOS product, also include:
 
 ```bash
-pacman -Q linux-cachyos linux-cachyos-headers cachyos-keyring cachyos-mirrorlist hyprland waybar swaync hyprlock walker elephant elephant-providerlist elephant-desktopapplications elephant-files elephant-clipboard elephant-calc elephant-websearch elephant-windows elephant-runner yay msttcorefonts
+pacman -Q linux-cachyos linux-cachyos-headers cachyos-keyring cachyos-mirrorlist hyprland waybar swaync hyprlock walker elephant-all yay msttcorefonts
 elephant listproviders
 ```

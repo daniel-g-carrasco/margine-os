@@ -110,17 +110,21 @@ launcher_section() {
   local elephant_path=""
   local hyprlauncher_path=""
   local pkg=""
+  local providers=""
+  local -a expected_providers=(
+    providerlist
+    desktopapplications
+    files
+    clipboard
+    calc
+    websearch
+    windows
+    runner
+  )
+  local provider=""
   local -a aur_baseline_packages=(
     yay
-    elephant
-    elephant-providerlist
-    elephant-desktopapplications
-    elephant-files
-    elephant-clipboard
-    elephant-calc
-    elephant-websearch
-    elephant-windows
-    elephant-runner
+    elephant-all
     msttcorefonts
     walker
   )
@@ -144,7 +148,15 @@ launcher_section() {
   done
 
   if [[ -n "$elephant_path" ]]; then
-    status_line "elephant providers: $(elephant listproviders 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]\\+/ /g; s/[[:space:]]$//')"
+    providers="$(elephant listproviders 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]\\+/ /g; s/[[:space:]]$//')"
+    status_line "elephant providers: ${providers}"
+    for provider in "${expected_providers[@]}"; do
+      if grep -qw "$provider" <<<"$providers"; then
+        status_line "provider ${provider}: present"
+      else
+        status_line "provider ${provider}: missing"
+      fi
+    done
   fi
 
   if [[ -n "$walker_path" && -n "$elephant_path" ]]; then

@@ -2,18 +2,10 @@
 #
 # Important order:
 # - `yay` first, because the AUR is managed through it after bootstrap;
-# - `elephant-*` providers before `walker`, because Walker prefixes
-#   (`=`, `@`, `$`, `>`) depend on them.
+# - `elephant-all` before `walker`, because Walker depends on Elephant
+#   and its official providers being present.
 
 yay
-elephant
-elephant-providerlist
-elephant-desktopapplications
-elephant-files
-elephant-clipboard
-elephant-calc
-elephant-websearch
-elephant-windows
-elephant-runner
+elephant-all
 msttcorefonts
 walker
