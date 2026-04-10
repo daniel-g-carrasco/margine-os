@@ -113,6 +113,10 @@ launcher_section() {
   local -a aur_baseline_packages=(
     yay
     elephant
+    elephant-providerlist
+    elephant-desktopapplications
+    elephant-files
+    elephant-clipboard
     elephant-calc
     elephant-websearch
     elephant-windows

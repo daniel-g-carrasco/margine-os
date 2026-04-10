@@ -51,7 +51,7 @@ declare -a home_payload=(
   ".local/bin/volume-osd"
 )
 
-wallpaper_source="${repo_root}/files/usr/share/margine/wallpapers/default.ppm"
+wallpaper_source="${repo_root}/files/usr/share/margine/wallpapers/default.jpg"
 
 usage() {
   cat <<'EOF'
@@ -157,7 +157,7 @@ install_system_wallpaper() {
   log "==> Install default wallpaper asset"
   run_cmd install -Dm644 \
     "$wallpaper_source" \
-    /usr/share/margine/wallpapers/default.ppm
+    /usr/share/margine/wallpapers/default.jpg
 }
 
 fix_ownership() {

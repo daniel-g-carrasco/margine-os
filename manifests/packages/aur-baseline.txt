@@ -7,6 +7,10 @@
 
 yay
 elephant
+elephant-providerlist
+elephant-desktopapplications
+elephant-files
+elephant-clipboard
 elephant-calc
 elephant-websearch
 elephant-windows
