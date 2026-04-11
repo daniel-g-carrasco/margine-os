@@ -2,4 +2,4 @@
 comment: @SNAPSHOT_COMMENT@
 protocol: efi
 path: ${EFI_LINUX}/margine-recovery.efi
-cmdline: root=UUID=@ROOT_UUID@ rd.luks.name=@LUKS_UUID@=cryptroot rootfstype=btrfs rootflags=subvol=@SNAPSHOT_SUBVOLUME@ ro quiet systemd.unit=multi-user.target
+cmdline: root=UUID=@ROOT_UUID@ rd.luks.name=@LUKS_UUID@=cryptroot rootfstype=btrfs rootflags=subvol=@SNAPSHOT_SUBVOLUME@ ro quiet systemd.unit=graphical.target

@@ -100,7 +100,7 @@ snapshot_comment() {
   [[ -n "$description" ]] && details+=("$description")
   [[ -n "$source" ]] && details+=("source: ${source}")
   [[ -n "$date" ]] && details+=("created: ${date}")
-  details+=("read-only TTY recovery")
+  details+=("read-only graphical recovery")
 
   local joined=""
   local item=""
