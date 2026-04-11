@@ -35,16 +35,16 @@ kitty_network_window=(
   --override color14="#b3a08d"
 )
 
-if command -v impala >/dev/null 2>&1; then
-  exec "${kitty_network_window[@]}" -e impala
-fi
-
 if command -v nmtui >/dev/null 2>&1; then
   if [ "$#" -gt 0 ]; then
     exec "${kitty_network_window[@]}" -e nmtui "$@"
   fi
 
   exec "${kitty_network_window[@]}" -e nmtui
+fi
+
+if command -v impala >/dev/null 2>&1; then
+  exec "${kitty_network_window[@]}" -e impala
 fi
 
 printf 'No network TUI available: nmtui or impala is required.\n' >&2

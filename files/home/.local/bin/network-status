@@ -27,25 +27,30 @@ build_common_tooltip() {
   local gateway_line=""
   local dns_lines=""
   local details=""
+  local -a dns_entries=()
 
   ip_line="$(nmcli -t -g IP4.ADDRESS device show "$device" 2>/dev/null | head -n 1 || true)"
   gateway_line="$(nmcli -t -g IP4.GATEWAY device show "$device" 2>/dev/null | head -n 1 || true)"
-  dns_lines="$(nmcli -t -g IP4.DNS device show "$device" 2>/dev/null | paste -sd ', ' - || true)"
+  mapfile -t dns_entries < <(nmcli -t -g IP4.DNS device show "$device" 2>/dev/null | sed '/^$/d' || true)
+  if (( ${#dns_entries[@]} > 0 )); then
+    printf -v dns_lines '%s, ' "${dns_entries[@]}"
+    dns_lines="${dns_lines%, }"
+  fi
 
   details="${type_label}"
-  details="${details}\nConnection: ${connection_label:-n/a}"
-  details="${details}\nDevice: ${device}"
+  details+=$'\n'"Connection: ${connection_label:-n/a}"
+  details+=$'\n'"Device: ${device}"
   if [[ -n "$signal_label" ]]; then
-    details="${details}\nSignal: ${signal_label}"
+    details+=$'\n'"Signal: ${signal_label}"
   fi
   if [[ -n "$ip_line" ]]; then
-    details="${details}\nIPv4: ${ip_line}"
+    details+=$'\n'"IPv4: ${ip_line}"
   fi
   if [[ -n "$gateway_line" ]]; then
-    details="${details}\nGateway: ${gateway_line}"
+    details+=$'\n'"Gateway: ${gateway_line}"
   fi
   if [[ -n "$dns_lines" ]]; then
-    details="${details}\nDNS: ${dns_lines}"
+    details+=$'\n'"DNS: ${dns_lines}"
   fi
 
   json_escape "$details"
