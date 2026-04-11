@@ -22,6 +22,7 @@ declare -a home_payload=(
   ".config/user-dirs.locale"
   ".local/bin/update-all"
   ".local/bin/update-all-launcher"
+  ".local/share/icons"
 )
 
 firefox_policy_source="${repo_root}/files/etc/firefox/policies/policies.json"
