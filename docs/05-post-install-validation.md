@@ -54,13 +54,13 @@ Adjust package names to the product under test.
 Public product example:
 
 ```bash
-pacman -Q linux linux-headers hyprland waybar swaync hyprlock walker elephant kitty firefox showtime decibels
+pacman -Q linux linux-headers hyprland waybar swaync hyprlock walker elephant kitty firefox chromium loupe gnome-text-editor showtime decibels
 ```
 
 Private Cachy product example:
 
 ```bash
-pacman -Q linux-cachyos linux-cachyos-headers cachyos-keyring cachyos-mirrorlist hyprland waybar swaync hyprlock walker elephant kitty firefox showtime decibels
+pacman -Q linux-cachyos linux-cachyos-headers cachyos-keyring cachyos-mirrorlist hyprland waybar swaync hyprlock walker elephant kitty firefox chromium loupe gnome-text-editor showtime decibels
 ```
 
 Check:
@@ -68,6 +68,7 @@ Check:
 - kernel package is the expected one
 - desktop packages are installed
 - media players and launcher stack are installed
+- the GNOME audio player may appear under different branding in the UI, but the package baseline is `decibels`
 
 Also verify the launcher AUR baseline explicitly:
 
@@ -174,6 +175,10 @@ systemctl --user status elephant.service --no-pager
 elephant listproviders
 grep -n 'DuckDuckGo' ~/.config/elephant/websearch.toml
 grep -n '"Default": "DuckDuckGo"' /etc/firefox/policies/policies.json
+xdg-mime query default image/png
+xdg-mime query default video/mp4
+xdg-mime query default audio/mpeg
+xdg-mime query default text/plain
 find /usr/share/applications ~/.local/share/applications -maxdepth 1 -name '*.desktop' | sed -n '1,20p'
 ```
 
@@ -183,6 +188,7 @@ Check:
 - provider list includes at least `desktopapplications`, `calc`, `websearch`, `windows`, and `runner`
 - `~/.config/elephant/websearch.toml` points to DuckDuckGo
 - Firefox policy forces DuckDuckGo as default search engine
+- MIME defaults resolve to `org.gnome.Loupe.desktop`, `org.gnome.Showtime.desktop`, `org.gnome.Decibels.desktop`, and `org.gnome.TextEditor.desktop`
 - desktop files are actually present when debugging an empty Walker application list
 
 Manual checks:
@@ -200,6 +206,7 @@ ls ~/.config/elephant
 ls ~/.config/waybar
 ls ~/.config/swaync
 ls ~/.config/kitty
+ls ~/.config/easyeffects/db
 ls ~/.config/walker
 ls ~/.config/walker/themes/default
 ```
@@ -208,6 +215,7 @@ Check:
 
 - versioned config trees are actually present in the target home
 - `~/.config/elephant/websearch.toml` exists
+- `~/.config/easyeffects/db/easyeffectsrc` and `graphrc` exist when the desktop layer has been provisioned
 - Walker theme assets exist, not just `config.toml`
 
 ## 11. Wallpaper, theming, and autostart
@@ -218,6 +226,11 @@ pgrep -af 'hyprpaper|koofr'
 gsettings get org.gnome.desktop.interface color-scheme
 gsettings get org.gnome.desktop.interface gtk-theme
 gsettings get org.gnome.desktop.interface icon-theme
+gsettings get org.gnome.TextEditor style-scheme
+gsettings get org.gnome.TextEditor style-variant
+gsettings get org.gnome.Loupe show-properties
+sed -n '1,120p' ~/.config/easyeffects/db/easyeffectsrc
+sed -n '1,40p' ~/.config/easyeffects/db/graphrc
 ```
 
 Check:
@@ -225,12 +238,14 @@ Check:
 - the default wallpaper asset exists at `/usr/share/margine/wallpapers/default.jpg`
 - `hyprpaper` is running in the session
 - GTK applications are on the intended dark theme
+- GNOME Text Editor inherits the intended dark baseline via `gsettings`
+- Easy Effects UI defaults are present and sane, without dragging in hardware-specific runtime bindings
 - Koofr autostarts if expected, but does not steal focus as a normal foreground window
 
 Manual checks:
 
 - after login, the intended wallpaper is actually visible
-- GTK / GNOME apps such as Nautilus, Calendar, Calculator, and Firefox use the dark theme
+- GTK / GNOME apps such as Nautilus, Calendar, Calculator, Loupe, Text Editor, and Firefox use the dark theme
 
 ## 12. Waybar, notifications, and maintenance UX
 
@@ -316,7 +331,48 @@ Manual checks:
 - after final TPM2 enrollment, production boot should stop asking for the LUKS password
 - recovery boot may still ask for manual credentials; this is acceptable
 
-## 17. Logs to collect when debugging
+## 17. Graphics, acceleration, and application exposure
+
+```bash
+lspci -k | sed -n '/VGA compatible controller/,+6p;/3D controller/,+6p;/Display controller/,+6p'
+lsmod | rg 'amdgpu|i915|nvidia|nouveau|virtio_gpu|snd|snd_hda|snd_sof|kvm'
+systemctl --user status pipewire.service pipewire-pulse.service wireplumber.service --no-pager
+pactl info
+wpctl status
+ffmpeg -hide_banner -hwaccels
+glxinfo -B 2>/dev/null || true
+vulkaninfo --summary 2>/dev/null || true
+vainfo 2>/dev/null | sed -n '1,120p'
+journalctl -b --no-pager | rg 'drm|gpu|amdgpu|i915|virtio_gpu|pipewire|wireplumber|snd_hda|snd_sof' || true
+```
+
+Check:
+
+- kernel drivers are bound to the expected GPU and audio devices
+- PipeWire, Pulse compatibility, and WirePlumber are all alive
+- `ffmpeg -hwaccels`, `glxinfo`, `vulkaninfo`, and `vainfo` reflect the acceleration paths actually exposed to applications
+- a VM may expose only CPU decode paths; if a benchmark shows CPU works but GPU is `0 FPS`, treat it as "GPU path not exposed to the app", not as a generic CachyOS failure
+
+## 18. CachyOS-specific verification
+
+Use this only for the private CachyOS product:
+
+```bash
+pacman -Q linux-cachyos linux-cachyos-headers cachyos-keyring cachyos-mirrorlist cachyos-settings
+grep -Rni 'cachyos' /etc/pacman.conf /etc/pacman.conf.d 2>/dev/null
+uname -r
+zramctl
+systemctl status systemd-zram-setup@zram0.service --no-pager || true
+```
+
+Check:
+
+- the CachyOS kernel, keyring, mirrorlist, and settings packages are installed
+- CachyOS repositories are present in pacman configuration
+- zram is available if the product baseline expects it
+- this verifies the presence of CachyOS artifacts and tunings; it does not by itself prove a performance uplift on the current workload
+
+## 19. Logs to collect when debugging
 
 ```bash
 journalctl -b -p warning..alert --no-pager
@@ -351,6 +407,12 @@ journalctl -b -p warning..alert --no-pager
 For the private CachyOS product, also include:
 
 ```bash
-pacman -Q linux-cachyos linux-cachyos-headers cachyos-keyring cachyos-mirrorlist hyprland waybar swaync hyprlock walker elephant-all yay msttcorefonts
+pacman -Q linux-cachyos linux-cachyos-headers cachyos-keyring cachyos-mirrorlist cachyos-settings hyprland waybar swaync hyprlock walker elephant-all yay msttcorefonts firefox chromium loupe gnome-text-editor showtime decibels easyeffects
 elephant listproviders
+xdg-mime query default image/png
+xdg-mime query default text/plain
+ffmpeg -hide_banner -hwaccels
+glxinfo -B 2>/dev/null || true
+vulkaninfo --summary 2>/dev/null || true
+vainfo 2>/dev/null | sed -n '1,80p'
 ```

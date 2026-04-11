@@ -3,16 +3,43 @@
     "SearchEngines": {
       "Default": "DuckDuckGo"
     },
+    "ExtensionSettings": {
+      "*": {
+        "blocked_install_message": "This extension is managed by Margine."
+      },
+      "uBlock0@raymondhill.net": {
+        "install_url": "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi",
+        "installation_mode": "force_installed"
+      }
+    },
     "DisableTelemetry": true,
     "DisableFirefoxStudies": true,
     "DisablePocket": true,
     "DontCheckDefaultBrowser": true,
     "NoDefaultBookmarks": true,
+    "UserMessaging": {
+      "ExtensionRecommendations": false,
+      "FeatureRecommendations": false,
+      "FirefoxLabs": false,
+      "Locked": true,
+      "MoreFromMozilla": false,
+      "SkipOnboarding": true,
+      "UrlbarInterventions": false
+    },
+    "FirefoxSuggest": {
+      "ImproveSuggest": false,
+      "Locked": true,
+      "SponsoredSuggestions": false,
+      "WebSuggestions": false
+    },
     "FirefoxHome": {
       "Pocket": false,
+      "Stories": false,
+      "SponsoredStories": false,
       "SponsoredPocket": false,
       "SponsoredTopSites": false,
-      "Snippets": false
+      "Snippets": false,
+      "Locked": true
     }
   }
 }

@@ -13,6 +13,7 @@ declare -a home_payload=(
   ".config/elephant/websearch.toml"
   ".config/darktable/darktablerc-common"
   ".config/darktable/styles"
+  ".config/easyeffects"
   ".config/gtk-3.0/settings.ini"
   ".config/gtk-4.0/settings.ini"
   ".config/kitty/kitty.conf"
@@ -103,7 +104,7 @@ install_tree() {
   local mode=""
 
   while IFS= read -r -d '' file; do
-    rel="${file#${source_dir}/}"
+    rel="${file#"${source_dir}"/}"
     mode=644
 
     if [[ "$rel" == *.sh || "$file" == */.local/bin/* ]]; then

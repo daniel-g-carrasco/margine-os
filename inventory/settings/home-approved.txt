@@ -4,6 +4,8 @@
 .config/darktable/darktablerc-common
 .config/darktable/darktablerc
 .config/darktable/styles
+.config/easyeffects/db/easyeffectsrc
+.config/easyeffects/db/graphrc
 .config/kitty/kitty.conf
 .config/libreoffice/4/user/registrymodifications.xcu
 .config/mimeapps.list

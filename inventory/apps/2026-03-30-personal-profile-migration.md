@@ -53,8 +53,13 @@
 - Sottoinsieme scelto:
   - preset `fw13-easy-effects`
   - IR collegata
+-  stato UI minimo e riproducibile:
+   - `db/easyeffectsrc` sanitizzato
+   - `db/graphrc`
 - Da NON migrare:
-  - database `db/*`
+  - binding hardware `inputDevice` / `outputDevice`
+  - statistiche `mostUsedPresets` / `usedPresets`
+  - grafo plugin runtime non necessario
   - lock e stato runtime
 
 ### GIMP

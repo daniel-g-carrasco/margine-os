@@ -1,0 +1,16 @@
+[Presets]
+lastLoadedOutputPreset=fw13-easy-effects
+
+[StreamOutputs]
+showBlocklistedApps=true
+visiblePlugin=filter#0
+
+[Style]
+forceBreezeTheme=false
+
+[Window]
+autostartOnLogin=true
+height=908
+visiblePipeWirePage=modulesPage
+visiblePresetSheetPage=autoloadingPage
+width=707

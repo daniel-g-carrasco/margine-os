@@ -1,6 +1,8 @@
 # Desktop baseline files that must stay synchronized with the current host.
 .config/autostart/koofr.desktop
 .config/elephant/websearch.toml
+.config/easyeffects/db/easyeffectsrc
+.config/easyeffects/db/graphrc
 .local/share/icons/hicolor/256x256/apps/duckduckgo.png
 .config/gtk-3.0/settings.ini
 .config/gtk-4.0/settings.ini

@@ -6,3 +6,14 @@ command -v gsettings >/dev/null 2>&1 || exit 0
 gsettings set org.gnome.desktop.interface color-scheme prefer-dark >/dev/null 2>&1 || true
 gsettings set org.gnome.desktop.interface gtk-theme Adwaita >/dev/null 2>&1 || true
 gsettings set org.gnome.desktop.interface icon-theme Adwaita >/dev/null 2>&1 || true
+
+gsettings set org.gnome.TextEditor style-scheme Adwaita-dark >/dev/null 2>&1 || true
+gsettings set org.gnome.TextEditor style-variant follow >/dev/null 2>&1 || true
+gsettings set org.gnome.TextEditor recolor-window true >/dev/null 2>&1 || true
+gsettings set org.gnome.TextEditor show-line-numbers true >/dev/null 2>&1 || true
+gsettings set org.gnome.TextEditor show-map true >/dev/null 2>&1 || true
+gsettings set org.gnome.TextEditor highlight-current-line true >/dev/null 2>&1 || true
+gsettings set org.gnome.TextEditor highlight-matching-brackets true >/dev/null 2>&1 || true
+gsettings set org.gnome.TextEditor wrap-text true >/dev/null 2>&1 || true
+
+gsettings set org.gnome.Loupe show-properties false >/dev/null 2>&1 || true

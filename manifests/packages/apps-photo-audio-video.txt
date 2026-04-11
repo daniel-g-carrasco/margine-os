@@ -14,6 +14,7 @@ ffmpeg
 flac
 fluidsynth
 gimp
+libva-utils
 gst-libav
 gst-plugin-pipewire
 gst-plugin-va
@@ -31,5 +32,7 @@ libheif
 libmad
 libmpeg2
 lsp-plugins-lv2
+mesa-utils
 openh264
 opus-tools
+vulkan-tools
