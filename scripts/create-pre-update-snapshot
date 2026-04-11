@@ -5,7 +5,7 @@ dry_run=0
 snapper_config="root"
 description_prefix="margine pre-update"
 cleanup_algorithm="number"
-userdata="important=yes"
+userdata="important=yes,margine=yes,scope=root,source=pre-update,trigger=update-all"
 
 usage() {
   cat <<'EOF'
@@ -82,8 +82,7 @@ parse_args() {
 }
 
 snapper_config_exists() {
-  snapper list-configs --no-headers --csvout --columns config 2>/dev/null |
-    grep -Fxq "$snapper_config"
+  snapper --no-dbus -c "$snapper_config" get-config >/dev/null 2>&1
 }
 
 main() {

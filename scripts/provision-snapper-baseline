@@ -162,6 +162,7 @@ count_root_snapshots() {
 
 create_initial_snapshot_if_needed() {
   local snapshot_count="0"
+  local description=""
 
   log
   log "==> Ensure initial root snapshot"
@@ -169,7 +170,7 @@ create_initial_snapshot_if_needed() {
   if (( dry_run )); then
     printf '[dry-run] snapper --no-dbus list-configs\n'
     printf '[dry-run] snapper --no-dbus -c root create --type single --cleanup-algorithm number --description %q --userdata %q\n' \
-      "$initial_snapshot_description" \
+      "${initial_snapshot_description} <timestamp>" \
       "important=yes,margine=yes,scope=root,source=bootstrap"
     return 0
   fi
@@ -184,10 +185,12 @@ create_initial_snapshot_if_needed() {
     return 0
   fi
 
+  description="${initial_snapshot_description} $(date +%F' '%T)"
+
   snapper --no-dbus -c root create \
     --type single \
     --cleanup-algorithm number \
-    --description "$initial_snapshot_description" \
+    --description "$description" \
     --userdata "important=yes,margine=yes,scope=root,source=bootstrap"
 }
 

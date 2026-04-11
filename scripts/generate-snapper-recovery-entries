@@ -92,21 +92,98 @@ escape_sed_replacement() {
 }
 
 snapshot_comment() {
-  local number="$1"
+  local description="$1"
+  local source="$2"
+  local date="$3"
+  local details=()
+
+  [[ -n "$description" ]] && details+=("$description")
+  [[ -n "$source" ]] && details+=("source: ${source}")
+  [[ -n "$date" ]] && details+=("created: ${date}")
+  details+=("read-only TTY recovery")
+
+  local joined=""
+  local item=""
+  for item in "${details[@]}"; do
+    if [[ -n "$joined" ]]; then
+      joined="${joined} · ${item}"
+    else
+      joined="${item}"
+    fi
+  done
+
+  printf '%s' "$joined"
+}
+
+trim_field() {
+  local value="$1"
+
+  value="${value//$'\r'/ }"
+  value="${value//$'\n'/ }"
+  value="${value//$'\t'/ }"
+  value="$(printf '%s' "$value" | tr -s ' ')"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+
+  printf '%s' "$value"
+}
+
+snapshot_source() {
+  local userdata="$1"
+  local item=""
+
+  IFS=',' read -r -a items <<< "$userdata"
+  for item in "${items[@]}"; do
+    item="$(trim_field "$item")"
+    case "$item" in
+      source=*)
+        printf '%s' "${item#source=}"
+        return 0
+        ;;
+    esac
+  done
+
+  printf '%s' ""
+}
+
+snapshot_label() {
+  local _number="$1"
   local description="$2"
+  local source="$3"
+  local date="$4"
+  local parts=()
+  local joined=""
+  local item=""
 
-  description="${description//$'\r'/ }"
-  description="${description//$'\n'/ }"
-  description="${description//$'\t'/ }"
-  description="$(printf '%s' "$description" | tr -s ' ')"
-  description="${description#"${description%%[![:space:]]*}"}"
-  description="${description%"${description##*[![:space:]]}"}"
+  [[ -n "$description" ]] && parts+=("$description")
+  [[ -n "$source" ]] && parts+=("$source")
+  [[ -n "$date" ]] && parts+=("$date")
+  (( ${#parts[@]} > 0 )) || parts+=("snapshot ${_number}")
 
-  if [[ -z "$description" ]]; then
-    printf 'Snapshot %s' "$number"
-  else
-    printf 'Snapshot %s - %s' "$number" "$description"
-  fi
+  for item in "${parts[@]}"; do
+    if [[ -n "$joined" ]]; then
+      joined="${joined} · ${item}"
+    else
+      joined="${item}"
+    fi
+  done
+
+  printf '%s' "$joined"
+}
+
+normalize_date() {
+  local value="$1"
+
+  value="$(trim_field "$value")"
+  printf '%s' "$value"
+}
+
+normalize_description() {
+  trim_field "$1"
+}
+
+normalize_userdata() {
+  trim_field "$1"
 }
 
 collect_snapshots() {
@@ -121,26 +198,35 @@ collect_snapshots() {
   fi
 
   snapper --no-dbus --csvout --separator $'\t' --no-headers -c "$snapper_config" \
-    list --columns number,description 2>/dev/null |
+    list --columns number,date,description,userdata 2>/dev/null |
     awk -F'\t' '$1 ~ /^[0-9]+$/ && $1 != "0" { print }' |
     sort -t$'\t' -k1,1nr |
     head -n "$limit"
 }
 
 render_entries() {
-  local line=""
   local number=""
+  local date=""
   local description=""
-  local comment=""
+  local userdata=""
+  local source=""
+  local label=""
   local snapshot_subvolume=""
+  local comment=""
 
-  while IFS=$'\t' read -r number description; do
+  while IFS=$'\t' read -r number date description userdata; do
     [[ -n "$number" ]] || continue
-    comment="$(snapshot_comment "$number" "$description")"
+    date="$(normalize_date "$date")"
+    description="$(normalize_description "$description")"
+    userdata="$(normalize_userdata "$userdata")"
+    source="$(snapshot_source "$userdata")"
+    label="$(snapshot_label "$number" "$description" "$source" "$date")"
+    comment="$(snapshot_comment "$description" "$source" "$date")"
     snapshot_subvolume="${snapshots_subvolume}/${number}/snapshot"
 
     sed \
       -e "s/@SNAPSHOT_NUMBER@/$(escape_sed_replacement "$number")/g" \
+      -e "s/@SNAPSHOT_LABEL@/$(escape_sed_replacement "$label")/g" \
       -e "s/@SNAPSHOT_COMMENT@/$(escape_sed_replacement "$comment")/g" \
       -e "s/@SNAPSHOT_SUBVOLUME@/$(escape_sed_replacement "$snapshot_subvolume")/g" \
       -e "s/@ROOT_UUID@/$(escape_sed_replacement "$root_uuid")/g" \

@@ -270,7 +270,7 @@ run_pre_update_snapshot() {
     --snapper-config "$snapper_config"
     --description "margine pre-update"
     --cleanup number
-    --userdata "important=yes"
+    --userdata "important=yes,margine=yes,scope=root,source=pre-update,trigger=update-all"
   )
 
   (( create_pre_update_snapshot )) || return 0
