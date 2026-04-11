@@ -1,98 +1,108 @@
-# ADR 0025 - Entry recovery di Limine generate da snapshot Snapper
+# ADR 0025 - Limine Recovery Entries Generated From Snapper Snapshots
 
-## Stato
+## Status
 
-Accettato
+Accepted
 
-## Contesto
+## Context
 
-Il progetto aveva gia':
+The project already had:
 
-- `Snapper`;
-- `Limine`;
-- `UKI` separate per produzione, fallback e recovery;
-- un template `limine.conf`.
+- `Snapper`
+- `Limine`
+- separate `UKI` images for primary, fallback, and recovery
+- a versioned `limine.conf` template
 
-Mancava ancora il punto decisivo:
+The missing piece was:
 
-- trasformare gli snapshot `Snapper` in entry realmente bootabili nel menu.
+- turning `Snapper` snapshots into real bootable entries in the menu
 
-## Decisione
+## Decision
 
-`Margine v1` genera automaticamente, durante il flusso `update-all`, un blocco
-di entry `Limine` a partire dagli snapshot del config `Snapper` root.
+`Margine v1` automatically generates `Limine` entries from the root `Snapper`
+config snapshots.
 
-Le entry snapshot:
+Snapshot entries:
 
-- puntano alla `UKI` di recovery;
-- bootano lo snapshot come root Btrfs specificando `rootflags=subvol=...`;
-- usano `systemd.unit=multi-user.target`;
-- partono in `ro`, non in `rw`.
+- point to the shared recovery `UKI`
+- boot the selected Btrfs snapshot with `rootflags=subvol=...`
+- use `systemd.unit=graphical.target`
+- boot in `ro`, not `rw`
 
-## Motivazione
+`Manual recovery` remains a separate lower-level entry.
 
-### Perché usare la recovery UKI
+## Rationale
 
-Per uno snapshot bootabile ci interessa prima di tutto:
+### Why the recovery UKI is used
 
-- ispezionare;
-- recuperare;
-- fare rollback consapevole.
+For snapshot boot, the first priority is:
 
-La `UKI` di recovery e' piu' adatta di quella di produzione per questo scopo.
+- inspection
+- fast recovery access
+- deliberate rollback decisions
 
-### Perché `ro`
+The recovery `UKI` is a better fit than the primary `UKI` for that workflow.
 
-Uno snapshot `Snapper` standard nasce per essere trattato come punto di
-riferimento sicuro.
+### Why snapshots boot read-only
 
-Bootarlo in `ro` riduce il rischio di:
+A standard `Snapper` snapshot should be treated as a safe reference point.
 
-- trasformarlo accidentalmente in un ambiente mutabile;
-- confondere "ispezione" con "sistema tornato operativo".
+Booting it read-only reduces the risk of:
 
-## Regola importante
+- accidentally turning it into a mutable environment
+- confusing "inspection" with "permanent rollback already done"
 
-Uno snapshot bootabile NON equivale automaticamente a rollback completo.
+### Why snapshot entries use `graphical.target`
 
-Resta vero quanto gia' deciso:
+The project originally used `multi-user.target` for snapshot entries.
 
-- la `ESP` non e' dentro Btrfs snapshot;
-- dopo un rollback la pipeline di boot puo' dover essere riallineata;
-- lo snapshot bootabile serve a recuperare e decidere, non a fare magia.
+That was safe, but it forced users into a TTY even when the goal was simply to
+inspect an older working desktop state.
 
-## Comportamento atteso
+The current model keeps snapshot boots read-only while allowing the graphical
+session to start.
 
-Nel menu `Limine` restano:
+## Important rule
 
-- `Produzione`
+A bootable snapshot does **not** automatically equal a complete rollback.
+
+The following remains true:
+
+- the `ESP` is outside the Btrfs snapshot boundary
+- after a rollback, the boot pipeline may still need to be re-synchronized
+- a bootable snapshot exists to recover and decide, not to perform magic
+
+## Expected behavior
+
+The `Limine` menu keeps:
+
+- `Primary`
 - `Fallback`
-- `Recovery manuale`
+- `Manual recovery`
 
-in piu' compaiono:
+And it additionally exposes:
 
-- le ultime entry snapshot generate da `Snapper`.
+- the latest generated snapshot entries
 
-## Conseguenze
+## Consequences
 
 ### Positive
 
-- il recovery diventa davvero visibile al boot;
-- il percorso e' coerente con la direzione `Limine-first`;
-- `update-all` puo' rigenerare il menu in modo deterministico.
+- recovery becomes visible at boot time
+- the workflow stays coherent with the `Limine-first` direction
+- `update-all` can regenerate the menu deterministically
 
 ### Negative
 
-- il rollback completo non e' ancora automatico;
-- la presenza delle entry dipende da uno stato sano di `Snapper`.
+- permanent rollback is still a separate operator action
+- menu generation still depends on healthy `Snapper` metadata
 
-## Per uno studente
+## Student-level summary
 
-Il punto chiave e' questo:
+The key idea is:
 
-- `Snapper` conserva stati del root;
-- `Limine` li espone come punti di ingresso;
-- tu puoi bootare uno snapshot e usarlo per capire o ripristinare;
-- ma la coerenza finale del boot path resta responsabilita' della pipeline di
-  `Margine`.
-
+- `Snapper` stores historical root states
+- `Limine` exposes them as recovery entry points
+- you can boot a snapshot to inspect or recover
+- but final boot-chain coherence is still the responsibility of the `Margine`
+  maintenance pipeline

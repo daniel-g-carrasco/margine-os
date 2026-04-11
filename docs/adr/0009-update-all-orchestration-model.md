@@ -1,173 +1,187 @@
-# ADR 0009 - Modello di orchestrazione di update-all
+# ADR 0009 - `update-all` Orchestration Model
 
-## Stato
+## Status
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Ora che il progetto ha già definito:
+The project already defines:
 
-- boot path
+- the boot path
 - snapshot policy
-- generazione `limine.conf`
-- strategia `UKI`
+- `limine.conf` generation
+- the `UKI` strategy
 
-serve decidere come questi pezzi vengono eseguiti in pratica durante un update.
+What still needs to be explicit is how those pieces are executed during normal
+system maintenance.
 
-In altre parole:
+In other words:
 
-- `update-all` deve restare uno script comodo;
-- ma deve anche diventare il percorso canonico di manutenzione di `Margine`.
+- `update-all` must stay convenient
+- but it must also be the canonical maintenance path of `Margine`
 
-## Problema da risolvere
+## Problem
 
-Uno script di update troppo semplice diventa presto insufficiente.
+A simplistic update script becomes insufficient very quickly.
 
-Per esempio:
+For example, it may:
 
-- aggiorna i pacchetti, ma dimentica il boot path;
-- aggiorna il boot path, ma non verifica `Secure Boot`;
-- aggiorna componenti opzionali, ma non distingue i fallimenti critici da quelli
-  accessori.
+- update packages but forget the boot path
+- update the boot path but skip `Secure Boot` validation
+- update optional layers without distinguishing hard failures from soft ones
 
-Serve quindi una pipeline esplicita.
+So the pipeline must be explicit.
 
-## Decisione
+## Decision
 
-Per `Margine v1`, `update-all` sarà l'orchestratore canonico del ciclo di
-manutenzione del sistema.
+For `Margine v1`, `update-all` is the canonical maintenance orchestrator.
 
-Non sostituisce:
+It does not replace:
 
 - `pacman`
 - `snapper`
 - `snap-pac`
+- AUR helpers
+- `flatpak`
 
-Li coordina.
+It coordinates them.
 
-## Ordine delle fasi
+## Current phase order
 
-L'ordine corretto della pipeline è questo:
+The current phase order is:
 
-1. update pacchetti Arch (`pacman`)
-2. update AUR, se presente
-3. update Flatpak, se presente
-4. update firmware (`fwupd`), se presente
-5. rigenerazione artefatti di boot
-6. verifiche finali
+1. create an explicit pre-update root snapshot
+2. update official packages (`pacman`)
+3. update AUR packages, if configured
+4. update Flatpak packages, if present
+5. update firmware (`fwupd`), if present
+6. regenerate boot and recovery artifacts
+7. run final verification and summary
 
-## Ruolo delle singole fasi
+## Role of each phase
 
-### 1. Pacman
+### 1. Pre-update snapshot
 
-Questa è la fase più importante.
+Before mutating the system, `Margine` creates a dedicated root snapshot with
+structured metadata.
 
-Qui:
+This is separate from package-manager-generated snapshots and exists so the
+operator always has an obvious rollback anchor tied to the maintenance run.
 
-- `snap-pac` crea gli snapshot pre/post del root;
-- il sistema riceve gli update dei repo ufficiali;
-- vengono aggiornati i componenti più sensibili del sistema.
+### 2. Pacman
 
-Questa fase è sempre critica.
+This remains the most critical package phase.
 
-### 2. AUR
+Here:
 
-È una fase secondaria rispetto al core del sistema.
+- the system receives official repository updates
+- `snap-pac` may still emit its own pre/post snapshots
+- the most sensitive system components are updated
 
-La `v1` del progetto resta:
+This phase is always a hard-failure boundary.
 
-- official-repos first;
-- AUR solo per eccezioni esplicite.
+### 3. AUR
 
-Quindi l'AUR va gestito come layer accessorio, non come cuore della pipeline.
+This is still secondary to the core operating system.
 
-### 3. Flatpak
+The project remains:
 
-Flatpak non è parte del core architetturale del boot path.
-Va trattato come strato opzionale.
+- official-repos first
+- AUR only for explicit exceptions
 
-### 4. fwupd
+So AUR is an accessory layer, not the center of the maintenance model.
 
-Il firmware è importante, ma non deve impedire l'aggiornamento ordinario del
-sistema operativo quando non c'è nulla da fare o quando il dispositivo non è
-supportato.
+### 4. Flatpak
 
-### 5. Artefatti di boot
+Flatpak is not part of the boot-chain architecture.
+It is handled as an optional application layer.
 
-Questa fase è il valore aggiunto vero di `Margine`.
+### 5. Firmware
 
-Qui vanno orchestrati:
+Firmware is important, but lack of firmware updates must not block the normal
+OS maintenance path on unsupported or inactive systems.
 
-- `mkinitcpio -P`
-- rendering di `limine.conf`
-- in futuro: deploy su `ESP`
-- in futuro: `limine enroll-config`
-- in futuro: firma/refresh completi
+### 6. Boot and recovery artifacts
 
-### 6. Verifiche finali
+This is the real value-add of `Margine`.
 
-Le verifiche finali devono dare all'utente una risposta semplice:
+This phase can include:
 
-- il sistema è stato aggiornato;
-- il boot path è coerente;
-- la trust chain non mostra rotture evidenti.
+- recovery entry generation
+- `limine.conf` rendering
+- Limine config deployment
+- `limine enroll-config`
+- EFI loader refresh when needed
+- Secure Boot signing and verification where applicable
 
-## Politica di errore
+### 7. Final checks
 
-Per la `v1`, distinguiamo tra errori hard e soft.
+The final checks must answer a simple question:
 
-### Errori hard
+- was the system updated
+- is the boot path still coherent
+- is the trust chain still healthy enough to boot predictably
 
-Sono errori che devono fermare lo script.
+## Error policy
 
-Esempi:
+For `v1`, errors are split into hard failures and soft failures.
 
-- fallimento di `pacman`
-- fallimento della rigenerazione `UKI`
-- fallimento del rendering `limine.conf`
+### Hard failures
 
-### Errori soft
+These must stop the orchestration.
 
-Sono errori che vanno segnalati ma non devono per forza rendere inutilizzabile
-il ciclo di update.
+Examples:
 
-Esempi:
+- failure creating the explicit pre-update snapshot
+- failure in `pacman`
+- failure regenerating required boot artifacts
+- failure rendering or deploying `limine.conf`
 
-- fallimento AUR
-- fallimento Flatpak
-- assenza o fallimento `fwupd`
+### Soft failures
 
-## Prima implementazione pratica
+These should be surfaced, but do not necessarily invalidate the entire update
+cycle.
 
-La prima implementazione versionata di `update-all` dovrà essere:
+Examples:
 
-- leggibile;
-- supportare `--dry-run`;
-- supportare skip di layer opzionali;
-- supportare input espliciti per il rendering di `limine.conf`.
+- AUR failure
+- Flatpak failure
+- `fwupd` unavailable or unsupported
+- optional notification/reporting issues
 
-Non dovrà ancora pretendere di:
+## Runtime model
 
-- deployare tutto sulla `ESP`;
-- completare tutta la firma EFI finale;
-- fare discovery automatica completa degli snapshot.
+`Margine` now treats the installed runtime as part of the product:
 
-Quelle parti arriveranno in passi successivi.
+- shared runtime logic lives under `/usr/local/lib/margine`
+- `/usr/local/bin/update-all` is the canonical installed entry point
+- a user-level wrapper may delegate to that runtime to avoid stale local copies
 
-## Conseguenze pratiche
+This avoids host drift where an old `$HOME/.local/bin/update-all` shadows the
+real installed implementation.
 
-Questo modello ci dà una proprietà importante:
+## Consequences
 
-- il progetto ha già un flusso canonico di manutenzione;
-- ma lo implementa per strati, senza fingere che tutto sia già chiuso.
+### Positive
 
-## Per uno studente: la versione semplice
+- the project has a single canonical maintenance path
+- rollback anchors are clearer because each maintenance run creates an explicit
+  snapshot
+- host/runtime drift is reduced by using an installed shared runtime
 
-Se lo spieghiamo in modo diretto:
+### Negative
 
-- `update-all` non è "un alias più simpatico di pacman";
-- è il punto in cui Arch, snapshot, boot path e verifiche si incontrano.
+- the orchestration is more opinionated than a plain package update
+- correctness depends on keeping the installed runtime and product files in sync
 
-La sua funzione non è fare magia.
-È imporre ordine.
+## Student-level summary
+
+Explained simply:
+
+- `update-all` is not just a nicer alias for `pacman`
+- it is the place where package updates, snapshots, boot recovery, and final
+  verification are coordinated
+
+Its job is not magic.
+Its job is to impose order.

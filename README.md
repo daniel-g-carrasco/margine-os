@@ -113,6 +113,7 @@ Post-install validation checklist:
 - [docs/05-post-install-validation.md](docs/05-post-install-validation.md)
 - [docs/06-host-sync-workflow.md](docs/06-host-sync-workflow.md)
 - [docs/07-snapshot-recovery-behavior.md](docs/07-snapshot-recovery-behavior.md)
+- [docs/08-permanent-rollback-from-snapshot.md](docs/08-permanent-rollback-from-snapshot.md)
 
 ## Current direction
 
