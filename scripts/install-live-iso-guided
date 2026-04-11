@@ -461,6 +461,7 @@ print_summary() {
     log "  User password: set later with passwd"
   fi
   (( dry_run )) && log "  Execution mode: dry-run"
+  return 0
 }
 
 confirm_execution() {
