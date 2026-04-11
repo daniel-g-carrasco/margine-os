@@ -20,6 +20,7 @@ declare -a home_payload=(
   ".config/nvim"
   ".config/user-dirs.dirs"
   ".config/user-dirs.locale"
+  ".local/bin/update-all"
   ".local/bin/update-all-launcher"
 )
 

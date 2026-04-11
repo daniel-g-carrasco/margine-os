@@ -148,27 +148,20 @@ snapshot_source() {
 
 snapshot_label() {
   local _number="$1"
-  local description="$2"
-  local source="$3"
   local date="$4"
-  local parts=()
-  local joined=""
-  local item=""
+  local short_date=""
 
-  [[ -n "$description" ]] && parts+=("$description")
-  [[ -n "$source" ]] && parts+=("$source")
-  [[ -n "$date" ]] && parts+=("$date")
-  (( ${#parts[@]} > 0 )) || parts+=("snapshot ${_number}")
-
-  for item in "${parts[@]}"; do
-    if [[ -n "$joined" ]]; then
-      joined="${joined} · ${item}"
-    else
-      joined="${item}"
+  short_date="$(normalize_date "$date")"
+  if [[ -n "$short_date" ]]; then
+    if short_date="$(LC_ALL=C date -d "$short_date" '+%F %R' 2>/dev/null)"; then
+      printf '%s' "$short_date"
+      return 0
     fi
-  done
+    printf '%s' "$short_date"
+    return 0
+  fi
 
-  printf '%s' "$joined"
+  printf 'snapshot %s' "$_number"
 }
 
 normalize_date() {
