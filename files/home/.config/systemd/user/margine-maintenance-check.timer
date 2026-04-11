@@ -2,7 +2,7 @@
 Description=Periodic Margine update and advisory check
 
 [Timer]
-OnBootSec=10m
+OnStartupSec=2m
 OnUnitActiveSec=6h
 Persistent=true
 Unit=margine-maintenance-check.service

@@ -124,6 +124,7 @@ ICON="software-update-available" \
 ACTION_CMD="$launcher_path" \
 python3 - <<'PY'
 import os
+import shutil
 import subprocess
 from gi.repository import Gio, GLib
 
@@ -143,6 +144,27 @@ def launch():
     if state["launched"]:
         return
     state["launched"] = True
+    systemd_run = shutil.which("systemd-run")
+    if systemd_run:
+        try:
+            subprocess.Popen(
+                [
+                    systemd_run,
+                    "--user",
+                    "--quiet",
+                    "--collect",
+                    "--same-dir",
+                    command,
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                preexec_fn=os.setsid,
+            )
+            return
+        except Exception:
+            pass
+
     subprocess.Popen(
         [command],
         stdin=subprocess.DEVNULL,

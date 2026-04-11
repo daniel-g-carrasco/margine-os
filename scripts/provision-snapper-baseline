@@ -150,7 +150,14 @@ bootstrap_snapper_config_if_needed() {
 
 count_root_snapshots() {
   snapper --no-dbus -c root list --disable-used-space 2>/dev/null |
-    awk 'match($0, /^[[:space:]]*[0-9]+/) {count++} END {print count+0}'
+    awk '
+      match($0, /^[[:space:]]*([0-9]+)/, m) {
+        if (m[1] != "0") {
+          count++
+        }
+      }
+      END {print count+0}
+    '
 }
 
 create_initial_snapshot_if_needed() {
