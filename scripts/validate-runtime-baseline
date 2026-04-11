@@ -103,6 +103,7 @@ maintenance_section() {
   show_user_enablement_state "margine-maintenance-check.timer"
   status_line "maintenance checker: $( [[ -x ${home_dir}/.local/bin/margine-maintenance-check ]] && echo yes || echo no )"
   status_line "update-all-launcher: $( [[ -x ${home_dir}/.local/bin/update-all-launcher ]] && echo yes || echo no )"
+  status_line "update-all desktop entry: $( [[ -f ${home_dir}/.local/share/applications/aggiorna-tutto.desktop ]] && echo yes || echo no )"
 }
 
 launcher_section() {

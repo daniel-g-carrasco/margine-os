@@ -23,6 +23,7 @@ declare -a home_payload=(
   ".config/user-dirs.locale"
   ".local/bin/update-all"
   ".local/bin/update-all-launcher"
+  ".local/share/applications"
   ".local/share/icons"
 )
 
@@ -233,7 +234,8 @@ fix_ownership() {
     "${home_dir}/.config/mimeapps.list" \
     "${home_dir}/.config/user-dirs.dirs" \
     "${home_dir}/.config/user-dirs.locale" \
-    "${home_dir}/.local/bin/update-all-launcher"
+    "${home_dir}/.local/bin/update-all-launcher" \
+    "${home_dir}/.local/share/applications"
 }
 
 main() {

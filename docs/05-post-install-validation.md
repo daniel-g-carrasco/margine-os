@@ -253,6 +253,7 @@ Manual checks:
 upower -e
 command -v update-all
 command -v update-all-launcher || true
+test -f ~/.local/share/applications/aggiorna-tutto.desktop && echo desktop-entry:yes || echo desktop-entry:no
 systemctl --user status margine-maintenance-check.timer --no-pager
 ~/.local/bin/margine-maintenance-check --test-notification
 ```
@@ -261,6 +262,7 @@ Check:
 
 - `update-all` resolves to the installed global entry point
 - `update-all-launcher` exists for notification-click actions
+- the `Update All` desktop launcher entry exists in `~/.local/share/applications/aggiorna-tutto.desktop`
 - the maintenance timer is active in the user session
 
 Manual checks:
