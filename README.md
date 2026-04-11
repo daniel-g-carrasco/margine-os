@@ -122,6 +122,7 @@ Post-install validation checklist:
 - [docs/09-installation-guide.md](docs/09-installation-guide.md)
 - [docs/10-ssh-access.md](docs/10-ssh-access.md)
 - [docs/11-boot-security-and-tpm2.md](docs/11-boot-security-and-tpm2.md)
+- [docs/12-post-install-layer-realignment.md](docs/12-post-install-layer-realignment.md)
 
 ## Current direction
 

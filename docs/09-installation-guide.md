@@ -64,6 +64,13 @@ After the installer finishes:
 This first post-install validation should happen before trying to bootstrap
 Secure Boot or TPM2.
 
+If the repository evolves later, you do not need to reinstall the whole
+machine just to pick up new package blocks or desktop/application payloads.
+
+See:
+
+- [12-post-install-layer-realignment.md](/home/daniel/dev/margine-os/docs/12-post-install-layer-realignment.md)
+
 ## 4. SSH access after install
 
 `Margine` installs the SSH baseline, but it does not expose `sshd`

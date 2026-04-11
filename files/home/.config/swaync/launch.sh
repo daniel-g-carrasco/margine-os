@@ -31,11 +31,9 @@ if command -v systemctl >/dev/null 2>&1 && systemctl --user cat swaync.service >
       XDG_RUNTIME_DIR >/dev/null 2>&1 || true
   fi
 
+  systemctl --user stop swaync.service >/dev/null 2>&1 || true
+  pkill -x swaync >/dev/null 2>&1 || true
   systemctl --user reset-failed swaync.service >/dev/null 2>&1 || true
-
-  if systemctl --user is-active --quiet swaync.service; then
-    exec systemctl --user reload swaync.service
-  fi
 
   exec systemctl --user start swaync.service
 fi
