@@ -28,6 +28,7 @@ user_password_hash=""
 wifi_regdom="IT"
 greetd_login_mode="autologin-lock"
 run_chroot="y"
+prompt_result=""
 
 usage() {
   cat <<'EOF'
@@ -199,22 +200,26 @@ require_tty() {
   [[ -r /dev/tty ]] || die "interactive guided install requires a controlling TTY"
 }
 
+tty_printf() {
+  printf '%s' "$*" >/dev/tty
+}
+
 prompt() {
   local label="$1"
   local default_value="${2-}"
   local reply=""
 
   if [[ -n "$default_value" ]]; then
-    printf '%s [%s]: ' "$label" "$default_value" >&2
+    tty_printf "${label} [${default_value}]: "
   else
-    printf '%s: ' "$label" >&2
+    tty_printf "${label}: "
   fi
 
   read -r reply </dev/tty || die "failed to read interactive input from /dev/tty"
   if [[ -n "$reply" ]]; then
-    printf '%s\n' "$reply"
+    prompt_result="$reply"
   else
-    printf '%s\n' "$default_value"
+    prompt_result="$default_value"
   fi
 }
 
@@ -224,12 +229,13 @@ prompt_required() {
   local value=""
 
   while :; do
-    value="$(prompt "$label" "$default_value")"
+    prompt "$label" "$default_value"
+    value="$prompt_result"
     [[ -n "$value" ]] && break
     log "A value is required."
   done
 
-  printf '%s\n' "$value"
+  prompt_result="$value"
 }
 
 prompt_yes_no() {
@@ -239,26 +245,26 @@ prompt_yes_no() {
 
   while :; do
     if [[ "$default_value" = "y" ]]; then
-      printf '%s [Y/n]: ' "$label" >&2
+      tty_printf "${label} [Y/n]: "
     else
-      printf '%s [y/N]: ' "$label" >&2
+      tty_printf "${label} [y/N]: "
     fi
 
     read -r reply </dev/tty || die "failed to read interactive input from /dev/tty"
     reply="${reply,,}"
 
     if [[ -z "$reply" ]]; then
-      printf '%s\n' "$default_value"
+      prompt_result="$default_value"
       return 0
     fi
 
     case "$reply" in
       y|yes)
-        printf 'y\n'
+        prompt_result="y"
         return 0
         ;;
       n|no)
-        printf 'n\n'
+        prompt_result="n"
         return 0
         ;;
     esac
@@ -276,7 +282,7 @@ prompt_mode() {
   log "  2) Pre-mounted target: use an existing mountpoint"
 
   while :; do
-    printf 'Selection [1]: ' >&2
+    tty_printf 'Selection [1]: '
     read -r reply </dev/tty || die "failed to read interactive input from /dev/tty"
     reply="${reply:-1}"
 
@@ -300,7 +306,8 @@ prompt_password_hash() {
   local password1=""
   local password2=""
 
-  choice="$(prompt_yes_no "Do you want to set the user password during installation?" "n")"
+  prompt_yes_no "Do you want to set the user password during installation?" "n"
+  choice="$prompt_result"
   [[ "$choice" = "y" ]] || return 0
 
   if ! have_cmd openssl; then
@@ -337,16 +344,21 @@ collect_quick_inputs() {
   local real_name_default=""
 
   if [[ "$mode" = "erase-disk" ]]; then
-    disk="$(prompt_required "Target disk, for example /dev/nvme0n1" "$disk")"
+    prompt_required "Target disk, for example /dev/nvme0n1" "$disk"
+    disk="$prompt_result"
   else
-    target_root="$(prompt_required "Mounted target root" "$target_root")"
+    prompt_required "Mounted target root" "$target_root"
+    target_root="$prompt_result"
   fi
 
-  hostname="$(prompt_required "Hostname" "$hostname")"
-  username="$(prompt_required "Administrative username" "$username")"
+  prompt_required "Hostname" "$hostname"
+  hostname="$prompt_result"
+  prompt_required "Administrative username" "$username"
+  username="$prompt_result"
   real_name_default="$real_name"
   [[ -n "$real_name_default" ]] || real_name_default="$username"
-  real_name="$(prompt "Real name/comment" "$real_name_default")"
+  prompt "Real name/comment" "$real_name_default"
+  real_name="$prompt_result"
   prompt_password_hash
 }
 
@@ -354,19 +366,28 @@ collect_advanced_inputs() {
   local real_name_default=""
 
   if [[ "$mode" = "erase-disk" ]]; then
-    disk="$(prompt_required "Target disk, for example /dev/nvme0n1" "$disk")"
+    prompt_required "Target disk, for example /dev/nvme0n1" "$disk"
+    disk="$prompt_result"
   fi
 
-  target_root="$(prompt_required "Target mountpoint" "$target_root")"
-  hostname="$(prompt_required "Hostname" "$hostname")"
-  username="$(prompt_required "Administrative username" "$username")"
+  prompt_required "Target mountpoint" "$target_root"
+  target_root="$prompt_result"
+  prompt_required "Hostname" "$hostname"
+  hostname="$prompt_result"
+  prompt_required "Administrative username" "$username"
+  username="$prompt_result"
   real_name_default="$real_name"
   [[ -n "$real_name_default" ]] || real_name_default="$username"
-  real_name="$(prompt "Real name/comment" "$real_name_default")"
-  user_shell="$(prompt_required "Login shell" "$user_shell")"
-  extra_groups="$(prompt "Extra groups (CSV, optional)" "$extra_groups")"
-  wifi_regdom="$(prompt_required "Wi-Fi regulatory domain" "$wifi_regdom")"
-  run_chroot="$(prompt_yes_no "Run the chroot phase immediately too?" "$run_chroot")"
+  prompt "Real name/comment" "$real_name_default"
+  real_name="$prompt_result"
+  prompt_required "Login shell" "$user_shell"
+  user_shell="$prompt_result"
+  prompt "Extra groups (CSV, optional)" "$extra_groups"
+  extra_groups="$prompt_result"
+  prompt_required "Wi-Fi regulatory domain" "$wifi_regdom"
+  wifi_regdom="$prompt_result"
+  prompt_yes_no "Run the chroot phase immediately too?" "$run_chroot"
+  run_chroot="$prompt_result"
   prompt_password_hash
 }
 
@@ -425,10 +446,12 @@ confirm_execution() {
 
   log
   if [[ "$mode" = "erase-disk" ]]; then
-    printf 'WARNING: this mode can erase the selected disk.\n'
-    reply="$(prompt_yes_no "Do you want to continue?" "n")"
+    tty_printf 'WARNING: this mode can erase the selected disk.\n'
+    prompt_yes_no "Do you want to continue?" "n"
+    reply="$prompt_result"
   else
-    reply="$(prompt_yes_no "Do you want to continue?" "y")"
+    prompt_yes_no "Do you want to continue?" "y"
+    reply="$prompt_result"
   fi
 
   [[ "$reply" = "y" ]] || die "installation cancelled"
