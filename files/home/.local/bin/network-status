@@ -10,6 +10,47 @@ tooltip="Network unavailable"
 class="disconnected"
 text="$wifi_icon_disconnected"
 
+json_escape() {
+  local value="${1:-}"
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  value=${value//$'\n'/\\n}
+  printf '%s' "$value"
+}
+
+build_common_tooltip() {
+  local device="$1"
+  local type_label="$2"
+  local connection_label="$3"
+  local signal_label="${4:-}"
+  local ip_line=""
+  local gateway_line=""
+  local dns_lines=""
+  local details=""
+
+  ip_line="$(nmcli -t -g IP4.ADDRESS device show "$device" 2>/dev/null | head -n 1 || true)"
+  gateway_line="$(nmcli -t -g IP4.GATEWAY device show "$device" 2>/dev/null | head -n 1 || true)"
+  dns_lines="$(nmcli -t -g IP4.DNS device show "$device" 2>/dev/null | paste -sd ', ' - || true)"
+
+  details="${type_label}"
+  details="${details}\nConnection: ${connection_label:-n/a}"
+  details="${details}\nDevice: ${device}"
+  if [[ -n "$signal_label" ]]; then
+    details="${details}\nSignal: ${signal_label}"
+  fi
+  if [[ -n "$ip_line" ]]; then
+    details="${details}\nIPv4: ${ip_line}"
+  fi
+  if [[ -n "$gateway_line" ]]; then
+    details="${details}\nGateway: ${gateway_line}"
+  fi
+  if [[ -n "$dns_lines" ]]; then
+    details="${details}\nDNS: ${dns_lines}"
+  fi
+
+  json_escape "$details"
+}
+
 if ! command -v nmcli >/dev/null 2>&1; then
   printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$text" "$tooltip" "$class"
   exit 0
@@ -35,7 +76,7 @@ if [[ -n "$wifi_device" ]]; then
     signal="${signal:-?}"
     class="connected"
     text="$wifi_icon_connected  ${signal}%"
-    tooltip="${connection_name:-Connected}\n${signal}%"
+    tooltip="$(build_common_tooltip "$wifi_device" "Wi-Fi" "${connection_name:-Connected}" "${signal}%")"
   elif [[ "$wifi_enabled" == "enabled" ]]; then
     class="disconnected"
     text="$wifi_icon_disconnected"
@@ -57,7 +98,7 @@ if [[ -n "$ethernet_row" ]]; then
   if [[ "$eth_state" == "connected" ]]; then
     class="ethernet"
     text="$ethernet_icon"
-    tooltip="${eth_conn:-Ethernet connected}"
+    tooltip="$(build_common_tooltip "$(printf '%s\n' "$ethernet_row" | awk -F: '{print $1}')" "Ethernet" "${eth_conn:-Ethernet connected}")"
     printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$text" "$tooltip" "$class"
     exit 0
   fi

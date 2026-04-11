@@ -78,7 +78,8 @@
     "return-type": "json",
     "exec": "~/.local/bin/network-status",
     "interval": 5,
-    "on-click": "~/.local/bin/open-network-tui",
+    "on-click": "~/.local/bin/open-network-settings",
+    "on-click-right": "~/.local/bin/open-network-tui",
     "escape": true
   },
 
