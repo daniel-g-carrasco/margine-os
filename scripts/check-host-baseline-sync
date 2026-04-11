@@ -71,4 +71,7 @@ while IFS= read -r pattern; do
 done < "$manifest_file"
 
 rm -f /tmp/margine-host-sync.diff
+if (( status == 0 )); then
+  printf 'check-host-baseline-sync: OK\n'
+fi
 exit "$status"

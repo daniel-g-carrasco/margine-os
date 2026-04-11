@@ -30,3 +30,5 @@ for path in pathlib.Path("products").glob("*.toml"):
     with path.open("rb") as handle:
         tomllib.load(handle)
 PY
+
+printf 'check-shell-and-manifests: OK\n'
