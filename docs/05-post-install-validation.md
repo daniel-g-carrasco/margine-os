@@ -73,7 +73,7 @@ Check:
 Also verify the launcher AUR baseline explicitly:
 
 ```bash
-pacman -Q yay elephant-all msttcorefonts walker
+pacman -Q yay elephant-all ttf-ms-fonts walker
 elephant listproviders
 ls ~/.local/share/icons/hicolor/256x256/apps/duckduckgo.png
 ```
@@ -87,7 +87,7 @@ Check:
 ## 4. System services
 
 ```bash
-systemctl --failed
+systemctl --failed --no-pager
 systemctl status NetworkManager bluetooth iwd power-profiles-daemon ufw avahi-daemon cups sshd --no-pager
 ```
 
@@ -377,7 +377,7 @@ Check:
 ```bash
 journalctl -b -p warning..alert --no-pager
 journalctl -b --no-pager | tail -n 300
-systemctl --failed
+systemctl --failed --no-pager
 systemctl --user --failed
 ```
 
@@ -391,7 +391,7 @@ If you want one compact block to paste after a first boot, use:
 cat /proc/cmdline
 findmnt /
 findmnt /.snapshots
-systemctl --failed
+systemctl --failed --no-pager
 systemctl --user --failed
 nmcli general
 wpctl status
@@ -407,7 +407,7 @@ journalctl -b -p warning..alert --no-pager
 For the private CachyOS product, also include:
 
 ```bash
-pacman -Q linux-cachyos linux-cachyos-headers cachyos-keyring cachyos-mirrorlist cachyos-settings hyprland waybar swaync hyprlock walker elephant-all yay msttcorefonts firefox chromium loupe gnome-text-editor showtime decibels easyeffects
+pacman -Q linux-cachyos linux-cachyos-headers cachyos-keyring cachyos-mirrorlist cachyos-settings hyprland waybar swaync hyprlock walker elephant-all yay ttf-ms-fonts firefox chromium loupe gnome-text-editor showtime decibels easyeffects
 elephant listproviders
 xdg-mime query default image/png
 xdg-mime query default text/plain

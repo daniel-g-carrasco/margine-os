@@ -125,7 +125,7 @@ launcher_section() {
   local -a aur_baseline_packages=(
     yay
     elephant-all
-    msttcorefonts
+    ttf-ms-fonts
     walker
   )
 

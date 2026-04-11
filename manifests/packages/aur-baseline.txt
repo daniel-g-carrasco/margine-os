@@ -7,5 +7,5 @@
 
 yay
 elephant-all
-msttcorefonts
+ttf-ms-fonts
 walker
