@@ -8,6 +8,7 @@ dry_run=0
 esp_path="/boot"
 loader_dir="EFI/Margine"
 loader_name="BOOTX64.EFI"
+limine_binary_source="/usr/share/limine/BOOTX64.EFI"
 snapper_config="root"
 snapshots_subvolume="@snapshots"
 recovery_entry_limit=12
@@ -30,6 +31,8 @@ Options:
                            (default: EFI/Margine)
   --loader-name NAME       EFI filename for the Limine loader
                            (default: BOOTX64.EFI)
+  --limine-binary PATH     Unsigned Limine EFI binary to deploy before signing
+                           (default: /usr/share/limine/BOOTX64.EFI)
   --snapper-config NAME    Snapper config to expose in Limine (default: root)
   --snapshots-subvolume P  Snapshot root subvolume (default: @snapshots)
   --recovery-entry-limit N Maximum recovery entries in Limine (default: 12)
@@ -100,6 +103,11 @@ parse_args() {
       --loader-name)
         [[ $# -ge 2 ]] || die "missing value for --loader-name"
         loader_name="$2"
+        shift 2
+        ;;
+      --limine-binary)
+        [[ $# -ge 2 ]] || die "missing value for --limine-binary"
+        limine_binary_source="$2"
         shift 2
         ;;
       --snapshots-subvolume)
@@ -249,6 +257,7 @@ main() {
 
   [[ -n "$limine_tool" ]] || die "limine host tool not found"
   [[ -f "$loader_target" ]] || die "Limine loader not found: $loader_target"
+  [[ -f "$limine_binary_source" ]] || die "unsigned Limine EFI binary not found: $limine_binary_source"
 
   detect_root_source
   detect_root_uuid
@@ -276,7 +285,8 @@ main() {
   render_limine_assets
 
   log
-  log "==> Install Limine config on the current side-by-side path"
+  log "==> Install Limine loader and config on the current side-by-side path"
+  run_cmd install -Dm755 "$limine_binary_source" "$loader_target"
   run_cmd install -Dm644 "$limine_output" "$config_target"
 
   log
