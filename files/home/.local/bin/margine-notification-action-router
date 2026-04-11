@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+python3 - <<'PY'
+import os
+import pathlib
+import shutil
+import subprocess
+from gi.repository import Gio, GLib
+
+runtime_root = pathlib.Path(
+    os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+) / "margine" / "notification-actions"
+runtime_root.mkdir(parents=True, exist_ok=True)
+
+
+def mapping_path(nid: int) -> pathlib.Path:
+    return runtime_root / f"{nid}.cmd"
+
+
+def launch(command: str) -> None:
+    systemd_run = shutil.which("systemd-run")
+    if systemd_run:
+        try:
+            subprocess.Popen(
+                [
+                    systemd_run,
+                    "--user",
+                    "--quiet",
+                    "--collect",
+                    "--same-dir",
+                    command,
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                preexec_fn=os.setsid,
+            )
+            return
+        except Exception:
+            pass
+
+    subprocess.Popen(
+        [command],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        preexec_fn=os.setsid,
+    )
+
+
+def on_signal(conn, sender, obj, iface, signal, params, data=None):
+    if signal == "ActionInvoked":
+        nid, action = params.unpack()
+        if action not in ("default", ""):
+            return
+        path = mapping_path(nid)
+        if not path.is_file():
+            return
+        command = path.read_text(encoding="utf-8").strip()
+        if command:
+            launch(command)
+        path.unlink(missing_ok=True)
+    elif signal == "NotificationClosed":
+        nid, _reason = params.unpack()
+        mapping_path(nid).unlink(missing_ok=True)
+
+
+bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+bus.signal_subscribe(
+    "org.freedesktop.Notifications",
+    "org.freedesktop.Notifications",
+    None,
+    "/org/freedesktop/Notifications",
+    None,
+    Gio.DBusSignalFlags.NONE,
+    on_signal,
+)
+
+loop = GLib.MainLoop()
+loop.run()
+PY

@@ -101,9 +101,12 @@ maintenance_section() {
   section "Maintenance"
   show_service_state "margine-maintenance-check.timer" user
   show_user_enablement_state "margine-maintenance-check.timer"
+  show_service_state "margine-notification-action-router.service" user
+  show_user_enablement_state "margine-notification-action-router.service"
   status_line "maintenance checker: $( [[ -x ${home_dir}/.local/bin/margine-maintenance-check ]] && echo yes || echo no )"
   status_line "update-all-launcher: $( [[ -x ${home_dir}/.local/bin/update-all-launcher ]] && echo yes || echo no )"
-  status_line "update-all desktop entry: $( [[ -f ${home_dir}/.local/share/applications/aggiorna-tutto.desktop ]] && echo yes || echo no )"
+  status_line "notification action router: $( [[ -x ${home_dir}/.local/bin/margine-notification-action-router ]] && echo yes || echo no )"
+  status_line "update-all desktop entry: $( [[ -f ${home_dir}/.local/share/applications/update-all.desktop ]] && echo yes || echo no )"
 }
 
 launcher_section() {

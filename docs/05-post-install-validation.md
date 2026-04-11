@@ -253,8 +253,8 @@ Manual checks:
 upower -e
 command -v update-all
 command -v update-all-launcher || true
-test -f ~/.local/share/applications/aggiorna-tutto.desktop && echo desktop-entry:yes || echo desktop-entry:no
-systemctl --user status margine-maintenance-check.timer --no-pager
+test -f ~/.local/share/applications/update-all.desktop && echo desktop-entry:yes || echo desktop-entry:no
+systemctl --user status margine-maintenance-check.timer margine-notification-action-router.service --no-pager
 ~/.local/bin/margine-maintenance-check --test-notification
 ```
 
@@ -262,7 +262,8 @@ Check:
 
 - `update-all` resolves to the installed global entry point
 - `update-all-launcher` exists for notification-click actions
-- the `Update All` desktop launcher entry exists in `~/.local/share/applications/aggiorna-tutto.desktop`
+- the `Update All` desktop launcher entry exists in `~/.local/share/applications/update-all.desktop`
+- `margine-notification-action-router.service` is active during the user session
 - the maintenance timer is active in the user session
 
 Manual checks:
@@ -284,8 +285,8 @@ Manual checks:
 ## 14. Snapper and rollback
 
 ```bash
-snapper list-configs
-snapper -c root list
+snapper --no-dbus list-configs
+snapper --no-dbus -c root list
 systemctl status snapper-cleanup.timer --no-pager
 ```
 
@@ -397,8 +398,8 @@ systemctl --failed --no-pager
 systemctl --user --failed
 nmcli general
 wpctl status
-snapper list-configs
-snapper -c root list
+snapper --no-dbus list-configs
+snapper --no-dbus -c root list
 hyprctl activeworkspace
 elephant listproviders
 grep -n '"Default": "DuckDuckGo"' /etc/firefox/policies/policies.json

@@ -22,6 +22,7 @@
 .config/systemd/user/keep-awake.service
 .config/systemd/user/margine-maintenance-check.service
 .config/systemd/user/margine-maintenance-check.timer
+.config/systemd/user/margine-notification-action-router.service
 .config/walker/config.toml
 .config/walker/themes/default/item.xml
 .config/walker/themes/default/item_archlinuxpkgs.xml
@@ -59,6 +60,7 @@
 .local/bin/margine-launcher
 .local/bin/margine-launcher-service
 .local/bin/margine-maintenance-check
+.local/bin/margine-notification-action-router
 .local/bin/network-status
 .local/bin/notification-status
 .local/bin/open-bluetooth-settings
@@ -80,4 +82,4 @@
 .local/bin/volume-osd
 .local/bin/vpn-menu
 .local/bin/vpn-status
-.local/share/applications/aggiorna-tutto.desktop
+.local/share/applications/update-all.desktop

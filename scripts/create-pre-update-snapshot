@@ -103,7 +103,7 @@ main() {
   description="${description_prefix} $(date +%F' '%T)"
 
   log "==> Snapshot pre-update"
-  run_cmd sudo snapper -c "$snapper_config" create \
+  run_cmd sudo snapper --no-dbus -c "$snapper_config" create \
     --type single \
     --print-number \
     --description "$description" \

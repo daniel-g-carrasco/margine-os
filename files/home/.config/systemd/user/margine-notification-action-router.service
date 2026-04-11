@@ -1,0 +1,13 @@
+[Unit]
+Description=Margine notification action router
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/margine-notification-action-router
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

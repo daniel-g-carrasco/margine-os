@@ -14,8 +14,10 @@ declare -a home_payload=(
   ".config/systemd/user/keep-awake.service"
   ".config/systemd/user/margine-maintenance-check.service"
   ".config/systemd/user/margine-maintenance-check.timer"
+  ".config/systemd/user/margine-notification-action-router.service"
   ".local/bin/margine-import-session-environment"
   ".local/bin/margine-maintenance-check"
+  ".local/bin/margine-notification-action-router"
   ".local/bin/margine-launcher"
   ".local/bin/margine-launcher-service"
   ".local/bin/hypr-refresh-rate-watch"
@@ -126,6 +128,7 @@ enable_user_units() {
   local -a units=(
     elephant.service
     hypr-refresh-rate.service
+    margine-notification-action-router.service
   )
   local -a timers=(
     margine-maintenance-check.timer

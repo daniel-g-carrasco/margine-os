@@ -70,8 +70,8 @@ snapper_section() {
   section "Snapper e Recovery"
 
   if have_cmd snapper; then
-    configs="$(snapper list-configs 2>/dev/null || true)"
-    root_list="$(snapper -c root list 2>/dev/null || true)"
+    configs="$(snapper --no-dbus list-configs 2>/dev/null || true)"
+    root_list="$(snapper --no-dbus -c root list 2>/dev/null || true)"
 
     status_line "configs:"
     if [[ -n "$configs" ]]; then

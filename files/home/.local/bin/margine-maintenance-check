@@ -3,10 +3,12 @@ set -euo pipefail
 
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/margine"
 state_file="${state_dir}/maintenance-check.state"
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/margine/notification-actions"
 force_notify=0
 test_notify=0
 
 mkdir -p "$state_dir"
+mkdir -p "$runtime_dir"
 
 while (($#)); do
   case "$1" in
@@ -59,26 +61,26 @@ if command -v arch-audit >/dev/null 2>&1; then
   advisories_count="$(printf '%s\n' "$advisories_output" | count_lines)"
 fi
 
-title="Margine: manutenzione richiesta"
+title="Margine: maintenance required"
 urgency="normal"
 
 if (( advisories_count > 0 )); then
-  title="Margine: advisory di sicurezza"
+  title="Margine: security advisory"
   urgency="critical"
 fi
 
 summary=()
 if (( advisories_count > 0 )); then
-  summary+=("${advisories_count} pacchetti con advisory")
+  summary+=("${advisories_count} packages with advisories")
 fi
 if (( updates_count > 0 )); then
-  summary+=("${updates_count} aggiornamenti disponibili")
+  summary+=("${updates_count} updates available")
 fi
 
 if (( test_notify )); then
-  title="Margine: test manutenzione"
+  title="Margine: maintenance test"
   urgency="normal"
-  body=$'Questa e\' la notifica reale di manutenzione.\n\nClicca direttamente sul corpo per aprire update-all.'
+  body=$'This is the real maintenance notification.\n\nClick the notification body to open Update All.'
 else
   current_state="$(printf 'updates=%s\nadvisories=%s\n---\n%s\n---\n%s\n' \
     "$updates_count" \
@@ -95,15 +97,15 @@ else
 
   if (( advisories_count > 0 )); then
     advisory_preview="$(printf '%s\n' "$advisories_output" | head -n 3)"
-    body="${body}\n\nAdvisory:\n${advisory_preview}"
+    body="${body}\n\nAdvisories:\n${advisory_preview}"
   fi
 
   if (( updates_count > 0 )); then
     updates_preview="$(printf '%s\n' "$updates_output" | head -n 4 | awk '{print $1}')"
-    body="${body}\n\nUpdate:\n${updates_preview}"
+    body="${body}\n\nUpdates:\n${updates_preview}"
   fi
 
-  body="${body}\n\nClicca la notifica per aprire update-all."
+  body="${body}\n\nClick the notification to open Update All."
 fi
 
 launch_update_all() {
@@ -122,10 +124,10 @@ BODY="$body" \
 URGENCY="$urgency" \
 ICON="software-update-available" \
 ACTION_CMD="$launcher_path" \
+ACTION_DIR="$runtime_dir" \
 python3 - <<'PY'
 import os
-import shutil
-import subprocess
+import pathlib
 from gi.repository import Gio, GLib
 
 urgency_map = {"low": 0, "normal": 1, "critical": 2}
@@ -133,77 +135,11 @@ title = os.environ["TITLE"]
 body = os.environ["BODY"]
 icon = os.environ["ICON"]
 command = os.environ["ACTION_CMD"]
+action_dir = pathlib.Path(os.environ["ACTION_DIR"])
 urgency = urgency_map.get(os.environ.get("URGENCY", "normal"), 1)
+action_dir.mkdir(parents=True, exist_ok=True)
 
-loop = GLib.MainLoop()
 bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-state = {"nid": None, "launched": False, "closed": False}
-
-
-def launch():
-    if state["launched"]:
-        return
-    state["launched"] = True
-    systemd_run = shutil.which("systemd-run")
-    if systemd_run:
-        try:
-            subprocess.Popen(
-                [
-                    systemd_run,
-                    "--user",
-                    "--quiet",
-                    "--collect",
-                    "--same-dir",
-                    command,
-                ],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                preexec_fn=os.setsid,
-            )
-            return
-        except Exception:
-            pass
-
-    subprocess.Popen(
-        [command],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        preexec_fn=os.setsid,
-    )
-
-
-def quit_later():
-    if state["launched"]:
-        return False
-    loop.quit()
-    return False
-
-
-def on_signal(conn, sender, obj, iface, signal, params, data=None):
-    if signal == "ActionInvoked":
-        nid, action = params.unpack()
-        if nid == state["nid"] and action in ("default", ""):
-            launch()
-            loop.quit()
-    elif signal == "NotificationClosed":
-        nid, reason = params.unpack()
-        if nid == state["nid"]:
-            state["closed"] = True
-            GLib.timeout_add(350, quit_later)
-
-
-bus.signal_subscribe(
-    "org.freedesktop.Notifications",
-    "org.freedesktop.Notifications",
-    None,
-    "/org/freedesktop/Notifications",
-    None,
-    Gio.DBusSignalFlags.NONE,
-    on_signal,
-)
-
 result = bus.call_sync(
     "org.freedesktop.Notifications",
     "/org/freedesktop/Notifications",
@@ -227,7 +163,6 @@ result = bus.call_sync(
     -1,
     None,
 )
-state["nid"] = result.unpack()[0]
-GLib.timeout_add_seconds(35, lambda: (loop.quit(), False)[1])
-loop.run()
+nid = result.unpack()[0]
+(action_dir / f"{nid}.cmd").write_text(command + "\n", encoding="utf-8")
 PY

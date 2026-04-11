@@ -238,6 +238,13 @@ fix_ownership() {
     "${home_dir}/.local/share/applications"
 }
 
+cleanup_legacy_desktop_entries() {
+  log
+  log "==> Remove legacy desktop entries"
+
+  run_cmd rm -f "${home_dir}/.local/share/applications/aggiorna-tutto.desktop"
+}
+
 main() {
   parse_args "$@"
   require_root
@@ -249,6 +256,7 @@ main() {
   install_libreoffice_baseline
   install_firefox_policy
   install_global_update_all
+  cleanup_legacy_desktop_entries
   fix_ownership
 
   log
