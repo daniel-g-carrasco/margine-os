@@ -199,29 +199,16 @@ ensure_prereqs() {
 }
 
 require_tty() {
-  [[ -t 0 || -r /dev/tty ]] || die "interactive guided install requires an interactive terminal"
+  [[ -t 0 && -t 1 ]] || die "interactive guided install requires an interactive terminal"
 }
 
 setup_interactive_fds() {
-  if exec 3<>/dev/tty 4>/dev/tty 2>/dev/null; then
-    interactive_input_fd=3
-    interactive_output_fd=4
-    return 0
-  fi
-
-  if [[ -t 0 && -t 1 ]]; then
-    interactive_input_fd=0
-    interactive_output_fd=1
-    return 0
-  fi
-
-  die "failed to initialize interactive terminal I/O"
+  interactive_input_fd=0
+  interactive_output_fd=1
 }
 
 tty_printf() {
-  if ! printf '%s' "$*" >&${interactive_output_fd}; then
-    printf '%s' "$*"
-  fi
+  printf '%s' "$*" >&${interactive_output_fd}
 }
 
 tty_read() {
@@ -348,12 +335,12 @@ prompt_password_hash() {
 
   while :; do
     printf 'User password: ' >&2
-    if ! IFS= read -rs password1 <&${interactive_input_fd}; then
+    if ! IFS= read -rs password1; then
       die "failed to read interactive input"
     fi
     printf '\n' >&2
     printf 'Repeat user password: ' >&2
-    if ! IFS= read -rs password2 <&${interactive_input_fd}; then
+    if ! IFS= read -rs password2; then
       die "failed to read interactive input"
     fi
     printf '\n' >&2
