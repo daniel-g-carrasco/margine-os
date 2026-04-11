@@ -80,13 +80,18 @@ It currently targets:
 
 The public baseline already includes:
 
-- `Limine + UKI + Secure Boot + TPM2 + Btrfs + Snapper`
+- `Limine + UKI + Btrfs + Snapper`
 - staged recovery paths and boot artifact deployment
 - reproducible install/bootstrap scripts
 - versioned Hyprland desktop behavior
 - explicit package, AUR, and Flatpak layers
 - flavor-aware manifests
 - product-aware scaffolding for future public/private split
+
+Secure Boot bootstrap tooling is versioned, but still requires an explicit
+post-install firmware-aware step.
+TPM2 auto-unlock is part of the architectural direction, but is not yet
+automated by the installer.
 
 ## Quick start
 
@@ -114,6 +119,7 @@ Post-install validation checklist:
 - [docs/06-host-sync-workflow.md](docs/06-host-sync-workflow.md)
 - [docs/07-snapshot-recovery-behavior.md](docs/07-snapshot-recovery-behavior.md)
 - [docs/08-permanent-rollback-from-snapshot.md](docs/08-permanent-rollback-from-snapshot.md)
+- [docs/09-installation-guide.md](docs/09-installation-guide.md)
 
 ## Current direction
 
