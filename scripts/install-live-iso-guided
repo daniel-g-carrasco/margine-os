@@ -195,6 +195,10 @@ ensure_prereqs() {
   [[ -x "${script_dir}/bootstrap-live-iso" ]] || die "missing executable: ${script_dir}/bootstrap-live-iso"
 }
 
+require_tty() {
+  [[ -r /dev/tty ]] || die "interactive guided install requires a controlling TTY"
+}
+
 prompt() {
   local label="$1"
   local default_value="${2-}"
@@ -206,7 +210,7 @@ prompt() {
     printf '%s: ' "$label" >&2
   fi
 
-  read -r reply
+  read -r reply </dev/tty || die "failed to read interactive input from /dev/tty"
   if [[ -n "$reply" ]]; then
     printf '%s\n' "$reply"
   else
@@ -240,7 +244,7 @@ prompt_yes_no() {
       printf '%s [y/N]: ' "$label" >&2
     fi
 
-    read -r reply
+    read -r reply </dev/tty || die "failed to read interactive input from /dev/tty"
     reply="${reply,,}"
 
     if [[ -z "$reply" ]]; then
@@ -273,7 +277,7 @@ prompt_mode() {
 
   while :; do
     printf 'Selection [1]: ' >&2
-    read -r reply
+    read -r reply </dev/tty || die "failed to read interactive input from /dev/tty"
     reply="${reply:-1}"
 
     case "$reply" in
@@ -306,10 +310,10 @@ prompt_password_hash() {
 
   while :; do
     printf 'User password: ' >&2
-    read -rs password1
+    read -rs password1 </dev/tty || die "failed to read interactive input from /dev/tty"
     printf '\n' >&2
     printf 'Repeat user password: ' >&2
-    read -rs password2
+    read -rs password2 </dev/tty || die "failed to read interactive input from /dev/tty"
     printf '\n' >&2
 
     if [[ "$password1" != "$password2" ]]; then
@@ -483,6 +487,7 @@ run_mounted_target_mode() {
 main() {
   parse_args "$@"
   ensure_prereqs
+  require_tty
 
   log "=== Margine Guided Install ==="
   if (( ! advanced )); then
