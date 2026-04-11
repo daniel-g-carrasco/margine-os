@@ -281,6 +281,7 @@ Check:
 ## 15. SSH
 
 ```bash
+sudo margine-enable-ssh-server
 systemctl status sshd --no-pager
 ufw status
 ss -ltnp | grep ':22'
@@ -290,8 +291,32 @@ Check:
 
 - `sshd` is enabled/running when intentionally enabled
 - firewall state is coherent
+- in QEMU, `ssh -p 2222 daniel@127.0.0.1` works after explicit enablement
 
-## 16. Logs to collect when debugging
+## 16. Secure Boot and TPM2 rollout checks
+
+```bash
+sudo sbctl status
+sudo sbctl verify
+systemd-analyze has-tpm2
+sudo /usr/local/lib/margine/scripts/validate-tpm2-auto-unlock || true
+```
+
+Check:
+
+- `sbctl` is either clearly bootstraped or clearly not bootstraped, without ambiguous red-noise failures
+- `systemd-analyze has-tpm2` reports `yes` on hardware or on QEMU guests started with `swtpm`
+- TPM2 rollout is validated only after the staged post-install flow, not assumed from a fresh install
+- production boot auto-unlocks only after the second TPM2 step and final reboot
+
+Manual checks:
+
+- if Secure Boot has just been bootstraped, reboot once before starting TPM2 staging
+- if TPM2 has just been staged, reboot once and unlock manually before the final TPM2 enrollment run
+- after final TPM2 enrollment, production boot should stop asking for the LUKS password
+- recovery boot may still ask for manual credentials; this is acceptable
+
+## 17. Logs to collect when debugging
 
 ```bash
 journalctl -b -p warning..alert --no-pager

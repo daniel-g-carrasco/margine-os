@@ -42,6 +42,12 @@ La sequenza canonica è:
 5. riavviare;
 6. verificare `sbctl status`.
 
+Prima della fase firmware, il percorso consigliato diventa:
+
+1. export delle chiavi pubbliche attualmente enrollate;
+2. ispezione dei binari EFI presenti sulla `ESP`;
+3. solo dopo, ingresso in firmware e passaggio a `Setup Mode`.
+
 ## Regola di Setup Mode
 
 Il bootstrap non deve tentare di aggirare il firmware.
@@ -60,13 +66,19 @@ In `Margine v1` non usiamo opzioni aggressive tipo `--yolo`.
 Per l'enrollment usiamo di default:
 
 ```bash
-sbctl enroll-keys -m
+sbctl enroll-keys -m -f
 ```
 
 Motivo:
 
 - `sbctl` raccomanda di includere i certificati Microsoft per ridurre i rischi
   legati a Option ROM e firmware firmati dal vendor.
+- i certificati firmware builtin `db/KEK` aiutano a ridurre il rischio di
+  rompere catene OEM o dual-boot gia' esistenti.
+
+Per casi avanzati, `sbctl` espone anche `--append` e `--custom`, ma in
+`Margine` non diventano il default: restano strumenti da usare solo quando si
+sa gia' quali altre chiavi custom devono sopravvivere.
 
 ## Regola chiavi
 
@@ -98,6 +110,8 @@ Motivo:
 
 Per `Margine` la divisione corretta diventa:
 
+- `provision-secure-boot-preflight`: export chiavi pubbliche correnti e
+  ispezione `ESP`;
 - `provision-secure-boot`: bootstrap iniziale delle chiavi e dell'enrollment;
 - `refresh-efi-trust`: refresh della catena EFI già deployata;
 - `update-all`: manutenzione ordinaria del sistema.

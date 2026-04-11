@@ -6,7 +6,9 @@ repo_root="$(cd "${script_dir}/.." && pwd)"
 
 dry_run=0
 use_microsoft=1
+use_firmware_builtin=1
 keys_only=0
+require_preflight=1
 esp_path=""
 export_keys_dir=""
 limine_tool=""
@@ -14,6 +16,7 @@ main_uki=""
 fallback_uki=""
 recovery_uki=""
 sbctl_keys_dir="${SBCTL_KEYS_DIR:-/var/lib/sbctl/keys}"
+preflight_stamp="/var/lib/margine/secure-boot-backups/last-preflight.env"
 
 usage() {
   cat <<'EOF'
@@ -24,6 +27,8 @@ Options:
   --dry-run               Show commands without executing them
   --keys-only             Run only create-keys/enroll-keys, without EFI refresh
   --no-microsoft          Do not add Microsoft certificates during enrollment
+  --no-firmware-builtin   Do not include firmware builtin db/KEK certificates
+  --no-preflight-check    Allow bootstrap without the recorded preflight stamp
   --esp-path PATH         EFI System Partition mountpoint
   --export-keys PATH      Explicit export path for keys created by sbctl
   --limine-tool PATH      Explicit path to the host `limine` tool
@@ -68,6 +73,14 @@ parse_args() {
         ;;
       --no-microsoft)
         use_microsoft=0
+        shift
+        ;;
+      --no-firmware-builtin)
+        use_firmware_builtin=0
+        shift
+        ;;
+      --no-preflight-check)
+        require_preflight=0
         shift
         ;;
       --esp-path)
@@ -183,6 +196,13 @@ run_enroll_keys() {
   if (( use_microsoft )); then
     args+=(-m)
   fi
+  if (( use_firmware_builtin )); then
+    args+=(-f)
+  fi
+
+  if [[ -n "$esp_path" ]] && [[ -f "${esp_path}/EFI/Microsoft/Boot/bootmgfw.efi" ]] && (( !use_microsoft )); then
+    die "Microsoft EFI loader detected on the ESP; refusing to enroll without Microsoft certificates"
+  fi
 
   log
   log "==> Enroll Secure Boot keys"
@@ -220,6 +240,16 @@ run_refresh_boot_trust() {
   run_cmd "$refresh_script" "${args[@]}"
 }
 
+check_preflight_state() {
+  (( require_preflight )) || return 0
+
+  if [[ -f "$preflight_stamp" ]]; then
+    return 0
+  fi
+
+  die "missing Secure Boot preflight stamp: run provision-secure-boot-preflight before entering Setup Mode, or use --no-preflight-check only if you already exported current keys and understand the risk"
+}
+
 main() {
   local json=""
 
@@ -233,13 +263,20 @@ main() {
   log "=== Provision Secure Boot ==="
   log "Stato iniziale:"
   printf '%s\n' "$json"
+  if [[ -n "$esp_path" && -d "${esp_path}/EFI" ]]; then
+    log
+    log "EFI directories currently present:"
+    run_cmd find "${esp_path}/EFI" -mindepth 1 -maxdepth 1 -type d | sort
+  fi
 
   if ! status_field_is_true "installed" "$json"; then
     die "sbctl risulta non installato o non inizializzato correttamente"
   fi
 
+  check_preflight_state
+
   if ! status_field_is_true "setup_mode" "$json"; then
-    die "firmware non in Setup Mode; entra nel firmware, porta Secure Boot in Setup Mode e riprova"
+    die "firmware non in Setup Mode; prima esegui provision-secure-boot-preflight, poi entra nel firmware, porta Secure Boot in Setup Mode e riprova"
   fi
 
   run_create_keys

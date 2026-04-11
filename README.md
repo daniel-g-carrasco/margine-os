@@ -90,8 +90,8 @@ The public baseline already includes:
 
 Secure Boot bootstrap tooling is versioned, but still requires an explicit
 post-install firmware-aware step.
-TPM2 auto-unlock is part of the architectural direction, but is not yet
-automated by the installer.
+TPM2 auto-unlock is part of the architectural direction and is now versioned as
+a staged post-install workflow, not as an installer-side magic step.
 
 ## Quick start
 
@@ -120,6 +120,8 @@ Post-install validation checklist:
 - [docs/07-snapshot-recovery-behavior.md](docs/07-snapshot-recovery-behavior.md)
 - [docs/08-permanent-rollback-from-snapshot.md](docs/08-permanent-rollback-from-snapshot.md)
 - [docs/09-installation-guide.md](docs/09-installation-guide.md)
+- [docs/10-ssh-access.md](docs/10-ssh-access.md)
+- [docs/11-boot-security-and-tpm2.md](docs/11-boot-security-and-tpm2.md)
 
 ## Current direction
 

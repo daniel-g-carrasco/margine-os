@@ -162,6 +162,27 @@ architecture sarà:
 
 Quindi la decisione è forte, ma non cieca.
 
+## Nota di implementazione
+
+La direzione architetturale resta:
+
+- `Secure Boot`
+- `LUKS2`
+- `TPM2`
+
+Ma il rollout corretto non è monolitico.
+
+La sequenza operativa corretta è:
+
+1. installazione base con `LUKS2`
+2. validazione boot e desktop
+3. bootstrap `Secure Boot`
+4. solo dopo, enrollment `TPM2` sul path di boot normale
+
+Questo punto è importante perché una enrollment `TPM2` fatta prima della
+stabilizzazione di `Secure Boot` o della `UKI` finale rischia di legarsi ai PCR
+sbagliati e quindi di rompersi al reboot successivo.
+
 ## Implicazioni pratiche
 
 ### Boot

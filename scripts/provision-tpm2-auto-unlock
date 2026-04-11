@@ -1,0 +1,446 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+esp_path="/boot"
+crypt_name=""
+root_source=""
+luks_device=""
+luks_uuid=""
+tpm2_device="auto"
+tpm2_pcrs="7+11"
+tpm2_with_pin=0
+stage_only=0
+enroll_only=0
+allow_without_secure_boot=0
+enroll_recovery_key=1
+wipe_existing_tpm2=1
+state_dir="/var/lib/margine/tpm2-auto-unlock"
+pending_env="${state_dir}/pending.env"
+crypttab_initramfs="/etc/crypttab.initramfs"
+sbctl_keys_dir="${SBCTL_KEYS_DIR:-/var/lib/sbctl/keys}"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-tpm2-auto-unlock [options]
+
+Options:
+  --esp-path PATH            EFI System Partition mountpoint (default: /boot)
+  --crypt-name NAME          LUKS mapper name; autodetected when possible
+  --tpm2-device PATH|auto    TPM2 device for enrollment (default: auto)
+  --tpm2-pcrs LIST           PCR policy for TPM2 enrollment (default: 7+11)
+  --with-pin                 Require a TPM2 PIN in addition to PCR policy
+  --stage-only               Only write crypttab/initramfs state and rebuild UKIs
+  --enroll-only              Only enroll TPM2 on the current booted state
+  --no-recovery-key          Do not auto-enroll a recovery key if one is missing
+  --no-wipe-existing-tpm2    Keep existing TPM2 slots instead of replacing them
+  --allow-without-secure-boot
+                             Allow TPM2 staging/enrollment even if Secure Boot is not active
+  --dry-run                  Show commands without executing them
+  --help                     Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --esp-path)
+        [[ $# -ge 2 ]] || die "missing value for --esp-path"
+        esp_path="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        shift 2
+        ;;
+      --tpm2-device)
+        [[ $# -ge 2 ]] || die "missing value for --tpm2-device"
+        tpm2_device="$2"
+        shift 2
+        ;;
+      --tpm2-pcrs)
+        [[ $# -ge 2 ]] || die "missing value for --tpm2-pcrs"
+        tpm2_pcrs="$2"
+        shift 2
+        ;;
+      --with-pin)
+        tpm2_with_pin=1
+        shift
+        ;;
+      --stage-only)
+        stage_only=1
+        shift
+        ;;
+      --enroll-only)
+        enroll_only=1
+        shift
+        ;;
+      --no-recovery-key)
+        enroll_recovery_key=0
+        shift
+        ;;
+      --no-wipe-existing-tpm2)
+        wipe_existing_tpm2=0
+        shift
+        ;;
+      --allow-without-secure-boot)
+        allow_without_secure_boot=1
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+
+  (( stage_only && enroll_only )) && die "--stage-only and --enroll-only are mutually exclusive"
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-tpm2-auto-unlock must run as root"
+}
+
+ensure_command() {
+  local cmd="$1"
+
+  if have_cmd "$cmd"; then
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "command not found during dry-run: $cmd"
+    return 0
+  fi
+
+  die "required command not found: $cmd"
+}
+
+ensure_tpm2_available() {
+  local status=""
+
+  if (( dry_run )); then
+    log "TPM2 availability: assumed present during dry-run"
+    return 0
+  fi
+
+  status="$(systemd-analyze has-tpm2 2>/dev/null | sed '/^[[:space:]]*$/d' | head -n 1 | tr '[:upper:]' '[:lower:]')"
+  [[ "$status" == "yes" ]] || die "no usable TPM2 detected by systemd-analyze has-tpm2"
+}
+
+detect_root_source() {
+  root_source="$(findmnt -no SOURCE / 2>/dev/null || true)"
+  root_source="${root_source%%[*}"
+  [[ -n "$root_source" ]] || die "unable to detect root source from findmnt"
+}
+
+detect_crypt_name() {
+  if [[ -n "$crypt_name" ]]; then
+    return 0
+  fi
+
+  if [[ "$root_source" == /dev/mapper/* ]]; then
+    crypt_name="${root_source##*/}"
+    return 0
+  fi
+
+  die "unable to infer LUKS mapper name from root source ${root_source}; use --crypt-name"
+}
+
+detect_luks_device() {
+  luks_device="$(
+    (cryptsetup status "$crypt_name" 2>/dev/null || true) \
+      | awk '/device:/ { print $2; exit }'
+  )"
+  [[ -n "$luks_device" ]] || die "unable to detect backing LUKS device for mapper ${crypt_name}"
+}
+
+detect_luks_uuid() {
+  luks_uuid="$(blkid -s UUID -o value "$luks_device" 2>/dev/null || true)"
+  [[ -n "$luks_uuid" ]] || die "unable to detect LUKS UUID for ${luks_device}"
+}
+
+sbctl_status_json() {
+  if have_cmd sbctl; then
+    sbctl status --json
+    return 0
+  fi
+
+  if (( dry_run )); then
+    cat <<'EOF'
+{"installed":true,"guid":"<owner-guid>","setup_mode":false,"secure_boot":true}
+EOF
+    return 0
+  fi
+
+  die "sbctl not found"
+}
+
+status_field_is_true() {
+  local field="$1"
+  local json="$2"
+
+  grep -q "\"${field}\":[[:space:]]*true" <<<"$json"
+}
+
+sbctl_bootstrap_ready() {
+  [[ -f "${sbctl_keys_dir}/db/db.key" ]] || [[ -f "${sbctl_keys_dir}/db/db.pem" ]]
+}
+
+tpm_policy_needs_secure_boot() {
+  [[ "$tpm2_pcrs" =~ (^|[+:])7($|[+:=]) ]] || [[ "$tpm2_pcrs" == *secure-boot-policy* ]]
+}
+
+ensure_secure_boot_state() {
+  local json=""
+
+  (( allow_without_secure_boot )) && return 0
+  tpm_policy_needs_secure_boot || return 0
+
+  json="$(sbctl_status_json)"
+  status_field_is_true "installed" "$json" || die "sbctl is not initialized correctly"
+  status_field_is_true "secure_boot" "$json" || die "Secure Boot is not active; bootstrap Secure Boot before TPM2 enrollment"
+  if status_field_is_true "setup_mode" "$json"; then
+    die "firmware is still in Setup Mode; finish Secure Boot bootstrap first"
+  fi
+  sbctl_bootstrap_ready || die "sbctl keys are not initialized; finish Secure Boot bootstrap first"
+}
+
+write_crypttab_initramfs() {
+  local options="tpm2-device=${tpm2_device},tpm2-pcrs=${tpm2_pcrs}"
+
+  (( tpm2_with_pin )) && options+=",tpm2-with-pin=yes"
+
+  log
+  log "==> Write ${crypttab_initramfs}"
+
+  if (( dry_run )); then
+    printf '[dry-run] write %s with %s UUID=%s - %s\n' "$crypttab_initramfs" "$crypt_name" "$luks_uuid" "$options"
+    return 0
+  fi
+
+  install -d -m 755 "$(dirname "$crypttab_initramfs")"
+  cat >"$crypttab_initramfs" <<EOF
+# Managed by Margine TPM2 auto-unlock provisioning.
+${crypt_name} UUID=${luks_uuid} - ${options}
+EOF
+  chmod 644 "$crypttab_initramfs"
+}
+
+rebuild_boot_payload() {
+  local refresh_script="${repo_root}/scripts/refresh-efi-trust"
+  local -a refresh_args=()
+
+  log
+  log "==> Rebuild UKIs"
+  run_cmd mkinitcpio -P
+
+  if sbctl_bootstrap_ready; then
+    log
+    log "==> Re-sign EFI trust chain"
+    refresh_args=(--esp-path "$esp_path")
+    (( dry_run )) && refresh_args=(--dry-run "${refresh_args[@]}")
+    run_cmd "$refresh_script" "${refresh_args[@]}"
+  else
+    warn "sbctl not bootstrapped yet; UKIs rebuilt but Secure Boot signing was skipped"
+  fi
+}
+
+write_pending_state() {
+  local options="tpm2-device=${tpm2_device},tpm2-pcrs=${tpm2_pcrs}"
+
+  (( tpm2_with_pin )) && options+=",tpm2-with-pin=yes"
+
+  log
+  log "==> Record pending TPM2 enrollment state"
+
+  if (( dry_run )); then
+    printf '[dry-run] write pending state to %s\n' "$pending_env"
+    return 0
+  fi
+
+  install -d -m 700 "$state_dir"
+  cat >"$pending_env" <<EOF
+crypt_name=${crypt_name}
+luks_device=${luks_device}
+luks_uuid=${luks_uuid}
+tpm2_device=${tpm2_device}
+tpm2_pcrs=${tpm2_pcrs}
+tpm2_with_pin=${tpm2_with_pin}
+options=${options}
+EOF
+  chmod 600 "$pending_env"
+}
+
+load_pending_state() {
+  [[ -f "$pending_env" ]] || return 1
+
+  # shellcheck disable=SC1090
+  source "$pending_env"
+  return 0
+}
+
+list_enrollments() {
+  if (( dry_run )); then
+    cat <<'EOF'
+SLOT TYPE
+0    password
+1    recovery
+2    tpm2
+EOF
+    return 0
+  fi
+
+  systemd-cryptenroll "$luks_device" 2>/dev/null || true
+}
+
+has_recovery_enrollment() {
+  grep -qi 'recovery' <<<"$1"
+}
+
+ensure_recovery_key() {
+  local enrollments=""
+
+  enrollments="$(list_enrollments)"
+  if has_recovery_enrollment "$enrollments"; then
+    log "Recovery key enrollment already present."
+    return 0
+  fi
+
+  (( enroll_recovery_key )) || die "no recovery key enrollment found; rerun without --no-recovery-key or enroll one manually first"
+
+  log
+  log "==> Enroll a recovery key"
+  log "Save the recovery key shown by systemd-cryptenroll before continuing."
+  run_cmd systemd-cryptenroll "$luks_device" --recovery-key
+}
+
+enroll_tpm2() {
+  local -a args=("$luks_device")
+
+  log
+  log "==> Enroll TPM2 auto-unlock against the current boot state"
+
+  (( wipe_existing_tpm2 )) && args+=(--wipe-slot=tpm2)
+  args+=(--tpm2-device="$tpm2_device" --tpm2-pcrs="$tpm2_pcrs")
+  (( tpm2_with_pin )) && args+=(--tpm2-with-pin=yes)
+
+  run_cmd systemd-cryptenroll "${args[@]}"
+}
+
+show_final_state() {
+  log
+  log "==> Current enrollments"
+  run_cmd systemd-cryptenroll "$luks_device"
+}
+
+stage_phase() {
+  ensure_secure_boot_state
+  write_crypttab_initramfs
+  rebuild_boot_payload
+  write_pending_state
+
+  log
+  log "Stage complete."
+  log "Reboot once, unlock LUKS manually, boot into the new signed UKI, then rerun the same command."
+}
+
+enroll_phase() {
+  ensure_secure_boot_state
+  ensure_recovery_key
+  enroll_tpm2
+  show_final_state
+
+  if (( !dry_run )) && [[ -f "$pending_env" ]]; then
+    rm -f "$pending_env"
+  fi
+
+  log
+  log "TPM2 enrollment complete."
+  log "Reboot again and confirm that the production boot path unlocks LUKS automatically."
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  ensure_command cryptsetup
+  ensure_command blkid
+  ensure_command findmnt
+  ensure_command mkinitcpio
+  ensure_command systemd-cryptenroll
+  ensure_command systemd-analyze
+  ensure_tpm2_available
+
+  detect_root_source
+  detect_crypt_name
+  detect_luks_device
+  detect_luks_uuid
+
+  log "=== Provision TPM2 auto-unlock ==="
+  log "ESP: ${esp_path}"
+  log "Mapper: ${crypt_name}"
+  log "LUKS device: ${luks_device}"
+  log "LUKS UUID: ${luks_uuid}"
+  log "TPM2 device: ${tpm2_device}"
+  log "TPM2 PCRs: ${tpm2_pcrs}"
+  (( tpm2_with_pin )) && log "TPM2 PIN: enabled"
+
+  if (( stage_only )); then
+    stage_phase
+    exit 0
+  fi
+
+  if (( enroll_only )); then
+    enroll_phase
+    exit 0
+  fi
+
+  if load_pending_state; then
+    enroll_phase
+  else
+    stage_phase
+  fi
+}
+
+main "$@"

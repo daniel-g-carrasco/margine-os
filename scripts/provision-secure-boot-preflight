@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dry_run=0
+esp_path="/boot"
+backup_dir=""
+state_root="/var/lib/margine/secure-boot-backups"
+stamp_path=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-secure-boot-preflight [options]
+
+Options:
+  --esp-path PATH        EFI System Partition mountpoint (default: /boot)
+  --backup-dir PATH      Directory where currently enrolled public keys are exported
+  --dry-run              Show commands without executing them
+  --help                 Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --esp-path)
+        [[ $# -ge 2 ]] || die "missing value for --esp-path"
+        esp_path="$2"
+        shift 2
+        ;;
+      --backup-dir)
+        [[ $# -ge 2 ]] || die "missing value for --backup-dir"
+        backup_dir="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-secure-boot-preflight must run as root"
+}
+
+ensure_command() {
+  local cmd="$1"
+
+  if command -v "$cmd" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "command not found during dry-run: $cmd"
+    return 0
+  fi
+
+  die "required command not found: $cmd"
+}
+
+resolve_backup_dir() {
+  [[ -n "$backup_dir" ]] && return 0
+  backup_dir="${state_root}/preflight-$(date +%Y%m%d-%H%M%S)"
+}
+
+resolve_stamp_path() {
+  stamp_path="${state_root}/last-preflight.env"
+}
+
+export_current_keys() {
+  log
+  log "==> Export currently enrolled public keys"
+
+  if (( dry_run )); then
+    printf '[dry-run] mkdir -p %s\n' "$backup_dir"
+    printf '[dry-run] sbctl export-enrolled-keys --dir %s\n' "$backup_dir"
+    return 0
+  fi
+
+  mkdir -p "$backup_dir"
+  if sbctl export-enrolled-keys --dir "$backup_dir"; then
+    log "Exported current enrolled keys to: ${backup_dir}"
+  else
+    warn "could not export currently enrolled keys; continue only if you understand the firmware state already"
+  fi
+}
+
+show_current_status() {
+  log
+  log "==> Current Secure Boot status"
+  run_cmd sbctl status
+}
+
+list_efi_binaries() {
+  log
+  log "==> EFI binaries currently present on the ESP"
+
+  if (( dry_run )); then
+    printf '[dry-run] find %s/EFI -mindepth 2 -maxdepth 2 -type f -iname \"*.efi\" | sort\n' "$esp_path"
+    return 0
+  fi
+
+  find "${esp_path}/EFI" -mindepth 2 -maxdepth 2 -type f \( -iname '*.efi' -o -iname '*.EFI' \) | sort || true
+}
+
+show_risk_notes() {
+  log
+  log "==> Preflight notes"
+  log "- If you dual-boot Windows, keep Microsoft certificates during enrollment."
+  log "- If your firmware exposes OEM defaults, keep firmware builtin db/KEK too."
+  log "- If another Linux install already depends on its own custom Secure Boot keys, stop here and plan that migration explicitly."
+  log "- Do not remove old boot entries or old EFI files before verifying the first Secure Boot reboot."
+  log "- Keep a live USB and firmware boot menu access available before changing Setup Mode."
+  log "- Only after this preflight should you enter firmware and move Secure Boot into Setup Mode."
+}
+
+write_stamp() {
+  log
+  log "==> Record preflight stamp"
+
+  if (( dry_run )); then
+    printf '[dry-run] write %s\n' "$stamp_path"
+    return 0
+  fi
+
+  mkdir -p "$state_root"
+  cat >"$stamp_path" <<EOF
+generated_at=$(date --iso-8601=seconds)
+backup_dir=${backup_dir}
+esp_path=${esp_path}
+EOF
+  chmod 600 "$stamp_path"
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  ensure_command sbctl
+  resolve_backup_dir
+  resolve_stamp_path
+  [[ -d "$esp_path" ]] || die "ESP path not found or not mounted: ${esp_path}"
+
+  log "=== Secure Boot preflight ==="
+  log "ESP: ${esp_path}"
+  log "Backup dir: ${backup_dir}"
+
+  show_current_status
+  export_current_keys
+  list_efi_binaries
+  show_risk_notes
+  write_stamp
+
+  log
+  log "Next step:"
+  log "1. reboot into firmware"
+  log "2. move Secure Boot into Setup Mode or clear PK"
+  log "3. boot back into Margine"
+  log "4. run: sudo /usr/local/lib/margine/scripts/provision-secure-boot --esp-path ${esp_path}"
+}
+
+main "$@"

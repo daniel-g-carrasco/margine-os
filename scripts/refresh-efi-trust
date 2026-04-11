@@ -9,6 +9,7 @@ limine_config=""
 main_uki=""
 fallback_uki=""
 recovery_uki=""
+sbctl_keys_dir="${SBCTL_KEYS_DIR:-/var/lib/sbctl/keys}"
 
 usage() {
   cat <<'EOF'
@@ -152,6 +153,10 @@ ensure_required_file() {
   die "${label} not found: ${path}"
 }
 
+sbctl_bootstrap_ready() {
+  [[ -f "${sbctl_keys_dir}/db/db.key" ]] || [[ -f "${sbctl_keys_dir}/db/db.pem" ]]
+}
+
 sign_if_present() {
   local label="$1"
   local path="$2"
@@ -212,6 +217,7 @@ main() {
   ensure_command b2sum
   ensure_command awk
   ensure_command sbctl
+  sbctl_bootstrap_ready || die "sbctl keys are not initialized; run provision-secure-boot first"
   ensure_required_file "Limine EFI binary" "$limine_binary"
   ensure_required_file "Limine config" "$limine_config"
 

@@ -20,6 +20,8 @@ disk_size="80G"
 memory_mib="8192"
 cpus="6"
 ssh_forward_port="2222"
+vtpm_mode="auto"
+enable_vtpm=0
 download_iso=0
 run_vm=0
 headless=0
@@ -35,6 +37,9 @@ ovmf_vars_copy=""
 run_script_path=""
 run_installed_script_path=""
 guide_path=""
+vtpm_state_dir=""
+vtpm_socket=""
+vtpm_log=""
 
 usage() {
   cat <<'EOF'
@@ -51,6 +56,8 @@ Options:
   --memory-mib N          RAM VM in MiB (default: 8192)
   --cpus N                vCPU VM (default: 6)
   --ssh-forward-port N    Host port forwarded to guest:22 (default: 2222)
+  --with-vtpm             Require a virtual TPM through swtpm
+  --no-vtpm               Disable the virtual TPM even if swtpm is installed
   --download-iso          Download the official Arch ISO and verification files
   --run                   Start QEMU immediately after preparation
   --headless              Start QEMU without a graphical window
@@ -132,6 +139,14 @@ parse_args() {
         ssh_forward_port="$2"
         shift 2
         ;;
+      --with-vtpm)
+        vtpm_mode="on"
+        shift
+        ;;
+      --no-vtpm)
+        vtpm_mode="off"
+        shift
+        ;;
       --download-iso)
         download_iso=1
         shift
@@ -168,6 +183,27 @@ ensure_prereqs() {
   for cmd in qemu-system-x86_64 qemu-img curl b2sum install cp; do
     have_cmd "$cmd" || die "required command not found: $cmd"
   done
+
+  case "$vtpm_mode" in
+    on)
+      have_cmd swtpm || die "required command not found: swtpm"
+      enable_vtpm=1
+      ;;
+    off)
+      enable_vtpm=0
+      ;;
+    auto)
+      if have_cmd swtpm; then
+        enable_vtpm=1
+      else
+        warn "swtpm not found; QEMU TPM2 validation will stay disabled"
+        enable_vtpm=0
+      fi
+      ;;
+    *)
+      die "unsupported vTPM mode: ${vtpm_mode}"
+      ;;
+  esac
 }
 
 resolve_ovmf_paths() {
@@ -206,6 +242,9 @@ init_paths() {
   run_script_path="${workdir}/run-qemu.sh"
   run_installed_script_path="${workdir}/run-qemu-installed.sh"
   guide_path="${workdir}/inside-live-iso.md"
+  vtpm_state_dir="${workdir}/swtpm-state"
+  vtpm_socket="${workdir}/swtpm.sock"
+  vtpm_log="${workdir}/swtpm.log"
 }
 
 download_iso_assets() {
@@ -282,6 +321,7 @@ build_qemu_command() {
   local cpu_model="host"
   local cdrom_args=""
   local boot_args=""
+  local vtpm_args=""
 
   if (( headless )); then
     display_args="-display none -serial mon:stdio"
@@ -301,6 +341,10 @@ build_qemu_command() {
     boot_args="-boot order=c,menu=on"
   fi
 
+  if (( enable_vtpm )); then
+    vtpm_args="-chardev socket,id=chrtpm,path=${vtpm_socket} -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
+  fi
+
   cat <<EOF
 qemu-system-x86_64 \\
   -machine q35,${accel} \\
@@ -315,6 +359,7 @@ qemu-system-x86_64 \\
   -netdev user,id=net0,hostfwd=tcp::${ssh_forward_port}-:22 \\
   -device virtio-net-pci,netdev=net0 \\
   -device virtio-rng-pci \\
+  ${vtpm_args} \\
   -virtfs local,path=${repo_root},mount_tag=margine,security_model=none,readonly=on \\
   ${display_args}
 EOF
@@ -331,9 +376,34 @@ write_run_script() {
   fi
 
   install -d "$workdir"
+
   cat >"$run_script_path" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
+
+$(if (( enable_vtpm )); then cat <<VTPM
+start_vtpm() {
+  install -d "${vtpm_state_dir}"
+  rm -f "${vtpm_socket}"
+  swtpm socket \\
+    --tpm2 \\
+    --tpmstate dir="${vtpm_state_dir}" \\
+    --ctrl type=unixio,path="${vtpm_socket}" \\
+    --terminate \\
+    --log file="${vtpm_log}",level=20 &
+  SWTPM_PID=\$!
+  trap 'kill "\${SWTPM_PID}" 2>/dev/null || true; wait "\${SWTPM_PID}" 2>/dev/null || true' EXIT
+  for _ in {1..50}; do
+    [[ -S "${vtpm_socket}" ]] && return 0
+    sleep 0.1
+  done
+  printf 'error: swtpm socket not ready: %s\n' "${vtpm_socket}" >&2
+  exit 1
+}
+
+start_vtpm
+VTPM
+fi)
 
 $(build_qemu_command live)
 EOF
@@ -342,6 +412,30 @@ EOF
   cat >"$run_installed_script_path" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
+
+$(if (( enable_vtpm )); then cat <<VTPM
+start_vtpm() {
+  install -d "${vtpm_state_dir}"
+  rm -f "${vtpm_socket}"
+  swtpm socket \\
+    --tpm2 \\
+    --tpmstate dir="${vtpm_state_dir}" \\
+    --ctrl type=unixio,path="${vtpm_socket}" \\
+    --terminate \\
+    --log file="${vtpm_log}",level=20 &
+  SWTPM_PID=\$!
+  trap 'kill "\${SWTPM_PID}" 2>/dev/null || true; wait "\${SWTPM_PID}" 2>/dev/null || true' EXIT
+  for _ in {1..50}; do
+    [[ -S "${vtpm_socket}" ]] && return 0
+    sleep 0.1
+  done
+  printf 'error: swtpm socket not ready: %s\n' "${vtpm_socket}" >&2
+  exit 1
+}
+
+start_vtpm
+VTPM
+fi)
 
 $(build_qemu_command installed)
 EOF
@@ -378,6 +472,10 @@ Goal:
 3. launch the installer;
 4. verify that the boot artifacts are actually generated;
 5. perform the first boot of the installed system.
+
+If `swtpm` is installed on the host, the generated QEMU launchers also attach a
+virtual TPM automatically. This allows real TPM2 validation instead of only
+documenting it.
 
 ## 0. On the host system
 

@@ -95,6 +95,9 @@ Temi:
 - `update-all`;
 - pre/post snapshots;
 - firma kernel/UKI;
+- preflight `Secure Boot`;
+- bootstrap `sbctl` guidato;
+- rollout `TPM2` a due fasi;
 - verifica integrità;
 - procedure di rollback;
 - documentazione di manutenzione.

@@ -49,6 +49,7 @@ snapshots_subvolume="@snapshots"
 recovery_entry_limit=12
 soft_failures=0
 boot_baseline_script=""
+sbctl_keys_dir="${SBCTL_KEYS_DIR:-/var/lib/sbctl/keys}"
 
 usage() {
   cat <<'EOF'
@@ -127,6 +128,10 @@ run_optional() {
 
 have_cmd() {
   command -v "$1" >/dev/null 2>&1
+}
+
+sbctl_bootstrap_ready() {
+  [[ -f "${sbctl_keys_dir}/db/db.key" ]] || [[ -f "${sbctl_keys_dir}/db/db.pem" ]]
 }
 
 parse_args() {
@@ -284,6 +289,19 @@ run_pre_update_snapshot() {
     warn "snapshot pre-update fallito"
     soft_failures=1
   fi
+}
+
+run_flavor_repo_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-cachyos-repositories"
+  local -a args=()
+
+  [[ "$flavor" == "cachyos" ]] || return 0
+  [[ -x "$provisioner" ]] || die "CachyOS repo provisioner not executable: $provisioner"
+  (( dry_run )) && args+=(--dry-run)
+
+  log
+  log "==> 0b) CachyOS repositories"
+  run_cmd sudo "$provisioner" "${args[@]}"
 }
 
 run_pacman_update() {
@@ -505,7 +523,11 @@ run_final_verification() {
   log "==> 6) Verifiche finali"
 
   if have_cmd sbctl; then
-    run_cmd sudo sbctl verify
+    if sbctl_bootstrap_ready; then
+      run_cmd sudo sbctl verify
+    else
+      log "sbctl presente ma non bootstrapato; salto verifica Secure Boot."
+    fi
   else
     log "sbctl non trovato, salto verifica Secure Boot."
   fi
@@ -527,6 +549,7 @@ main() {
   fi
 
   run_pre_update_snapshot
+  run_flavor_repo_provisioner
   run_pacman_update
   run_aur_update
   run_flatpak_update

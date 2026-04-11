@@ -37,8 +37,14 @@ Operational scripts:
   preventive backups of overwritten files.
 - `refresh-efi-trust`: computes the `limine.conf` hash, runs
   `limine enroll-config`, and signs the EFI chain with `sbctl`.
+- `provision-secure-boot-preflight`: exports the currently enrolled public
+  Secure Boot keys, lists EFI binaries on the ESP, and prepares the operator
+  for the firmware-side Setup Mode step.
 - `provision-secure-boot`: handles the initial `sbctl` bootstrap, firmware key
-  enrollment, and optionally the first EFI trust-chain refresh.
+  enrollment, requires the preflight stamp by default, and optionally performs
+  the first EFI trust-chain refresh.
+- `provision-tpm2-auto-unlock`: stages and then enrolls TPM2-backed LUKS
+  auto-unlock in a safe two-step flow built around `systemd-cryptenroll`.
 - `provision-system-user`: creates or realigns the administrative user,
   installs the `sudoers` drop-in, and initializes user directories.
 - `install-from-manifests`: installs manifest-defined layers, separating
@@ -66,10 +72,13 @@ Operational scripts:
   Bluetooth, and screenshot/recording tooling on the real machine.
 - `validate-boot-recovery-baseline`: validates the real Secure Boot, UKI,
   bootloader, and Snapper state.
+- `validate-tpm2-auto-unlock`: inspects the current TPM2/LUKS enrollment,
+  `crypttab.initramfs`, `sbctl`, and PCR state.
 - `validate-virtualization-containers-baseline`: validates CPU/KVM support,
   packages, and the real `libvirt` and `podman` state.
 - `prepare-qemu-archiso-validation`: prepares a QEMU/OVMF VM with the official
-  Arch ISO and a guide to validate `Margine` through a real install flow.
+  Arch ISO and a guide to validate `Margine` through a real install flow, with
+  optional vTPM wiring when `swtpm` is available on the host.
 - `provision-host-root-baseline`: reapplies the root-owned host baseline for
   fingerprint auth, Snapper recovery, and Limine recovery entries on an
   already-installed machine.

@@ -33,8 +33,23 @@ Per questo:
 - Macchina target: `Framework Laptop 13 AMD`
 - Filesystem: `Btrfs`
 - Cifratura: `LUKS2`
-- Sicurezza: `Secure Boot` + `TPM2`
+- Sicurezza target: `Secure Boot` sotto nostre chiavi + `TPM2` per sblocco
+  automatico `LUKS` sul path di boot normale
 - Focus: fotografia, stabilità, rollback, manutenzione chiara
+
+## Nota sullo stato attuale
+
+L'architettura desiderata è:
+
+- `LUKS2` sempre presente
+- `Secure Boot` bootstrapato dopo l'installazione
+- `TPM2` enrollato dopo che il path di boot firmato è già stabile
+
+Quindi:
+
+- il target non è "Secure Boot o TPM2"
+- il target è `Secure Boot + LUKS2 + TPM2`
+- ma il rollout corretto è graduale e post-install, non tutto in un unico passo
 
 ## Cosa non faremo
 

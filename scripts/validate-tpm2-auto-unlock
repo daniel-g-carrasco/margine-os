@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+crypt_name=""
+crypttab_initramfs="/etc/crypttab.initramfs"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  validate-tpm2-auto-unlock [options]
+
+Options:
+  --crypt-name NAME   LUKS mapper name; autodetected when possible
+  --help              Show this help
+EOF
+}
+
+status_line() {
+  printf '%-32s %s\n' "$1" "$2"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+detect_crypt_name() {
+  local root_source=""
+
+  [[ -n "$crypt_name" ]] && return 0
+  root_source="$(findmnt -no SOURCE / 2>/dev/null || true)"
+  root_source="${root_source%%[*}"
+  [[ "$root_source" == /dev/mapper/* ]] || die "unable to infer LUKS mapper name from ${root_source}"
+  crypt_name="${root_source##*/}"
+}
+
+main() {
+  parse_args "$@"
+  detect_crypt_name
+
+  printf '=== TPM2 auto-unlock validation ===\n'
+  status_line "mapper" "$crypt_name"
+  status_line "systemd-analyze has-tpm2" "$(systemd-analyze has-tpm2 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+  status_line "crypttab.initramfs exists" "$( [[ -f "$crypttab_initramfs" ]] && echo yes || echo no )"
+
+  if [[ -f "$crypttab_initramfs" ]]; then
+    printf '\n%s\n' "-- /etc/crypttab.initramfs --"
+    sed -n '1,80p' "$crypttab_initramfs"
+  fi
+
+  printf '\n%s\n' "-- systemd-cryptenroll --"
+  systemd-cryptenroll "/dev/mapper/${crypt_name}" 2>&1 || true
+
+  printf '\n%s\n' "-- sbctl status --"
+  sbctl status 2>&1 || true
+
+  printf '\n%s\n' "-- systemd-analyze pcrs 7 11 --"
+  systemd-analyze pcrs 7 11 2>&1 || true
+}
+
+main "$@"
