@@ -74,12 +74,14 @@ Also verify the launcher AUR baseline explicitly:
 ```bash
 pacman -Q yay elephant-all msttcorefonts walker
 elephant listproviders
+ls ~/.local/share/icons/hicolor/256x256/apps/duckduckgo.png
 ```
 
 Check:
 
 - all baseline AUR launcher packages are installed
 - `elephant` exposes `calc`, `websearch`, `windows`, and `runner`
+- the DuckDuckGo icon asset exists for the Walker websearch entry
 
 ## 4. System services
 
@@ -153,6 +155,8 @@ which walker elephant hyprlauncher grim slurp wl-copy waybar swaync-client hyprl
 ls ~/.local/bin/{battery-status,network-status,notification-status,keep-awake-daemon,keep-awake-status,keep-awake-toggle,easyeffects-status,screenshot-menu,open-network-tui,open-network-settings,open-bluetooth-tui}
 hyprctl version
 hyprctl monitors
+hyprctl workspaces
+hyprctl activeworkspace
 hyprctl clients
 ```
 
@@ -161,8 +165,34 @@ Check:
 - launcher and screenshot stack binaries exist
 - versioned helper scripts actually landed in the target home
 - Hyprland is responsive and reports outputs/windows normally
+- the active workspace is the expected one after login, not a stray workspace
 
-## 9. User config deployment
+## 9. Launcher, search, and browser defaults
+
+```bash
+systemctl --user status elephant.service --no-pager
+elephant listproviders
+grep -n 'DuckDuckGo' ~/.config/elephant/websearch.toml
+grep -n '"Default": "DuckDuckGo"' /etc/firefox/policies/policies.json
+find /usr/share/applications ~/.local/share/applications -maxdepth 1 -name '*.desktop' | sed -n '1,20p'
+```
+
+Check:
+
+- `elephant.service` is running from the graphical session when Walker needs it
+- provider list includes at least `desktopapplications`, `calc`, `websearch`, `windows`, and `runner`
+- `~/.config/elephant/websearch.toml` points to DuckDuckGo
+- Firefox policy forces DuckDuckGo as default search engine
+- desktop files are actually present when debugging an empty Walker application list
+
+Manual checks:
+
+- open Walker with empty query: desktop applications should appear
+- try `=1+1`: calculator result must appear
+- try `@firefox`: websearch result must appear with the DuckDuckGo icon
+- try `$` window search only if windows are open; if it is empty with open windows, treat it as a regression
+
+## 10. User config deployment
 
 ```bash
 ls ~/.config/hypr
@@ -180,7 +210,61 @@ Check:
 - `~/.config/elephant/websearch.toml` exists
 - Walker theme assets exist, not just `config.toml`
 
-## 10. Snapper and rollback
+## 11. Wallpaper, theming, and autostart
+
+```bash
+ls -l /usr/share/margine/wallpapers/default.jpg
+pgrep -af 'hyprpaper|koofr'
+gsettings get org.gnome.desktop.interface color-scheme
+gsettings get org.gnome.desktop.interface gtk-theme
+gsettings get org.gnome.desktop.interface icon-theme
+```
+
+Check:
+
+- the default wallpaper asset exists at `/usr/share/margine/wallpapers/default.jpg`
+- `hyprpaper` is running in the session
+- GTK applications are on the intended dark theme
+- Koofr autostarts if expected, but does not steal focus as a normal foreground window
+
+Manual checks:
+
+- after login, the intended wallpaper is actually visible
+- GTK / GNOME apps such as Nautilus, Calendar, Calculator, and Firefox use the dark theme
+
+## 12. Waybar, notifications, and maintenance UX
+
+```bash
+upower -e
+command -v update-all
+command -v update-all-launcher || true
+systemctl --user status margine-maintenance-check.timer --no-pager
+~/.local/bin/margine-maintenance-check --test-notification
+```
+
+Check:
+
+- `update-all` resolves to the installed global entry point
+- `update-all-launcher` exists for notification-click actions
+- the maintenance timer is active in the user session
+
+Manual checks:
+
+- on systems without a battery, Waybar must not show a fake `0%` battery icon
+- the keep-awake icon state must match the real monitor-idle state after reboot
+- active workspace highlight changes correctly when switching workspaces
+- the notification counter stays aligned with the bell and does not shift the rest of the bar
+- clicking the maintenance test notification body opens a terminal and launches `update-all`
+
+## 13. Hyprlock visual review
+
+Manual checks:
+
+- in QEMU, `hyprlock` must stay proportionate; if clock, username, or password field dominate the screen, treat it as a regression
+- on hardware, the layout must remain visually balanced and not overlap or drift between elements
+- fingerprint prompt and password field must remain readable on both low- and high-resolution outputs
+
+## 14. Snapper and rollback
 
 ```bash
 snapper list-configs
@@ -194,7 +278,7 @@ Check:
 - at least one sane root snapshot exists
 - cleanup timer is enabled
 
-## 11. SSH
+## 15. SSH
 
 ```bash
 systemctl status sshd --no-pager
@@ -207,7 +291,7 @@ Check:
 - `sshd` is enabled/running when intentionally enabled
 - firewall state is coherent
 
-## 12. Logs to collect when debugging
+## 16. Logs to collect when debugging
 
 ```bash
 journalctl -b -p warning..alert --no-pager
@@ -232,6 +316,9 @@ nmcli general
 wpctl status
 snapper list-configs
 snapper -c root list
+hyprctl activeworkspace
+elephant listproviders
+grep -n '"Default": "DuckDuckGo"' /etc/firefox/policies/policies.json
 journalctl --user -b --no-pager | rg 'elephant|waybar|swaync|hyprpaper|walker' || true
 journalctl -b -p warning..alert --no-pager
 ```
