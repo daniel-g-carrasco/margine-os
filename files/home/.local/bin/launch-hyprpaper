@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+command -v hyprpaper >/dev/null 2>&1 || exit 0
+command -v hyprctl >/dev/null 2>&1 || exit 0
+
+wallpaper_path="/usr/share/margine/wallpapers/default.jpg"
+
+pkill -x hyprpaper >/dev/null 2>&1 || true
+hyprpaper >/dev/null 2>&1 &
+
+for _ in $(seq 1 50); do
+  sleep 0.1
+  if hyprctl hyprpaper listloaded >/dev/null 2>&1; then
+    break
+  fi
+done
+
+if [[ -f "$wallpaper_path" ]]; then
+  active="$(hyprctl hyprpaper listactive 2>/dev/null || true)"
+  if [[ -z "$(printf '%s' "$active" | awk 'NF { print; exit }')" ]]; then
+    hyprctl hyprpaper reload ",${wallpaper_path}" >/dev/null 2>&1 || true
+  fi
+fi

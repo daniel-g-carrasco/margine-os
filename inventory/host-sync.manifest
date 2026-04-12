@@ -52,6 +52,7 @@
 .local/bin/gtk-dark-x11-exec
 .local/bin/hypr-refresh-rate-watch
 .local/bin/hypr-workspace-layout
+.local/bin/launch-hyprpaper
 .local/bin/keep-awake-daemon
 .local/bin/keep-awake-status
 .local/bin/keep-awake-toggle

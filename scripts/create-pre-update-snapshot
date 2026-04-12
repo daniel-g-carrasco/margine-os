@@ -87,6 +87,7 @@ snapper_config_exists() {
 
 main() {
   local description=""
+  local snapshot_number=""
 
   parse_args "$@"
 
@@ -103,12 +104,30 @@ main() {
   description="${description_prefix} $(date +%F' '%T)"
 
   log "==> Snapshot pre-update"
-  run_cmd sudo snapper --no-dbus -c "$snapper_config" create \
-    --type single \
-    --print-number \
-    --description "$description" \
-    --cleanup-algorithm "$cleanup_algorithm" \
-    --userdata "$userdata"
+  if (( dry_run )); then
+    run_cmd sudo snapper --no-dbus -c "$snapper_config" create \
+      --type single \
+      --print-number \
+      --description "$description" \
+      --cleanup-algorithm "$cleanup_algorithm" \
+      --userdata "$userdata"
+    return 0
+  fi
+
+  snapshot_number="$(
+    sudo snapper --no-dbus -c "$snapper_config" create \
+      --type single \
+      --print-number \
+      --description "$description" \
+      --cleanup-algorithm "$cleanup_algorithm" \
+      --userdata "$userdata"
+  )"
+  snapshot_number="$(printf '%s' "$snapshot_number" | tail -n 1 | tr -d '[:space:]')"
+  if [[ -n "$snapshot_number" ]]; then
+    log "Created snapshot #${snapshot_number}"
+  else
+    log "Created snapshot."
+  fi
 }
 
 main "$@"

@@ -41,6 +41,9 @@ esp_path=""
 deploy_backup_dir=""
 limine_binary=""
 limine_tool=""
+root_source=""
+crypt_name=""
+luks_device=""
 main_uki=""
 fallback_uki=""
 recovery_uki=""
@@ -128,6 +131,156 @@ run_optional() {
 
 have_cmd() {
   command -v "$1" >/dev/null 2>&1
+}
+
+auto_detect_root_uuid() {
+  local detected_root_source=""
+  local detected_root_uuid=""
+
+  detected_root_source="$(findmnt -no SOURCE / 2>/dev/null || true)"
+  detected_root_source="${detected_root_source%%[*}"
+  [[ -n "$detected_root_source" ]] || return 1
+
+  detected_root_uuid="$(findmnt -no UUID / 2>/dev/null || true)"
+  if [[ -z "$detected_root_uuid" ]]; then
+    detected_root_uuid="$(blkid -s UUID -o value "$detected_root_source" 2>/dev/null || true)"
+  fi
+  [[ -n "$detected_root_uuid" ]] || return 1
+
+  root_source="$detected_root_source"
+  root_uuid="$detected_root_uuid"
+  return 0
+}
+
+auto_detect_luks_uuid() {
+  local detected_root_source="$root_source"
+  local detected_crypt_name="$crypt_name"
+  local detected_luks_device=""
+  local detected_luks_uuid=""
+  local crypttab_file=""
+
+  if [[ -z "$detected_root_source" ]]; then
+    detected_root_source="$(findmnt -no SOURCE / 2>/dev/null || true)"
+    detected_root_source="${detected_root_source%%[*}"
+  fi
+  [[ -n "$detected_root_source" ]] || return 1
+
+  if [[ -z "$detected_crypt_name" && "$detected_root_source" == /dev/mapper/* ]]; then
+    detected_crypt_name="${detected_root_source##*/}"
+  fi
+  [[ -n "$detected_crypt_name" ]] || return 1
+
+  if have_cmd cryptsetup; then
+    detected_luks_device="$(
+      (cryptsetup status "$detected_crypt_name" 2>/dev/null || true) |
+        awk '/device:/ { print $2; exit }'
+    )"
+  fi
+
+  if [[ -n "$detected_luks_device" ]]; then
+    detected_luks_uuid="$(blkid -s UUID -o value "$detected_luks_device" 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$detected_luks_uuid" && -r /etc/crypttab ]]; then
+    crypttab_file="/etc/crypttab"
+  elif [[ -z "$detected_luks_uuid" && -r /etc/crypttab.initramfs ]]; then
+    crypttab_file="/etc/crypttab.initramfs"
+  fi
+
+  if [[ -z "$detected_luks_uuid" && -n "$crypttab_file" ]]; then
+    detected_luks_uuid="$(
+      awk -v name="$detected_crypt_name" '
+        $1 == name {
+          gsub(/^UUID=/, "", $2)
+          print $2
+          exit
+        }
+      ' "$crypttab_file"
+    )"
+  fi
+
+  [[ -n "$detected_luks_uuid" ]] || return 1
+
+  root_source="$detected_root_source"
+  crypt_name="$detected_crypt_name"
+  luks_device="$detected_luks_device"
+  luks_uuid="$detected_luks_uuid"
+  return 0
+}
+
+auto_detect_limine_target() {
+  if [[ -n "$limine_output" ]]; then
+    return 0
+  fi
+
+  if [[ -f /boot/EFI/BOOT/limine.conf ]]; then
+    limine_output="/boot/EFI/BOOT/limine.conf"
+    [[ -z "$esp_path" ]] && esp_path="/boot"
+    [[ -z "$limine_binary" && -f /boot/EFI/BOOT/BOOTX64.EFI ]] && limine_binary="/boot/EFI/BOOT/BOOTX64.EFI"
+    return 0
+  fi
+
+  if [[ -f /boot/limine.conf ]]; then
+    limine_output="/boot/limine.conf"
+    [[ -z "$esp_path" ]] && esp_path="/boot"
+    if [[ -z "$limine_binary" ]]; then
+      if [[ -f /boot/EFI/Margine/BOOTX64.EFI ]]; then
+        limine_binary="/boot/EFI/Margine/BOOTX64.EFI"
+      elif [[ -f /boot/EFI/BOOT/BOOTX64.EFI ]]; then
+        limine_binary="/boot/EFI/BOOT/BOOTX64.EFI"
+      fi
+    fi
+    return 0
+  fi
+
+  return 1
+}
+
+auto_detect_boot_context() {
+  if [[ -z "$root_uuid" ]]; then
+    if auto_detect_root_uuid; then
+      log "Detected root UUID: ${root_uuid}"
+    else
+      warn "unable to detect root UUID automatically"
+    fi
+  fi
+
+  if [[ -z "$luks_uuid" ]]; then
+    if auto_detect_luks_uuid; then
+      log "Detected LUKS UUID: ${luks_uuid}"
+    else
+      warn "unable to detect LUKS UUID automatically"
+    fi
+  fi
+
+  if auto_detect_limine_target; then
+    log "Detected Limine config target: ${limine_output}"
+  else
+    warn "unable to detect installed limine.conf target automatically"
+  fi
+}
+
+refresh_limine_config_hash() {
+  local effective_limine_tool=""
+  local config_hash=""
+
+  [[ -n "$rendered_limine_output" ]] || return 0
+  [[ -n "$limine_binary" ]] || return 0
+  [[ -f "$rendered_limine_output" ]] || return 0
+  [[ -f "$limine_binary" ]] || return 0
+
+  if [[ -n "$limine_tool" ]]; then
+    effective_limine_tool="$limine_tool"
+  elif have_cmd limine; then
+    effective_limine_tool="$(command -v limine)"
+  else
+    warn "limine host tool not found; skipping limine enroll-config"
+    soft_failures=1
+    return 0
+  fi
+
+  config_hash="$(b2sum "$rendered_limine_output" | awk '{print $1}')"
+  run_optional "limine enroll-config" sudo "$effective_limine_tool" enroll-config "$limine_binary" "$config_hash"
 }
 
 sbctl_bootstrap_ready() {
@@ -499,11 +652,19 @@ run_boot_regeneration() {
     soft_failures=1
   fi
 
+  auto_detect_boot_context
+
   if [[ -n "$root_uuid" || -n "$luks_uuid" || -n "$limine_output" ]]; then
     if (( include_snapper_recovery )); then
       build_recovery_entries
     fi
-    render_limine_config
+    if [[ -n "$root_uuid" && -n "$luks_uuid" ]]; then
+      render_limine_config
+      refresh_limine_config_hash
+    else
+      warn "boot metadata incomplete; skipping limine.conf regeneration"
+      soft_failures=1
+    fi
   else
     log "UUID non forniti, salto rendering limine.conf."
   fi

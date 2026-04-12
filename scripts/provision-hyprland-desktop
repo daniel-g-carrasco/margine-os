@@ -34,6 +34,7 @@ declare -a home_payload=(
   ".local/bin/gtk-dark-exec"
   ".local/bin/gtk-dark-x11-exec"
   ".local/bin/hypr-workspace-layout"
+  ".local/bin/launch-hyprpaper"
   ".local/bin/network-status"
   ".local/bin/notification-status"
   ".local/bin/open-bluetooth-settings"
