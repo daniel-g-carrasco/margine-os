@@ -64,7 +64,7 @@ blankwindow {
 
 .control-center-list {
   background: transparent;
-  margin: 0;
+  margin: 0 2px;
   padding: 0;
 }
 
@@ -249,7 +249,6 @@ widget-notifications row > box {
 .control-center row {
   background: transparent;
   box-shadow: none;
-  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -257,7 +256,6 @@ widget-notifications row > box {
 .control-center row:selected {
   background: transparent;
   box-shadow: none;
-  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -265,7 +263,6 @@ widget-notifications row > box {
 .control-center row:focus {
   background: transparent;
   box-shadow: none;
-  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -273,7 +270,6 @@ widget-notifications row > box {
 .control-center row:focus-within {
   background: transparent;
   box-shadow: none;
-  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -281,7 +277,6 @@ widget-notifications row > box {
 .control-center row:hover {
   background: transparent;
   box-shadow: none;
-  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -289,7 +284,6 @@ widget-notifications row > box {
 .control-center row:active {
   background: transparent;
   box-shadow: none;
-  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -297,7 +291,6 @@ widget-notifications row > box {
 .notification-row {
   background: transparent;
   box-shadow: none;
-  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -305,7 +298,6 @@ widget-notifications row > box {
 .notification-row:selected {
   background: transparent;
   box-shadow: none;
-  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -313,7 +305,6 @@ widget-notifications row > box {
 .notification-row:focus {
   background: transparent;
   box-shadow: none;
-  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -321,7 +312,6 @@ widget-notifications row > box {
 .notification-row:focus-within {
   background: transparent;
   box-shadow: none;
-  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -329,7 +319,6 @@ widget-notifications row > box {
 .notification-row:hover {
   background: transparent;
   box-shadow: none;
-  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -337,7 +326,6 @@ widget-notifications row > box {
 .notification-row:active {
   background: transparent;
   box-shadow: none;
-  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -367,27 +355,33 @@ widget-notifications row > box {
   padding: 0;
 }
 
-.notification-row > revealer {
-  margin: 0;
-  padding: 0;
-}
-
-.notification-row > revealer > box {
-  margin: 0;
-  padding: 0;
-}
-
-.notification-row .notification-background > box {
-  margin: 0;
-  padding: 0;
-}
-
 .floating-notifications .notification-row .notification-background {
   padding: var(--popup-card-gap) var(--popup-edge-gap) 0;
 }
 
+.control-center .notification-background {
+  margin: 0;
+  padding: 0;
+}
+
+.control-center .notification-background > revealer {
+  margin: 0;
+  padding: 0;
+}
+
+.control-center .notification-background > revealer > box {
+  margin: 0;
+  padding: 0;
+}
+
+.control-center .notification-background > box {
+  margin: 0;
+  padding: 0;
+}
+
 .control-center-list > row {
-  margin: 0 0 var(--panel-card-gap);
+  margin: 0;
+  margin-bottom: var(--panel-card-gap);
   padding: 0;
 }
 
