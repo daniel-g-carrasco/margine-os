@@ -15,6 +15,7 @@ declare -a home_payload=(
   ".config/systemd/user/margine-maintenance-check.service"
   ".config/systemd/user/margine-maintenance-check.timer"
   ".config/systemd/user/margine-notification-action-router.service"
+  ".config/systemd/user/swaync.service.d/override.conf"
   ".local/bin/margine-import-session-environment"
   ".local/bin/margine-maintenance-check"
   ".local/bin/margine-notification-action-router"
