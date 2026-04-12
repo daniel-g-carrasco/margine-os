@@ -2,8 +2,8 @@
 
 ## Objective
 
-Obtain from a clean Arch installation a system equivalent to that
-desired, not that casually accumulated over time.
+Starting from a clean Arch installation, build a system equivalent to the one
+we actually want, not the one that happened to accumulate over time.
 
 The system must be:
 
@@ -16,15 +16,15 @@ The system must be:
 
 ## Guiding idea
 
-This project does not want to create "a hacker ISO". He wants to create a system
-that Daniel really understands.
+This project is not trying to produce "a hacker ISO". It is trying to produce a
+system that Daniel genuinely understands.
 
-Because of this:
+That means:
 
 - each subsystem will have teaching notes;
 - every important decision will have an ADR;
 - each phase will have completion criteria;
-- each automation must remain legible.
+- each automation must remain readable.
 
 ## Technical identity
 
@@ -33,8 +33,8 @@ Because of this:
 - Target machine: `Framework Laptop 13 AMD`
 - Filesystem: `Btrfs`
 - Encryption: `LUKS2`
-- Target security: `Secure Boot` under our keys + `TPM2` for unlocking
-automatic `LUKS` on the normal boot path
+- Target security: `Secure Boot` under our own keys + `TPM2` for automatic
+  `LUKS` unlock on the normal boot path
 - Focus: photography, stability, rollback, clear maintenance
 
 ## Current status note
@@ -63,5 +63,5 @@ So:
 - Human System Name: `Margine`
 - Repository technical name: `margine-os`
 
-Reason: `Margine` has personality. `margine-os` is more convenient for git, package
-namespace and file naming.
+Reason: `Margine` has personality. `margine-os` is more practical for Git,
+package namespaces, and file naming.

@@ -15,19 +15,19 @@ The recommended model is:
 - public repository: `margine-os`
 - private repository: `margine-os-personal`
 
-The public repository stays the source of truth for:
+The public repository remains the source of truth for:
 
-- shared desktop UX
-- provisioning logic
-- validation logic
-- public documentation
-- redistributable products
+- shared desktop UX;
+- provisioning logic;
+- validation logic;
+- public documentation;
+- redistributable products.
 
 The private repository only adds:
 
-- private product manifests
-- private overlays
-- upstream integrations that should not be redistributed from the public repo
+- private product manifests;
+- private overlays;
+- upstream integrations that should not be redistributed from the public repo.
 
 ## Product model
 
@@ -56,5 +56,5 @@ Flavors are intentionally smaller in scope than products.
 
 1. implement generic changes in the public repository;
 2. sync the private repository from the public one;
-3. keep private-only upstream integrations in the private repo;
+3. keep private-only upstream integrations in the private repository;
 4. backport only the generic parts to the public repo.

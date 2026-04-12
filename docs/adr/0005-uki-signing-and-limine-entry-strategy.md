@@ -1,4 +1,4 @@
-# ADR 0005 - Strategy for UKI, signatures, and Limine entries
+# ADR 0005 - UKI, Signing, and Limine Entry Strategy
 
 ## State
 
@@ -19,7 +19,7 @@ However, the most important operational part was missing:
 - how `UKI` are generated;
 - what is signed;
 - how normal boot and recovery are distinguished;
-- how do you reconcile bootable snapshots and `TPM2` policy.
+- how bootable snapshots fit with the `TPM2` policy.
 
 ## Problem to solve
 
@@ -33,7 +33,8 @@ With `systemd-stub`, if a `UKI` contains an embedded `.cmdline` and
 `Secure Boot` is active, kernel command line overrides via bootloader
 they are ignored.
 
-This is great for normal booting, but makes snapshot-based recovery less natural.
+This works well for normal booting, but makes snapshot-based recovery less
+natural.
 
 ## Decision
 
@@ -73,7 +74,7 @@ This gives us:
 
 ### Intended use
 
-This is the path used for:
+This path is intended for:
 
 - daily boot;
 - standard fallback kernel;
@@ -158,8 +159,8 @@ Furthermore, following the official `Limine` documentation, the file
 
 This is fundamental.
 
-Sign only the EFI binary without also protecting the configuration
-it would mean leaving the file that decides uncovered:
+Signing only the EFI binary without protecting the configuration as well would
+leave unprotected the file that decides:
 
 - which entries exist;
 - which paths are used;
@@ -177,8 +178,8 @@ The main configuration will live next to the binary:
 
 - `ESP/EFI/BOOT/limine.conf`
 
-This choice directly exploits the behavior documented by `Limine`,
-which on UEFI first looks for the config file next to your EFI executable.
+This choice directly uses the behavior documented by `Limine`, which on UEFI
+first looks for the config file next to the EFI executable.
 
 ### UKI
 
@@ -246,7 +247,7 @@ After each relevant boot path update, the pipeline should be:
 
 1. pre-update snapshot
 2. regenerate the normal `UKI`
-3. regeneration `UKI` recovery, if necessary
+3. regenerate the recovery `UKI`, if necessary
 4. copy/refresh binary `Limine`
 5. generation of `limine.conf`
 6. `limine enroll-config`
@@ -262,7 +263,8 @@ This choice gives us a strong compromise:
 - more flexible recovery;
 - no obligation to generate a different `UKI` for each snapshot;
 - `TPM2` concentrated where it actually makes sense;
-- recovery still possible even when the trust chain is not "convenient".
+- recovery remains possible even when the trust chain is not the most
+  convenient one available.
 
 
 ## What we DON'T do in v1
@@ -276,13 +278,13 @@ Let's not do, for now:
 
 ## For a student: the simple version
 
-If we say it very directly:
+Put very simply:
 
 - everyday booting must be stable;
 - recovery must be flexible;
 - it is not mandatory that they are the same technical path.
 
-For this we use:
+For that, we use:
 
 - `UKI` with an embedded command line for normal boot;
 - `UKI` more flexible recovery for snapshots and maintenance.

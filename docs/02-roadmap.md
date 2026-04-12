@@ -1,6 +1,6 @@
 # Roadmap
 
-## Fase 0 - Metodo
+## Phase 0 - Method
 
 Objective:
 - establish structure, naming, principles, documentation and rules of the game.
@@ -9,15 +9,15 @@ Deliverable:
 - repo initialized;
 - vision;
 - roadmap;
-- Initial ADR;
+- initial ADRs;
 - initial allowlist.
 
-## Fase 1 - Architettura
+## Phase 1 - Architecture
 
 Objective:
 - decide the foundations that influence everything else.
 
-Temi:
+Topics:
 - bootloader;
 - Secure Boot;
 - TPM2;
@@ -39,7 +39,7 @@ Output:
 - list of configurations to rewrite;
 - list of components to replace.
 
-## Fase 3 - Manifests
+## Phase 3 - Manifests
 
 Objective:
 - create small, readable manifests.
@@ -54,12 +54,12 @@ Examples:
 - `photo`
 - `aur-exceptions`
 
-## Fase 4 - Bootstrap
+## Phase 4 - Bootstrap
 
 Objective:
 - write installation scripts from live ISO.
 
-Temi:
+Topics:
 - partitioning;
 - encryption;
 - subvolumes;
@@ -67,15 +67,15 @@ Temi:
 - chroot;
 - boot;
 - user;
-- servizi base.
+- baseline services.
 
-## Fase 5 - Desktop layer
+## Phase 5 - Desktop layer
 
 Objective:
 - make the system usable, coherent and centralized.
 
-Temi:
-- config Hyprland;
+Topics:
+- Hyprland configuration;
 - `greetd + tuigreet`;
 - Omarchy-style centralized theme;
 - waybar;
@@ -83,34 +83,34 @@ Temi:
 - hyprlock;
 - mako;
 - walker;
-- screenshot e recording;
-- audio, bluetooth, rete.
+- screenshots and recording;
+- audio, Bluetooth, networking.
 
 ## Phase 6 - Operations and rollback
 
 Objective:
 - create a system that updates and recovers well.
 
-Temi:
+Topics:
 - `update-all`;
 - pre/post snapshots;
-- firma kernel/UKI;
+- kernel/UKI signing;
 - preflight `Secure Boot`;
-- bootstrap `sbctl` guidato;
+- guided `sbctl` bootstrap;
 - two-phase `TPM2` rollout;
 - verify integrity;
 - rollback procedures;
 - maintenance documentation.
 
-## Fase 7 - Photo profile
+## Phase 7 - Photo profile
 
 Objective:
 - close the circle for photographic use.
 
-Temi:
+Topics:
 - stable AMD stack;
 - acceleration;
 - color management;
 - ABM / power tuning;
 - photo applications;
-- file management e ingest.
+- file management and ingest.

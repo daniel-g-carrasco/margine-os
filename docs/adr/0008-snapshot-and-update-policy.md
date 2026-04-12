@@ -1,4 +1,4 @@
-# ADR 0008 - Policy snapshot and system update
+# ADR 0008 - Snapshot And System Update Policy
 
 ## State
 
@@ -55,13 +55,13 @@ We adopt:
 Reason:
 
 - `snapper` is the snapshot and cleanup engine;
-- `snap-pac` is the safety net that creates pre/post snapshots for transactions
-`pacman`, regardless of how `pacman` is invoked.
+- `snap-pac` is the safety net that creates pre/post snapshots for `pacman`
+  transactions, regardless of how `pacman` is invoked.
 
-This is important because it avoids a very common fragility:
+This matters because it avoids a very common fragility:
 
-- lose snapshots just because you once updated with `pacman`
-direct instead of with the "official" script.
+- losing snapshots just because you updated once with raw `pacman` instead of
+  the "official" script.
 
 ## 2. Automatically snapshotted configuration
 
@@ -79,7 +79,7 @@ We do not automatically snapshot:
 Reason:
 
 - automatic snapshots are mainly used for system recovery;
-- User data and highly mutating workloads have different policies.
+- user data and highly mutable workloads require different policies.
 
 ## 3. Type of automatic snapshots
 
@@ -193,15 +193,15 @@ Root snapshots are NOT a replacement for boot path recovery.
 
 The `ESP` sits outside the root snapshot.
 
-Therefore, after an update or after a rollback, the consistency of:
+Therefore, after an update or a rollback, the consistency of:
 
 - `Limine`
 - `UKI`
 - config EFI
 - signatures
 
-must be maintained via deterministic regeneration, expecting only one
-Btrfs snapshot also fixes the `ESP`.
+must be maintained through deterministic regeneration. You cannot expect a
+Btrfs snapshot alone to fix the `ESP`.
 
 This is an architectural rule, not an operational detail.
 
@@ -247,7 +247,7 @@ This can be orchestrated in the future by a dedicated script.
 If we reduce it to the essentials:
 
 - `update-all` opens with a pre-update snapshot;
-- ``snap-pac` acts as a granular airbag for `pacman`;
+- `snap-pac` acts as a granular airbag for `pacman`;
 - `update-all` acts as conductor;
 - snapshots protect the root;
 - the `ESP` is recovered with regeneration, not with magic;
