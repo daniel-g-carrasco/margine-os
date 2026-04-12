@@ -21,6 +21,7 @@ declare -a home_payload=(
   ".local/bin/margine-notification-action-router"
   ".local/bin/margine-launcher"
   ".local/bin/margine-launcher-service"
+  ".local/bin/margine-bitwarden"
   ".local/bin/hypr-refresh-rate-watch"
   ".local/bin/margine-hyprlock"
   ".local/bin/keep-awake-daemon"

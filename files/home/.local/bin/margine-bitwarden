@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v bitwarden-desktop >/dev/null 2>&1; then
+  printf 'error: bitwarden-desktop not found in PATH\n' >&2
+  exit 127
+fi
+
+# Force native Wayland for Electron Bitwarden so it follows compositor scaling
+# correctly on HiDPI setups (and avoids tiny XWayland rendering when
+# force_zero_scaling is enabled).
+exec bitwarden-desktop \
+  --enable-features=UseOzonePlatform \
+  --ozone-platform=wayland \
+  "$@"
