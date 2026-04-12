@@ -5,6 +5,7 @@ dry_run=0
 esp_path=""
 limine_tool=""
 limine_binary=""
+limine_binary_source="/usr/share/limine/BOOTX64.EFI"
 limine_config=""
 main_uki=""
 fallback_uki=""
@@ -21,6 +22,8 @@ Options:
   --esp-path PATH        Mountpoint della EFI System Partition
   --limine-tool PATH     Path esplicito al tool host `limine`
   --limine-binary PATH   Binario EFI di Limine gia' deployato
+  --limine-binary-source PATH
+                         Binario EFI Limine unsigned da reinstallare prima di enroll-config
   --limine-config PATH   limine.conf gia' deployato
   --main-uki PATH        UKI principale gia' deployata
   --fallback-uki PATH    UKI fallback gia' deployata
@@ -70,6 +73,11 @@ parse_args() {
       --limine-binary)
         [[ $# -ge 2 ]] || die "missing value for --limine-binary"
         limine_binary="$2"
+        shift 2
+        ;;
+      --limine-binary-source)
+        [[ $# -ge 2 ]] || die "missing value for --limine-binary-source"
+        limine_binary_source="$2"
         shift 2
         ;;
       --limine-config)
@@ -228,6 +236,14 @@ main() {
   log "Limine EFI: ${limine_binary}"
   log "Limine config: ${limine_config}"
   log "Config BLAKE2B: ${config_hash}"
+
+  if [[ -f "$limine_binary_source" ]]; then
+    log
+    log "==> Reinstall unsigned Limine EFI binary"
+    run_cmd sudo install -Dm755 "$limine_binary_source" "$limine_binary"
+  else
+    warn "unsigned Limine EFI binary not found, skipping reinstall: ${limine_binary_source}"
+  fi
 
   log
   log "==> Enroll config hash in Limine EFI"

@@ -308,6 +308,7 @@ refresh_limine_config_hash() {
   local effective_limine_tool=""
   local config_hash=""
   local config_path=""
+  local limine_binary_source="/usr/share/limine/BOOTX64.EFI"
   local -a sbctl_sign_args=()
 
   [[ -n "$rendered_limine_output" ]] || return 0
@@ -330,6 +331,13 @@ refresh_limine_config_hash() {
     warn "limine host tool not found; skipping limine enroll-config"
     soft_failures=1
     return 0
+  fi
+
+  if [[ -f "$limine_binary_source" ]]; then
+    run_optional "reinstall limine binary before enroll-config" sudo install -Dm755 "$limine_binary_source" "$limine_binary"
+  else
+    warn "unsigned limine EFI binary not found: ${limine_binary_source}"
+    soft_failures=1
   fi
 
   config_hash="$(b2sum "$config_path" | awk '{print $1}')"
