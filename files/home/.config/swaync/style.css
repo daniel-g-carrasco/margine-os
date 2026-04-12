@@ -350,8 +350,12 @@ widget-notifications row > box {
 
 /* Notification rows */
 
-.floating-notifications .notification-row .notification-background {
+.notification-row .notification-background {
   margin: 0;
+  padding: 0;
+}
+
+.floating-notifications .notification-row .notification-background {
   padding: var(--popup-card-gap) var(--popup-edge-gap) 0;
 }
 
@@ -362,11 +366,6 @@ widget-notifications row > box {
 
 .control-center-list > row:last-child {
   margin-bottom: 0;
-}
-
-.control-center .notification-row .notification-background {
-/*  margin: 0 var(--section-inline-gap); */
-  padding: 0;
 }
 
 /* Notification card */
