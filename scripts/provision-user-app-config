@@ -29,6 +29,7 @@ declare -a home_payload=(
 
 firefox_policy_source="${repo_root}/files/etc/firefox/policies/policies.json"
 global_update_source="${repo_root}/scripts/update-all"
+host_health_wrapper_source="${repo_root}/files/usr/local/bin/margine-validate-host-health"
 darktable_baseline_source="${repo_root}/files/home/.config/darktable/darktablerc"
 libreoffice_baseline_source="${repo_root}/files/home/.config/libreoffice/4/user/registrymodifications.xcu"
 
@@ -195,10 +196,12 @@ install_global_update_all() {
   log "==> Install global update-all"
 
   [[ -f "$global_update_source" ]] || die "required source not found: $global_update_source"
+  [[ -f "$host_health_wrapper_source" ]] || die "required source not found: $host_health_wrapper_source"
 
   if (( dry_run )); then
     printf '[dry-run] rsync -a --delete --exclude build --exclude .git --exclude docs --exclude .github %s/ %s/\n' "$repo_root" "$support_root"
     printf '[dry-run] install wrapper /usr/local/bin/update-all -> %s/scripts/update-all\n' "$support_root"
+    printf '[dry-run] install wrapper /usr/local/bin/margine-validate-host-health -> %s/scripts/validate-host-health\n' "$support_root"
     return 0
   fi
 
@@ -214,6 +217,8 @@ install_global_update_all() {
 set -euo pipefail
 exec /usr/local/lib/margine/scripts/update-all "$@"
 EOF
+
+  install -Dm755 "$host_health_wrapper_source" /usr/local/bin/margine-validate-host-health
 }
 
 fix_ownership() {

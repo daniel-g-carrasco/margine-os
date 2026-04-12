@@ -28,6 +28,7 @@ declare -a home_payload=(
   ".local/bin/keep-awake-status"
   ".local/bin/keep-awake-toggle"
   ".local/bin/margine-apply-desktop-defaults"
+  ".local/bin/margine-validate-host-health"
   ".local/bin/open-vpn-menu"
   ".local/bin/vpn-menu"
   ".local/bin/vpn-status"
@@ -129,7 +130,6 @@ enable_user_units() {
   local unit=""
   local link_path=""
   local -a units=(
-    elephant.service
     hypr-refresh-rate.service
     margine-notification-action-router.service
   )
@@ -167,6 +167,15 @@ enable_user_units() {
 
 }
 
+cleanup_legacy_units() {
+  local legacy_link="${home_dir}/.config/systemd/user/default.target.wants/elephant.service"
+
+  log
+  log "==> Remove legacy eager-start user units"
+
+  run_cmd rm -f "$legacy_link"
+}
+
 fix_ownership() {
   log
   log "==> Fix ownership"
@@ -187,6 +196,7 @@ main() {
 
   copy_payload
   enable_user_units
+  cleanup_legacy_units
   fix_ownership
 
   log
