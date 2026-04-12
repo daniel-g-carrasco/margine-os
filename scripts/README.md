@@ -87,3 +87,6 @@ Operational scripts:
 - `provision-host-root-baseline`: reapplies the root-owned host baseline for
   fingerprint auth, Snapper recovery, and Limine recovery entries on an
   already-installed machine.
+- `provision-host-greetd-baseline`: switches an already-installed host from
+  `gdm` to `greetd + tuigreet`, reapplies fingerprint PAM baseline (including
+  `greetd` and `hyprlock`), and keeps rollback commands explicit.

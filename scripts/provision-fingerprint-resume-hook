@@ -5,6 +5,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
 hook_source="${repo_root}/files/etc/systemd/system-sleep/fprintd-reset"
 pam_source="${repo_root}/files/etc/pam.d/hyprlock"
+greetd_pam_source="${repo_root}/files/etc/pam.d/greetd"
 fprintd_source="${repo_root}/files/etc/fprintd.conf"
 
 dry_run=0
@@ -69,6 +70,7 @@ main() {
 
   [[ -f "$hook_source" ]] || die "hook source not found: $hook_source"
   [[ -f "$pam_source" ]] || die "pam source not found: $pam_source"
+  [[ -f "$greetd_pam_source" ]] || die "greetd pam source not found: $greetd_pam_source"
   [[ -f "$fprintd_source" ]] || die "fprintd source not found: $fprintd_source"
 
   log "==> Install fingerprint resume mitigation"
@@ -77,6 +79,7 @@ main() {
   log
   log "==> Install fingerprint baseline config"
   run_cmd install -Dm644 "$pam_source" /etc/pam.d/hyprlock
+  run_cmd install -Dm644 "$greetd_pam_source" /etc/pam.d/greetd
   run_cmd install -Dm644 "$fprintd_source" /etc/fprintd.conf
 
   log

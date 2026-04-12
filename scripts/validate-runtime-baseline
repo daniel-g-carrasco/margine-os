@@ -243,6 +243,21 @@ power_section() {
       status_line "hyprlock PAM sanity: ok"
     fi
   fi
+
+  status_line "greetd PAM present: $( [[ -f /etc/pam.d/greetd ]] && echo yes || echo no )"
+  if [[ -f /etc/pam.d/greetd ]]; then
+    local greetd_fprint
+    local greetd_system_login
+    greetd_fprint="$(rg -c '^[[:space:]]*auth[[:space:]]+sufficient[[:space:]]+pam_fprintd\\.so$' /etc/pam.d/greetd 2>/dev/null || true)"
+    greetd_system_login="$(rg -c '^[[:space:]]*auth[[:space:]]+include[[:space:]]+system-login$' /etc/pam.d/greetd 2>/dev/null || true)"
+    status_line "greetd PAM fingerprint lines: ${greetd_fprint:-0}"
+    status_line "greetd PAM auth->system-login lines: ${greetd_system_login:-0}"
+    if [[ "${greetd_fprint:-0}" != "1" || "${greetd_system_login:-0}" != "1" ]]; then
+      status_line "greetd PAM sanity: suspect"
+    else
+      status_line "greetd PAM sanity: ok"
+    fi
+  fi
 }
 
 audio_section() {
