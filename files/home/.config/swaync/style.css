@@ -2,7 +2,6 @@
 
 @define-color fg #e8e6e3;
 @define-color muted #b9b5af;
-@define-color bg #121212;
 @define-color panel #1a1a1a;
 @define-color border #303030;
 @define-color hover #232323;
@@ -18,11 +17,11 @@
   --popup-edge-gap: 10px;
   --card-padding-x: 10px;
   --card-padding-y: 12px;
-  --mpris-overlay-padding-x: 14px;
-  --mpris-overlay-padding-y: 12px;
   --notification-icon-size: 48px;
   --notification-app-icon-size: 18px;
   --mpris-album-art-icon-size: 96px;
+  --mpris-overlay-padding-x: 14px;
+  --mpris-overlay-padding-y: 12px;
 }
 
 /* Global defaults */
@@ -38,9 +37,18 @@
 
 /* Layer surfaces */
 
-.blank-window,
-.floating-notifications,
-notificationwindow,
+.blank-window {
+  background: transparent;
+}
+
+.floating-notifications {
+  background: transparent;
+}
+
+notificationwindow {
+  background: transparent;
+}
+
 blankwindow {
   background: transparent;
 }
@@ -54,53 +62,132 @@ blankwindow {
   padding: var(--panel-padding);
 }
 
-.control-center .control-center-list,
-.control-center .control-center-list-placeholder {
+.control-center-list {
   background: transparent;
   margin: 0;
   padding: 0;
 }
 
-.control-center .control-center-list-placeholder {
+.control-center-list-placeholder {
+  background: transparent;
   color: @muted;
+  margin: 0;
   min-height: 0;
   opacity: 1;
+  padding: 0;
 }
 
 /* Empty state */
 
-.control-center placeholder,
+.control-center placeholder {
+  min-width: 0;
+  min-height: 0;
+}
+
 .control-center list placeholder {
   min-width: 0;
   min-height: 0;
 }
 
-.control-center placeholder > grid,
-.control-center list placeholder > grid,
-.control-center placeholder box,
+.control-center placeholder > grid {
+  margin: 0;
+}
+
+.control-center list placeholder > grid {
+  margin: 0;
+}
+
+.control-center placeholder box {
+  margin: 0;
+}
+
 .control-center list placeholder box {
   margin: 0;
 }
 
-.control-center placeholder > grid > .large-icons,
-.control-center list placeholder > grid > .large-icons,
-.control-center placeholder image,
-.control-center list placeholder image,
-.control-center .control-center-list-placeholder image,
-.control-center placeholder .title-1,
-.control-center placeholder .title-2,
-.control-center list placeholder .title-1,
-.control-center list placeholder .title-2 {
+.control-center placeholder > grid > .large-icons {
   -gtk-icon-size: 0;
+  margin: 0;
   min-width: 0;
   min-height: 0;
-  margin: 0;
   opacity: 0;
 }
 
-.control-center placeholder label,
-.control-center list placeholder label,
-.control-center .control-center-list-placeholder label {
+.control-center list placeholder > grid > .large-icons {
+  -gtk-icon-size: 0;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  opacity: 0;
+}
+
+.control-center placeholder image {
+  -gtk-icon-size: 0;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  opacity: 0;
+}
+
+.control-center list placeholder image {
+  -gtk-icon-size: 0;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  opacity: 0;
+}
+
+.control-center-list-placeholder image {
+  -gtk-icon-size: 0;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  opacity: 0;
+}
+
+.control-center placeholder .title-1 {
+  font-size: 0;
+  margin: 0;
+  min-height: 0;
+  opacity: 0;
+}
+
+.control-center placeholder .title-2 {
+  font-size: 0;
+  margin: 0;
+  min-height: 0;
+  opacity: 0;
+}
+
+.control-center list placeholder .title-1 {
+  font-size: 0;
+  margin: 0;
+  min-height: 0;
+  opacity: 0;
+}
+
+.control-center list placeholder .title-2 {
+  font-size: 0;
+  margin: 0;
+  min-height: 0;
+  opacity: 0;
+}
+
+.control-center placeholder label {
+  color: @muted;
+  font-size: 13px;
+  margin: 0;
+  opacity: 1;
+}
+
+.control-center list placeholder label {
+  color: @muted;
+  font-size: 13px;
+  margin: 0;
+  opacity: 1;
+}
+
+.control-center-list-placeholder label {
   color: @muted;
   font-size: 13px;
   margin: 0;
@@ -109,42 +196,150 @@ blankwindow {
 
 /* Notifications container */
 
-widget-notifications,
-widget-notifications > stack,
-widget-notifications > stack > box,
-widget-notifications > stack > scrolledwindow,
-widget-notifications viewport,
-widget-notifications list,
-widget-notifications row,
-widget-notifications row > box {
-  min-height: 0;
+widget-notifications {
   margin: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+widget-notifications > stack {
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+widget-notifications > stack > box {
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+widget-notifications > stack > scrolledwindow {
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+widget-notifications viewport {
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+widget-notifications list {
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+widget-notifications row {
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+widget-notifications row > box {
+  margin: 0;
+  min-height: 0;
   padding: 0;
 }
 
 /* Row state reset */
 
-.control-center row,
-.control-center row:selected,
-.control-center row:focus,
-.control-center row:focus-within,
-.control-center row:hover,
-.control-center row:active,
-.notification-row,
-.notification-row:selected,
-.notification-row:focus,
-.notification-row:focus-within,
-.notification-row:hover,
-.notification-row:active {
+.control-center row {
   background: transparent;
-  outline: none;
   box-shadow: none;
+  outline: none;
   padding: 0;
 }
 
-/* Hidden scrollbar */
+.control-center row:selected {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  padding: 0;
+}
 
-.control-center scrollbar,
+.control-center row:focus {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  padding: 0;
+}
+
+.control-center row:focus-within {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  padding: 0;
+}
+
+.control-center row:hover {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  padding: 0;
+}
+
+.control-center row:active {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  padding: 0;
+}
+
+.notification-row {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  padding: 0;
+}
+
+.notification-row:selected {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  padding: 0;
+}
+
+.notification-row:focus {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  padding: 0;
+}
+
+.notification-row:focus-within {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  padding: 0;
+}
+
+.notification-row:hover {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  padding: 0;
+}
+
+.notification-row:active {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  padding: 0;
+}
+
+/* Scrollbar */
+
+.control-center scrollbar {
+  background: transparent;
+  border: none;
+  min-width: 0;
+  min-height: 0;
+  opacity: 0;
+}
+
 .control-center scrollbar slider {
   background: transparent;
   border: none;
@@ -155,21 +350,17 @@ widget-notifications row > box {
 
 /* Notification rows */
 
-.notification-row .notification-background {
-  margin: 0;
-  padding: 0;
-}
-
 .floating-notifications .notification-row .notification-background {
+  margin: 0;
   padding: var(--popup-card-gap) var(--popup-edge-gap) 0;
 }
 
-.control-center .control-center-list > row {
+.control-center-list > row {
   margin: 0 0 var(--panel-card-gap);
   padding: 0;
 }
 
-.control-center .control-center-list > row:last-child {
+.control-center-list > row:last-child {
   margin-bottom: 0;
 }
 
@@ -180,7 +371,7 @@ widget-notifications row > box {
 
 /* Notification card */
 
-.notification-row .notification-background .notification {
+.notification {
   background: rgba(26, 26, 26, 0.995);
   color: @fg;
   border: 1px solid @border;
@@ -188,72 +379,77 @@ widget-notifications row > box {
   padding: 0;
 }
 
-.notification-row .notification-background .notification.critical {
+.notification.critical {
   border-color: @critical;
 }
 
-.notification-row .notification-background .notification .notification-default-action {
+.notification-default-action {
   background: transparent;
-  color: @fg;
   border: none;
   box-shadow: none;
+  color: @fg;
   margin: 0;
   padding: var(--card-padding-y) var(--card-padding-x);
 }
 
-.notification-row .notification-background .notification .notification-default-action:hover {
+.notification-default-action:hover {
   background: @hover;
 }
 
-.notification-row .notification-background .notification .notification-default-action .notification-content,
-.notification-row .notification-background .notification .notification-default-action .notification-content .text-box {
+.notification-content {
   background: transparent;
   margin: 0;
   padding: 0;
 }
 
-.notification-row .notification-background .notification .notification-default-action .notification-content .image {
+.notification-content .text-box {
+  background: transparent;
+  margin: 0;
+  padding: 0;
+}
+
+.notification-content .image {
   margin: 4px 12px 4px 4px;
 }
 
-.notification-row .notification-background .notification .notification-default-action .notification-content .app-icon {
+.notification-content .app-icon {
   margin: 6px;
 }
 
-.notification-row .notification-background .notification .notification-default-action .notification-content .text-box .summary {
+.notification-content .summary {
   color: @fg;
   font-size: 14px;
   font-weight: 600;
 }
 
-.notification-row .notification-background .notification .notification-default-action .notification-content .text-box .time {
+.notification-content .time {
   color: @muted;
   font-size: 12px;
   font-weight: 500;
   margin-right: 24px;
 }
 
-.notification-row .notification-background .notification .notification-default-action .notification-content .text-box .body {
+.notification-content .body {
   color: @muted;
   font-size: 13px;
 }
 
 /* Notification action buttons */
 
-.notification-row .notification-background .notification .notification-action {
+.notification-action {
   border-top: 1px solid @border;
   margin: 0;
   padding: 0;
 }
 
-.notification-row .notification-background .notification .notification-action > button {
+.notification-action > button {
   background: transparent;
   color: @fg;
   margin: 0;
   padding: var(--card-padding-y) var(--card-padding-x);
 }
 
-.notification-row .notification-background .notification .notification-action:hover > button {
+.notification-action:hover > button {
   background: @hover;
 }
 
@@ -261,12 +457,12 @@ widget-notifications row > box {
 
 .close-button {
   background: @panel;
-  color: @muted;
   border: 1px solid @border;
+  color: @muted;
+  margin-right: 8px;
+  margin-top: 8px;
   min-width: 18px;
   min-height: 18px;
-  margin-top: 8px;
-  margin-right: 8px;
   padding: 0;
 }
 
@@ -291,8 +487,8 @@ widget-notifications row > box {
 
 .widget-title > button {
   background: transparent;
-  color: @muted;
   border: 1px solid @border;
+  color: @muted;
   margin: 0;
   min-width: 96px;
   min-height: 22px;
@@ -307,8 +503,8 @@ widget-notifications row > box {
 /* Widget DND */
 
 .widget-dnd {
-  color: @muted;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: @muted;
   margin: 2px var(--section-inline-gap) var(--section-gap);
   min-height: 24px;
   padding: 8px 0 0;
@@ -348,38 +544,38 @@ widget-notifications row > box {
   background: rgba(18, 18, 18, 0.86);
 }
 
-.widget-mpris .widget-mpris-player {
+.widget-mpris-player {
   margin: 0;
 }
 
-.widget-mpris .widget-mpris-player .mpris-background {
+.mpris-background {
   filter: blur(9px) brightness(0.42);
 }
 
-.widget-mpris .widget-mpris-player .mpris-overlay {
+.mpris-overlay {
   background: rgba(18, 18, 18, 0.8);
   padding: var(--mpris-overlay-padding-y) var(--mpris-overlay-padding-x) 14px;
 }
 
-.widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-title {
+.widget-mpris-title {
   color: @fg;
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 4px;
 }
 
-.widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-subtitle {
+.widget-mpris-subtitle {
   color: @muted;
   font-size: 12px;
   margin: 5px 0 12px;
 }
 
-.widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-album-art {
+.widget-mpris-album-art {
   -gtk-icon-size: var(--mpris-album-art-icon-size);
   box-shadow: none;
 }
 
-.widget-mpris .widget-mpris-player .mpris-overlay > box > button {
+.mpris-overlay > box > button {
   background: rgba(18, 18, 18, 0.62);
   border: 1px solid @border;
   color: @fg;
@@ -390,12 +586,11 @@ widget-notifications row > box {
   padding: 6px 8px;
 }
 
-.widget-mpris .widget-mpris-player .mpris-overlay > box > button:last-child {
+.mpris-overlay > box > button:last-child {
   margin-right: 0;
 }
 
-.widget-mpris .widget-mpris-player .mpris-overlay > box > button:hover,
-.widget-mpris > box > button:hover {
+.mpris-overlay > box > button:hover {
   background: @hover;
 }
 
@@ -406,6 +601,10 @@ widget-notifications row > box {
   margin: 0;
   min-width: 30px;
   padding: 0;
+}
+
+.widget-mpris > box > button:hover {
+  background: @hover;
 }
 
 .widget-mpris > box > button:first-child {
