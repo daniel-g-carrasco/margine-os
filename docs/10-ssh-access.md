@@ -78,6 +78,11 @@ Then connect again:
 ssh -p 2222 daniel@127.0.0.1
 ```
 
+Once SSH is enabled, the preferred development sync loop for the VM is
+documented in:
+
+- [12-post-install-layer-realignment.md](/home/daniel/dev/margine-os/docs/12-post-install-layer-realignment.md)
+
 ## 4. Connecting to a real machine
 
 After enabling SSH on the target machine:

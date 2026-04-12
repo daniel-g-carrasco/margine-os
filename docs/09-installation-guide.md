@@ -71,6 +71,10 @@ See:
 
 - [12-post-install-layer-realignment.md](/home/daniel/dev/margine-os/docs/12-post-install-layer-realignment.md)
 
+That document also defines the preferred `rsync + SSH + provisioner` workflow
+for keeping an installed QEMU validation VM aligned with the repository during
+development.
+
 ## 4. SSH access after install
 
 `Margine` installs the SSH baseline, but it does not expose `sshd`

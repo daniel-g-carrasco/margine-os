@@ -73,6 +73,82 @@ This re-installs:
 - Firefox policy baseline
 - wallpaper and desktop helpers
 
+## 4.1 Preferred VM repo-sync workflow
+
+For an already-installed QEMU validation VM, this is the preferred operator
+loop during development.
+
+From the host:
+
+```bash
+rsync -a --delete --exclude build/ -e "ssh -p 2222" \
+  /home/daniel/dev/margine-os-personal/ \
+  daniel@127.0.0.1:/tmp/margine-os/
+
+ssh -p 2222 daniel@127.0.0.1
+```
+
+Inside the VM:
+
+```bash
+sudo rsync -a --delete /tmp/margine-os/ /root/margine-os/
+```
+
+Then run the provisioner that matches the kind of change you made.
+
+Use:
+
+- `sudo /root/margine-os/scripts/install-from-manifests ...` when package
+  manifests or layers changed
+- `sudo /root/margine-os/scripts/provision-user-runtime-tools --username daniel`
+  when runtime helpers, user services, or scripts in `~/.local/bin` changed
+- `sudo /root/margine-os/scripts/provision-user-app-config --username daniel`
+  when application configuration changed
+- `sudo /root/margine-os/scripts/provision-hyprland-desktop --username daniel`
+  when Hyprland, Waybar, SwayNC, Walker, wallpaper, or lock-screen payloads
+  changed
+
+This distinction matters.
+
+For example:
+
+- a `hyprlock` wrapper change is **not** just application config
+- a Waybar or SwayNC CSS change is **not** just application config
+- a new package in a manifest is **not** solved by re-running desktop payloads
+
+So `provision-user-app-config` alone is correct only for the app-config slice.
+It is not the generic answer for every repo sync.
+
+## 4.2 Session refresh after repo sync
+
+After re-applying the payloads, reload only what actually changed.
+
+Typical commands:
+
+```bash
+systemctl --user daemon-reload
+hyprctl reload
+~/.config/waybar/launch.sh
+~/.config/swaync/launch.sh
+```
+
+Examples:
+
+- after `provision-user-runtime-tools`: run `systemctl --user daemon-reload`
+- after `provision-hyprland-desktop`: run `hyprctl reload`
+- after Waybar changes: relaunch Waybar
+- after SwayNC changes: relaunch SwayNC
+
+For the dynamic lock-screen rollout specifically, the usual VM loop is:
+
+```bash
+sudo rsync -a --delete /tmp/margine-os/ /root/margine-os/
+sudo /root/margine-os/scripts/provision-user-runtime-tools --username daniel
+sudo /root/margine-os/scripts/provision-hyprland-desktop --username daniel
+systemctl --user daemon-reload
+hyprctl reload
+```
+
 ## 5. Discover available layers
 
 To inspect the installable package blocks:
