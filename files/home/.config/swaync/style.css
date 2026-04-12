@@ -15,7 +15,7 @@
   --panel-card-gap: 5px;
   --popup-card-gap: 5px;
   --popup-edge-gap: 10px;
-  --card-padding-x: 10px;
+  --card-padding-x: 12px;
   --card-padding-y: 12px;
   --notification-icon-size: 48px;
   --notification-app-icon-size: 18px;
@@ -365,7 +365,7 @@ widget-notifications row > box {
 }
 
 .control-center .notification-row .notification-background {
-  margin: 0 var(--section-inline-gap);
+/*  margin: 0 var(--section-inline-gap); */
   padding: 0;
 }
 
