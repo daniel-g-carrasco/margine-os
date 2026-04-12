@@ -79,6 +79,9 @@ Operational scripts:
   bootloader, and Snapper state.
 - `validate-tpm2-auto-unlock`: inspects the current TPM2/LUKS enrollment,
   `crypttab.initramfs`, `sbctl`, and PCR state.
+- `validate-host-health`: single entrypoint for installed-system validation;
+  run it once in the graphical user session and once as root to cover runtime,
+  boot, recovery, and TPM2 checks in a consistent way.
 - `validate-virtualization-containers-baseline`: validates CPU/KVM support,
   packages, and the real `libvirt` and `podman` state.
 - `prepare-qemu-archiso-validation`: prepares a QEMU/OVMF VM with the official

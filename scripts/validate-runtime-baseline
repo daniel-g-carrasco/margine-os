@@ -65,7 +65,7 @@ session_env_section() {
   systemd_env="$(systemctl --user show-environment 2>/dev/null || true)"
 
   for name in "${vars[@]}"; do
-    manager_value="$(printf '%s\n' "$systemd_env" | sed -n "s/^${name}=//p" | head -n1)"
+    manager_value="$(printf '%s\n' "$systemd_env" | sed -n "s/^${name}=//p" | head -n1 || true)"
     shell_value="${!name:-}"
 
     if [[ -z "$manager_value" ]]; then
@@ -210,7 +210,7 @@ power_section() {
   local lid_switch_docked="unknown"
   local hypridle_state="stopped"
 
-  section "Power e Resume"
+  section "Power and Resume"
 
   if have_cmd powerprofilesctl; then
     profile="$(powerprofilesctl get 2>/dev/null || true)"
@@ -225,13 +225,13 @@ power_section() {
 
   battery_path="$(upower -e 2>/dev/null | grep BAT | head -n1 || true)"
   if [[ -n "$battery_path" ]]; then
-    rate="$(upower -i "$battery_path" 2>/dev/null | awk -F: '/energy-rate/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
-    percentage="$(upower -i "$battery_path" 2>/dev/null | awk -F: '/percentage/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+    rate="$(upower -i "$battery_path" 2>/dev/null | awk -F: '/energy-rate/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' || true)"
+    percentage="$(upower -i "$battery_path" 2>/dev/null | awk -F: '/percentage/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' || true)"
     status_line "battery: ${percentage:-unknown}, drain ${rate:-unknown}"
   fi
 
   if have_cmd hyprctl; then
-    monitor_line="$(hyprctl monitors all 2>/dev/null | awk '/^Monitor eDP-1/ {getline; print; exit}')"
+    monitor_line="$(hyprctl monitors all 2>/dev/null | awk '/^Monitor eDP-1/ {getline; print; exit}' || true)"
     [[ -n "$monitor_line" ]] && status_line "internal monitor: ${monitor_line}"
   fi
 
@@ -241,9 +241,9 @@ power_section() {
   status_line "hypridle process: ${hypridle_state}"
 
   if have_cmd systemd-analyze; then
-    lid_switch="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandleLidSwitch=/ {print $2; exit}')"
-    lid_switch_external="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandleLidSwitchExternalPower=/ {print $2; exit}')"
-    lid_switch_docked="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandleLidSwitchDocked=/ {print $2; exit}')"
+    lid_switch="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandleLidSwitch=/ {print $2; exit}' || true)"
+    lid_switch_external="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandleLidSwitchExternalPower=/ {print $2; exit}' || true)"
+    lid_switch_docked="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandleLidSwitchDocked=/ {print $2; exit}' || true)"
   fi
   status_line "lid switch: ${lid_switch:-unknown}"
   status_line "lid switch on AC: ${lid_switch_external:-unknown}"
@@ -296,8 +296,8 @@ audio_section() {
   status_line "easyeffects process: ${ee_process}"
 
   if have_cmd pactl; then
-    default_sink="$(pactl info 2>/dev/null | awk -F: '/Default Sink/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
-    default_source="$(pactl info 2>/dev/null | awk -F: '/Default Source/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+    default_sink="$(pactl info 2>/dev/null | awk -F: '/Default Sink/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' || true)"
+    default_source="$(pactl info 2>/dev/null | awk -F: '/Default Source/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' || true)"
     status_line "default sink: ${default_sink:-unknown}"
     status_line "default source: ${default_source:-unknown}"
   fi
@@ -325,7 +325,7 @@ productivity_section() {
   local libreoffice_registry="${home_dir}/.config/libreoffice/4/user/registrymodifications.xcu"
   local notebookbar_state="missing"
 
-  section "Produttivita'"
+  section "Productivity"
 
   status_line "libreoffice: $(command -v libreoffice >/dev/null 2>&1 && echo yes || echo no)"
 
@@ -347,7 +347,7 @@ photo_section() {
   local cltest_output=""
   local cltest_device=""
 
-  section "Fotografia e OpenCL"
+  section "Photography and OpenCL"
 
   status_line "darktable: $(command -v darktable >/dev/null 2>&1 && echo yes || echo no)"
   status_line "darktable-cltest: $(command -v darktable-cltest >/dev/null 2>&1 && echo yes || echo no)"
@@ -359,7 +359,7 @@ photo_section() {
 
     if printf '%s\n' "$cltest_output" | grep -q 'FINALLY: opencl PREFERENCE=ON is AVAILABLE and ENABLED.'; then
       status_line "darktable OpenCL: enabled"
-      cltest_device="$(printf '%s\n' "$cltest_output" | sed -n "s/.*DEVICE:[[:space:]]*0: '\\([^']*\\)'.*/\\1/p" | head -n1)"
+      cltest_device="$(printf '%s\n' "$cltest_output" | sed -n "s/.*DEVICE:[[:space:]]*0: '\\([^']*\\)'.*/\\1/p" | head -n1 || true)"
       [[ -n "$cltest_device" ]] && status_line "darktable OpenCL device: ${cltest_device}"
     elif printf '%s\n' "$cltest_output" | grep -q 'found 0 device'; then
       status_line "darktable OpenCL: no device"
@@ -373,20 +373,20 @@ connectivity_section() {
   local bt_powered="unknown"
   local active_vpns=""
 
-  section "Rete, VPN e Bluetooth"
+  section "Network, VPN, and Bluetooth"
   show_service_state "NetworkManager.service"
   show_service_state "iwd.service"
   show_service_state "bluetooth.service"
 
   if have_cmd nmcli; then
-    status_line "nmcli general: $(nmcli general status 2>/dev/null | tail -n +2 | head -n1 | xargs)"
+    status_line "nmcli general: $(nmcli general status 2>/dev/null | tail -n +2 | head -n1 | xargs || true)"
     nmcli connection show --active 2>/dev/null | sed 's/^/  - /'
     active_vpns="$(nmcli -t -f NAME,TYPE connection show --active 2>/dev/null | awk -F: '$2 == "vpn" || $2 == "wireguard" { print $1 }' | paste -sd, -)"
     status_line "active vpn tunnels: ${active_vpns:-none}"
   fi
 
   if have_cmd bluetoothctl; then
-    bt_powered="$(bluetoothctl show 2>/dev/null | awk -F: '/Powered/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+    bt_powered="$(bluetoothctl show 2>/dev/null | sed -n 's/^[[:space:]]*Powered:[[:space:]]*//p' | tail -n1 || true)"
     status_line "bluetooth powered: ${bt_powered:-unknown}"
   fi
 }
@@ -394,12 +394,12 @@ connectivity_section() {
 screenshot_section() {
   local binary=""
 
-  section "Screenshot e Recording"
+  section "Screenshots and Recording"
 
   for binary in grim slurp satty wf-recorder hyprctl jq; do
     status_line "binary ${binary}: $(command -v "$binary" >/dev/null 2>&1 && echo yes || echo no)"
   done
-  status_line "binary hyprcap (opzionale): $(command -v hyprcap >/dev/null 2>&1 && echo yes || echo no)"
+  status_line "binary hyprcap (optional): $(command -v hyprcap >/dev/null 2>&1 && echo yes || echo no)"
 
   while IFS= read -r relpath; do
     [[ -n "$relpath" ]] || continue

@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+mode=""
+include_tpm2=1
+include_virtualization=0
+status=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  validate-host-health [options]
+
+Modes:
+  --session              Run session and desktop checks
+  --root                 Run root-owned boot, recovery, and security checks
+
+Options:
+  --skip-tpm2            Skip TPM2/LUKS validation in root mode
+  --with-virtualization  Also run virtualization/container validation in root mode
+  --help                 Show this help
+
+Defaults:
+  - non-root invocation defaults to --session
+  - root invocation defaults to --root
+EOF
+}
+
+section() {
+  printf '\n=== %s ===\n' "$*"
+}
+
+line() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+ensure_exec() {
+  local path="$1"
+  [[ -x "$path" ]] || die "required executable not found: $path"
+}
+
+run_check() {
+  local label="$1"
+  shift
+
+  section "$label"
+  if "$@"; then
+    line
+    line "Result: OK"
+  else
+    status=1
+    line
+    line "Result: FAILED"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --session)
+        mode="session"
+        shift
+        ;;
+      --root)
+        mode="root"
+        shift
+        ;;
+      --skip-tpm2)
+        include_tpm2=0
+        shift
+        ;;
+      --with-virtualization)
+        include_virtualization=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+print_header() {
+  section "Margine Host Health Check"
+  line "mode: ${mode}"
+  line "host: $(uname -n)"
+  line "user: $(id -un)"
+  line "timestamp: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+}
+
+run_session_mode() {
+  local runtime_script="${script_dir}/validate-runtime-baseline"
+
+  ensure_exec "$runtime_script"
+
+  print_header
+  run_check "Runtime, desktop, and session baseline" "$runtime_script"
+
+  section "Next step"
+  line "Run the root-owned checks from another terminal:"
+  line "  sudo ${script_dir}/validate-host-health --root"
+  line "Optional extra stack:"
+  line "  sudo ${script_dir}/validate-host-health --root --with-virtualization"
+}
+
+run_root_mode() {
+  local boot_script="${script_dir}/validate-boot-recovery-baseline"
+  local tpm2_script="${script_dir}/validate-tpm2-auto-unlock"
+  local virtualization_script="${script_dir}/validate-virtualization-containers-baseline"
+
+  [[ "$(id -u)" -eq 0 ]] || die "--root mode must run as root"
+  ensure_exec "$boot_script"
+  ensure_exec "$tpm2_script"
+  (( include_virtualization )) && ensure_exec "$virtualization_script"
+
+  print_header
+  run_check "Boot, recovery, and Secure Boot baseline" "$boot_script"
+
+  if (( include_tpm2 )); then
+    run_check "TPM2 auto-unlock baseline" "$tpm2_script"
+  fi
+
+  if (( include_virtualization )); then
+    run_check "Virtualization and containers baseline" "$virtualization_script"
+  fi
+
+  section "Next step"
+  if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+    line "Run the session checks from the graphical session of ${SUDO_USER}:"
+  else
+    line "Run the session checks from the graphical session:"
+  fi
+  line "  ${script_dir}/validate-host-health --session"
+}
+
+main() {
+  parse_args "$@"
+
+  if [[ -z "$mode" ]]; then
+    if [[ "$(id -u)" -eq 0 ]]; then
+      mode="root"
+    else
+      mode="session"
+    fi
+  fi
+
+  case "$mode" in
+    session)
+      run_session_mode
+      ;;
+    root)
+      run_root_mode
+      ;;
+    *)
+      die "unsupported mode: $mode"
+      ;;
+  esac
+
+  section "Summary"
+  if (( status == 0 )); then
+    line "Overall status: OK"
+  else
+    line "Overall status: FAILED"
+  fi
+
+  exit "$status"
+}
+
+main "$@"

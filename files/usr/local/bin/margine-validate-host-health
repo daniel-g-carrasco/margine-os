@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec /usr/local/lib/margine/scripts/validate-host-health "$@"

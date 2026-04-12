@@ -16,6 +16,40 @@ The goal is not just to confirm that packages exist, but to verify that:
 - the desktop stack is coherent
 - audio, video, networking, and theming behave as expected
 
+## Preferred entrypoint
+
+For installed systems, prefer the consolidated validator instead of manually
+remembering every check family.
+
+From the graphical user session:
+
+```bash
+/usr/local/lib/margine/scripts/validate-host-health --session
+```
+
+Or, if the convenience wrapper is installed:
+
+```bash
+margine-validate-host-health --session
+```
+
+Then, from a root shell:
+
+```bash
+sudo /usr/local/lib/margine/scripts/validate-host-health --root
+```
+
+Optional virtualization/container checks:
+
+```bash
+sudo /usr/local/lib/margine/scripts/validate-host-health --root --with-virtualization
+```
+
+Why two passes:
+
+- session mode validates the live desktop/session/runtime state from the real user context
+- root mode validates boot, recovery, Secure Boot, and TPM2 state that the user session cannot inspect correctly
+
 ## 1. Boot and filesystem
 
 ```bash

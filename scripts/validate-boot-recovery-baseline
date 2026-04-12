@@ -16,7 +16,7 @@ status_line() {
 boot_section() {
   local product="unknown"
 
-  section "Secure Boot e Bootloader"
+  section "Secure Boot and Bootloader"
 
   if have_cmd sbctl; then
     sbctl status 2>/dev/null | sed 's/^/  - /'
@@ -24,7 +24,7 @@ boot_section() {
 
   if have_cmd bootctl; then
     product="$(bootctl status 2>/dev/null | awk -F: '/Current Boot Loader:/ {found=1; next} found && /Product:/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
-    status_line "bootloader corrente: ${product:-unknown}"
+    status_line "current bootloader: ${product:-unknown}"
     if [[ "${product:-}" == Limine* ]]; then
       status_line "Limine-first target: aligned"
     else
@@ -34,7 +34,7 @@ boot_section() {
 }
 
 uki_section() {
-  section "UKI e artefatti di boot"
+  section "UKIs and boot artifacts"
   if [[ -d /boot/EFI/Linux ]]; then
     find /boot/EFI/Linux -maxdepth 1 -type f -name '*.efi' | sed 's/^/  - /'
   else
@@ -46,7 +46,7 @@ boot_visuals_section() {
   local mkinitcpio_hooks=""
   local plymouth_theme="missing"
 
-  section "Plymouth e Boot Visuals"
+  section "Plymouth and boot visuals"
 
   if [[ -r /etc/mkinitcpio.conf ]]; then
     mkinitcpio_hooks="$(awk -F'[()]' '/^HOOKS=/ {print $2; exit}' /etc/mkinitcpio.conf)"
@@ -58,16 +58,16 @@ boot_visuals_section() {
 
   status_line "mkinitcpio hook plymouth: $( [[ " ${mkinitcpio_hooks} " == *" plymouth "* ]] && echo yes || echo no )"
   status_line "/etc/plymouth/plymouthd.conf: $( [[ -f /etc/plymouth/plymouthd.conf ]] && echo yes || echo no )"
-  status_line "theme corrente: ${plymouth_theme}"
+  status_line "current theme: ${plymouth_theme}"
   status_line "Margine UKI splash: $( [[ -f /usr/share/margine/boot/margine-splash.bmp ]] && echo yes || echo no )"
-  status_line "kernel cmdline contiene splash: $( [[ -r /etc/kernel/cmdline ]] && rg -q '(^| )splash( |$)' /etc/kernel/cmdline && echo yes || echo no )"
+  status_line "kernel cmdline contains splash: $( [[ -r /etc/kernel/cmdline ]] && rg -q '(^| )splash( |$)' /etc/kernel/cmdline && echo yes || echo no )"
 }
 
 snapper_section() {
   local configs=""
   local root_list=""
 
-  section "Snapper e Recovery"
+  section "Snapper and recovery"
 
   if have_cmd snapper; then
     configs="$(snapper --no-dbus list-configs 2>/dev/null || true)"
