@@ -26,6 +26,22 @@ When you choose a snapshot entry in `Limine`:
 
 This lets you inspect an older system state in a safer way.
 
+## How entries get refreshed after maintenance
+
+`update-all` is also responsible for keeping the boot menu aligned with the
+current snapshot set.
+
+During a successful maintenance run it now:
+
+1. creates the explicit pre-update snapshot
+2. auto-detects the installed root UUID
+3. auto-detects the installed LUKS UUID
+4. auto-detects the installed `limine.conf` target
+5. regenerates the snapshot entries under `/Recovery`
+
+So the recovery menu is not meant to be static. It is refreshed as part of the
+normal maintenance pipeline.
+
 ## What does not happen automatically
 
 Booting a snapshot does **not**:

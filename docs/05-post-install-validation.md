@@ -47,6 +47,21 @@ Check:
 - the main, fallback, and recovery UKIs exist
 - Secure Boot state is coherent
 
+Also verify that the installed update path can materialize snapshot recovery
+entries in `Limine` after a maintenance run:
+
+```bash
+sudo snapper --no-dbus -c root list | tail -n 10
+grep -n '^/Recovery\\|^//Snapshot' /boot/EFI/BOOT/limine.conf
+```
+
+Check:
+
+- `update-all` has created new `source=pre-update` snapshots
+- `limine.conf` contains `//Snapshot ...` entries under `/Recovery`
+- the generated recovery menu follows the current Snapper state instead of
+  staying stale after updates
+
 ## 3. Package presence
 
 Adjust package names to the product under test.

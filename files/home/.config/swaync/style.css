@@ -249,6 +249,7 @@ widget-notifications row > box {
 .control-center row {
   background: transparent;
   box-shadow: none;
+  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -256,6 +257,7 @@ widget-notifications row > box {
 .control-center row:selected {
   background: transparent;
   box-shadow: none;
+  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -263,6 +265,7 @@ widget-notifications row > box {
 .control-center row:focus {
   background: transparent;
   box-shadow: none;
+  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -270,6 +273,7 @@ widget-notifications row > box {
 .control-center row:focus-within {
   background: transparent;
   box-shadow: none;
+  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -277,6 +281,7 @@ widget-notifications row > box {
 .control-center row:hover {
   background: transparent;
   box-shadow: none;
+  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -284,6 +289,7 @@ widget-notifications row > box {
 .control-center row:active {
   background: transparent;
   box-shadow: none;
+  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -291,6 +297,7 @@ widget-notifications row > box {
 .notification-row {
   background: transparent;
   box-shadow: none;
+  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -298,6 +305,7 @@ widget-notifications row > box {
 .notification-row:selected {
   background: transparent;
   box-shadow: none;
+  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -305,6 +313,7 @@ widget-notifications row > box {
 .notification-row:focus {
   background: transparent;
   box-shadow: none;
+  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -312,6 +321,7 @@ widget-notifications row > box {
 .notification-row:focus-within {
   background: transparent;
   box-shadow: none;
+  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -319,6 +329,7 @@ widget-notifications row > box {
 .notification-row:hover {
   background: transparent;
   box-shadow: none;
+  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -326,6 +337,7 @@ widget-notifications row > box {
 .notification-row:active {
   background: transparent;
   box-shadow: none;
+  margin: 0;
   outline: none;
   padding: 0;
 }
@@ -351,6 +363,21 @@ widget-notifications row > box {
 /* Notification rows */
 
 .notification-row .notification-background {
+  margin: 0;
+  padding: 0;
+}
+
+.notification-row > revealer {
+  margin: 0;
+  padding: 0;
+}
+
+.notification-row > revealer > box {
+  margin: 0;
+  padding: 0;
+}
+
+.notification-row .notification-background > box {
   margin: 0;
   padding: 0;
 }
