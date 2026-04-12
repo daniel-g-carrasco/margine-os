@@ -172,7 +172,7 @@ main() {
 
   log
   log "==> Render and install greetd config"
-  run_cmd "$greetd_script" --username "$username" --login-mode "$login_mode"
+  run_cmd "$greetd_script" --username "$username" --login-mode "$login_mode" --skip-enable
 
   log
   log "==> Install fingerprint PAM and resume hook baseline"

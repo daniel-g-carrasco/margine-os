@@ -8,6 +8,7 @@ template_source="${repo_root}/files/etc/greetd/config.toml.template"
 dry_run=0
 username=""
 login_mode="autologin-lock"
+enable_service_flag=1
 
 usage() {
   cat <<'EOF'
@@ -17,6 +18,7 @@ Usage:
 Options:
   --username NAME   Utente principale da usare per l'autologin iniziale
   --login-mode MODE Modalita' login: autologin-lock | tuigreet-only
+  --skip-enable     Render only the config; do not enable greetd.service
   --dry-run         Mostra il piano senza eseguirlo
   --help            Show this help
 EOF
@@ -54,6 +56,10 @@ parse_args() {
         ;;
       --dry-run)
         dry_run=1
+        shift
+        ;;
+      --skip-enable)
+        enable_service_flag=0
         shift
         ;;
       --help|-h)
@@ -143,7 +149,12 @@ main() {
   (( dry_run )) && log "Modalita': dry-run"
 
   install_config
-  enable_service
+  if (( enable_service_flag )); then
+    enable_service
+  else
+    log
+    log "==> Skip greetd enable"
+  fi
 
   log
   case "$login_mode" in
