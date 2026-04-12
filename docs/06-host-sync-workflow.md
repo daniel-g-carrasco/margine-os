@@ -20,5 +20,6 @@ scripts/install-git-hooks
 Notes:
 
 - `scripts/check-host-baseline-sync` checks only the files listed in `inventory/host-sync.manifest`.
+- `~/.config/easyeffects/db/easyeffectsrc` is compared in normalized form: runtime-only keys such as device bindings, plugin graph state, and preset usage counters are stripped before diffing.
 - Keep that manifest focused on the portable desktop baseline, not application state or per-machine data.
 - This guardrail is local by design. CI cannot compare against the workstation state.

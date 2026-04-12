@@ -6,6 +6,8 @@ repo_root="$(cd -- "${script_dir}/.." && pwd)"
 payload_root="${repo_root}/files/home"
 manifest_file="${repo_root}/inventory/host-sync.manifest"
 host_home="${HOME}"
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf -- "${tmp_dir}"; rm -f /tmp/margine-host-sync.diff' EXIT
 
 [[ -d "$payload_root" ]] || {
   printf 'error: payload root not found: %s\n' "$payload_root" >&2
@@ -17,16 +19,43 @@ host_home="${HOME}"
   exit 1
 }
 
+normalize_file_for_compare() {
+  local rel="$1"
+  local src="$2"
+  local out="$3"
+
+  case "$rel" in
+    .config/easyeffects/db/easyeffectsrc)
+      sed \
+        -e '/^mostUsedPresets=/d' \
+        -e '/^usedPresets=/d' \
+        -e '/^outputDevice=/d' \
+        -e '/^inputDevice=/d' \
+        -e '/^plugins=/d' \
+        -- "$src" >"$out"
+      ;;
+    *)
+      cp -- "$src" "$out"
+      ;;
+  esac
+}
+
 show_diff() {
   local host_file="$1"
   local repo_file="$2"
+  local rel="$3"
+  local host_compare="$4"
+  local repo_compare="$5"
 
   if diff -u --label "host:${host_file}" --label "repo:${repo_file}" \
-    "$host_file" "$repo_file" >/tmp/margine-host-sync.diff 2>/dev/null; then
+    "$host_compare" "$repo_compare" >/tmp/margine-host-sync.diff 2>/dev/null; then
     return 0
   fi
 
-  if grep -Iq . "$host_file" 2>/dev/null && grep -Iq . "$repo_file" 2>/dev/null; then
+  if grep -Iq . "$host_compare" 2>/dev/null && grep -Iq . "$repo_compare" 2>/dev/null; then
+    if [[ "$host_compare" != "$host_file" || "$repo_compare" != "$repo_file" ]]; then
+      printf 'normalized compare for %s (volatile runtime fields removed)\n' "$rel"
+    fi
     sed -n '1,80p' /tmp/margine-host-sync.diff
   else
     printf 'binary-or-nontext mismatch: %s\n' "$host_file"
@@ -55,6 +84,8 @@ while IFS= read -r pattern; do
   for rel in "${matches[@]}"; do
     repo_file="${payload_root}/${rel}"
     host_file="${host_home}/${rel}"
+    host_compare="${tmp_dir}/host-${rel//\//_}"
+    repo_compare="${tmp_dir}/repo-${rel//\//_}"
 
     if [[ ! -e "$host_file" ]]; then
       printf 'missing on host: %s\n' "$rel" >&2
@@ -62,15 +93,16 @@ while IFS= read -r pattern; do
       continue
     fi
 
-    if ! cmp -s "$host_file" "$repo_file"; then
+    normalize_file_for_compare "$rel" "$host_file" "$host_compare"
+    normalize_file_for_compare "$rel" "$repo_file" "$repo_compare"
+
+    if ! cmp -s "$host_compare" "$repo_compare"; then
       printf '\n=== drift: %s ===\n' "$rel" >&2
-      show_diff "$host_file" "$repo_file" >&2 || true
+      show_diff "$host_file" "$repo_file" "$rel" "$host_compare" "$repo_compare" >&2 || true
       status=1
     fi
   done
 done < "$manifest_file"
-
-rm -f /tmp/margine-host-sync.diff
 if (( status == 0 )); then
   printf 'check-host-baseline-sync: OK\n'
 fi
