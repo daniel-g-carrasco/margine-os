@@ -36,6 +36,7 @@ root_uuid=""
 luks_uuid=""
 limine_output=""
 rendered_limine_output=""
+installed_limine_output=""
 recovery_entries_output=""
 esp_path=""
 deploy_backup_dir=""
@@ -281,11 +282,19 @@ auto_detect_boot_context() {
 refresh_limine_config_hash() {
   local effective_limine_tool=""
   local config_hash=""
+  local config_path=""
 
   [[ -n "$rendered_limine_output" ]] || return 0
   [[ -n "$limine_binary" ]] || return 0
-  [[ -f "$rendered_limine_output" ]] || return 0
   [[ -f "$limine_binary" ]] || return 0
+
+  config_path="$rendered_limine_output"
+  if [[ -n "$limine_output" && "$rendered_limine_output" != "$limine_output" ]]; then
+    [[ -n "$installed_limine_output" ]] || return 0
+    config_path="$installed_limine_output"
+  fi
+
+  [[ -f "$config_path" ]] || return 0
 
   if [[ -n "$limine_tool" ]]; then
     effective_limine_tool="$limine_tool"
@@ -297,7 +306,7 @@ refresh_limine_config_hash() {
     return 0
   fi
 
-  config_hash="$(b2sum "$rendered_limine_output" | awk '{print $1}')"
+  config_hash="$(b2sum "$config_path" | awk '{print $1}')"
   run_optional "limine enroll-config" sudo "$effective_limine_tool" enroll-config "$limine_binary" "$config_hash"
 }
 
@@ -558,18 +567,28 @@ build_recovery_entries() {
 
 render_limine_config() {
   local generator="${repo_root}/scripts/generate-limine-config"
-  local output_path="$limine_output"
+  local output_path=""
+  local target_path="$limine_output"
+  local target_dir=""
   local args=()
 
   [[ -x "$generator" ]] || die "generator not executable: $generator"
   [[ -n "$root_uuid" ]] || die "--root-uuid is required for boot phase"
   [[ -n "$luks_uuid" ]] || die "--luks-uuid is required for boot phase"
 
+  if [[ -n "$target_path" ]]; then
+    target_dir="$(dirname "$target_path")"
+    if [[ ( -e "$target_path" && -w "$target_path" ) || ( ! -e "$target_path" && -w "$target_dir" ) ]]; then
+      output_path="$target_path"
+    fi
+  fi
+
   if [[ -z "$output_path" ]]; then
     output_path="${repo_root}/build/limine.conf"
   fi
 
   rendered_limine_output="$output_path"
+  installed_limine_output=""
 
   args=(
     --root-uuid "$root_uuid"
@@ -582,6 +601,26 @@ render_limine_config() {
   fi
 
   run_cmd "$generator" "${args[@]}"
+}
+
+install_rendered_limine_config() {
+  [[ -n "$limine_output" ]] || return 0
+  [[ -n "$rendered_limine_output" ]] || return 0
+  [[ -f "$rendered_limine_output" ]] || return 0
+
+  if [[ "$rendered_limine_output" == "$limine_output" ]]; then
+    installed_limine_output="$limine_output"
+    return 0
+  fi
+
+  if ! run_cmd sudo install -Dm644 "$rendered_limine_output" "$limine_output"; then
+    warn "installazione limine.conf fallita"
+    soft_failures=1
+    installed_limine_output=""
+    return 0
+  fi
+
+  installed_limine_output="$limine_output"
 }
 
 deploy_boot_phase() {
@@ -678,6 +717,7 @@ run_boot_regeneration() {
     fi
     if [[ -n "$root_uuid" && -n "$luks_uuid" ]]; then
       render_limine_config
+      install_rendered_limine_config
       refresh_limine_config_hash
     else
       warn "boot metadata incomplete; skipping limine.conf regeneration"
