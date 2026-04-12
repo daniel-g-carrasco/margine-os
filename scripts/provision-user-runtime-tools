@@ -22,6 +22,7 @@ declare -a home_payload=(
   ".local/bin/margine-launcher"
   ".local/bin/margine-launcher-service"
   ".local/bin/hypr-refresh-rate-watch"
+  ".local/bin/margine-hyprlock"
   ".local/bin/keep-awake-daemon"
   ".local/bin/keep-awake-status"
   ".local/bin/keep-awake-toggle"

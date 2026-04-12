@@ -183,6 +183,37 @@ Check:
 - Hyprland is responsive and reports outputs/windows normally
 - the active workspace is the expected one after login, not a stray workspace
 
+### 8.1 Hyprlock dynamic scaling
+
+If `jq` is available, `hyprlock` is launched through:
+
+```bash
+~/.local/bin/margine-hyprlock
+```
+
+This wrapper:
+
+- reads the focused monitor geometry from `hyprctl -j monitors`
+- computes a scale factor using logical width (`width / scale`) against a
+  1920px baseline
+- rescales and clamps selected values (time/date/user/prompt fonts, input field,
+  accent line width)
+- writes a temporary generated config and launches `hyprlock -c` with it
+
+Quick checks:
+
+```bash
+command -v margine-hyprlock
+command -v jq
+margine-hyprlock --margine-hyprlock-dry-run >/tmp/margine-hyprlock.debug 2>&1
+sed -n '1,40p' /tmp/margine-hyprlock.debug
+```
+
+The debug output should show the computed scale and selected temp config path.
+
+Failure fallback path is expected when no monitor JSON is available: lock still
+starts via plain `hyprlock` without crash.
+
 ## 9. Launcher, search, and browser defaults
 
 ```bash

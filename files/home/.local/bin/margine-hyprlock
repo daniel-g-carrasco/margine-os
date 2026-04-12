@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_NAME="margine-hyprlock"
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}"
+base_config="${config_dir}/hypr/hyprlock.conf"
+dry_run_flag="--margine-hyprlock-dry-run"
+runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
+runtime_config="/tmp/margine-hyprlock.generated.conf"
+
+if [[ ! -d "$runtime_dir" ]]; then
+  runtime_dir="/tmp"
+fi
+
+lock_args=()
+do_dry_run=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  margine-hyprlock [--margine-hyprlock-dry-run] [hyprlock arguments...]
+
+Options:
+  --margine-hyprlock-dry-run   generate a runtime config and print details,
+                               then exit without starting hyprlock
+EOF
+}
+
+parse_args() {
+  while (($# > 0)); do
+    case "$1" in
+      "$dry_run_flag")
+        do_dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  lock_args=("$@")
+}
+
+log_debug() {
+  [[ -n "${MARGINE_HYPRLOCK_DEBUG:-}" ]] || return 0
+  printf '[%s] %s\n' "$SCRIPT_NAME" "$*" >&2
+}
+
+round_nearest() {
+  local value="$1"
+  awk -v value="$value" 'BEGIN {
+    if (value == "") {
+      print 0
+      exit
+    }
+    if (value < 0) {
+      print int(value - 0.5)
+    } else {
+      print int(value + 0.5)
+    }
+  }'
+}
+
+clamp_value() {
+  local value="$1"
+  local min="$2"
+  local max="$3"
+
+  awk -v value="$value" -v min="$min" -v max="$max" 'BEGIN {
+    if (value < min) {
+      print min
+    } else if (value > max) {
+      print max
+    } else {
+      print value
+    }
+  }'
+}
+
+scale_from_monitors() {
+  local monitor_json
+  local width
+  local scale
+
+  if ! command -v jq >/dev/null 2>&1; then
+    log_debug "jq missing; falling back to 1.0 scale"
+    echo "1.0"
+    return
+  fi
+
+  if ! monitor_json="$(hyprctl -j monitors 2>/dev/null)"; then
+    log_debug "hyprctl unavailable; falling back to 1.0 scale"
+    echo "1.0"
+    return
+  fi
+
+  width="$(printf '%s\n' "$monitor_json" | jq -r '([.[]? | select(.focused == true) | .width // empty] + [.[]? | .width // empty] | .[0] // empty)' 2>/dev/null | head -n 1)"
+  if [[ -z "$width" ]]; then
+    width="$(printf '%s\n' "$monitor_json" | jq -r '[.[]? | .width // empty] | first // empty' 2>/dev/null)"
+  fi
+  scale="$(printf '%s\n' "$monitor_json" | jq -r '([.[]? | select(.focused == true) | .scale // empty] + [.[]? | .scale // empty] | .[0] // empty)' 2>/dev/null | head -n 1)"
+  if [[ -z "$scale" ]]; then
+    scale="$(printf '%s\n' "$monitor_json" | jq -r '[.[]? | .scale // empty] | first // empty' 2>/dev/null)"
+  fi
+
+  if [[ -z "$width" || "$width" == "null" ]]; then
+    log_debug "could not determine monitor width; fallback to 1.0 scale"
+    echo "1.0"
+    return
+  fi
+  if [[ -z "$scale" || "$scale" == "null" || "$scale" == "0" ]]; then
+    scale="1"
+  fi
+
+  awk -v w="$width" -v s="$scale" 'BEGIN {
+    if (s <= 0) {
+      s = 1
+    }
+    logical = w / s
+    if (logical <= 0) {
+      print 1
+      exit
+    }
+    f = logical / 1920
+    if (f < 0.65) f = 0.65
+    if (f > 1.5) f = 1.5
+    print f
+  }'
+}
+
+render_and_run() {
+  cp -f "$base_config" "$runtime_config"
+
+  sed -i -E "s|^([[:space:]]*)font_size = 96$|\\1font_size = ${time_font}|" "$runtime_config"
+  sed -i -E "s|^([[:space:]]*)font_size = 20$|\\1font_size = ${date_font}|" "$runtime_config"
+  sed -i -E "s|^([[:space:]]*)font_size = 22$|\\1font_size = ${user_font}|" "$runtime_config"
+  sed -i -E "s|^([[:space:]]*)font_size = 18$|\\1font_size = ${prompt_font}|" "$runtime_config"
+  sed -i -E "s|^([[:space:]]*)font_size = 16$|\\1font_size = ${fail_font}|" "$runtime_config"
+  sed -i -E "s|^([[:space:]]*size = 18%, )[0-9]+$|\\1${input_height}|" "$runtime_config"
+  sed -i -E "s|^([[:space:]]*size = )[0-9]+, 2$|\\1${line_width}, 2|" "$runtime_config"
+}
+
+parse_args "$@"
+
+if [[ ! -f "$base_config" ]]; then
+  if (( do_dry_run )); then
+    printf '%s: no base config found in %s\n' "$SCRIPT_NAME" "$base_config" >&2
+    exit 1
+  fi
+  exec hyprlock "${lock_args[@]}"
+fi
+
+if ! command -v hyprlock >/dev/null 2>&1; then
+  printf '%s: hyprlock binary missing\\n' "$SCRIPT_NAME" >&2
+  exit 1
+fi
+
+mkdir -p "$runtime_dir"
+if ! runtime_config="$(mktemp -p "$runtime_dir" margine-hyprlock.generated.XXXXXX.conf)"; then
+  runtime_config="/tmp/margine-hyprlock.generated.conf"
+fi
+trap 'rm -f "$runtime_config"' EXIT
+
+scale="$(scale_from_monitors)"
+
+time_font=$(round_nearest "$(awk -v base=96 -v scale="$scale" 'BEGIN { print base * scale }')")
+date_font=$(round_nearest "$(awk -v base=20 -v scale="$scale" 'BEGIN { print base * scale }')")
+user_font=$(round_nearest "$(awk -v base=22 -v scale="$scale" 'BEGIN { print base * scale }')")
+prompt_font=$(round_nearest "$(awk -v base=18 -v scale="$scale" 'BEGIN { print base * scale }')")
+fail_font=$(round_nearest "$(awk -v base=16 -v scale="$scale" 'BEGIN { print base * scale }')")
+input_height=$(round_nearest "$(awk -v base=84 -v scale="$scale" 'BEGIN { print base * scale }')")
+line_width=$(round_nearest "$(awk -v base=120 -v scale="$scale" 'BEGIN { print base * scale }')")
+
+time_font="$(clamp_value "$time_font" 54 180)"
+date_font="$(clamp_value "$date_font" 14 40)"
+user_font="$(clamp_value "$user_font" 16 48)"
+prompt_font="$(clamp_value "$prompt_font" 12 36)"
+fail_font="$(clamp_value "$fail_font" 10 32)"
+input_height="$(clamp_value "$input_height" 56 160)"
+line_width="$(clamp_value "$line_width" 80 240)"
+
+render_and_run
+
+if (( do_dry_run )); then
+  printf '[%s] scale=%s time_font=%s date_font=%s user_font=%s prompt_font=%s fail_font=%s input_height=%s line_width=%s\n' \
+    "$SCRIPT_NAME" "$scale" "$time_font" "$date_font" "$user_font" "$prompt_font" "$fail_font" "$input_height" "$line_width" \
+    >&2
+  printf 'Generated config: %s\n' "$runtime_config"
+  sed -n '1,80p' "$runtime_config"
+  exit 0
+fi
+
+log_debug "using generated config: ${runtime_config} (scale=${scale})"
+
+hyprlock -c "$runtime_config" "${lock_args[@]}"

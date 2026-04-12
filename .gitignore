@@ -7,3 +7,4 @@
 *.rej
 /.idea/
 /.vscode/
+/build/
