@@ -21,6 +21,13 @@ The goal is not just to confirm that packages exist, but to verify that:
 For installed systems, prefer the consolidated validator instead of manually
 remembering every check family.
 
+The consolidated validator:
+
+- autodetects the installed `product` and `flavor` from the runtime state;
+- validates against the real Arch or CachyOS baseline expected by that product;
+- supports explicit overrides with `--product` and `--flavor`;
+- returns non-zero when it finds actual baseline drift or suspect runtime state.
+
 From the graphical user session:
 
 ```bash
@@ -31,6 +38,13 @@ Or, if the convenience wrapper is installed:
 
 ```bash
 margine-validate-host-health --session
+```
+
+Explicit override examples:
+
+```bash
+margine-validate-host-health --session --product margine-public --flavor arch
+sudo /usr/local/lib/margine/scripts/validate-host-health --root --product margine-cachyos --flavor cachyos
 ```
 
 Then, from a root shell:

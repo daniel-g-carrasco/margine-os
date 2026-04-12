@@ -1,6 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "${script_dir}/.." && pwd)"
+
+if [[ -f "${script_dir}/lib/product-manifests.sh" ]]; then
+  :
+elif [[ -f /usr/local/lib/margine/scripts/lib/product-manifests.sh ]]; then
+  repo_root="/usr/local/lib/margine"
+  script_dir="${repo_root}/scripts"
+fi
+
+# shellcheck source=lib/product-manifests.sh
+source "${script_dir}/lib/product-manifests.sh"
+
+product=""
+product_manifest=""
+product_name=""
+product_base_distribution=""
+flavor=""
+kernel_package=""
+kernel_headers_package=""
+base_system_manifest=""
+issue_count=0
+
 have_cmd() {
   command -v "$1" >/dev/null 2>&1
 }
@@ -11,6 +34,108 @@ section() {
 
 status_line() {
   printf '  - %s\n' "$*"
+}
+
+mark_issue() {
+  issue_count=$((issue_count + 1))
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+require_root() {
+  [[ "$(id -u)" -eq 0 ]] || die "validate-boot-recovery-baseline must run as root"
+}
+
+read_manifest_lines() {
+  local manifest="$1"
+
+  [[ -f "$manifest" ]] || return 0
+  awk '
+    {
+      line = $0
+      sub(/[[:space:]]*#.*/, "", line)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      if (line != "") {
+        print line
+      }
+    }
+  ' "$manifest"
+}
+
+package_installed() {
+  pacman -Q "$1" >/dev/null 2>&1
+}
+
+manifest_contains_package() {
+  local manifest="$1"
+  local package_name="$2"
+
+  read_manifest_lines "$manifest" | grep -Fxq "$package_name"
+}
+
+init_product_context() {
+  product="${MARGINE_VALIDATION_PRODUCT:-$(margine_detect_runtime_product "$repo_root")}"
+  flavor="${MARGINE_VALIDATION_FLAVOR:-$(margine_detect_runtime_flavor "$repo_root")}"
+
+  eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
+    || die "unsupported product/flavor combination"
+
+  kernel_package="$(margine_product_field "$product_manifest" "kernel_package" "")"
+  kernel_headers_package="$(margine_product_field "$product_manifest" "kernel_headers_package" "")"
+  base_system_manifest="$(margine_resolve_package_layer "$repo_root" "$flavor" "base-system" 2>/dev/null || true)"
+}
+
+product_context_section() {
+  local pkg=""
+  local repos_present="unknown"
+
+  section "Product context"
+  status_line "product: ${product}"
+  status_line "product name: ${product_name}"
+  status_line "flavor: ${flavor}"
+  status_line "base distribution: ${product_base_distribution}"
+
+  if [[ -n "$kernel_package" ]]; then
+    if package_installed "$kernel_package"; then
+      status_line "kernel package ${kernel_package}: installed"
+    else
+      status_line "kernel package ${kernel_package}: missing"
+      mark_issue
+    fi
+  fi
+
+  if [[ -n "$kernel_headers_package" ]]; then
+    if package_installed "$kernel_headers_package"; then
+      status_line "kernel headers ${kernel_headers_package}: installed"
+    else
+      status_line "kernel headers ${kernel_headers_package}: missing"
+      mark_issue
+    fi
+  fi
+
+  for pkg in cachyos-keyring cachyos-mirrorlist cachyos-settings; do
+    if [[ -n "$base_system_manifest" ]] && manifest_contains_package "$base_system_manifest" "$pkg"; then
+      if package_installed "$pkg"; then
+        status_line "distribution package ${pkg}: installed"
+      else
+        status_line "distribution package ${pkg}: missing"
+        mark_issue
+      fi
+    fi
+  done
+
+  if [[ "$flavor" == "cachyos" ]]; then
+    if grep -Rqi 'cachyos' /etc/pacman.conf /etc/pacman.conf.d 2>/dev/null; then
+      repos_present="yes"
+    else
+      repos_present="no"
+      mark_issue
+    fi
+    status_line "CachyOS repositories configured: ${repos_present}"
+  fi
 }
 
 boot_section() {
@@ -29,16 +154,22 @@ boot_section() {
       status_line "Limine-first target: aligned"
     else
       status_line "Limine-first target: not yet aligned"
+      mark_issue
     fi
   fi
 }
 
 uki_section() {
+  local uki_count="0"
+
   section "UKIs and boot artifacts"
   if [[ -d /boot/EFI/Linux ]]; then
+    uki_count="$(find /boot/EFI/Linux -maxdepth 1 -type f -name '*.efi' | wc -l)"
     find /boot/EFI/Linux -maxdepth 1 -type f -name '*.efi' | sed 's/^/  - /'
+    [[ "$uki_count" -gt 0 ]] || mark_issue
   else
     status_line "/boot/EFI/Linux missing"
+    mark_issue
   fi
 }
 
@@ -61,6 +192,13 @@ boot_visuals_section() {
   status_line "current theme: ${plymouth_theme}"
   status_line "Margine UKI splash: $( [[ -f /usr/share/margine/boot/margine-splash.bmp ]] && echo yes || echo no )"
   status_line "kernel cmdline contains splash: $( [[ -r /etc/kernel/cmdline ]] && rg -q '(^| )splash( |$)' /etc/kernel/cmdline && echo yes || echo no )"
+
+  [[ " ${mkinitcpio_hooks} " == *" plymouth "* ]] || mark_issue
+  [[ -f /etc/plymouth/plymouthd.conf ]] || mark_issue
+  [[ -f /usr/share/margine/boot/margine-splash.bmp ]] || mark_issue
+  if [[ ! -r /etc/kernel/cmdline ]] || ! rg -q '(^| )splash( |$)' /etc/kernel/cmdline; then
+    mark_issue
+  fi
 }
 
 snapper_section() {
@@ -92,13 +230,24 @@ snapper_section() {
   status_line "/etc/snapper/configs/root: $( [[ -f /etc/snapper/configs/root ]] && echo yes || echo no )"
   status_line "snapper-timeline.timer: $(systemctl is-enabled snapper-timeline.timer 2>/dev/null || true)"
   status_line "snapper-cleanup.timer: $(systemctl is-enabled snapper-cleanup.timer 2>/dev/null || true)"
+
+  [[ -n "$configs" ]] || mark_issue
+  [[ -n "$root_list" ]] || mark_issue
+  [[ -d /.snapshots ]] || mark_issue
+  [[ -f /etc/snapper/configs/root ]] || mark_issue
+  [[ "$(systemctl is-enabled snapper-cleanup.timer 2>/dev/null || true)" == "enabled" ]] || mark_issue
 }
 
 main() {
+  require_root
+  init_product_context
+  product_context_section
   boot_section
   uki_section
   boot_visuals_section
   snapper_section
+
+  exit "$(( issue_count > 0 ))"
 }
 
 main "$@"

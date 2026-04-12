@@ -1,7 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "${script_dir}/.." && pwd)"
+
+if [[ -f "${script_dir}/lib/product-manifests.sh" ]]; then
+  :
+elif [[ -f /usr/local/lib/margine/scripts/lib/product-manifests.sh ]]; then
+  repo_root="/usr/local/lib/margine"
+  script_dir="${repo_root}/scripts"
+fi
+
+# shellcheck source=lib/product-manifests.sh
+source "${script_dir}/lib/product-manifests.sh"
+
 home_dir="${HOME:-/home/$(id -un)}"
+product=""
+product_manifest=""
+product_name=""
+product_base_distribution=""
+flavor=""
+kernel_package=""
+kernel_headers_package=""
+aur_baseline_manifest=""
+base_system_manifest=""
+issue_count=0
 
 have_cmd() {
   command -v "$1" >/dev/null 2>&1
@@ -13,6 +36,107 @@ section() {
 
 status_line() {
   printf '  - %s\n' "$*"
+}
+
+mark_issue() {
+  issue_count=$((issue_count + 1))
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+read_manifest_lines() {
+  local manifest="$1"
+
+  [[ -f "$manifest" ]] || return 0
+  awk '
+    {
+      line = $0
+      sub(/[[:space:]]*#.*/, "", line)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      if (line != "") {
+        print line
+      }
+    }
+  ' "$manifest"
+}
+
+package_installed() {
+  pacman -Q "$1" >/dev/null 2>&1
+}
+
+manifest_contains_package() {
+  local manifest="$1"
+  local package_name="$2"
+
+  read_manifest_lines "$manifest" | grep -Fxq "$package_name"
+}
+
+init_product_context() {
+  local manifest=""
+
+  product="${MARGINE_VALIDATION_PRODUCT:-$(margine_detect_runtime_product "$repo_root")}"
+  flavor="${MARGINE_VALIDATION_FLAVOR:-$(margine_detect_runtime_flavor "$repo_root")}"
+
+  eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
+    || die "unsupported product/flavor combination"
+
+  kernel_package="$(margine_product_field "$product_manifest" "kernel_package" "")"
+  kernel_headers_package="$(margine_product_field "$product_manifest" "kernel_headers_package" "")"
+  aur_baseline_manifest="$(margine_resolve_aur_baseline_manifest "$repo_root" "$flavor" 2>/dev/null || true)"
+  base_system_manifest="$(margine_resolve_package_layer "$repo_root" "$flavor" "base-system" 2>/dev/null || true)"
+}
+
+product_context_section() {
+  local pkg=""
+  local repos_present="unknown"
+
+  section "Product context"
+  status_line "product: ${product}"
+  status_line "product name: ${product_name}"
+  status_line "flavor: ${flavor}"
+  status_line "base distribution: ${product_base_distribution}"
+
+  if [[ -n "$kernel_package" ]]; then
+    if package_installed "$kernel_package"; then
+      status_line "kernel package ${kernel_package}: installed"
+    else
+      status_line "kernel package ${kernel_package}: missing"
+      mark_issue
+    fi
+  fi
+
+  if [[ -n "$kernel_headers_package" ]]; then
+    if package_installed "$kernel_headers_package"; then
+      status_line "kernel headers ${kernel_headers_package}: installed"
+    else
+      status_line "kernel headers ${kernel_headers_package}: missing"
+      mark_issue
+    fi
+  fi
+
+  for pkg in cachyos-keyring cachyos-mirrorlist cachyos-settings; do
+    if [[ -n "$base_system_manifest" ]] && manifest_contains_package "$base_system_manifest" "$pkg"; then
+      if package_installed "$pkg"; then
+        status_line "distribution package ${pkg}: installed"
+      else
+        status_line "distribution package ${pkg}: missing"
+        mark_issue
+      fi
+    fi
+  done
+
+  if [[ "$flavor" == "cachyos" ]]; then
+    if grep -Rqi 'cachyos' /etc/pacman.conf /etc/pacman.conf.d 2>/dev/null; then
+      repos_present="yes"
+    else
+      repos_present="no"
+      mark_issue
+    fi
+    status_line "CachyOS repositories configured: ${repos_present}"
+  fi
 }
 
 show_service_state() {
@@ -82,22 +206,30 @@ session_env_section() {
     status_line "systemd user environment: complete"
   else
     status_line "systemd user environment missing: ${missing[*]}"
+    mark_issue
   fi
 
   if (( ${#mismatched[@]} == 0 )); then
     status_line "session env parity with shell: ok"
   else
     status_line "session env parity mismatch: ${mismatched[*]}"
+    mark_issue
   fi
 
   if [[ "$(systemctl --user is-enabled elephant.service 2>/dev/null || true)" == "enabled" ]]; then
     status_line "elephant startup mode: risk (enabled too early)"
+    mark_issue
   else
     status_line "elephant startup mode: on-demand ok"
   fi
 }
 
 maintenance_section() {
+  local timer_state=""
+  local timer_enablement=""
+  local router_state=""
+  local router_enablement=""
+
   section "Maintenance"
   show_service_state "margine-maintenance-check.timer" user
   show_user_enablement_state "margine-maintenance-check.timer"
@@ -107,6 +239,20 @@ maintenance_section() {
   status_line "update-all-launcher: $( [[ -x ${home_dir}/.local/bin/update-all-launcher ]] && echo yes || echo no )"
   status_line "notification action router: $( [[ -x ${home_dir}/.local/bin/margine-notification-action-router ]] && echo yes || echo no )"
   status_line "update-all desktop entry: $( [[ -f ${home_dir}/.local/share/applications/update-all.desktop ]] && echo yes || echo no )"
+
+  timer_state="$(systemctl --user is-active margine-maintenance-check.timer 2>/dev/null || true)"
+  timer_enablement="$(systemctl --user is-enabled margine-maintenance-check.timer 2>/dev/null || true)"
+  router_state="$(systemctl --user is-active margine-notification-action-router.service 2>/dev/null || true)"
+  router_enablement="$(systemctl --user is-enabled margine-notification-action-router.service 2>/dev/null || true)"
+
+  [[ "$timer_state" == "active" ]] || mark_issue
+  [[ "$timer_enablement" == "enabled" ]] || mark_issue
+  [[ "$router_state" == "active" ]] || mark_issue
+  [[ "$router_enablement" == "enabled" ]] || mark_issue
+  [[ -x "${home_dir}/.local/bin/margine-maintenance-check" ]] || mark_issue
+  [[ -x "${home_dir}/.local/bin/update-all-launcher" ]] || mark_issue
+  [[ -x "${home_dir}/.local/bin/margine-notification-action-router" ]] || mark_issue
+  [[ -f "${home_dir}/.local/share/applications/update-all.desktop" ]] || mark_issue
 }
 
 launcher_section() {
@@ -126,12 +272,8 @@ launcher_section() {
     runner
   )
   local provider=""
-  local -a aur_baseline_packages=(
-    yay
-    elephant-all
-    ttf-ms-fonts
-    walker
-  )
+  local -a aur_baseline_packages=()
+  local elephant_runtime_ok=0
 
   section "Launcher"
 
@@ -139,17 +281,19 @@ launcher_section() {
   elephant_path="$(command -v elephant 2>/dev/null || true)"
   hyprlauncher_path="$(command -v hyprlauncher 2>/dev/null || true)"
 
+  if [[ -n "$aur_baseline_manifest" ]]; then
+    while IFS= read -r pkg; do
+      [[ -n "$pkg" ]] && aur_baseline_packages+=("$pkg")
+    done < <(read_manifest_lines "$aur_baseline_manifest")
+  fi
+
+  if (( ${#aur_baseline_packages[@]} == 0 )); then
+    aur_baseline_packages=(yay elephant-all ttf-ms-fonts walker)
+  fi
+
   status_line "walker: ${walker_path:-missing}"
   status_line "elephant: ${elephant_path:-missing}"
   status_line "hyprlauncher: ${hyprlauncher_path:-missing}"
-
-  for pkg in "${aur_baseline_packages[@]}"; do
-    if pacman -Q "$pkg" >/dev/null 2>&1; then
-      status_line "package ${pkg}: installed"
-    else
-      status_line "package ${pkg}: missing"
-    fi
-  done
 
   if [[ -n "$elephant_path" ]]; then
     providers="$(elephant listproviders 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]\\+/ /g; s/[[:space:]]$//')"
@@ -159,6 +303,17 @@ launcher_section() {
         status_line "provider ${provider}: present"
       else
         status_line "provider ${provider}: missing"
+        mark_issue
+      fi
+    done
+  fi
+
+  if [[ -n "$elephant_path" && -n "$providers" ]]; then
+    elephant_runtime_ok=1
+    for provider in "${expected_providers[@]}"; do
+      if ! grep -qw "$provider" <<<"$providers"; then
+        elephant_runtime_ok=0
+        break
       fi
     done
   fi
@@ -169,7 +324,31 @@ launcher_section() {
     status_line "launcher baseline: hyprlauncher fallback only"
   else
     status_line "launcher baseline: missing"
+    mark_issue
   fi
+
+  for pkg in "${aur_baseline_packages[@]}"; do
+    case "$pkg" in
+      elephant-all)
+        if package_installed "$pkg"; then
+          status_line "package ${pkg}: installed"
+        elif (( elephant_runtime_ok )); then
+          status_line "package ${pkg}: runtime equivalent present"
+        else
+          status_line "package ${pkg}: missing"
+          mark_issue
+        fi
+        ;;
+      *)
+        if package_installed "$pkg"; then
+          status_line "package ${pkg}: installed"
+        else
+          status_line "package ${pkg}: missing"
+          mark_issue
+        fi
+        ;;
+    esac
+  done
 }
 
 ownership_section() {
@@ -194,6 +373,7 @@ ownership_section() {
     status_line "local share ownership: ok"
   else
     status_line "local share ownership: mismatch"
+    mark_issue
   fi
 }
 
@@ -239,6 +419,7 @@ power_section() {
     hypridle_state="running"
   fi
   status_line "hypridle process: ${hypridle_state}"
+  [[ "$hypridle_state" == "running" ]] || mark_issue
 
   if have_cmd systemd-analyze; then
     lid_switch="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandleLidSwitch=/ {print $2; exit}' || true)"
@@ -249,14 +430,22 @@ power_section() {
   status_line "lid switch on AC: ${lid_switch_external:-unknown}"
   status_line "lid switch docked: ${lid_switch_docked:-unknown}"
 
+  if [[ -n "$battery_path" ]]; then
+    [[ "$lid_switch" == "suspend" ]] || mark_issue
+    [[ "$lid_switch_external" == "suspend" ]] || mark_issue
+  fi
+
   status_line "resume hook present: $( [[ -x /etc/systemd/system-sleep/fprintd-reset ]] && echo yes || echo no )"
+  [[ -x /etc/systemd/system-sleep/fprintd-reset ]] || mark_issue
   status_line "hyprlock PAM present: $( [[ -f /etc/pam.d/hyprlock ]] && echo yes || echo no )"
+  [[ -f /etc/pam.d/hyprlock ]] || mark_issue
   if [[ -f /etc/pam.d/hyprlock ]]; then
     local login_includes
     login_includes="$(rg -c '^[[:space:]]*auth[[:space:]]+include[[:space:]]+login$' /etc/pam.d/hyprlock 2>/dev/null || true)"
     status_line "hyprlock PAM login includes: ${login_includes:-0}"
     if [[ "${login_includes:-0}" != "1" ]]; then
       status_line "hyprlock PAM sanity: suspect"
+      mark_issue
     else
       status_line "hyprlock PAM sanity: ok"
     fi
@@ -266,12 +455,13 @@ power_section() {
   if [[ -f /etc/pam.d/greetd ]]; then
     local greetd_fprint
     local greetd_system_login
-    greetd_fprint="$(rg -c '^[[:space:]]*auth[[:space:]]+sufficient[[:space:]]+pam_fprintd\\.so$' /etc/pam.d/greetd 2>/dev/null || true)"
+    greetd_fprint="$(rg -c '^[[:space:]]*auth[[:space:]]+sufficient[[:space:]]+pam_fprintd\.so$' /etc/pam.d/greetd 2>/dev/null || true)"
     greetd_system_login="$(rg -c '^[[:space:]]*auth[[:space:]]+include[[:space:]]+system-login$' /etc/pam.d/greetd 2>/dev/null || true)"
     status_line "greetd PAM fingerprint lines: ${greetd_fprint:-0}"
     status_line "greetd PAM auth->system-login lines: ${greetd_system_login:-0}"
     if [[ "${greetd_fprint:-0}" != "1" || "${greetd_system_login:-0}" != "1" ]]; then
       status_line "greetd PAM sanity: suspect"
+      mark_issue
     else
       status_line "greetd PAM sanity: ok"
     fi
@@ -398,6 +588,7 @@ screenshot_section() {
 
   for binary in grim slurp satty wf-recorder hyprctl jq; do
     status_line "binary ${binary}: $(command -v "$binary" >/dev/null 2>&1 && echo yes || echo no)"
+    command -v "$binary" >/dev/null 2>&1 || mark_issue
   done
   status_line "binary hyprcap (optional): $(command -v hyprcap >/dev/null 2>&1 && echo yes || echo no)"
 
@@ -405,6 +596,7 @@ screenshot_section() {
     [[ -n "$relpath" ]] || continue
     path="${home_dir}/${relpath}"
     status_line "helper present: ${path} ($( [[ -x "$path" ]] && echo yes || echo no ))"
+    [[ -x "$path" ]] || mark_issue
   done <<'EOF'
 .local/bin/screenshot-menu
 .local/bin/annotate-screenshot
@@ -420,6 +612,8 @@ EOF
 }
 
 main() {
+  init_product_context
+  product_context_section
   session_env_section
   maintenance_section
   launcher_section
@@ -430,6 +624,8 @@ main() {
   productivity_section
   connectivity_section
   screenshot_section
+
+  exit "$(( issue_count > 0 ))"
 }
 
 main "$@"
