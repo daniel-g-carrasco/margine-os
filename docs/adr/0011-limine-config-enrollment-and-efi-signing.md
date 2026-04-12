@@ -34,11 +34,12 @@ Per `Margine v1`, il refresh della trust chain EFI segue questa sequenza:
 
 1. si generano gli artefatti di boot fuori dalla `ESP`;
 2. si fa il deploy sulla `ESP`;
-3. si calcola il `BLAKE2B` del `limine.conf` già deployato;
-4. si esegue `limine enroll-config` sul `BOOTX64.EFI` già deployato;
-5. si firma con `sbctl` il `BOOTX64.EFI` risultante;
-6. si firmano con `sbctl` anche le `UKI` presenti sulla `ESP`;
-7. si esegue `sbctl verify` come controllo finale.
+3. si reinstalla il binario `Limine` unsigned sul path EFI finale;
+4. si calcola il `BLAKE2B` del `limine.conf` già deployato;
+5. si esegue `limine enroll-config` sul `BOOTX64.EFI` già deployato;
+6. si firma con `sbctl` il `BOOTX64.EFI` risultante;
+7. si firmano con `sbctl` anche le `UKI` presenti sulla `ESP`;
+8. si esegue `sbctl verify` come controllo finale.
 
 ## Regola fondamentale
 
@@ -56,18 +57,22 @@ Motivo:
 L'ordine corretto è:
 
 1. deploy;
-2. enrollment del digest config;
-3. firma;
-4. verifica.
+2. reinstall del loader Limine unsigned;
+3. enrollment del digest config;
+4. firma;
+5. verifica.
 
 Non è ammesso invertire `enroll-config` e `sbctl sign`.
+Non è ammesso neppure reenrollare un loader che ha già subito mutazioni
+precedenti senza prima reinstallare il binario unsigned di origine.
 
 ## Regola di rientro
 
 Ogni volta che cambia `limine.conf`, il `BOOTX64.EFI` deve essere:
 
-1. reenrolled con il nuovo hash;
-2. rifirmato.
+1. reinstallato dalla copia unsigned di riferimento;
+2. reenrolled con il nuovo hash;
+3. rifirmato.
 
 Questa non è una stranezza di `Margine`.
 È una proprietà del modello di sicurezza di `Limine`.
@@ -94,7 +99,13 @@ La divisione dei ruoli diventa quindi:
 - `generate-limine-config`: produce `limine.conf`;
 - `deploy-boot-artifacts`: copia gli artefatti sulla `ESP`;
 - `refresh-efi-trust`: enrolla la config e firma la catena EFI;
-- `update-all`: orchestra l'ordine corretto.
+- `update-all`: orchestra l'ordine corretto anche sul sistema già installato.
+
+Questo vale sia per il path manuale sia per il path di manutenzione ordinaria.
+
+Se `update-all` o `refresh-efi-trust` saltano il reinstall del loader unsigned
+prima di `enroll-config`, il rischio concreto è il classico `incorrect digest`
+in `sbctl verify` sul loader Limine attivo.
 
 ## Conseguenze pratiche
 
@@ -117,4 +128,4 @@ Pensa così:
 
 La regola mentale da ricordare è:
 
-`deploy -> enroll-config -> sign -> verify`
+`deploy -> reinstall unsigned loader -> enroll-config -> sign -> verify`

@@ -62,6 +62,20 @@ Check:
 - the generated recovery menu follows the current Snapper state instead of
   staying stale after updates
 
+For the installed trust-refresh path, also verify:
+
+```bash
+update-all --dry-run --no-aur --no-flatpak --no-fwupd
+sudo sbctl verify
+```
+
+Check:
+
+- the dry-run shows `install -Dm755 /usr/share/limine/BOOTX64.EFI` on the
+  active loader path before `limine enroll-config`
+- the dry-run shows a subsequent `sbctl sign` on the same active loader path
+- `sbctl verify` is clean after a real `update-all` run
+
 ## 3. Package presence
 
 Adjust package names to the product under test.

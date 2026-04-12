@@ -38,6 +38,23 @@ Il rollout corretto viene invece spezzato in fasi:
 8. enrollment TPM2 contro lo stato PCR finale;
 9. reboot finale e validazione auto-unlock.
 
+## Stato implementativo attuale
+
+Quello che oggi e' gia' chiuso e versionato:
+
+- bootstrap `Secure Boot` post-install separato dall'installer;
+- refresh della trust chain EFI con `refresh-efi-trust`;
+- manutenzione ordinaria tramite `update-all` sul sistema gia' installato;
+- reinstall del loader `Limine` unsigned prima di `enroll-config`;
+- rifirma del loader attivo dopo `enroll-config`;
+- verifica finale con `sbctl verify`.
+
+Quello che resta volutamente staged:
+
+- enrollment `TPM2` automatico non dentro l'installer;
+- sealing solo dopo reboot sul path finale corretto;
+- validazione end-to-end in VM solo con `swtpm`.
+
 ## Regola Secure Boot
 
 Il bootstrap `Secure Boot` deve essere preceduto da un preflight esplicito.
@@ -116,3 +133,5 @@ In pratica:
 - la security di boot deve essere trattata come rollout guidato;
 - i controlli post-install devono includere esplicitamente `Secure Boot`,
   `TPM2`, `vTPM` in QEMU, e il caso SSH per debug remoto.
+- il path installato di manutenzione (`update-all`) fa parte della superficie
+  di sicurezza e deve restare allineato alla stessa sequenza della trust chain.

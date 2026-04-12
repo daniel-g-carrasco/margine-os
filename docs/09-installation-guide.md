@@ -119,9 +119,9 @@ Current implementation:
 - installer lays out EFI artifacts and UKIs
 - `provision-secure-boot-preflight` exports current public keys and inspects the ESP before firmware work
 - `provision-secure-boot` handles `sbctl` key creation and enrollment
-- `refresh-efi-trust` handles signing and verification
-- `update-all` can verify Secure Boot state later, but it is not the bootstrap
-  step
+- `refresh-efi-trust` handles reinstall, enrollment, signing, and verification
+- `update-all` can maintain that same trust-refresh sequence later on the
+  installed system, but it is not the bootstrap step
 
 ### Important user step
 

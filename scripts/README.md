@@ -32,11 +32,16 @@ Operational scripts:
 - `generate-limine-config`: renders `limine.conf` from the versioned template
   and the minimal machine data.
 - `update-all`: canonical update orchestrator, with `dry-run` support and a
-  distinction between core and optional layers.
+  distinction between core and optional layers. On installed systems it now
+  also keeps the active Limine trust chain aligned by reinstalling the unsigned
+  loader, reenrolling `limine.conf`, and re-signing the loader before final
+  verification.
 - `deploy-boot-artifacts`: installs generated artifacts to the `ESP`, with
   preventive backups of overwritten files.
 - `refresh-efi-trust`: computes the `limine.conf` hash, runs
-  `limine enroll-config`, and signs the EFI chain with `sbctl`.
+  `limine enroll-config`, and signs the EFI chain with `sbctl`. It first
+  reinstalls the unsigned Limine EFI binary on the active target path so the
+  trust refresh starts from a clean loader state.
 - `provision-secure-boot-preflight`: exports the currently enrolled public
   Secure Boot keys, lists EFI binaries on the ESP, and prepares the operator
   for the firmware-side Setup Mode step.

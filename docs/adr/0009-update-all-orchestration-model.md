@@ -111,6 +111,7 @@ This phase can include:
 - recovery entry generation
 - `limine.conf` rendering
 - Limine config deployment
+- reinstall of the unsigned `Limine` EFI loader before trust refresh
 - `limine enroll-config`
 - EFI loader refresh when needed
 - Secure Boot signing and verification where applicable
@@ -169,6 +170,8 @@ real installed implementation.
 - rollback anchors are clearer because each maintenance run creates an explicit
   snapshot
 - host/runtime drift is reduced by using an installed shared runtime
+- the installed maintenance path now closes the full active Limine trust cycle
+  instead of stopping at config rendering
 
 ### Negative
 
@@ -182,6 +185,8 @@ Explained simply:
 - `update-all` is not just a nicer alias for `pacman`
 - it is the place where package updates, snapshots, boot recovery, and final
   verification are coordinated
+- when Secure Boot is active, it must also preserve the active Limine trust
+  chain on the installed system
 
 Its job is not magic.
 Its job is to impose order.

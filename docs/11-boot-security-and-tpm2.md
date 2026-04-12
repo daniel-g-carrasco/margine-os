@@ -35,6 +35,7 @@ What is already versioned:
 - `UKI + Limine` boot chain
 - post-install `sbctl` bootstrap tooling
 - post-install staged `TPM2` tooling with `systemd-cryptenroll`
+- installed-system trust refresh through `update-all`
 
 What is still true:
 
@@ -42,6 +43,16 @@ What is still true:
 - the installer does **not** do TPM2 enrollment automatically
 - the safest TPM2 rollout is currently a post-install, two-step process
 - QEMU validates TPM2 end-to-end only when the host provides `swtpm`
+
+What is already validated on the real installed host path:
+
+- `update-all` creates a dedicated pre-update snapshot
+- rebuilds the `UKI` chain
+- rewrites the active `limine.conf`
+- reinstalls the unsigned `Limine` EFI binary before `enroll-config`
+- reenrolls the config digest into the active loader
+- re-signs the active loader
+- reaches a clean `sbctl verify`
 
 ## 3. Why Secure Boot must happen before TPM2 enrollment
 
@@ -143,6 +154,10 @@ You want:
 
 - `Secure Boot: enabled`
 - no missing-file signing surprises on the active EFI chain
+
+The operator invariant to remember is:
+
+`deploy -> reinstall unsigned loader -> enroll-config -> sign -> verify`
 
 ## 5. Safe TPM2 rollout
 
