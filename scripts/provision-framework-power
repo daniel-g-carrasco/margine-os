@@ -7,6 +7,8 @@ repo_root="$(cd "${script_dir}/.." && pwd)"
 dry_run=0
 state_source="${repo_root}/files/var/lib/power-profiles-daemon/state.ini"
 state_target="/var/lib/power-profiles-daemon/state.ini"
+lid_source="${repo_root}/files/etc/systemd/logind.conf.d/lid.conf"
+lid_target="/etc/systemd/logind.conf.d/lid.conf"
 
 usage() {
   cat <<'EOF'
@@ -64,12 +66,19 @@ require_root() {
 
 ensure_sources() {
   [[ -f "$state_source" ]] || die "required source file not found: $state_source"
+  [[ -f "$lid_source" ]] || die "required source file not found: $lid_source"
 }
 
 install_state_file() {
   log
   log "==> Install power-profiles-daemon baseline"
   run_cmd install -Dm644 "$state_source" "$state_target"
+}
+
+install_lid_policy() {
+  log
+  log "==> Install laptop lid policy"
+  run_cmd install -Dm644 "$lid_source" "$lid_target"
 }
 
 apply_live_policy_if_possible() {
@@ -96,12 +105,24 @@ apply_live_policy_if_possible() {
   powerprofilesctl configure-battery-aware --enable || true
 }
 
+reload_logind_if_possible() {
+  if ! systemctl is-active --quiet systemd-logind.service 2>/dev/null; then
+    return 0
+  fi
+
+  log
+  log "==> Reload logind lid policy"
+  run_cmd systemctl reload systemd-logind.service
+}
+
 main() {
   parse_args "$@"
   require_root
   ensure_sources
   install_state_file
+  install_lid_policy
   apply_live_policy_if_possible
+  reload_logind_if_possible
 
   log
   log "Baseline power Framework installata."

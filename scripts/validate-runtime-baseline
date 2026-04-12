@@ -205,6 +205,10 @@ power_section() {
   local rate=""
   local percentage=""
   local monitor_line=""
+  local lid_switch="unknown"
+  local lid_switch_external="unknown"
+  local lid_switch_docked="unknown"
+  local hypridle_state="stopped"
 
   section "Power e Resume"
 
@@ -230,6 +234,20 @@ power_section() {
     monitor_line="$(hyprctl monitors all 2>/dev/null | awk '/^Monitor eDP-1/ {getline; print; exit}')"
     [[ -n "$monitor_line" ]] && status_line "internal monitor: ${monitor_line}"
   fi
+
+  if pgrep -x hypridle >/dev/null 2>&1; then
+    hypridle_state="running"
+  fi
+  status_line "hypridle process: ${hypridle_state}"
+
+  if have_cmd systemd-analyze; then
+    lid_switch="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandleLidSwitch=/ {print $2; exit}')"
+    lid_switch_external="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandleLidSwitchExternalPower=/ {print $2; exit}')"
+    lid_switch_docked="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandleLidSwitchDocked=/ {print $2; exit}')"
+  fi
+  status_line "lid switch: ${lid_switch:-unknown}"
+  status_line "lid switch on AC: ${lid_switch_external:-unknown}"
+  status_line "lid switch docked: ${lid_switch_docked:-unknown}"
 
   status_line "resume hook present: $( [[ -x /etc/systemd/system-sleep/fprintd-reset ]] && echo yes || echo no )"
   status_line "hyprlock PAM present: $( [[ -f /etc/pam.d/hyprlock ]] && echo yes || echo no )"

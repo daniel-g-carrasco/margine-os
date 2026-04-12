@@ -117,18 +117,19 @@ Check:
 
 ```bash
 systemctl --failed --no-pager
-systemctl status NetworkManager bluetooth iwd power-profiles-daemon ufw avahi-daemon cups sshd --no-pager
+systemctl status greetd NetworkManager bluetooth iwd power-profiles-daemon ufw avahi-daemon cups sshd --no-pager
 ```
 
 Check:
 
 - there are no unexpected failed units
 - the expected baseline services are enabled/running
+- `greetd` is active on systems that use the `greetd + tuigreet` login path
 
 If you want the enablement state too, use:
 
 ```bash
-systemctl is-enabled NetworkManager bluetooth iwd power-profiles-daemon ufw avahi-daemon cups sshd
+systemctl is-enabled greetd NetworkManager bluetooth iwd power-profiles-daemon ufw avahi-daemon cups sshd
 ```
 
 ## 5. User services and session state
@@ -148,6 +149,30 @@ Check:
 - `elephant.service` is alive if `walker` depends on it
 - `keep-awake.service` exists and can be toggled
 - the maintenance timer exists
+
+### Power, lid, and suspend
+
+On real hardware, also verify:
+
+```bash
+pgrep -af hypridle
+systemd-analyze cat-config systemd/logind.conf | rg 'HandleLidSwitch|HandleLidSwitchExternalPower|HandleLidSwitchDocked'
+loginctl session-status | sed -n '1,80p'
+```
+
+Check:
+
+- `hypridle` is running inside the graphical session
+- the lid policy resolves to `HandleLidSwitch=suspend`
+- the lid policy resolves to `HandleLidSwitchExternalPower=suspend`
+- the docked policy remains `HandleLidSwitchDocked=ignore`
+
+Manual checks:
+
+- closing the laptop lid on real hardware must lock and suspend the machine instead of leaving the panel visibly active
+- reopening the lid must resume into the locked session with the display restored
+- when `greetd` is the chosen login path, logout must return to `tuigreet`
+- on supported fingerprint hardware, both `tuigreet` and `hyprlock` must keep password fallback and allow fingerprint unlock when enrolled
 
 ## 6. Networking
 

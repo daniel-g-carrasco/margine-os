@@ -32,6 +32,8 @@ readable and persistent.
 - saved basic profile: `balanced`;
 - `amdgpu_panel_power=false`;
 - `amdgpu_dpm=false`;
+- laptop lid close suspends the machine both on battery and on external power;
+- docked lid close remains ignored;
 - the `60/120Hz` change of the internal panel is treated separately, with
   a dedicated user service in the desktop layer;
 - `VRR` and explicit refresh rate change are not confused: the first remains
@@ -39,7 +41,8 @@ readable and persistent.
   autonomy.
 
 The policy is versioned as the initial state of
-`/var/lib/power-profiles-daemon/state.ini`.
+`/var/lib/power-profiles-daemon/state.ini`, plus a `logind` drop-in at
+`/etc/systemd/logind.conf.d/lid.conf`.
 
 ## Consequences
 
@@ -48,6 +51,8 @@ Positive:
 - the power behavior is not implicit in the local state of the machine;
 - mitigation for AMD panel which can distort colors becomes part
   of the project;
+- the lid behavior is explicit and laptop-appropriate instead of relying on
+  environment-specific defaults;
 - we do not introduce an aggressive watcher that overrides manual choices
   of the user on the CPU profiles.
 
@@ -64,3 +69,9 @@ On the current real system `power-profiles-daemon` is active and the policy resu
 already consistent, but the service is not yet `enabled` at boot. This is
 a detail of the current machine, not of the `Margine` bootstrap, which instead
 already enable the basic service.
+
+For lid behavior, the intended runtime model is:
+
+- `systemd-logind` handles the lid event and suspends;
+- `hypridle` locks the session before sleep;
+- on resume, the display is restored and the user returns to the locked session.
