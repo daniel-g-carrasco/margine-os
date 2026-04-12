@@ -308,6 +308,7 @@ refresh_limine_config_hash() {
   local effective_limine_tool=""
   local config_hash=""
   local config_path=""
+  local -a sbctl_sign_args=()
 
   [[ -n "$rendered_limine_output" ]] || return 0
   [[ -n "$limine_binary" ]] || return 0
@@ -333,10 +334,42 @@ refresh_limine_config_hash() {
 
   config_hash="$(b2sum "$config_path" | awk '{print $1}')"
   run_optional "limine enroll-config" sudo "$effective_limine_tool" enroll-config "$limine_binary" "$config_hash"
+
+  if sbctl_bootstrap_ready; then
+    if sbctl_file_is_enrolled "$limine_binary"; then
+      sbctl_sign_args=("$limine_binary")
+    else
+      sbctl_sign_args=(--save "$limine_binary")
+    fi
+    run_optional "sbctl sign limine binary" sudo sbctl sign "${sbctl_sign_args[@]}"
+  fi
 }
 
 sbctl_bootstrap_ready() {
   [[ -f "${sbctl_keys_dir}/db/db.key" ]] || [[ -f "${sbctl_keys_dir}/db/db.pem" ]]
+}
+
+sbctl_file_is_enrolled() {
+  local target="$1"
+
+  python3 - "$target" <<'PY'
+import json
+import pathlib
+import sys
+
+db_path = pathlib.Path("/var/lib/sbctl/files.json")
+target = sys.argv[1]
+
+if not db_path.exists():
+    raise SystemExit(1)
+
+try:
+    payload = json.loads(db_path.read_text())
+except Exception:
+    raise SystemExit(1)
+
+raise SystemExit(0 if target in payload else 1)
+PY
 }
 
 parse_args() {
