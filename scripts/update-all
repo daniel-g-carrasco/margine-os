@@ -552,11 +552,25 @@ build_recovery_entries() {
     --limit "$recovery_entry_limit"
     --output "$output_path"
   )
+  local -a cmd=()
 
   [[ -x "$generator" ]] || die "recovery generator not executable: $generator"
 
-  if ! run_cmd "$generator" "${args[@]}"; then
+  if [[ "$(id -u)" -eq 0 ]]; then
+    cmd=("$generator")
+  else
+    cmd=(sudo "$generator")
+  fi
+
+  if ! run_cmd "${cmd[@]}" "${args[@]}"; then
     warn "generazione entry recovery Snapper fallita"
+    soft_failures=1
+    recovery_entries_output=""
+    return 0
+  fi
+
+  if [[ ! -s "$output_path" ]]; then
+    warn "nessuna entry recovery Snapper generata"
     soft_failures=1
     recovery_entries_output=""
     return 0
