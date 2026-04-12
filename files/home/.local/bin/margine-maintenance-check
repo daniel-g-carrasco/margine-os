@@ -3,6 +3,7 @@ set -euo pipefail
 
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/margine"
 state_file="${state_dir}/maintenance-check.state"
+notification_id_file="${state_dir}/maintenance-check.notification-id"
 runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/margine/notification-actions"
 force_notify=0
 test_notify=0
@@ -119,12 +120,17 @@ launch_update_all() {
 launcher_path="$(launch_update_all || true)"
 [[ -n "$launcher_path" ]] || exit 0
 
+replaces_id="$(cat "$notification_id_file" 2>/dev/null || printf '0')"
+[[ "$replaces_id" =~ ^[0-9]+$ ]] || replaces_id=0
+
 TITLE="$title" \
 BODY="$body" \
 URGENCY="$urgency" \
 ICON="software-update-available" \
 ACTION_CMD="$launcher_path" \
 ACTION_DIR="$runtime_dir" \
+REPLACES_ID="$replaces_id" \
+NOTIFICATION_ID_FILE="$notification_id_file" \
 python3 - <<'PY'
 import os
 import pathlib
@@ -136,8 +142,11 @@ body = os.environ["BODY"]
 icon = os.environ["ICON"]
 command = os.environ["ACTION_CMD"]
 action_dir = pathlib.Path(os.environ["ACTION_DIR"])
+notification_id_file = pathlib.Path(os.environ["NOTIFICATION_ID_FILE"])
+replaces_id = int(os.environ.get("REPLACES_ID", "0"))
 urgency = urgency_map.get(os.environ.get("URGENCY", "normal"), 1)
 action_dir.mkdir(parents=True, exist_ok=True)
+notification_id_file.parent.mkdir(parents=True, exist_ok=True)
 
 bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
 result = bus.call_sync(
@@ -149,7 +158,7 @@ result = bus.call_sync(
         "(susssasa{sv}i)",
         (
             "Margine",
-            0,
+            replaces_id,
             icon,
             title,
             body,
@@ -165,4 +174,5 @@ result = bus.call_sync(
 )
 nid = result.unpack()[0]
 (action_dir / f"{nid}.cmd").write_text(command + "\n", encoding="utf-8")
+notification_id_file.write_text(f"{nid}\n", encoding="utf-8")
 PY
