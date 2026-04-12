@@ -238,6 +238,7 @@ render_limine_assets() {
 
 main() {
   local fingerprint_script="${repo_root}/scripts/provision-fingerprint-resume-hook"
+  local power_script="${repo_root}/scripts/provision-framework-power"
   local snapper_script="${repo_root}/scripts/provision-snapper-baseline"
   local loader_target=""
   local config_target=""
@@ -249,6 +250,7 @@ main() {
   require_root
 
   ensure_exec "$fingerprint_script"
+  ensure_exec "$power_script"
   ensure_exec "$snapper_script"
 
   loader_target="${esp_path}/${loader_dir}/${loader_name}"
@@ -275,6 +277,10 @@ main() {
   log
   log "==> Fingerprint auth baseline"
   run_cmd "$fingerprint_script"
+
+  log
+  log "==> Framework power baseline"
+  run_cmd "$power_script"
 
   log
   log "==> Snapper recovery baseline"
