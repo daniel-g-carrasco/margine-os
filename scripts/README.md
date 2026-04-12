@@ -83,8 +83,9 @@ Operational scripts:
   run it once in the graphical user session and once as root to cover runtime,
   boot, recovery, and TPM2 checks in a consistent way. It autodetects the
   installed `product/flavor` context, accepts `--product` and `--flavor`
-  overrides, and returns non-zero when it finds real baseline drift instead of
-  just printing informational output.
+  overrides, prints a concise `PASS / WARN / FAIL` report by default, supports
+  `--verbose` for full underlying validator output, and returns non-zero when
+  it finds real baseline drift instead of just printing informational output.
 - `validate-virtualization-containers-baseline`: validates CPU/KVM support,
   packages, and the real `libvirt` and `podman` state.
 - `prepare-qemu-archiso-validation`: prepares a QEMU/OVMF VM with the official

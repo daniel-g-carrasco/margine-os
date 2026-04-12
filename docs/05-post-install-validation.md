@@ -26,6 +26,8 @@ The consolidated validator:
 - autodetects the installed `product` and `flavor` from the runtime state;
 - validates against the real Arch or CachyOS baseline expected by that product;
 - supports explicit overrides with `--product` and `--flavor`;
+- prints a concise `PASS / WARN / FAIL` report by default;
+- supports `--verbose` when the full validator output is needed;
 - returns non-zero when it finds actual baseline drift or suspect runtime state.
 
 From the graphical user session:
@@ -57,6 +59,13 @@ Optional virtualization/container checks:
 
 ```bash
 sudo /usr/local/lib/margine/scripts/validate-host-health --root --with-virtualization
+```
+
+Verbose examples:
+
+```bash
+margine-validate-host-health --session --verbose
+sudo /usr/local/lib/margine/scripts/validate-host-health --root --verbose
 ```
 
 Why two passes:

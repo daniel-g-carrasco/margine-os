@@ -18,6 +18,7 @@ mode=""
 include_tpm2=1
 include_virtualization=0
 status=0
+verbose=0
 requested_product=""
 requested_flavor=""
 product=""
@@ -26,6 +27,11 @@ product_base_distribution=""
 product_visibility=""
 product_redistributable=""
 flavor=""
+tmp_dir=""
+check_index=0
+declare -a pass_checks=()
+declare -a warn_checks=()
+declare -a fail_checks=()
 
 usage() {
   cat <<'EOF'
@@ -41,6 +47,7 @@ Options:
   --flavor NAME          Override the detected flavor
   --skip-tpm2            Skip TPM2/LUKS validation in root mode
   --with-virtualization  Also run virtualization/container validation in root mode
+  --verbose              Print full output from the underlying validators
   --help                 Show this help
 
 Defaults:
@@ -62,24 +69,117 @@ die() {
   exit 1
 }
 
+cleanup() {
+  if [[ -n "$tmp_dir" && -d "$tmp_dir" ]]; then
+    rm -rf "$tmp_dir"
+  fi
+}
+
 ensure_exec() {
   local path="$1"
   [[ -x "$path" ]] || die "required executable not found: $path"
 }
 
-run_check() {
+init_runtime_state() {
+  tmp_dir="$(mktemp -d)"
+  trap cleanup EXIT
+}
+
+append_check_result() {
+  local bucket="$1"
+  local label="$2"
+
+  case "$bucket" in
+    pass)
+      pass_checks+=("$label")
+      ;;
+    warn)
+      warn_checks+=("$label")
+      ;;
+    fail)
+      fail_checks+=("$label")
+      ;;
+    *)
+      die "unsupported result bucket: $bucket"
+      ;;
+  esac
+}
+
+emit_verbose_check_output() {
   local label="$1"
-  shift
+  local output_file="$2"
+  local result_label="$3"
 
   section "$label"
-  if "$@"; then
-    line
-    line "Result: OK"
+  if [[ -s "$output_file" ]]; then
+    cat "$output_file"
   else
-    status=1
-    line
-    line "Result: FAILED"
+    line "(no output)"
   fi
+  line
+  line "Result: ${result_label}"
+}
+
+run_check() {
+  local label="$1"
+  local output_file=""
+  local rc=0
+  local bucket="pass"
+  local result_label="PASS"
+  shift
+
+  output_file="${tmp_dir}/check-${check_index}.log"
+  check_index=$((check_index + 1))
+
+  if "$@" >"$output_file" 2>&1; then
+    if grep -Eqi '^(warning|warn):' "$output_file"; then
+      bucket="warn"
+      result_label="WARN"
+    fi
+  else
+    rc=$?
+    bucket="fail"
+    result_label="FAIL"
+    status=1
+  fi
+
+  append_check_result "$bucket" "$label"
+
+  if (( verbose )); then
+    emit_verbose_check_output "$label" "$output_file" "$result_label"
+  fi
+
+  return 0
+}
+
+record_warning() {
+  append_check_result "warn" "$1"
+}
+
+print_bucket() {
+  local title="$1"
+  shift
+  local -a items=("$@")
+  local item=""
+
+  line "${title} (${#items[@]})"
+  if (( ${#items[@]} == 0 )); then
+    line "  - none"
+    return 0
+  fi
+
+  for item in "${items[@]}"; do
+    line "  - ${item}"
+  done
+}
+
+print_report() {
+  section "Report"
+  print_bucket "PASS" "${pass_checks[@]}"
+  line
+  print_bucket "WARN" "${warn_checks[@]}"
+  line
+  print_bucket "FAIL" "${fail_checks[@]}"
 }
 
 parse_args() {
@@ -109,6 +209,10 @@ parse_args() {
         ;;
       --with-virtualization)
         include_virtualization=1
+        shift
+        ;;
+      --verbose)
+        verbose=1
         shift
         ;;
       --help|-h)
@@ -155,6 +259,7 @@ run_session_mode() {
 
   print_header
   run_check "Runtime, desktop, and session baseline" "$runtime_script"
+  print_report
 
   section "Next step"
   line "Run the root-owned checks from another terminal:"
@@ -178,11 +283,15 @@ run_root_mode() {
 
   if (( include_tpm2 )); then
     run_check "TPM2 auto-unlock baseline" "$tpm2_script"
+  else
+    record_warning "TPM2 auto-unlock baseline (skipped by --skip-tpm2)"
   fi
 
   if (( include_virtualization )); then
     run_check "Virtualization and containers baseline" "$virtualization_script"
   fi
+
+  print_report
 
   section "Next step"
   if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
@@ -195,6 +304,7 @@ run_root_mode() {
 
 main() {
   parse_args "$@"
+  init_runtime_state
   init_product_context
   export_product_context
 
@@ -220,9 +330,17 @@ main() {
 
   section "Summary"
   if (( status == 0 )); then
-    line "Overall status: OK"
+    if (( ${#warn_checks[@]} > 0 )); then
+      line "Overall status: WARN"
+    else
+      line "Overall status: PASS"
+    fi
   else
-    line "Overall status: FAILED"
+    line "Overall status: FAIL"
+  fi
+
+  if (( !verbose )); then
+    line "Tip: rerun with --verbose to print the underlying validator output."
   fi
 
   exit "$status"
