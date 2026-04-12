@@ -1,64 +1,64 @@
-# Perche' browser e mailer vanno chiusi con default reali
+# Why browsers and mailers should be closed with real defaults
 
-Nel desktop Linux non basta installare un browser e un client mail.
+On the Linux desktop it is not enough to install a browser and an email client.
 
-Devi anche dire al sistema:
+You also need to tell the system:
 
-- chi apre i link web;
-- chi apre i link `mailto:`;
-- chi apre i calendari o i file email.
+- who opens web links;
+- who opens the links `mailto:`;
+- who opens calendars or email files.
 
-## Il problema tipico
+## The typical problem
 
-Molti sistemi sembrano \"a posto\", ma poi:
+Many systems seem \"fine\", but then:
 
-- `http` apre l'app giusta;
-- `mailto` apre quella sbagliata;
-- il desktop file scritto nella config non esiste neppure davvero.
+- `http` opens the right app;
+- `mailto` opens the wrong one;
+- the desktop file written in the config doesn't even really exist.
 
-In quel caso il sistema non e' rotto in modo evidente.
-E' peggio: e' incoerente.
+In that case the system is not obviously broken.
+It's worse: it's inconsistent.
 
-## La scelta di Margine
+## Choosing Margin
 
-`Margine v1` chiude questo punto in modo esplicito:
+`Margine v1` closes this point explicitly:
 
-- `Firefox` e' il browser;
-- `Thunderbird` e' il mailer;
-- `mimeapps.list` e' il posto dove fissiamo la decisione.
+- `Firefox` is the browser;
+- `Thunderbird` is the mailer;
+- `mimeapps.list` is the place where we set the decision.
 
-## Perche' non basta dire \"uso Thunderbird\"
+## Why it's not enough to say \"I use Thunderbird\"
 
-Dire \"uso Thunderbird\" non basta.
+Saying \"I use Thunderbird\" isn't enough.
 
-Bisogna anche usare il suo desktop ID reale.
+You also need to use your real desktop ID.
 
-Su Arch oggi il pacchetto installa:
+On Arch today the package installs:
 
 - `org.mozilla.Thunderbird.desktop`
 
-non un ipotetico:
+not a hypothetical:
 
 - `thunderbird.desktop`
 
-Se sbagli questo dettaglio, il repo sembra corretto ma il sistema reale no.
+If you get this detail wrong, the repo looks correct but the real system doesn't.
 
-## Perche' non migriamo il profilo mail
+## Why don't we migrate the email profile
 
-Il profilo `Thunderbird` contiene:
+The `Thunderbird` profile contains:
 
-- account;
-- mail locali;
-- indici;
-- chiavi;
+- accounts;
+- local emails;
+- indexes;
+- keys;
 - cache;
-- stato personale.
+- personal status.
 
-Questa non e' baseline di sistema.
-E' patrimonio utente.
+This is not system baseline.
+It is user assets.
 
-Quindi:
+So:
 
-- il pacchetto si installa;
-- il default si fissa;
-- il profilo si migra solo in modo consapevole, non automaticamente.
+- the package is installed;
+- the default is fixed;
+- the profile is only migrated consciously, not automatically.

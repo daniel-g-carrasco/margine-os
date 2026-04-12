@@ -1,51 +1,51 @@
 # ADR 0019 - Provisioning audio Framework 13 con EasyEffects
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Problema da risolvere
+## Problem to solve
 
-`Margine` vuole avere una baseline audio sensata per `Framework Laptop 13`,
-ma senza imporre comportamenti sbagliati su hardware diverso.
+`Margine` wants to have a sensible audio baseline for `Framework Laptop 13`,
+but without imposing bad behavior on different hardware.
 
-Con EasyEffects il rischio classico è questo:
+With EasyEffects the classic risk is this:
 
-- copiare un preset;
-- non versionare i file ausiliari del convolver;
-- forzare il preset in modo globale su qualsiasi output;
-- rompere cuffie, HDMI o macchine non compatibili.
+- copy to preset;
+- do not versione the convolver auxiliary files;
+- force the preset globally on any output;
+- break headphones, HDMI or incompatible machines.
 
-## Decisione
+## Decision
 
-Per `Margine v1` adottiamo questa strategia:
+For `Margine v1` we adopt this strategy:
 
-- il preset ufficiale `fw13-easy-effects` viene versionato nel repository;
-- viene versionato anche l'IR realmente richiesto dal preset;
-- il provisioning avviene solo se la macchina risulta `Framework Laptop 13`
-  tramite DMI;
-- l'autoload viene generato a runtime per il route degli altoparlanti interni;
-- su hardware diverso il provisioning va in no-op.
+- the official preset `fw13-easy-effects` is versioned in the repository;
+- the IR actually required by the preset is also versioned;
+- provisioning occurs only if the machine is `Framework Laptop 13`
+via DMI;
+- the autoload is generated at runtime for the route of the internal speakers;
+- on different hardware provisioning goes into no-op.
 
-## Perché la risoluzione avviene a runtime
+## Because resolution happens at runtime
 
-Il nome reale del sink PipeWire non è una costante progettuale da scrivere in
+The actual name of the PipeWire sink is not a design constant to write to
 chroot.
 
-Serve invece scoprirlo quando esiste davvero la sessione audio utente.
+Instead, you need to find out when the user audio session actually exists.
 
-Per questo separiamo due tempi:
+This is why we separate two times:
 
 1. bootstrap in chroot:
-   - copia preset;
-   - copia IR;
-   - installa servizio utente;
-2. primo avvio della sessione:
-   - rileva il sink interno;
-   - genera il file autoload corretto;
-   - avvia EasyEffects in service mode.
+   - copy presets;
+   - IR copy;
+   - install user service;
+2. first start of the session:
+   - detects the internal sink;
+   - generate the correct autoload file;
+   - start EasyEffects in service mode.
 
-## Cosa viene versionato
+## What is versioned
 
 - `files/home/.local/share/easyeffects/output/fw13-easy-effects.json`
 - `files/home/.local/share/easyeffects/irs/IR_22ms_27dB_5t_15s_0c.irs`
@@ -54,15 +54,15 @@ Per questo separiamo due tempi:
 
 ## Guardrail espliciti
 
-- niente applicazione su macchine non `Framework`;
-- niente preset globale su output non interni;
-- niente dipendenza da gruppi audio legacy;
-- niente dipendenza da path temporanei della macchina sorgente.
+- no application on non-`Framework` machines;
+- no global presets on non-internal outputs;
+- no dependency on legacy audio groups;
+- no dependency on temporary paths of the source machine.
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa scelta ci dà:
+This choice gives us:
 
-- preset riproducibile davvero;
-- comportamento di default buono sul laptop target;
-- fallback pulito a "nessun comportamento speciale" su hardware diverso.
+- really playable preset;
+- good default behavior on target laptop;
+- clean fallback to "no special behavior" on different hardware.

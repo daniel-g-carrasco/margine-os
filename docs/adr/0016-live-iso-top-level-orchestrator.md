@@ -1,93 +1,93 @@
-# ADR 0016 - Orchestratore top-level per installazione da live ISO
+# ADR 0016 - Top-level orchestrator for installation from live ISO
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Con ADR 0014 e ADR 0015 abbiamo già due pezzi corretti:
+With ADR 0014 and ADR 0015 we already have two correct pieces:
 
 - `provision-storage`
 - `bootstrap-live-iso`
 
-Mancava però un entrypoint unico da live ISO che li usasse in sequenza.
+However, a single entrypoint from live ISO that used them in sequence was missing.
 
-## Problema da risolvere
+## Problem to solve
 
-Se l'utente deve ricordarsi sempre:
+If the user must always remember:
 
-1. quale script chiamare per primo;
-2. quali argomenti replicare nel secondo;
-3. come passare dal partizionamento al bootstrap;
+1. which script to call first;
+2. which topics to replicate in the second;
+3. how to go from partitioning to bootstrapping;
 
-allora il progetto resta corretto ma poco usabile.
+then the project remains correct but not very usable.
 
-## Decisione
+## Decision
 
-Per `Margine v1` introduciamo uno script top-level:
+For `Margine v1` we introduce a top-level script:
 
 - `scripts/install-live-iso`
 
-Questo script non sostituisce i due mattoni sottostanti.
+This script does not replace the two building blocks below.
 
 Li orchestra.
 
-## Regola di progettazione
+## Design rule
 
-La regola è:
+The rule is:
 
-- composizione sopra separazione;
-- non monolite al posto della separazione.
+- composition over separation;
+- not monolith in place of separation.
 
-Quindi:
+So:
 
-- `provision-storage` resta responsabile dello storage;
-- `bootstrap-live-iso` resta responsabile del bootstrap di fase 1;
-- `install-live-iso` li chiama nel giusto ordine.
+- `provision-storage` remains responsible for storage;
+- `bootstrap-live-iso` remains responsible for phase 1 bootstrapping;
+- `install-live-iso` calls them in the right order.
 
-## Regola degli argomenti
+## Argument rule
 
-Lo script top-level espone:
+The top-level script exposes:
 
-- parametri del disco;
-- parametri storage principali;
-- parametri del bootstrap live ISO;
-- flag distruttivo esplicito;
+- disk parameters;
+- main storage parameters;
+- ISO live bootstrap parameters;
+- explicit destructive flag;
 - `dry-run`.
 
-Così l'utente può lavorare da un solo comando senza perdere leggibilità.
+Thus the user can work from just one command without losing readability.
 
-## Regola di ambito
+## Scope rule
 
-In `Margine v1`, `install-live-iso` non fa ancora:
+In `Margine v1`, `install-live-iso` does not yet do:
 
-- bootstrap utente finale;
+- end user bootstrap;
 - enrollment `TPM2`;
-- firma completa della trust chain;
-- generazione del blocco recovery da snapshot reali.
+- full trust chain signature;
+- generation of the recovery block from real snapshots.
 
-Fa una cosa precisa:
+He does one specific thing:
 
-- unire storage provisioning e fase 1 del bootstrap in una pipeline lineare.
+- Merge storage provisioning and bootstrap phase 1 into a linear pipeline.
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa scelta ci dà:
+This choice gives us:
 
-- un entrypoint più umano da live ISO;
-- riuso vero degli script già separati;
-- testabilità migliore;
-- meno rischio di introdurre un mega-script ingestibile.
+- a more human entrypoint from live ISO;
+- true reuse of already separated scripts;
+- better testability;
+- less risk of introducing an unmanageable mega-script.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
-Pensa a tre livelli:
+Think on three levels:
 
-- attrezzi singoli;
+- single tools;
 - una procedura;
 - un comando che esegue la procedura.
 
-`provision-storage` e `bootstrap-live-iso` sono gli attrezzi singoli.
+`provision-storage` and `bootstrap-live-iso` are the individual tools.
 
-`install-live-iso` è il comando che li usa bene.
+`install-live-iso` is the command that uses them well.

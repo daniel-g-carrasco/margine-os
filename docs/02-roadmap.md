@@ -2,20 +2,20 @@
 
 ## Fase 0 - Metodo
 
-Obiettivo:
-- fissare struttura, naming, principi, documentazione e regole del gioco.
+Objective:
+- establish structure, naming, principles, documentation and rules of the game.
 
 Deliverable:
-- repo inizializzata;
+- repo initialized;
 - vision;
 - roadmap;
-- ADR iniziale;
-- allowlist iniziale.
+- Initial ADR;
+- initial allowlist.
 
 ## Fase 1 - Architettura
 
-Obiettivo:
-- decidere le fondamenta che influenzano tutto il resto.
+Objective:
+- decide the foundations that influence everything else.
 
 Temi:
 - bootloader;
@@ -23,28 +23,28 @@ Temi:
 - TPM2;
 - LUKS2;
 - layout Btrfs;
-- strategia snapshot / rollback;
+- snapshot/rollback strategy;
 - session manager;
 - policy AUR.
 
-## Fase 2 - Inventario guidato
+## Phase 2 - Guided inventory
 
-Obiettivo:
-- capire il sistema attuale senza copiarlo alla cieca.
+Objective:
+- understand the current system without blindly copying it.
 
 Output:
-- lista pacchetti da tenere;
-- lista pacchetti da scartare;
-- lista servizi da replicare;
-- lista configurazioni da riscrivere;
-- lista componenti da sostituire.
+- list of packages to keep;
+- list of packages to discard;
+- list of services to replicate;
+- list of configurations to rewrite;
+- list of components to replace.
 
 ## Fase 3 - Manifests
 
-Obiettivo:
-- creare manifests piccoli e leggibili.
+Objective:
+- create small, readable manifests.
 
-Esempi:
+Examples:
 - `base`
 - `hardware-framework13-amd`
 - `connectivity-stack`
@@ -56,28 +56,28 @@ Esempi:
 
 ## Fase 4 - Bootstrap
 
-Obiettivo:
-- scrivere gli script di installazione da live ISO.
+Objective:
+- write installation scripts from live ISO.
 
 Temi:
-- partizionamento;
-- cifratura;
-- subvolumi;
+- partitioning;
+- encryption;
+- subvolumes;
 - `pacstrap`;
 - chroot;
 - boot;
-- utente;
+- user;
 - servizi base.
 
 ## Fase 5 - Desktop layer
 
-Obiettivo:
-- rendere il sistema usabile, coerente e centralizzato.
+Objective:
+- make the system usable, coherent and centralized.
 
 Temi:
 - config Hyprland;
 - `greetd + tuigreet`;
-- tema centralizzato in stile Omarchy;
+- Omarchy-style centralized theme;
 - waybar;
 - hyprpaper;
 - hyprlock;
@@ -86,10 +86,10 @@ Temi:
 - screenshot e recording;
 - audio, bluetooth, rete.
 
-## Fase 6 - Operazioni e rollback
+## Phase 6 - Operations and rollback
 
-Obiettivo:
-- creare un sistema che si aggiorna e si ripristina bene.
+Objective:
+- create a system that updates and recovers well.
 
 Temi:
 - `update-all`;
@@ -97,20 +97,20 @@ Temi:
 - firma kernel/UKI;
 - preflight `Secure Boot`;
 - bootstrap `sbctl` guidato;
-- rollout `TPM2` a due fasi;
-- verifica integrità;
-- procedure di rollback;
-- documentazione di manutenzione.
+- two-phase `TPM2` rollout;
+- verify integrity;
+- rollback procedures;
+- maintenance documentation.
 
 ## Fase 7 - Photo profile
 
-Obiettivo:
-- chiudere il cerchio per l'uso fotografico.
+Objective:
+- close the circle for photographic use.
 
 Temi:
-- stack AMD stabile;
-- accelerazione;
+- stable AMD stack;
+- acceleration;
 - color management;
 - ABM / power tuning;
-- applicazioni foto;
+- photo applications;
 - file management e ingest.

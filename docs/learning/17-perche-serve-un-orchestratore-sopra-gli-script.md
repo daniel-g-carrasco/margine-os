@@ -1,56 +1,56 @@
-# Perché serve un orchestratore sopra gli script
+# Why do you need an orchestrator on top of the scripts
 
-## Il punto importante
+## The important point
 
-Separare gli script è giusto.
+Separating scripts is okay.
 
-Ma chiedere all'utente di fare a mano tutta l'orchestrazione non è sempre una
-virtù.
+But asking the user to do all the orchestration by hand is not always one
+virtue.
 
-## Il rischio opposto
+## The opposite risk
 
-Se mettiamo tutto in un solo mega-script:
+If we put everything in one mega-script:
 
-- il codice diventa più confuso;
-- i test diventano peggiori;
-- il riuso dei pezzi diminuisce;
-- i bug fanno più danni.
+- the code becomes more confusing;
+- tests become worse;
+- the reuse of pieces decreases;
+- bugs do more damage.
 
-## Il compromesso corretto
+## The correct compromise
 
-Il compromesso buono è questo:
+The good compromise is this:
 
-- script piccoli con responsabilità chiare;
-- uno script top-level che li orchestra.
+- small scripts with clear responsibilities;
+- a top-level script that orchestrates them.
 
-Questa è una struttura molto comune nei sistemi ben progettati.
+This is a very common structure in well-designed systems.
 
-## Applicato a Margine
+## Applied to Margin
 
-Nel nostro caso:
+In our case:
 
-- `provision-storage` prepara il disco;
-- `bootstrap-live-iso` prepara il sistema base;
-- `bootstrap-in-chroot` completa la fase successiva.
+- `provision-storage` prepare the disk;
+- `bootstrap-live-iso` prepares the basic system;
+- `bootstrap-in-chroot` completes the next step.
 
-Lo script `install-live-iso` non deve reinventare quei passi.
+The `install-live-iso` script does not have to reinvent those steps.
 
-Deve solo chiamarli nel giusto ordine.
+He just has to call them in the right order.
 
-## Perché è didatticamente migliore
+## Because it is educationally better
 
-Perché puoi studiare il sistema a due livelli:
+Because you can study the two-level system:
 
-1. il dettaglio dei singoli script;
-2. il flusso completo di installazione.
+1. the details of the individual scripts;
+2. the complete installation flow.
 
-Se un giorno vorrai cambiare qualcosa, saprai dove mettere le mani:
+If one day you want to change something, you will know where to put your hands:
 
-- nel mattone giusto, se cambi un comportamento locale;
-- nell'orchestratore, se cambi il flusso.
+- in the right brick, if you change a local behavior;
+- in the orchestrator, if you change the flow.
 
-## La regola mentale da ricordare
+## The mental rule to remember
 
-Un buon orchestratore collega bene i pezzi.
+A good orchestrator connects the pieces well.
 
-Non li ingloba.
+It doesn't include them.

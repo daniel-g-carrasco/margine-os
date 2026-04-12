@@ -1,69 +1,69 @@
-# Perché il deploy sulla ESP va trattato bene
+# Because the deployment on the ESP must be treated well
 
-Questa nota accompagna:
+This note accompanies:
 
 - [deploy-boot-artifacts](/home/daniel/dev/margine-os/scripts/deploy-boot-artifacts)
 
-La lezione importante è questa:
+The important lesson is this:
 
-- generare un file e installarlo in `/etc` non è la stessa cosa che scriverlo
-  sulla `ESP`.
+- generating a file and installing it in `/etc` is not the same as writing it
+on the `ESP`.
 
-## 1. Perché la ESP è diversa
+## 1. Why ESP is different
 
-La `ESP` è diversa perché:
+The `ESP` is different because:
 
-- è critica per l'avvio;
-- è fuori dagli snapshot root;
-- spesso contiene già file di altri boot path;
-- non è il posto giusto per fare editing improvvisato.
+- it is critical for startup;
+- it is out of root snapshots;
+- often already contains files from other boot paths;
+- it's not the right place to do improvised editing.
 
-Per questo nel progetto `Margine` la trattiamo come area di deploy, non come
-area di lavoro.
+This is why in the `Margine` project we treat it as a deployment area, not as
+work area.
 
-## 2. Perché prima generiamo e poi copiamo
+## 2. Because we generate first and then copy
 
-Questa separazione ti dà due vantaggi grossi:
+This separation gives you two big advantages:
 
-- puoi verificare il file prima di copiarlo;
-- puoi ripetere il deploy senza dover ricostruire la logica a mano.
+- you can verify the file before copying it;
+- you can redeploy without having to rebuild the logic by hand.
 
-La regola pratica è:
+The rule of thumb is:
 
-- build fuori dalla `ESP`
+- build out of `ESP`
 - deploy sulla `ESP`
 
-## 3. Perché facciamo backup prima di sovrascrivere
+## 3. Because we backup before overwriting
 
-Perché il deploy del boot path è un'operazione delicata.
+Because deploying the boot path is a delicate operation.
 
-Se sbagli un file in `/etc`, spesso puoi ancora rientrare e correggere.
-Se sbagli un file di boot, la correzione può essere molto più scomoda.
+If you mess up a file in `/etc`, you can often still go back in and fix it.
+If you mess up a boot file, the fix can be much more cumbersome.
 
-Quindi il backup prima della sovrascrittura non è paranoia.
-È igiene.
+So backing up before overwriting is not paranoia.
+It's hygiene.
 
-## 4. Perché non cancelliamo tutto automaticamente
+## 4. Why don't we delete everything automatically
 
-Questo è un altro punto da imparare bene.
+This is another point to learn well.
 
-Molti script diventano pericolosi perché vogliono essere "puliti" troppo presto:
+Many scripts become dangerous because they want to be "cleaned" too soon:
 
-- vedono file in più;
-- li cancellano;
-- poi scopri che uno di quei file serviva a un percorso di recovery o a una
-  situazione che non avevi considerato.
+- they see extra files;
+- they erase them;
+- then you discover that one of those files served a recovery path or a
+situation you hadn't considered.
 
-Nella `v1` preferiamo:
+In `v1` we prefer:
 
-- copiare bene;
-- capire bene;
-- pulire solo più avanti, con regole più forti.
+- copy well;
+- understand well;
+- clean only later, with stronger rules.
 
-## 5. La regola finale da ricordare
+## 5. The final rule to remember
 
-Se un giorno devi spiegare a qualcuno come trattare il boot path, la frase
-giusta è questa:
+If one day you have to explain to someone how to deal with the boot path, the phrase
+this is correct:
 
-- la `ESP` non si "edita";
+- the `ESP` cannot be "edited";
 - la `ESP` si deploya.

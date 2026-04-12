@@ -1,95 +1,95 @@
-# ADR 0024 - Layer versionato delle configurazioni applicative
+# ADR 0024 - Versioned layer of application configurations
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Contesto
+## Context
 
-Dopo il layer di base, la connettivita' e il desktop, serve decidere come
-gestire le applicazioni quotidiane.
+After the base layer, connectivity and desktop, we need to decide how
+manage daily applications.
 
-Non tutte vanno trattate allo stesso modo:
+Not all should be treated the same:
 
-- alcune si portano quasi pari pari;
-- altre e' meglio gestirle con policy;
-- altre ancora restano oggetto di review futura.
+- some are worn almost flat;
+- others are better managed with policy;
+- others remain the subject of future review.
 
-## Decisione
+## Decision
 
-Per `Margine v1` il layer applicativo versionato include:
+For `Margine v1` the versioned application layer includes:
 
-- `Neovim` / `LazyVim` come configurazione utente versionata;
-- `Kitty` come configurazione utente versionata;
-- `mimeapps.list` pulito e normalizzato;
-- `user-dirs.*` come baseline italiana;
-- `update-all` installato globalmente in `/usr/local/bin/update-all`;
-- `update-all-launcher` come piccolo wrapper utente;
-- `Firefox` configurato tramite policy di sistema, non tramite profilo copiato.
+- `Neovim` / `LazyVim` as versioned user configuration;
+- `Kitty` as versioned user configuration;
+- `mimeapps.list` cleaned and normalized;
+- `user-dirs.*` as Italian baseline;
+- `update-all` installed globally in `/usr/local/bin/update-all`;
+- `update-all-launcher` as a small user wrapper;
+- `Firefox` configured via system policy, not via copied profile.
 
-## Scelte specifiche
+## Specific choices
 
 ### Firefox
 
-`Firefox` viene configurato con `/etc/firefox/policies/policies.json`.
+`Firefox` is configured with `/etc/firefox/policies/policies.json`.
 
-La baseline e' volutamente moderata:
+The baseline is deliberately moderate:
 
-- disabilitazione telemetry;
-- disabilitazione studies;
-- rimozione Pocket;
-- niente prompt sul browser predefinito;
-- home semplificata senza elementi sponsorizzati.
+- disabling telemetry;
+- disabling studies;
+- Pocket removal;
+- no prompts on the default browser;
+- simplified home without sponsored elements.
 
-Questa e' una baseline "enforced ma non troppo":
+This is an "enforced but not too much" baseline:
 
-- definisce il comportamento base;
-- non blocca il browser in modo aziendale;
-- non pretende di sostituire la personalizzazione utente.
-- non introduce, nella `v1`, tweak browser-specifici aggressivi per il color
+- defines the basic behavior;
+- does not block the browser in a corporate way;
+- does not claim to replace user customization.
+- does not introduce, in `v1`, aggressive browser-specific color tweaks
   management.
 
 ### Neovim
 
-`LazyVim` entra come configurazione esplicita versionata.
+`LazyVim` enters as a versioned explicit configuration.
 
-Motivo:
+Reason:
 
-- e' testuale;
-- e' leggibile;
-- e' davvero parte del workflow quotidiano;
-- e' facile da modificare e capire.
+- it's textual;
+- it is readable;
+- it's really part of the daily workflow;
+- it's easy to edit and understand.
 
 ### Kitty
 
-`Kitty` viene trattato come config semplice, leggibile e riproducibile.
+`Kitty` is treated as a simple, readable, and reproducible config.
 
-### MIME e user dirs
+### MIME and user dirs
 
-Vengono normalizzati, non copiati alla cieca:
+They are normalized, not blindly copied:
 
-- niente `userapp-*` generati;
-- niente riferimenti stantii a browser passati;
-- default coerenti col sistema target.
+- no `userapp-*` generated;
+- no stale references to past browsers;
+- defaults consistent with the target system.
 
-## Conseguenze
+## Consequences
 
 ### Positive
 
-- il comportamento applicativo basilare e' riproducibile;
-- il nuovo sistema parte gia' con default sensati;
-- le configurazioni piu' personali restano comunque modificabili.
+- the basic application behavior is reproducible;
+- the new system already starts with sensible defaults;
+- the more personal configurations remain modifiable.
 
 ### Negative
 
-- alcune preferenze del browser non verranno replicate 1:1;
-- l'import delle estensioni o del profilo Firefox resta fuori dalla `v1`.
+- some browser preferences will not be replicated 1:1;
+- the import of extensions or Firefox profile remains outside the `v1`.
 
-## Per uno studente
+## For a student
 
-Qui la regola e' semplice:
+Here the rule is simple:
 
-- se una configurazione e' chiara e portabile, la versioniamo;
-- se un'applicazione ha uno strumento di policy migliore del profilo grezzo,
-  usiamo quello;
-- se una cosa e' rumorosa o opaca, la rinviamo.
+- if a configuration is clear and portable, we version it;
+- if an application has a better policy tool than the raw profile,
+  we use that;
+- if something is noisy or dull, we send it back.

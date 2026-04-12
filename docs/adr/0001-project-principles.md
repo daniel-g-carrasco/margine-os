@@ -1,44 +1,44 @@
-# ADR 0001 - Principi fondativi del progetto
+# ADR 0001 - Founding principles of the project
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Contesto
+## Context
 
-Il progetto nasce da una macchina Arch già usata e modificata nel tempo.
-Esiste quindi un rischio alto di:
+The project was born from an Arch machine already used and modified over time.
+There is therefore a high risk of:
 
-- replicare errori storici;
-- portarsi dietro pacchetti inutili;
-- perdere la logica delle scelte;
-- dipendere da configurazioni non capite.
+- replicate historical errors;
+- carry useless packages with you;
+- lose the logic of choices;
+- depend on configurations you don't understand.
 
-## Decisione
+## Decision
 
-Si adottano questi principi:
+These principles are adopted:
 
 1. `Allowlist first`
-   Si replica solo ciò che viene approvato esplicitamente.
+   Only what is explicitly approved is replicated.
 
 2. `Documentation is part of the product`
-   Documentazione, ADR e note didattiche non sono extra opzionali.
+Documentation, ADR and teaching notes are not optional extras.
 
 3. `Official repos first`
-   AUR è eccezione, non regola.
+   AUR is the exception, not the rule.
 
 4. `Didactic over clever`
-   Meglio script semplici e leggibili che automazioni troppo smart.
+   Simple, readable scripts are better than overly smart automations.
 
 5. `Git before complexity`
-   Tutto deve essere tracciato e versionato.
+Everything must be tracked and versioned.
 
 6. `One decision at a time`
-   Le grandi scelte architetturali vanno prese in ordine, non tutte insieme.
+   The great architectural choices must be made in order, not all together.
 
-## Conseguenze
+## Consequences
 
-- Il progetto crescerà a fasi.
-- Ogni fase avrà deliverable chiari.
-- Le configurazioni finali dovranno poter essere modificate a mano da Daniel.
-- Le scelte tecniche verranno spiegate come a uno studente.
+- The project will grow in phases.
+- Each phase will have clear deliverables.
+- The final configurations must be able to be modified manually by Daniel.
+- The technical choices will be explained as if to a student.

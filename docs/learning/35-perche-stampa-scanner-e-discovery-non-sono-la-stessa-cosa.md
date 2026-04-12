@@ -1,56 +1,56 @@
-# Perche' stampa, scanner e discovery non sono la stessa cosa
+# Because printing, scanning and discovery are not the same thing
 
-Molte persone pensano che basti dire:
+Many people think that it is enough to say:
 
-- "mi serve la stampante"
+- "I need the printer"
 
-oppure:
+or:
 
-- "mi serve lo scanner"
+- "I need the scanner"
 
-In realta' ci sono piu' pezzi diversi.
+In reality there are more different pieces.
 
-## I quattro livelli veri
+## The four true levels
 
-Quando parli di stampante o scanner, in pratica stai mettendo insieme:
+When you talk about a printer or scanner, you are basically putting together:
 
-1. il motore di stampa
-2. il motore di scansione
-3. la discovery in rete locale
-4. l'interfaccia che usi davvero
+1. the print engine
+2. the scan engine
+3. local network discovery
+4. the interface you actually use
 
-## Esempio lato stampa
+## Example of print side
 
-Per stampare bene con dispositivi moderni, in `Margine` i ruoli sono questi:
+To print well with modern devices, in `Margine` the roles are these:
 
-- `CUPS` = motore di stampa
-- `Avahi + nss-mdns` = discovery e risoluzione in rete locale
-- `ipp-usb` = ponte per i dispositivi USB moderni che parlano IPP
-- `system-config-printer` = interfaccia di gestione
+- `CUPS` = print engine
+- `Avahi + nss-mdns` = discovery and resolution in the local network
+- `ipp-usb` = bridge to modern USB devices that speak IPP
+- `system-config-printer` = management interface
 
-## Esempio lato scanner
+## Example of scanner side
 
-Per gli scanner la logica e' simile:
+For scanners the logic is similar:
 
-- `SANE` = backend generale
-- `sane-airscan` = supporto pratico ai dispositivi `eSCL/WSD`
-- `simple-scan` = interfaccia semplice per l'utente
+- `SANE` = general backend
+- `sane-airscan` = practical support for `eSCL/WSD` devices
+- `simple-scan` = simple interface for the user
 
-## Perche' la discovery conta
+## Why discovery matters
 
-Un errore comune e' installare `cups` e poi chiedersi perche' la stampante di
-rete o lo scanner di rete non compaiono bene.
+A common mistake is installing `cups` and then wondering why the printer
+network or network scanner does not appear well.
 
-Spesso manca proprio il livello discovery:
+The discovery level is often missing:
 
 - `Avahi`
 - `nss-mdns`
 
-## La scelta di Margine
+## Choosing Margin
 
-`Margine v1` sceglie una baseline `driverless-first`.
+`Margine v1` chooses a baseline `driverless-first`.
 
-Questo vuol dire:
+This means:
 
-- prima standard moderni e pacchetti ufficiali;
-- poi eventuali driver speciali solo se un caso reale lo richiede.
+- first modern standards and official packages;
+- then any special drivers only if a real case requires it.

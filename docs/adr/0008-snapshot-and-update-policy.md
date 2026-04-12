@@ -1,153 +1,153 @@
-# ADR 0008 - Policy snapshot e aggiornamento del sistema
+# ADR 0008 - Policy snapshot and system update
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Ora che il progetto ha:
+Now that the project has:
 
 - `Btrfs`
 - `Snapper`
 - `Limine`
 - `UKI`
-- `ESP` separata
+- separate `ESP`
 
-serve decidere come vogliamo usare davvero gli snapshot durante gli update.
+we need to decide how we really want to use snapshots during updates.
 
-La domanda corretta non è:
+The correct question is not:
 
-- "vogliamo gli snapshot?"
+- "do we want snapshots?"
 
-Quella è già chiusa.
+That's already closed.
 
-La domanda vera è:
+The real question is:
 
-- "quali snapshot facciamo, quando, con quale strumento, e per quali percorsi?"
+- "which snapshots do we take, when, with which tool, and for which paths?"
 
-## Problema da risolvere
+## Problem to solve
 
-Ci sono quattro esigenze da tenere insieme:
+There are four needs to keep together:
 
-1. avere snapshot pre/post durante gli update pacman;
-2. non dipendere da una sola abitudine manuale dell'utente;
-3. non riempire il sistema di snapshot rumorosi e poco utili;
-4. non illudersi che gli snapshot Btrfs coprano anche la `ESP`.
+1. have pre/post snapshots during pacman updates;
+2. do not depend on a single user manual habit;
+3. do not fill the system with noisy and low-value snapshots;
+4. Don't fool yourself into thinking that Btrfs snapshots also cover `ESP`.
 
-Quest'ultimo punto è cruciale:
+This last point is crucial:
 
-- gli snapshot di `Snapper` proteggono il root `Btrfs`;
-- non proteggono automaticamente `ESP/EFI/...`, che vive fuori dal volume
-  snapshotato.
+- `Snapper` snapshots protect the `Btrfs` root;
+- they do not automatically protect `ESP/EFI/...`, which lives outside the snapshotted
+  volume.
 
-## Decisione
+## Decision
 
-Per `Margine v1` adottiamo questa politica.
+For `Margine v1` we adopt this policy.
 
-## 1. Strumento base
+## 1. Base tool
 
-Adottiamo:
+We adopt:
 
 - `snapper`
 - `snap-pac`
 
-Motivo:
+Reason:
 
-- `snapper` è il motore di snapshot e cleanup;
-- `snap-pac` è il safety net che crea snapshot pre/post per le transazioni
-  `pacman`, indipendentemente da come `pacman` venga invocato.
+- `snapper` is the snapshot and cleanup engine;
+- `snap-pac` is the safety net that creates pre/post snapshots for transactions
+`pacman`, regardless of how `pacman` is invoked.
 
-Questo è importante perché evita una fragilità molto comune:
+This is important because it avoids a very common fragility:
 
-- perdere gli snapshot solo perché una volta si è aggiornato con `pacman`
-  diretto invece che con lo script "ufficiale".
+- lose snapshots just because you once updated with `pacman`
+direct instead of with the "official" script.
 
-## 2. Configurazione snapshotata in automatico
+## 2. Automatically snapshotted configuration
 
-Nella `v1` snapshotiamo in automatico solo:
+In `v1` we automatically snapshot only:
 
-- configurazione `root`
+- `root` configuration
 
-Non snapshotiamo in automatico:
+We do not automatically snapshot:
 
 - `home`
 - `data`
-- subvolumi per VM
-- subvolumi per container
+- subvolumes per VM
+- subvolumes per container
 
-Motivo:
+Reason:
 
-- gli snapshot automatici servono soprattutto alla recovery del sistema;
-- i dati utente e i workload ad alta mutazione hanno politiche diverse.
+- automatic snapshots are mainly used for system recovery;
+- User data and highly mutating workloads have different policies.
 
-## 3. Tipo di snapshot automatici
+## 3. Type of automatic snapshots
 
-Gli snapshot automatici obbligatori nella `v1` sono:
+The mandatory automatic snapshots in `v1` are:
 
-- snapshot iniziale esplicito all'avvio di `update-all`;
-- pre/post delle transazioni `pacman`
+- explicit initial snapshot at startup of `update-all`;
+- pre/post transactions `pacman`
 
-Questo significa che il modello finale e':
+This means that the final model is:
 
-- uno snapshot "di inizio manutenzione" prima dell'intero aggiornamento;
-- snapshot pre/post granulari della transazione `pacman`.
+- a "maintenance start" snapshot before the entire update;
+- granular pre/post snapshots of the `pacman` transaction.
 
-Questi snapshot saranno il percorso normale di recovery dopo update.
+These snapshots will be the normal recovery path after update.
 
-In piu', il bootstrap iniziale del sistema deve lasciare almeno:
+In addition, the initial bootstrap of the system must leave at least:
 
-- la config `root` di `snapper` installata davvero;
-- `snap-pac` configurato;
-- uno snapshot baseline iniziale del sistema appena installato.
+- the `root` config of `snapper` actually installed;
+- `snap-pac` configured;
+- an initial baseline snapshot of the newly installed system.
 
 ## 4. Timeline
 
-Nella `v1` disabilitiamo le timeline automatiche sul root.
+In `v1` we disable automatic timelines on the root.
 
-Scelta:
+Choice:
 
 - `TIMELINE_CREATE=no`
 - `TIMELINE_CLEANUP=no`
 
-Motivo:
+Reason:
 
-- vogliamo snapshot ad alto segnale;
-- il valore principale oggi è la recovery da update e manutenzione;
-- le timeline orarie sul root generano rapidamente rumore.
+- we want high signal snapshots;
+- the main value today is recovery from updates and maintenance;
+- hourly timelines on the root quickly generate noise.
 
-Questo non esclude che in futuro si possano attivare.
-Significa solo che non sono parte della baseline.
+This does not exclude enabling them in the future.
+It just means that they are not part of the baseline.
 
 ## 5. Cleanup
 
-Manteniamo:
+We keep:
 
 - cleanup `number`
 - cleanup `empty-pre-post`
 
-Politica iniziale consigliata per `root`:
+Recommended initial policy for `root`:
 
 - `NUMBER_CLEANUP=yes`
 - `NUMBER_LIMIT=30`
 - `NUMBER_LIMIT_IMPORTANT=12`
 - `EMPTY_PRE_POST_CLEANUP=yes`
 
-Motivo:
+Reason:
 
-- conserviamo uno storico utile di transazioni;
-- teniamo un po' più a lungo gli snapshot considerati importanti;
-- eliminiamo automaticamente le coppie pre/post prive di differenze rilevanti.
+- we keep a useful history of transactions;
+- we keep snapshots considered important a little longer;
+- we automatically eliminate pre/post pairs without relevant differences.
 
-## 6. Snapshot importanti
+## 6. Important snapshots
 
-Vogliamo che alcuni update siano chiaramente riconoscibili come importanti.
+We want some updates to be clearly recognizable as important.
 
-Per questo i pacchetti più sensibili devono marcare gli snapshot con:
+For this reason, the most sensitive packages must mark snapshots with:
 
 - `important=yes`
 
-Pacchetti iniziali consigliati:
+Recommended starter packages:
 
 - `linux`
 - `linux-lts`
@@ -159,96 +159,96 @@ Pacchetti iniziali consigliati:
 - `limine`
 - `snapper`
 
-Inoltre, un:
+Furthermore, a:
 
 - `pacman -Syu`
 
-va considerato importante a livello semantico, anche se i pacchetti coinvolti
-non vengono filtrati singolarmente.
+should be considered important on a semantic level, even if the packages involved
+they are not individually filtered.
 
-## 7. Ruolo di update-all
+## 7. Role of update-all
 
-`update-all` resta il percorso canonico di aggiornamento di `Margine`.
+`update-all` remains the canonical update path of `Margine`.
 
-Il suo ruolo corretto sarà:
+Its correct role will be:
 
-- orchestrare l'update;
-- creare uno snapshot esplicito all'inizio del flusso;
-- lasciare a `snap-pac` gli snapshot pre/post della transazione `pacman`;
-- gestire i passaggi extra di `Margine`, come:
-  - rigenerazione `UKI`
+- orchestrate the update;
+- create an explicit snapshot at the beginning of the stream;
+- leave the pre/post snapshots of the `pacman` transaction to `snap-pac`;
+- handle the extra steps of `Margine`, such as:
+  - `UKI` regeneration
   - refresh `limine.conf`
   - `limine enroll-config`
-  - firma e verifica
+  - sign and verify
 
-In altre parole:
+In other words:
 
-- `update-all` crea il punto di ritorno "prima dell'intera manutenzione";
-- `snap-pac` protegge il root durante `pacman`;
-- `update-all` protegge la coerenza della pipeline completa di `Margine`.
+- `update-all` creates the return point "before all maintenance";
+- `snap-pac` protects root during `pacman`;
+- `update-all` protects the consistency of the complete pipeline of `Margine`.
 
-## 8. Regola fondamentale sulla ESP
+## 8. Fundamental rule about ESP
 
-Gli snapshot root NON sostituiscono il recovery del boot path.
+Root snapshots are NOT a replacement for boot path recovery.
 
-La `ESP` è fuori dal root snapshot.
+The `ESP` sits outside the root snapshot.
 
-Quindi, dopo un update o dopo un rollback, la coerenza di:
+Therefore, after an update or after a rollback, the consistency of:
 
 - `Limine`
 - `UKI`
 - config EFI
-- firme
+- signatures
 
-va mantenuta tramite rigenerazione deterministica, non aspettandosi che uno
-snapshot Btrfs rimetta a posto anche la `ESP`.
+must be maintained via deterministic regeneration, expecting only one
+Btrfs snapshot also fixes the `ESP`.
 
-Questa è una regola architetturale, non un dettaglio operativo.
+This is an architectural rule, not an operational detail.
 
-## 9. Cosa significa rollback in questa v1
+## 9. What does rollback mean in this v1
 
-Nella `v1`, rollback significa soprattutto:
+In `v1`, rollback mainly means:
 
-- tornare a uno stato precedente del root filesystem;
-- poi riallineare o rigenerare il boot path se necessario.
+- return to a previous state of the root filesystem;
+- then realign or regenerate the boot path if necessary.
 
-Non significa:
+It doesn't mean:
 
-- "tutto il sistema, inclusa la `ESP`, torna indietro magicamente da solo".
+- "the whole system, including the `ESP`, magically goes back on its own".
 
-## 10. Avvertenza su pacman database
+## 10. Warning about pacman database
 
-La documentazione di `snap-pac` ricorda un punto importante:
+The `snap-pac` documentation reminds you of an important point:
 
-- gli snapshot pre vengono creati dopo l'eventuale sync del database pacman.
+- pre snapshots are created after any sync of the pacman database.
 
-Quindi un rollback filesystem dopo `pacman -Syu` non equivale automaticamente a
-un "rewind perfetto" dell'intero stato pacman.
+So a filesystem rollback after `pacman -Syu` does not automatically equate to
+a "perfect rewind" of the entire pacman state.
 
-Questo significa che gli snapshot sono uno strumento fortissimo di recovery, ma
-non vanno scambiati per un lasciapassare verso partial upgrade casuali.
+This means that snapshots are a very strong recovery tool, but
+they should not be mistaken for a pass towards random partial upgrades.
 
-## 11. Snapshot manuali
+## 11. Manual snapshots
 
-Per lavori rischiosi che NON passano da `pacman`, la policy corretta è:
+For risky jobs that DO NOT go through `pacman`, the correct policy is:
 
-- creare uno snapshot manuale esplicito
+- create an explicit manual snapshot
 
-Esempi:
+Examples:
 
-- modifica pesante di `/etc`
-- interventi su auth, boot o cifratura
-- migrazioni locali fuori dal normale flusso update
+- heavy modification of `/etc`
+- interventions on auth, boot or encryption
+- local migrations outside the normal update flow
 
-Questo potrà essere orchestrato in futuro da uno script dedicato.
+This can be orchestrated in the future by a dedicated script.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
-Se la riduciamo all'essenziale:
+If we reduce it to the essentials:
 
-- `update-all` apre con uno snapshot pre-update;
-- `snap-pac` fa da airbag granulare su `pacman`;
-- `update-all` fa da direttore d'orchestra;
-- gli snapshot proteggono il root;
-- la `ESP` si recupera con rigenerazione, non con magia;
-- niente timeline rumorose nella `v1`.
+- `update-all` opens with a pre-update snapshot;
+- ``snap-pac` acts as a granular airbag for `pacman`;
+- `update-all` acts as conductor;
+- snapshots protect the root;
+- the `ESP` is recovered with regeneration, not with magic;
+- no noisy timelines in `v1`.

@@ -1,22 +1,22 @@
-# 38 - Perche' senza boot chain iniziale non esiste un test end-to-end
+#38 - Because without an initial boot chain there is no end-to-end test
 
 Un test end-to-end serio significa:
 
-1. partire dalla live ISO;
-2. installare il sistema;
-3. riavviare;
-4. verificare che il boot avvenga davvero sul percorso target.
+1. start from the live ISO;
+2. install the system;
+3. restart;
+4. verify that the boot actually takes place on the target path.
 
-Se il progetto si ferma prima di:
+If the project stops before:
 
-- generare le `UKI`;
-- scrivere `limine.conf`;
-- installare `Limine` sulla `ESP`;
+- generate the `UKI`;
+- write `limine.conf`;
+- install `Limine` on `ESP`;
 
-allora il test non e' end-to-end.
+then the test is not end-to-end.
 
-E' solo un bootstrap parziale.
+It's only a partial bootstrap.
 
-Per questo `Margine` ha bisogno di un provisioner dedicato alla boot chain
-iniziale: serve a trasformare la progettazione del boot in un'installazione
-davvero avviabile.
+For this `Margine` needs a provisioner dedicated to the boot chain
+initial: serves to transform the boot design into an installation
+really bootable.

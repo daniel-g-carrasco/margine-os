@@ -1,51 +1,51 @@
-# ADR 0010 - Modello di deploy degli artefatti di boot sulla ESP
+# ADR 0010 - Boot artifact deployment model on ESP
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Finora abbiamo già:
+So far we already have:
 
-- generazione di `limine.conf`
-- orchestrazione di `update-all`
-- strategia `UKI`
+- generation of `limine.conf`
+- orchestration of `update-all`
+- `UKI` strategy
 
-Mancava però un principio fondamentale:
+However, a fundamental principle was missing:
 
-- come gli artefatti generati arrivano davvero sulla `ESP`
+- how the generated artifacts actually arrive on the `ESP`
 
-Questa fase è delicata.
-Se la progetti male, ottieni un boot path fragile.
+This phase is delicate.
+If you design it poorly, you get a fragile boot path.
 
-## Problema da risolvere
+## Problem to solve
 
-La `ESP` è un luogo speciale:
+The `ESP` is a special place:
 
-- è fuori dagli snapshot root;
-- contiene file critici per l'avvio;
-- sulla macchina corrente contiene già artefatti esistenti.
+- it is out of root snapshots;
+- contains boot-critical files;
+- on the current machine already contains existing artifacts.
 
-Quindi non vogliamo:
+So we don't want:
 
-- editare file direttamente sulla `ESP`;
-- fare sovrascritture opache;
-- assumere che la `ESP` sia vuota;
-- introdurre script distruttivi.
+- edit files directly on `ESP`;
+- make opaque overwrites;
+- assume that `ESP` is empty;
+- introduce destructive scripts.
 
-## Decisione
+## Decision
 
-Per `Margine v1`, il deploy su `ESP` segue questa regola:
+For `Margine v1`, deploying to `ESP` follows this rule:
 
-1. gli artefatti si generano fuori dalla `ESP`;
-2. il deploy avviene tramite uno script dedicato;
-3. i file esistenti vengono backuppati prima della sovrascrittura;
-4. in `v1` non si fanno rimozioni automatiche aggressive.
+1. the artifacts are generated outside the `ESP`;
+2. deployment occurs via a dedicated script;
+3. existing files are backed up before overwriting;
+4. in `v1` there is no aggressive automatic removal.
 
-## Artefatti previsti
+## Expected artifacts
 
-I target canonici sono:
+The canonical targets are:
 
 - `EFI/BOOT/BOOTX64.EFI`
 - `EFI/BOOT/limine.conf`
@@ -53,68 +53,68 @@ I target canonici sono:
 - `EFI/Linux/margine-linux-fallback.efi`
 - `EFI/Linux/margine-recovery.efi`
 
-## Regola di staging
+## Staging rule
 
-Il file finale sulla `ESP` non è la sorgente autorevole.
+The final file on `ESP` is not the authoritative source.
 
-La sorgente autorevole resta:
+The authoritative source remains:
 
-- il template o gli output generati fuori dalla `ESP`
+- the template or output generated outside the `ESP`
 
-Questo implica che il deploy deve copiare artefatti già pronti, non costruirli
-mentre scrive sulla partizione di boot.
+This implies that the deployment must copy ready-made artifacts, not build them
+while writing to the boot partition.
 
 ## Regola di backup
 
-Ogni file target già presente e destinato a essere sovrascritto deve essere
-copiato in una directory di backup prima del deploy.
+Any target file already present and intended to be overwritten must be
+copied to a backup directory before deployment.
 
-Questo backup deve:
+This backup must:
 
-- essere separato dalla `ESP`;
-- conservare la struttura relativa dei path;
-- essere ispezionabile dall'utente.
+- be separated from the `ESP`;
+- maintain the relative structure of the paths;
+- be inspectable by the user.
 
-## Regola di prudenza
+## Rule of prudence
 
-Nella `v1`, il deploy:
+In `v1`, the deployment:
 
-- copia e aggiorna;
-- non ripulisce automaticamente la `ESP` da file sconosciuti.
+- copy and update;
+- does not automatically clean `ESP` of unknown files.
 
-Motivo:
+Reason:
 
-- prima vogliamo un deploy affidabile;
-- poi, semmai, una pulizia più intelligente.
+- first we want a reliable deployment;
+- then, if anything, more intelligent cleaning.
 
-## Integrazione con update-all
+## Integration with update-all
 
-`update-all` può invocare il deploy se riceve:
+`update-all` can invoke deployment if it receives:
 
-- il path della `ESP`
-- e i path degli artefatti necessari
+- the path of the `ESP`
+- and the paths of the necessary artifacts
 
-Questo mantiene una separazione sana:
+This maintains a healthy separation:
 
 - `update-all` orchestra;
-- il deploy script installa sulla `ESP`.
+- the deployment script installs on `ESP`.
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa scelta ci dà:
+This choice gives us:
 
-- deploy leggibile;
-- rischio ridotto;
-- possibilità di capire cosa è stato sovrascritto;
-- base buona per aggiungere dopo `limine enroll-config` e firma finale.
+- deploy readable;
+- reduced risk;
+- ability to understand what has been overwritten;
+- good base to add after `limine enroll-config` and final signature.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
-Se lo spieghiamo in modo diretto:
+If we explain it directly:
 
-- non si scrive a mano sulla `ESP`;
-- si genera fuori;
+- you don't write by hand on the `ESP`;
+- it generates outside;
 - si fa backup;
-- poi si installa in modo deterministico.
+- then it installs deterministically.
 
-Questo è il modo corretto di trattare un boot path serio.
+This is the correct way to treat a serious boot path.

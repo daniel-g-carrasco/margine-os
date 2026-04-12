@@ -1,27 +1,27 @@
-# ADR 0022 - Desktop layer Hyprland versionato e riproducibile
+# ADR 0022 - Desktop layer Hyprland versioned e riproducibile
 
-## Stato
+## State
 
-Accettato
+Accepted
 
 ## Problema
 
-Fino a qui `Margine` aveva già:
+Up to this point `Margine` already had:
 
-- i manifest pacchetti;
+- package manifests;
 - il bootstrap;
 - il login path;
-- alcuni fix runtime isolati.
+- some isolated runtime fixes.
 
-Mancava però il pezzo più importante per l'esperienza quotidiana: un vero
-desktop layer versionato.
+However, the most important piece for everyday experience was missing: a truth
+desktop layer versioned.
 
-Senza questo layer, il progetto installa i pacchetti giusti ma non ricostruisce
-davvero il sistema che l'utente usa ogni giorno.
+Without this layer, the project installs the right packages but does not rebuild
+truly the system that the user uses every day.
 
-## Decisione
+## Decision
 
-`Margine v1` versiona un desktop layer utente completo basato su:
+`Margine v1` releases a complete user desktop layer based on:
 
 - `Hyprland`
 - `hypridle`
@@ -32,101 +32,101 @@ davvero il sistema che l'utente usa ogni giorno.
 - `walker`
 - `satty`
 - `swayosd`
-- helper script sotto `~/.local/bin`
+- helper script under `~/.local/bin`
 
-Questo layer viene installato da un provisioner dedicato, separato dai
-provisioner di sistema.
+This layer is installed by a dedicated provisioner, separate from the
+system provisioner.
 
-## Cosa entra nel layer
+## What goes into the layer
 
 Entrano:
 
 - i file `~/.config/hypr/*`;
 - i file `~/.config/waybar/*`;
-- la config `mako`;
-- la config `walker`;
-- la config `satty`;
-- lo stile `swayosd`;
+- the config `mako`;
+- the config `walker`;
+- the config `satty`;
+- the style `swayosd`;
 - i wrapper locali per launcher, screenshot, recording, OSD, rete e Bluetooth.
 
-Non entrano invece:
+However, they do not enter:
 
-- wallpaper personali dell'utente;
+- user's personal wallpapers;
 - cache;
-- database runtime;
-- stato locale transitorio.
+- runtime databases;
+- transient local state.
 
 ## Launcher
 
-La baseline scelta è:
+The chosen baseline is:
 
-- `walker` come launcher preferito;
-- `hyprlauncher` come fallback ufficiale;
-- wrapper `margine-launcher` come punto unico di invocazione.
+- `walker` as preferred launcher;
+- `hyprlauncher` as official fallback;
+- wrapper `margine-launcher` as single point of invocation.
 
-Questo permette al desktop di restare coerente anche quando `walker` non è
-installato o viene disabilitato.
+This allows the desktop to remain consistent even when `walker` is not
+installed or is disabled.
 
 ## Screenshot e recording
 
-Il progetto mantiene il workflow screenshot/recording oggi validato sulla
-macchina reale:
+The project maintains the screenshot/recording workflow currently validated on
+real car:
 
 - screenshot con menu coerente al launcher;
-- annotazione con `satty`;
-- recording con indicatore `REC` in `waybar`;
-- OSD volume/luminosità con `swayosd`.
+- annotation with `satty`;
+- recording with indicator `REC` in `waybar`;
+- OSD volume/brightness with `swayosd`.
 
-La baseline `v1` usa direttamente:
+The `v1` baseline directly uses:
 
 - `grim`
 - `slurp`
 - `satty`
 - `wf-recorder`
 
-Questo evita che il desktop dipenda da un wrapper AUR per funzioni di base come
+This prevents the desktop from depending on an AUR wrapper for basic functions like
 screenshot e recording.
 
 ## Wallpaper
 
-Il progetto non copia uno sfondo personale.
+The project does not copy a personal wallpaper.
 
-`Margine` installa invece un asset di default neutro sotto
-`/usr/share/margine/wallpapers`, così:
+`Margine` instead installs a neutral default asset underneath
+`/usr/share/margine/wallpapers`, like this:
 
-- il bootstrap produce sempre un desktop completo;
-- il repository non ingloba immagini private;
-- il wallpaper utente può essere cambiato dopo senza sporcare la baseline.
+- bootstrapping always produces a complete desktop;
+- the repository does not include private images;
+- the user wallpaper can be changed later without dirtying the baseline.
 
-## Implementazione v1
+## Implementation v1
 
-`Margine` versiona:
+`Margine` version:
 
-- i file del desktop sotto `files/home/.config`
-- gli helper sotto `files/home/.local/bin`
-- un asset wallpaper sotto `files/usr/share/margine`
-- un provisioner dedicato che installa il tutto per l'utente finale
+- the desktop files under `files/home/.config`
+- the helpers under `files/home/.local/bin`
+- a wallpaper asset under `files/usr/share/margine`
+- a dedicated provisioner that installs everything for the end user
 
-Il bootstrap `chroot` richiama questo provisioner dopo il provisioning utente e
-prima dei layer opzionali specifici hardware.
+The `chroot` bootstrap calls this provisioner after user provisioning e
+before hardware-specific optional layers.
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa decisione dà a `Margine`:
+This decision gives `Margine`:
 
 - un desktop realmente riproducibile;
-- meno dipendenza da copie manuali dei dotfiles;
-- un confine chiaro tra sistema e sessione utente;
-- una base concreta da rifinire senza perdere il controllo del progetto.
+- less dependency on manual copies of dotfiles;
+- a clear boundary between system and user session;
+- a concrete base to refine without losing control of the project.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
-Installare i pacchetti non basta.
+Installing packages is not enough.
 
-Un desktop reale nasce quando metti insieme tre cose:
+A real desktop is born when you put three things together:
 
-- i programmi giusti;
-- i file di configurazione giusti;
-- i piccoli script che tengono insieme l'esperienza.
+- the right programs;
+- the right configuration files;
+- the little scripts that hold the experience together.
 
-Questo ADR dice proprio questo: il desktop non è un dettaglio. È un layer.
+This ADR says just that: the desktop is not a detail. It's a layer.

@@ -1,171 +1,171 @@
-# Boot, cifratura e snapshot: spiegazione didattica
+# Boot, encryption and snapshot: educational explanation
 
-Questa nota non decide l'architettura.
-La decisione ufficiale è nell'ADR 0002.
+This note does not decide the architecture.
+The official decision is in ADR 0002.
 
-Questa nota serve a capire i concetti con calma.
+This note helps you understand the concepts calmly.
 
-## 1. Che cos'è il boot
+## 1. What is booting
 
-Quando premi il tasto di accensione, il computer non sa ancora nulla di Linux.
+When you press the power button, the computer still knows nothing about Linux.
 
-La sequenza, in modo semplificato, è:
+The sequence, in a simplified way, is:
 
-1. parte il firmware UEFI;
+1. UEFI firmware starts;
 2. l'UEFI cerca un bootloader;
 3. il bootloader avvia il kernel;
-4. il kernel porta il sistema fino al root filesystem;
-5. da lì parte lo spazio utente.
+4. the kernel brings the system up to the root filesystem;
+5. the user space starts from there.
 
-Se questa catena è confusa, il sistema diventa fragile.
-Per questo la prima regola di `Margine` è: catena di boot leggibile.
+If this chain is confused, the system becomes fragile.
+This is why the first rule of `Margine` is: readable boot chain.
 
-## 2. Perché `Limine`
+## 2. Why `Limine`
 
-`Limine` non è una versione modificata di `systemd-boot`.
-È un bootloader diverso, con priorità diverse.
+`Limine` is not a modified version of `systemd-boot`.
+It's a different bootloader, with different priorities.
 
-Per noi conta perché:
+It matters to us because:
 
-- ci dà una UX di recovery più forte;
-- si presta bene a snapshot bootabili;
-- si sposa bene con l'idea di testare e ripristinare rapidamente;
-- rende il boot menu uno strumento operativo, non solo un dettaglio tecnico.
+- gives us a stronger recovery UX;
+- lends itself well to bootable snapshots;
+- goes well with the idea of ​​testing and recovering quickly;
+- makes the boot menu an operational tool, not just a technical detail.
 
-Tradotto da studente a studente:
+Translated from student to student:
 
-- `systemd-boot` è più lineare;
-- `Limine` è più orientato alla recovery e alla gestione del boot in modo più
-  ricco.
+- `systemd-boot` is more linear;
+- `Limine` is more oriented towards recovery and boot management
+request.
 
-Noi stiamo scegliendo `Limine` non perché sia "più figo", ma perché risponde
-meglio a un requisito reale del progetto.
+We're choosing `Limine` not because it's "cooler", but because it responds
+better to a real project requirement.
 
-## 3. Che cos'è una `UKI`
+## 3. What is a `UKI`
 
-`UKI` significa `Unified Kernel Image`.
+`UKI` means `Unified Kernel Image`.
 
-In pratica è un'immagine che mette insieme, in modo più ordinato:
+In practice it is an image that puts together, in a more orderly way:
 
 - kernel;
 - initramfs;
 - cmdline;
 - metadati utili al boot.
 
-Perché ci piace:
+Why we like it:
 
-- è più facile da firmare;
-- è più facile da ragionare;
-- riduce il disordine della fase di avvio.
+- it is easier to sign;
+- it is easier to reason with;
+- reduces startup clutter.
 
-## 4. Perché `Secure Boot`
+## 4. Why `Secure Boot`
 
-`Secure Boot` non serve a "fare scena".
-Serve a controllare cosa è autorizzato a partire.
+`Secure Boot` is not used to "make a scene".
+It is used to control what is allowed to leave.
 
-Noi vogliamo tenerlo, ma non a costo di inventarci una catena fragile.
+We want to keep it, but not at the cost of inventing a fragile chain.
 
-Per questo, nel caso di `Limine`, il punto non è solo "abilitarlo".
-Il punto è verificare che tutta la catena sia davvero sotto controllo.
+Therefore, in the case of `Limine`, the point is not just to "enable it".
+The point is to verify that the entire chain is really under control.
 
-In pratica:
+In practice:
 
-- non basta che il boot "parta";
-- deve anche essere chiaro cosa viene firmato;
-- deve anche essere chiaro cosa succede quando qualcosa cambia.
+- it's not enough for the boot to "start";
+- it must also be clear what is being signed;
+- it must also be clear what happens when something changes.
 
-## 5. Perché `LUKS2`
+## 5. Why `LUKS2`
 
-`LUKS2` è il contenitore di cifratura del disco.
+`LUKS2` is the disk encryption container.
 
-In termini pratici significa:
+In practical terms it means:
 
-- se qualcuno prende fisicamente il portatile spento, i dati non sono leggibili
+- if someone physically takes the turned off laptop, the data is not readable
   banalmente;
-- la protezione non dipende solo dal login della sessione.
+- protection does not depend only on session login.
 
-È la base seria per parlare di sicurezza dei dati.
+It is the serious basis for talking about data security.
 
-## 6. Perché `TPM2`
+## 6. Why `TPM2`
 
-`TPM2` è un chip hardware che può custodire materiale crittografico.
+`TPM2` is a hardware chip that can store cryptographic material.
 
-Nel nostro caso ci interessa per sbloccare il disco in modo più comodo, ma senza
-rinunciare a un piano di recupero.
+In our case we are interested in unlocking the disk in a more convenient way, but without
+give up on a recovery plan.
 
-Punto chiave:
+Key Point:
 
-- `TPM2` non sostituisce la responsabilità;
-- `TPM2` aggiunge comodità controllata.
+- `TPM2` does not replace responsibility;
+- `TPM2` adds controlled convenience.
 
-Per questo in `Margine` non useremo mai solo il TPM:
+This is why in `Margine` we will never use only the TPM:
 
-- ci sarà anche una recovery key;
-- ci sarà anche una passphrase di emergenza;
-- tutto sarà documentato.
+- there will also be a recovery key;
+- there will also be an emergency passphrase;
+- everything will be documented.
 
-## 7. Perché `Btrfs`
+## 7. Why `Btrfs`
 
-`Btrfs` ci interessa per tre motivi:
+`Btrfs` interests us for three reasons:
 
-- snapshot;
-- subvolumi;
-- flessibilità operativa.
+- snapshots;
+- subvolumes;
+- operational flexibility.
 
-Per un sistema personale che vuoi aggiornare, rompere, capire e ripristinare,
-questo è molto utile.
+For a personal system that you want to upgrade, break, understand and restore,
+this is very useful.
 
-## 8. Perché `Snapper`
+## 8. Why `Snapper`
 
-`Snapper` non è il filesystem.
-È lo strumento che aiuta a gestire bene gli snapshot su `Btrfs`.
+`Snapper` is not the filesystem.
+It is the tool that helps to manage snapshots well on `Btrfs`.
 
-Lo scegliamo come base perché:
+We choose it as a basis because:
 
-- è allineato al tipo di progetto che stiamo costruendo;
-- è più coerente con un sistema Arch rigoroso;
-- si presta bene a una strategia pensata, non improvvisata.
+- it is aligned with the type of project we are building;
+- is more consistent with a strict Arch system;
+- it lends itself well to a thought-out, not improvised, strategy.
 
-## 9. Perché non `systemd-boot` nella v1
+## 9. Why not `systemd-boot` in v1
 
-`systemd-boot` non è sbagliato.
-Anzi, è molto pulito.
+`systemd-boot` is not wrong.
+In fact, it's very clean.
 
-Se scegliessimo solo in base alla semplicità del boot stack, probabilmente
+If we chose just based on the simplicity of the boot stack, probably
 vincerebbe lui.
 
-Ma il progetto ha espresso un requisito più forte:
+But the project expressed a stronger requirement:
 
-- recovery semplice;
-- snapshot bootabili;
-- capacità di tornare indietro in modo molto concreto.
+- simple recovery;
+- bootable snapshots;
+- ability to go back in a very concrete way.
 
-Per questo nella `v1` non scegliamo il bootloader più minimale.
-Scegliamo il bootloader che promette la recovery più convincente, a patto di
-validarlo bene.
+This is why in `v1` we don't choose the most minimal bootloader.
+We choose the bootloader that promises the most convincing recovery, provided
+validate it well.
 
-## 10. Cosa dobbiamo validare davvero
+## 10. What we really need to validate
 
-La scelta `Limine-first` è seria solo se verifichiamo quattro cose:
+The `Limine-first` choice is serious only if we verify four things:
 
-1. `Limine` avvia `UKI` in modo affidabile.
-2. `Secure Boot` resta sotto il nostro controllo.
-3. `TPM2` con `LUKS2` ha un recovery path chiaro.
-4. Gli snapshot `Snapper` sono davvero bootabili e ripristinabili.
+1. `Limine` starts `UKI` reliably.
+2. `Secure Boot` remains under our control.
+3. `TPM2` with `LUKS2` has a clear recovery path.
+4. `Snapper` snapshots are truly bootable and restoreable.
 
-Questa è una lezione importante:
+This is an important lesson:
 
-- una buona architettura non si sceglie solo per intuizione;
-- si sceglie, poi si verifica.
+- good architecture is not chosen just by intuition;
+- you choose, then it happens.
 
-## 11. La lezione da portarsi a casa
+## 11. The take-home lesson
 
-La cosa importante non è memorizzare i nomi.
+The important thing is not to memorize the names.
 
-La cosa importante è capire il criterio:
+The important thing is to understand the criterion:
 
-- scegliamo il pezzo che risolve meglio il problema vero;
-- non confondiamo "più semplice internamente" con "più utile operativamente";
-- ogni feature deve essere spiegabile;
-- ogni livello deve poter essere modificato a mano;
-- ogni comodità deve avere un piano di recovery.
+- we choose the piece that best solves the real problem;
+- let's not confuse "simpler internally" with "more useful operationally";
+- every feature must be explainable;
+- each level must be able to be edited by hand;
+- every convenience must have a recovery plan.

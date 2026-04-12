@@ -1,102 +1,102 @@
-# ADR 0021 - Baseline di connettività per `Framework Laptop 13 AMD`
+# ADR 0021 - Connectivity Baseline for `Framework Laptop 13 AMD`
 
-## Stato
+## State
 
-Accettato
+Accepted
 
 ## Problema
 
-`Margine` aveva già un layer pacchetti per la connettività, ma mancavano ancora
-le configurazioni versionate che trasformano quei pacchetti in un comportamento
-coerente e riproducibile.
+`Margine` already had a packet layer for connectivity, but they were still missing
+the versioned configurations that turn those packages into behavior
+consistent and reproducible.
 
-Nel caso reale di `Margine`, il target è un `Framework Laptop 13 AMD 7040` con
-chip Wi-Fi `MediaTek MT7922`, pilotato dal modulo kernel `mt7921e`.
+In the real case of `Margine`, the target is a `Framework Laptop 13 AMD 7040` with
+Wi-Fi chip `MediaTek MT7922`, driven by the kernel module `mt7921e`.
 
-Serve quindi decidere:
+You therefore need to decide:
 
-- chi orchestra davvero rete e VPN;
-- quale backend Wi-Fi usare;
-- come gestire regulatory domain e tool TUI;
-- quanto tuning driver introdurre nella `v1`.
+- who really orchestrates the network and VPN;
+- which Wi-Fi backend to use;
+- how to manage regulatory domain and TUI tools;
+- how much tuning driver to introduce in `v1`.
 
-## Decisione
+## Decision
 
-Per `Margine v1` la baseline di connettività è:
+For `Margine v1` the connectivity baseline is:
 
-- `NetworkManager` come orchestratore principale;
-- `iwd` come backend Wi-Fi di `NetworkManager`;
-- `OpenVPN` e `WireGuard` gestiti come profili `NetworkManager`;
-- `impala` come TUI Wi-Fi;
-- `bluetui` come TUI Bluetooth;
-- regulatory domain Wi-Fi versionato e applicato tramite `cfg80211`;
-- nessun tuning aggressivo del modulo `mt7921e` nella `v1`.
+- `NetworkManager` as primary orchestrator;
+- `iwd` as Wi-Fi backend of `NetworkManager`;
+- `OpenVPN` and `WireGuard` managed as `NetworkManager` profiles;
+- `impala` as TUI Wi-Fi;
+- `bluetui` as TUI Bluetooth;
+- Wi-Fi regulatory domain versioned and enforced via `cfg80211`;
+- no aggressive tuning of the `mt7921e` module in the `v1`.
 
-## Perché questa scelta
+## Why this choice
 
-Il punto qui è separare i ruoli:
+The point here is to separate the roles:
 
-- `NetworkManager` è il cervello di sistema per stato rete, VPN e integrazione
+- `NetworkManager` is the system brain for network status, VPN and integration
   col desktop;
-- `iwd` è il motore Wi-Fi;
+- `iwd` is the Wi-Fi engine;
 - `impala` e `bluetui` sono interfacce terminal-first coerenti col workflow
-  utente.
+user.
 
-Questa combinazione è più pragmatica del solo `iwd`, ma molto più allineata
-all'uso reale della macchina: Wi-Fi quotidiano, VPN `OpenVPN`/`WireGuard` e
-integrazione con `waybar`.
+This combination is more pragmatic than `iwd` alone, but much more aligned
+to actual machine use: daily Wi-Fi, VPN `OpenVPN`/`WireGuard` e
+integration with `waybar`.
 
 ## Regulatory domain
 
-`Margine` versiona un drop-in `modprobe.d` per `cfg80211` con un codice paese
-esplicito.
+`Margine` releases a `modprobe.d` drop-in for `cfg80211` with a country code
+explicit.
 
-Nella baseline italiana il valore è `IT`, ma il bootstrap lo tratta come
-parametro e può renderizzare un codice diverso.
+In the Italian baseline the value is `IT`, but the bootstrap treats it as
+parameter and can render different code.
 
-Questa scelta evita di lasciare il regulatory domain implicito o assente.
+This choice avoids leaving the regulatory domain implicit or absent.
 
-## Perché non forziamo tuning su `mt7921e`
+## Why don't we force tuning on `mt7921e`
 
-Sul `Framework 13 AMD` esistono discussioni ricorrenti su power saving e
-stabilità del modulo MediaTek, ma per `Margine v1` la regola è:
+On `Framework 13 AMD` there are recurring discussions on power saving and
+stability of the MediaTek module, but for `Margine v1` the rule is:
 
-- niente patch del driver "per sentito dire";
-- niente override di `disable_aspm` o `disable_clc` senza una validazione
+- no "hearsay" driver patches;
+- no overriding of `disable_aspm` or `disable_clc` without validation
   riproducibile;
-- prima si parte da backend corretto, regulatory domain corretto e firmware
+- first we start with the correct backend, correct regulatory domain and firmware
   standard.
 
-Se in futuro emergerà un tuning davvero necessario, entrerà con un ADR
-dedicato, non come "piccola magia" nascosta.
+If a truly necessary tuning emerges in the future, it will come in with an ADR
+dedicated, not as a hidden "little magic".
 
-## Implementazione v1
+## Implementation v1
 
-`Margine` versiona:
+`Margine` version:
 
 - `/etc/NetworkManager/conf.d/10-wifi-backend.conf`
 - `/etc/iwd/main.conf`
 - `/etc/modprobe.d/cfg80211-regdom.conf`
-- un provisioner dedicato per installare questi file
+- a dedicated provisioner to install these files
 
-Il bootstrap `chroot` richiama questo provisioner prima del layer desktop.
+The `chroot` bootstrap calls this provisioner before the desktop layer.
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa decisione dà a `Margine`:
+This decision gives `Margine`:
 
-- una baseline rete/VPN/Bluetooth esplicita;
-- coerenza con il target `Framework 13 AMD`;
-- meno configurazione "accidentale" presa dalla macchina attuale;
-- un punto unico dove cambiare backend Wi-Fi o regulatory domain.
+- an explicit network/VPN/Bluetooth baseline;
+- consistency with the target `Framework 13 AMD`;
+- less "accidental" configuration taken from the current machine;
+- a single point to change Wi-Fi backend or regulatory domain.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
-Qui il trucco è non confondere i livelli.
+The trick here is not to confuse the levels.
 
-- `NetworkManager` decide *lo stato della rete del sistema*.
-- `iwd` parla *con la scheda Wi-Fi*.
-- `impala` e `bluetui` sono solo *le interfacce comode*.
+- `NetworkManager` decides *the network status of the system*.
+- `iwd` talks *to the Wi-Fi card*.
+- `impala` and `bluetui` are just *the convenient* interfaces.
 
-Quando questi livelli sono chiari, la configurazione smette di essere una
-raccolta di tentativi e diventa architettura.
+When these levels are clear, the configuration ceases to be one
+collection of attempts and it becomes architecture.

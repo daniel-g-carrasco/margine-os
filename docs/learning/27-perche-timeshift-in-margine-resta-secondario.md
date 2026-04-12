@@ -1,55 +1,55 @@
-# Perché Timeshift in Margine resta secondario
+# Why Timeshift in Margin remains secondary
 
-Potrebbe sembrare strano:
+It might seem strange:
 
-- installiamo `Timeshift`;
-- ma non lo facciamo diventare il motore principale.
+- we install `Timeshift`;
+- but we don't make it the main driver.
 
-La ragione e' semplice: i progetti seri devono distinguere tra:
+The reason is simple: serious projects must distinguish between:
 
-- strumento disponibile;
-- strumento architettonicamente centrale.
+- tool available;
+- architecturally central instrument.
 
-## Chi comanda davvero il rollback
+## Who really commands rollback
 
-In `Margine` il rollback serio passa da:
+In `Margine` the serious rollback goes through:
 
 - `Snapper`
 - `Btrfs`
 - `Limine`
 - `UKI`
 
-Questo e' il percorso che stiamo progettando e validando.
+This is the path we are designing and validating.
 
-## Perché non forzare Timeshift
+## Why not force Timeshift
 
-La documentazione ufficiale di `Timeshift` e' chiara:
+The official documentation of `Timeshift` is clear:
 
-- la modalita' Btrfs supporta solo layout Ubuntu-style con `@` e `@home`.
+- Btrfs mode only supports Ubuntu-style layouts with `@` and `@home`.
 
-Noi abbiamo scelto un layout piu' ricco.
+We have chosen a richer layout.
 
-Quindi forzare `Timeshift` come se niente fosse vorrebbe dire:
+So forcing `Timeshift` as if nothing had happened would mean:
 
-- ignorare un limite dichiarato;
-- creare aspettative sbagliate;
-- rischiare un sistema meno comprensibile.
+- ignore a declared limit;
+- create wrong expectations;
+- risk a less understandable system.
 
-## Allora perché tenerlo?
+## So why keep it?
 
-Perché puo' comunque servire:
+Because it can still be useful:
 
-- come strumento manuale;
-- come utility familiare;
-- come extra opzionale, non come cuore del sistema.
+- as a manual tool;
+- as a family utility;
+- as an optional extra, not as the heart of the system.
 
-## La lezione
+## The lesson
 
-Un buon progetto non usa tutti gli strumenti allo stesso livello.
-Li mette in gerarchia.
+A good project does not use all tools at the same level.
+It puts them in hierarchy.
 
 In `Margine`:
 
-- `Snapper` e' il motore del rollback;
-- `Timeshift` e' un accessorio prudente.
+- `Snapper` is the rollback engine;
+- `Timeshift` is a prudent accessory.
 

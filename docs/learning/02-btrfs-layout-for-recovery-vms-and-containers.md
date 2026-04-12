@@ -1,165 +1,165 @@
-# Perché questo layout Btrfs è fatto bene
+# Because this Btrfs layout is done well
 
-Questa nota spiega il senso del layout scelto nell'ADR 0003.
+This note explains the meaning of the layout chosen in ADR 0003.
 
-Non vuole solo dire "metti questi subvolumi".
-Vuole farti capire il criterio.
+It doesn't just mean "put these subvolumes".
+He wants you to understand the criterion.
 
-## 1. La domanda giusta
+## 1. The right question
 
-Quando progetti un layout Btrfs, la domanda non è:
+When designing a Btrfs layout, the question is not:
 
-- "quanti subvolumi riesco a creare?"
+- "how many subvolumes can I create?"
 
-La domanda giusta è:
+The right question is:
 
-- "cosa voglio che uno snapshot del sistema contenga davvero?"
+- "what do I really want a system snapshot to contain?"
 
-Se la risposta è confusa, il layout sarà confuso.
+If the answer is confusing, the layout will be confusing.
 
 ## 2. Due categorie diverse
 
-Nel progetto `Margine` distinguiamo due grandi famiglie di dati.
+In the `Margine` project we distinguish two large families of data.
 
-### Stato del sistema
+### System status
 
-È ciò che vuoi poter rollbackare come blocco unico:
+This is what you want to be able to rollback as a single block:
 
 - `/etc`
 - `/usr`
 - `/opt`
 - database pacman
-- parte strutturale di `/var`
+- structural part of `/var`
 
-Questo vive nel root snapshot.
+This lives in the root snapshot.
 
-### Dati ad alta mutazione
+### High mutation data
 
-È ciò che non vuoi che sporchi gli snapshot:
+That's what you don't want messing up the snapshots:
 
 - cache
 - log
 - tmp persistenti
-- home utente
-- foto e dataset grandi
+- user home
+- photos and large datasets
 - dischi VM
-- storage container
+- storage containers
 
-Questo va separato.
+This needs to be separated.
 
-## 3. Perché `@home` è separato
+## 3. Because `@home` is separate
 
-Perché i rollback di sistema e i dati utente non sono la stessa cosa.
+Because system rollbacks and user data are not the same thing.
 
-Se rompi il sistema, vuoi tornare indietro sul sistema.
-Non vuoi automaticamente trattare la tua home come parte dello stesso snapshot.
+If you break the system, you want to roll back the system.
+You don't want to automatically treat your home as part of the same snapshot.
 
-## 4. Perché `@var_log`, `@var_cache` e `@var_tmp`
+## 4. Why `@var_log`, `@var_cache` and `@var_tmp`
 
-Perché sono luoghi rumorosi.
+Because they are noisy places.
 
-Se li lasci dentro il root snapshot:
+If you leave them inside the root snapshot:
 
-- gli snapshot crescono male;
-- il rollback è più sporco;
-- il rapporto segnale/rumore peggiora.
+- snapshots grow poorly;
+- rollback is dirty;
+- the signal-to-noise ratio worsens.
 
-## 5. Perché `@data`
+## 5. Why `@data`
 
-`/data` serve come spazio user-managed per dataset pesanti o longevi.
+`/data` serves as a user-managed space for heavy or long-lived datasets.
 
-Nel nostro caso può diventare il posto giusto per:
+In our case it can become the right place for:
 
-- foto e archivi;
-- materiale di lavoro grande;
-- immagini disco utente;
+- photos and archives;
+- large working material;
+- user disk images;
 - export, backup locali, staging.
 
-Questo ti evita di trasformare `/home` in un blob gigante poco leggibile.
+This saves you from turning `/home` into a giant, unreadable blob.
 
-## 6. Perché separare VM e container
+## 6. Why separate VMs and containers
 
-Le VM e i container fanno una cosa molto semplice:
+VMs and containers do a very simple thing:
 
-- scrivono tanto;
-- cambiano spesso;
-- diventano grandi;
-- inquinano in fretta gli snapshot.
+- they write a lot;
+- they change often;
+- they become large;
+- they quickly pollute snapshots.
 
-Per questo li separiamo:
+This is why we separate them:
 
 - `/var/lib/libvirt`
 - `/var/lib/machines`
 - `/var/lib/containers`
 
-Non perché "fa enterprise".
-Ma perché è il modo giusto di impedire che il sistema operativo e i workload si
-trascinino a vicenda.
+Not because he "does business".
+But because it is the right way to prevent the operating system and workloads from doing so
+drag each other along.
 
-## 7. Perché `NOCOW` solo in punti precisi
+## 7. Because `NOCOW` only in specific points
 
-`NOCOW` non è un potenziamento magico.
-È uno strumento specifico.
+`NOCOW` is not a magical power-up.
+It is a specific tool.
 
 Ha senso su:
 
-- immagini disco delle VM
+- disk images of the VMs
 
-Ha meno senso come martello totale su:
+Makes less sense as a total hammer on:
 
-- tutto lo storage container
+- all storage containers
 
-Questa è una lezione importante:
+This is an important lesson:
 
-- ottimizzare bene non vuol dire disattivare feature a caso;
-- ottimizzare bene vuol dire capire dove il comportamento cambia davvero.
+- optimizing well does not mean deactivating features at random;
+- optimizing well means understanding where behavior really changes.
 
-## 8. Perché non separiamo `/opt`
+## 8. Why don't we separate `/opt`
 
-Perché lì vivono anche file installati dai pacchetti.
+Because files installed by packages also live there.
 
-Se rollbacki il sistema ma lasci `/opt` fuori, rischi di creare disallineamento
+If you roll back the system but leave `/opt` out, you risk creating misalignment
 tra:
 
 - package database
-- stato reale del filesystem
+- real state of the filesystem
 
-Questo è un classico esempio di "separazione sbagliata".
+This is a classic example of "wrong separation".
 
-## 9. Perché non separiamo `/var/lib/pacman`
+## 9. Why don't we separate `/var/lib/pacman`
 
-Perché il database dei pacchetti deve seguire il sistema.
+Because the package database must follow the system.
 
-Se fai rollback di root ma il database pacman resta avanti o indietro rispetto
-allo snapshot, ottieni un sistema difficile da ragionare.
+If you rollback root but the pacman database remains ahead or behind
+at snapshot, you get a system that is difficult to reason about.
 
-## 10. Perché `compress=zstd:3`
+## 10. Why `compress=zstd:3`
 
-Perché ci dà un buon compromesso:
+Because it gives us a good compromise:
 
-- compressione utile;
-- costo CPU ragionevole;
-- beneficio reale su laptop moderno.
+- useful compression;
+- reasonable CPU cost;
+- real benefit on modern laptop.
 
-Non stiamo cercando la mount option più aggressiva del mondo.
-Stiamo cercando quella più sensata.
+We're not looking for the most aggressive mount option in the world.
+We're looking for the one that makes the most sense.
 
-## 11. Perché `fstrim.timer`
+## 11. Why `fstrim.timer`
 
-Perché sui dischi SSD è una scelta pulita e prevedibile.
+Because on SSD drives it's a clean and predictable choice.
 
-In generale, in questo progetto preferiamo:
+In general, in this project we prefer:
 
-- meccanismi chiari;
-- meno "micro-tuning" dentro `fstab`;
-- più comportamento facile da spiegare.
+- clear mechanisms;
+- less "micro-tuning" inside `fstab`;
+- more behavior that is easy to explain.
 
-## 12. La lezione da portarsi a casa
+## 12. The take-home lesson
 
-Un layout Btrfs fatto bene non nasce dal gusto personale.
+A well-done Btrfs layout is not born from personal taste.
 
-Nasce da una domanda semplice:
+It comes from a simple question:
 
-- quali dati devono fare rollback insieme?
+- what data should roll back together?
 
-Tutto il resto viene dopo.
+Everything else comes later.

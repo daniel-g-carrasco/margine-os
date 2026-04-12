@@ -1,179 +1,179 @@
-# ADR 0027 - Baseline fotografia e color management
+# ADR 0027 - Baseline photography and color management
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Contesto
+## Context
 
-`Margine` nasce anche come workstation fotografica.
+`Margine` was also born as a photographic workstation.
 
-Questo significa che il progetto deve esplicitare almeno quattro livelli:
+This means that the project must explain at least four levels:
 
-- sviluppo RAW e workflow fotografico;
-- color management applicativo;
-- calibrazione/profilazione display;
-- gestione degli asset ICC prodotti dall'utente.
+- RAW development and photographic workflow;
+- application color management;
+- display calibration/profiling;
+- management of ICC assets produced by the user.
 
-Su `Hyprland`, inoltre, esiste oggi anche una possibilita' reale di applicare un
-profilo ICC direttamente a livello compositor.
+Furthermore, on `Hyprland`, today there is also a real possibility of applying a
+ICC profile directly at composer level.
 
-Questo apre una domanda architetturale importante:
+This opens up an important architectural question:
 
-- il profilo colore va imposto dal compositor;
-- oppure conviene partire dal sistema (`colord`) e dalle applicazioni che sanno
-  davvero gestirlo.
+- the color profile must be imposed by the composer;
+- or it is better to start from the system (`colord`) and the applications that know about it
+really handle it.
 
-## Decisione
+## Decision
 
-Per `Margine v1` la baseline fotografia e color management e':
+For `Margine v1` the photography and color management baseline is:
 
 - `darktable`
 - `argyllcms`
 - `displaycal`
 - `colord`
 
-piu' una piccola libreria di profili ICC utente versionati nel repo quando sono
-stabili e riconosciuti come "buoni".
+plus a small library of user ICC profiles versioned in the repo as they are
+stable and recognized as "good".
 
-Inoltre, `Margine v1` adotta un modello esplicito di applicazione del profilo:
+Furthermore, `Margine v1` adopts an explicit profile enforcement model:
 
-- `colord` come fonte di verita' dei profili display;
-- applicazioni color-managed come primo punto di applicazione reale del profilo;
-- `Hyprland` ICC compositor-level lasciato opzionale e non attivato di default.
+- `colord` as source of truth for display profiles;
+- color-managed applications as the first point of real profile application;
+- `Hyprland` ICC composer-level left optional and not activated by default.
 
-## Scelte specifiche
+## Specific choices
 
 ### 1. Darktable
 
-`Darktable` resta il tool fotografico principale.
+`Darktable` remains the main photographic tool.
 
-La baseline versionata include:
+The versioned baseline includes:
 
-- configurazione leggera e stabile;
-- un `darktablerc` baseline curato, limitato a preferenze UI/OpenCL
+- lightweight and stable setup;
+- a curated `darktablerc` baseline, limited to UI/OpenCL preferences
   riproducibili;
-- stili utente;
-- nessun database libreria o cache.
+- user styles;
+- no database library or cache.
 
-`Darktable` e' anche il riferimento principale per la parte display profile:
-quando il sistema espone correttamente il profilo display, e' l'applicazione a
-fare la trasformazione colore dove serve davvero.
+`Darktable` is also the main reference for the display profile part:
+when the system correctly exposes the display profile, it is the application a
+do the color transformation where it is really needed.
 
 ### 2. ArgyllCMS e DisplayCAL
 
-Servono per:
+They are used for:
 
 - misurare;
 - calibrare;
 - profilare;
 - verificare.
 
-Non vengono pero' trasformati in un sistema "magico" di autoconfigurazione.
+However, they are not transformed into a "magical" self-configuration system.
 
 ### 3. Colord
 
-`colord` entra nella baseline come servizio di sistema per i profili colore.
+`colord` enters the baseline as a system service for color profiles.
 
-Questo e' coerente anche con la documentazione `darktable`, che su Linux
-interroga il sistema e `colord` per trovare il display profile corretto.
+This is also consistent with the `darktable` documentation, which on Linux
+queries the system and `colord` to find the correct display profile.
 
-La stessa documentazione `darktable` ricorda anche che un profilo display
-scadente puo' fare piu' danni di un semplice `sRGB`, quindi `Margine` conserva
-solo i profili che consideriamo davvero validati.
+The same `darktable` documentation also reminds you that a display profile
+poor quality can do more damage than a simple `sRGB`, so `Margine` preserves
+only the profiles that we consider truly validated.
 
-### 4. Profili ICC utente
+### 4. User ICC profiles
 
-I profili ICC validati e utili possono essere versionati come asset.
+Validated and useful ICC profiles can be versioned as assets.
 
-Per `Margine v1` questo vale per:
+For `Margine v1` this applies to:
 
-- il profilo del pannello interno Framework 13;
-- il profilo del monitor esterno Dell `P2415Q`.
+- the profile of the internal panel Framework 13;
+- the Dell external monitor profile `P2415Q`.
 
-Non vengono invece versionati:
+However, they are not versioned:
 
 - log `DisplayCAL`;
-- report di misura;
+- measurement reports;
 - database `colord`;
-- profili vecchi o sperimentali;
-- binding runtime opachi come `DisplayCAL.ini` o `color.jcnf`.
+- old or experimental profiles;
+- opaque runtime bindings like `DisplayCAL.ini` or `color.jcnf`.
 
 ### 5. Hyprland ICC
 
-`Hyprland` supporta il caricamento di un ICC per monitor, ma `Margine v1` NON lo
-attiva di default.
+`Hyprland` supports loading a per-monitor ICC, but `Margine v1` DOES NOT
+active by default.
 
-Motivo:
+Reason:
 
-- e' una leva potente, ma cambia il comportamento dell'intera sessione grafica;
-- puo' confondere il debugging se viene attivata troppo presto;
-- su `Hyprland` l'ICC compositor-level forza `sRGB` per `sdr_eotf` e sovrascrive
-  il preset CM del monitor;
-- la stessa documentazione `Hyprland` segnala che ICC e HDR/gaming non sono una
-  combinazione tranquilla.
+- it's a powerful lever, but it changes the behavior of the entire graphics session;
+- can confuse debugging if activated too early;
+- on `Hyprland` the ICC composer-level forces `sRGB` for `sdr_eotf` and overwrites
+the CM preset of the monitor;
+- the same documentation `Hyprland` reports that ICC and HDR/gaming are not one
+peaceful combination.
 
-Per questo la regola di `v1` e':
+For this reason the `v1` rule is:
 
-- prima sistema e app;
-- poi, solo dopo validazione, eventuale ICC nel compositor.
+- system and app first;
+- then, only after validation, any ICC in the composer.
 
-### 6. Browser e altre applicazioni grafiche
+### 6. Browsers and other graphical applications
 
-Per `Margine v1` non introduciamo tweak aggressivi o hack browser-specifici per
-il color management.
+For `Margine v1` we do not introduce aggressive tweaks or browser-specific hacks for
+color management.
 
-La baseline resta questa:
+The baseline remains this:
 
-- installare applicazioni che gia' supportano bene il color management;
-- far emergere il profilo corretto dal sistema;
-- evitare impostazioni nascoste difficili da mantenere.
+- install applications that already support color management well;
+- bring out the correct profile from the system;
+- avoid hidden settings that are difficult to maintain.
 
-In pratica:
+In practice:
 
-- `darktable` e le applicazioni fotografiche sono il primo bersaglio;
-- il browser resta color-managed a livello applicativo, ma senza policy
-  speciali dedicate all'ICC nella `v1`.
+- `darktable` and photography applications are the first target;
+- the browser remains color-managed at the application level, but without policies
+specials dedicated to the ICC in `v1`.
 
-## Limite esplicito
+## Limite explicit
 
-`Margine v1` NON promette una applicazione compositor-level del profilo colore
-su Wayland come parte del bootstrap standard.
+`Margine v1` DOES NOT promise a composer-level application of the color profile
+on Wayland as part of the standard bootstrap.
 
-La baseline si concentra invece su:
+The baseline instead focuses on:
 
-- asset ICC preservati;
-- app color-managed correttamente installate;
+- ICC assets preserved;
+- correctly installed color-managed apps;
 - base solida per usare `darktable`, soft-proof e profiling;
-- un percorso futuro pulito per abilitare l'ICC di `Hyprland` in modo
-  consapevole.
+- a clean future path to enable `Hyprland`'s ICC so
+aware.
 
-## Conseguenze
+## Consequences
 
 ### Positive
 
-- il sistema nasce gia' con lo stack fotografico corretto;
-- i profili ICC buoni non si perdono;
-- il progetto evita automazioni colore fragili o opache;
-- il compositor non diventa una fonte di confusione nella `v1`.
+- the system is already born with the correct photographic stack;
+- good ICC profiles are not lost;
+- the project avoids fragile or opaque color automations;
+- the composer does not become a source of confusion in `v1`.
 
 ### Negative
 
-- l'assegnazione finale del profilo al display resta una fase consapevole;
-- alcune tarature restano legate al contesto hardware reale;
-- l'ICC compositor-level su `Hyprland` resta da validare in una fase successiva.
+- the final assignment of the profile to the display remains a conscious phase;
+- some calibrations remain linked to the real hardware context;
+- the composer-level ICC on `Hyprland` remains to be validated at a later stage.
 
-## Per uno studente
+## For a student
 
-Qui la differenza cruciale e':
+The crucial difference here is:
 
-- una cosa e' avere i profili e gli strumenti giusti;
-- un'altra e' decidere dove applicarli;
-- un'altra ancora e' non confondere il sistema intero con una singola app.
+- it's one thing to have the right profiles and tools;
+- another is deciding where to apply them;
+- yet another is not to confuse the entire system with a single app.
 
-`Margine` sceglie la strada prudente:
+`Margine` chooses the prudent path:
 
-- preservare gli asset validi;
-- preparare lo stack corretto;
-- partire dalle applicazioni che supportano davvero il color management;
-- rinviare l'ICC del compositor a quando potra' essere validato bene.
+- preserve valid assets;
+- prepare the correct stack;
+- starting from applications that really support color management;
+- postpone the composer's ICC until it can be properly validated.

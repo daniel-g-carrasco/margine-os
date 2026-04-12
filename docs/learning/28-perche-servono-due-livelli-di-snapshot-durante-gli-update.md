@@ -1,48 +1,48 @@
-# Perché servono due livelli di snapshot durante gli update
+# Why do you need two levels of snapshots during updates
 
-Se vuoi un comportamento "alla Manjaro" o "alla Omarchy", il requisito reale e'
-questo:
+If you want "Manjaro" or "Omarchy" behavior, the real requirement is
+this:
 
-- avere uno snapshot subito prima di toccare il sistema.
+- have a snapshot right before touching the system.
 
-Ma in `Margine` non ci fermiamo li'.
+But in `Margine` we don't stop there.
 
-## Livello 1: snapshot pre-update globale
+## Level 1: global pre-update snapshot
 
-Appena parte `update-all`, creiamo uno snapshot esplicito del root.
+As soon as `update-all` starts, we create an explicit snapshot of the root.
 
-Questo snapshot rappresenta:
+This snapshot represents:
 
-- lo stato prima dell'intera manutenzione;
-- un punto di ritorno semplice da capire;
-- il "grande bottone rosso" prima di iniziare.
+- the state before the entire maintenance;
+- a simple to understand return point;
+- the "big red button" before starting.
 
-## Livello 2: snapshot pre/post di pacman
+## Level 2: pacman pre/post snapshot
 
-Dentro lo stesso flusso, `snap-pac` continua a creare snapshot pre/post per la
-transazione `pacman`.
+Within the same flow, `snap-pac` continues to create pre/post snapshots for the
+transaction `pacman`.
 
-Questi sono piu' granulari:
+These are more granular:
 
-- aiutano a capire cosa e' successo attorno al cambio pacchetti;
-- restano utili anche se `pacman` viene usato fuori da `update-all`.
+- they help to understand what happened around the change of packages;
+- they remain useful even if `pacman` is used outside of `update-all`.
 
-## Perché non sceglierne uno solo
+## Why not choose just one
 
-Se usi solo lo snapshot globale:
+If you only use global snapshot:
 
-- perdi dettaglio sulla transazione `pacman`.
+- you lose detail on the `pacman` transaction.
 
-Se usi solo `snap-pac`:
+If you only use `snap-pac`:
 
-- non hai un punto di ritorno chiaro prima di AUR, Flatpak, firmware e boot
+- you have no clear return point before AUR, Flatpak, firmware and boot
   regeneration.
 
-Quindi in `Margine` li usiamo entrambi.
+So in `Margine` we use both.
 
-## La formula semplice
+## The simple formula
 
-- snapshot globale per la manutenzione intera;
-- snapshot granulari per `pacman`.
+- global snapshot for entire maintenance;
+- granular snapshots for `pacman`.
 
-E' proprio questa combinazione che rende il flusso piu' robusto.
+It is precisely this combination that makes the flow more robust.

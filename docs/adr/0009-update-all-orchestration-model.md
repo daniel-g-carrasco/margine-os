@@ -168,7 +168,7 @@ real installed implementation.
 
 - the project has a single canonical maintenance path
 - rollback anchors are clearer because each maintenance run creates an explicit
-  snapshot
+snapshot
 - host/runtime drift is reduced by using an installed shared runtime
 - the installed maintenance path now closes the full active Limine trust cycle
   instead of stopping at config rendering
@@ -184,7 +184,7 @@ Explained simply:
 
 - `update-all` is not just a nicer alias for `pacman`
 - it is the place where package updates, snapshots, boot recovery, and final
-  verification are coordinated
+verification are coordinated
 - when Secure Boot is active, it must also preserve the active Limine trust
   chain on the installed system
 

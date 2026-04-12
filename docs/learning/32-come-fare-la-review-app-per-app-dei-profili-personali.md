@@ -1,121 +1,121 @@
-# Come fare la review app-per-app dei profili personali
+# How to review personal profiles app-by-app
 
-Questa e' la procedura da seguire ogni volta che vuoi capire se il profilo di
-una applicazione va:
+This is the procedure to follow every time you want to understand if the profile of
+an application goes:
 
-- versionato;
-- escluso;
-- oppure rivisto in un secondo momento.
+- versioned;
+- excluded;
+- or revised at a later time.
 
-## Passo 1: trova dove l'app salva davvero i dati
+## Step 1: Find where the app actually saves data
 
-Non fermarti a `~/.config`.
+Don't stop at `~/.config`.
 
-Controlla sempre anche:
+Always check also:
 
 - `~/.local/share`
 - `~/.mozilla`
 - `~/.thunderbird`
-- directory nascoste dedicate come `~/.koofr`
+- dedicated hidden directories like `~/.koofr`
 
-Perche' molte applicazioni tengono il profilo vero fuori da `~/.config`.
+Because many applications keep the real profile out of `~/.config`.
 
-## Passo 2: distingui config da stato
+## Step 2: Distinguish config from state
 
-La domanda giusta non e':
+The right question is not:
 
-- \"mi serve questa app?\"
+- \"Do I need this app?\"
 
-La domanda giusta e':
+The right question is:
 
-- \"questo file spiega una preferenza utile o contiene solo stato locale?\"
+- \"Does this file explain a useful preference or does it just contain local state?\"
 
-Segnali di stato locale:
+Local status signals:
 
 - cache;
 - log;
-- database sqlite;
-- lockfile;
-- geometria finestre;
-- sessioni recenti;
-- token;
-- chiavi;
-- percorsi macchina-specifici.
+- sqlite database;
+- lockfiles;
+- window geometry;
+- recent sessions;
+- tokens;
+- keys;
+- machine-specific paths.
 
-## Passo 3: scegli uno dei tre esiti
+## Step 3: Choose one of three outcomes
 
-Per ogni app devi arrivare a uno di questi tre esiti:
+For each app you must arrive at one of these three outcomes:
 
 ### A. Versiona
 
-Usalo quando il contenuto e':
+Use it when the content is:
 
-- leggibile;
-- portabile;
-- didattico;
-- utile su una installazione nuova.
+- readable;
+- portable;
+- educational;
+- useful on a new installation.
 
-### B. Non migrare
+### B. Don't migrate
 
-Usalo quando il contenuto e':
+Use it when the content is:
 
-- personale;
-- segreto;
+- personal;
+- secret;
 - volatile;
-- generato;
-- troppo legato alla macchina corrente.
+- generated;
+- too tied to the current machine.
 
-### C. Rivedi piu' avanti
+### C. Review later
 
 Usalo quando:
 
-- la struttura e' promettente;
-- ma oggi non c'e' ancora un sottoinsieme pulito da estrarre.
+- the structure is promising;
+- but today there is still no clean subset to extract.
 
-## Passo 4: se versioni, versiona solo il sottoinsieme giusto
+## Step 4: If versioned, versioned only the right subset
 
-Quasi mai si versiona una directory intera.
+An entire directory is almost never versioned.
 
-Di solito si versiona un sottoinsieme, per esempio:
+Usually a subset is versioned, for example:
 
-- stili;
-- template;
-- preset;
-- un singolo file di config ragionato.
+- styles;
+- templates;
+- presets;
+- a single reasoned config file.
 
-## Passo 5: aggiorna i tre posti giusti nel repo
+## Step 5: Update the three right places in the repo
 
-Quando una decisione e' chiusa, aggiorna sempre:
+When a decision is closed, always update:
 
-1. l'inventario/review app;
-2. l'allowlist `home-approved.txt` se qualcosa entra davvero;
-3. il provisioner relativo, se il file va davvero installato.
+1. the app inventory/review;
+2. the `home-approved.txt` allowlist if something actually enters;
+3. the relevant provisioner, if the file really needs to be installed.
 
-## Passo 6: non confondere backup e baseline
+## Step 6: Don't confuse backup and baseline
 
-Una cosa puo' essere importantissima per te e comunque non entrare in
+Something can be very important to you and still not get into it
 `Margine`.
 
 Esempio:
 
-- il profilo `Thunderbird` e' prezioso;
-- ma non e' baseline di sistema.
+- the `Thunderbird` profile is precious;
+- but it is not system baseline.
 
-Quindi:
+So:
 
-- lo fai rientrare nella strategia backup/migrazione personale;
-- non nella baseline riproducibile del sistema.
+- you make it part of your personal backup/migration strategy;
+- not in the reproducible baseline of the system.
 
-## Regola finale
+## Final rule
 
-Se un profilo ti fa dire:
+If a profile makes you say:
 
-- \"questa roba mi serve tantissimo\"
+- \"I really need this stuff\"
 
-non hai ancora deciso nulla.
+you haven't decided anything yet.
 
-Devi ancora capire se:
+You still need to figure out if:
 
-- e' configurazione;
-- e' dato personale;
-- oppure e' rumore.
+- it's configuration;
+- it is personal data;
+- or it's noise.

@@ -1,54 +1,54 @@
 # Dal layout attuale al layout target di Margine
 
-Questa nota mette a confronto due cose:
+This note compares two things:
 
-- il layout che hai oggi sulla macchina;
-- il layout che vogliamo per `Margine`.
+- the layout you have on the machine today;
+- the layout we want for `Margine`.
 
-L'obiettivo non è dire che il sistema attuale è "sbagliato".
-L'obiettivo è capire perché una base già buona va raffinata quando il progetto
-diventa più ambizioso.
+The goal is not to say that the current system is "wrong."
+The objective is to understand why an already good base must be refined when the project
+becomes more ambitious.
 
-## 1. Il layout che hai oggi
+## 1. The layout you have today
 
-Oggi la macchina usa già una struttura pulita:
+Today the machine already uses a clean structure:
 
-- `ESP` separata su `/boot`
-- resto del disco in `LUKS2`
-- `Btrfs` dentro il volume cifrato
-- subvolumi per:
+- separate `ESP` su `/boot`
+- rest of the disk in `LUKS2`
+- `Btrfs` inside the encrypted volume
+- subvolumes for:
   - `/`
   - `/home`
   - `/.snapshots`
   - `/var/cache`
   - `/var/log`
 
-Questo è importante: non stiamo partendo dal caos.
-Stiamo partendo da una base già sensata.
+This is important: we are not starting from chaos.
+We are starting from an already sensible base.
 
-## 2. Perché allora cambiare?
+## 2. Why then change?
 
-Perché gli obiettivi di `Margine` sono più severi di quelli di una installazione
-normale.
+Because the goals of `Margine` are more stringent than those of an installation
+normal.
 
-Vogliamo insieme:
+Together we want:
 
-- snapshot puliti;
-- rollback leggibile;
+- clean snapshots;
+- readable rollback;
 - boot snapshot-friendly;
-- spazio ordinato per dataset pesanti;
-- uso futuro con VM e container;
-- comportamento prevedibile anche a mente fredda.
+- tidy space for heavy datasets;
+- future use with VMs and containers;
+- predictable behavior even with a cool head.
 
-Il layout attuale copre bene il caso "desktop personale ordinato".
+The current layout covers the "tidy personal desktop" case well.
 Il layout target deve coprire anche il caso "workstation personale con recovery
 seria".
 
-## 3. Cosa teniamo del layout attuale
+## 3. What we care about the current layout
 
-Tenere ciò che è già buono è una disciplina.
+Keeping what is already good is a discipline.
 
-Non cambiamo:
+We don't change:
 
 - `ESP + LUKS2 + Btrfs`
 - `@` per `/`
@@ -57,80 +57,80 @@ Non cambiamo:
 - `@var_cache`
 - `@var_log`
 
-Questa continuità è utile perché:
+This continuity is useful because:
 
-- riduce complessità gratuita;
-- mantiene il progetto leggibile;
-- ti permette di riconoscere la parentela tra macchina attuale e sistema futuro.
+- reduces cost-free complexity;
+- keeps the project readable;
+- it allows you to recognize the relationship between the current machine and the future system.
 
-## 4. Cosa aggiungiamo e perché
+## 4. What we add and why
 
 ### `@var_tmp`
 
-Serve a togliere dal root snapshot i temporanei persistenti.
+It is used to remove persistent temporaries from the root snapshot.
 
-Lezione:
-- non tutto ciò che sta in `/var` è "stato del sistema";
-- alcune aree vanno isolate perché sporcano i rollback.
+Lesson:
+- not everything in `/var` is "system state";
+- some areas must be isolated because they dirty the rollbacks.
 
 ### `@root`
 
-Serve a separare lo spazio operativo dell'amministratore.
+It serves to separate the administrator's operating space.
 
-Lezione:
-- file, appunti, script o chiavi di `root` non sono la stessa cosa del sistema
-  operativo;
-- un rollback di sistema non deve per forza trascinare con sé tutto ciò che è
-  passato per `/root`.
+Lesson:
+- files, notes, scripts, or `root` keys are not the same as the system
+operating;
+- a system rollback doesn't have to drag everything that is with it
+passed through `/root`.
 
 ### `@srv`
 
-Serve a dare un posto ordinato a dati serviti localmente.
+It is used to give an orderly place to locally served data.
 
-Esempi:
+Examples:
 
 - export locali;
 - directory servite in rete;
-- materiale che non è sistema ma neppure "home utente".
+- material that is not a system but not even a "user home".
 
 ### `@data`
 
-È uno dei punti più importanti.
+It is one of the most important points.
 
-Serve a evitare che `/home` diventi il contenitore universale di tutto:
+It serves to prevent `/home` from becoming the universal container of everything:
 
-- foto;
-- archivi grandi;
+- photo;
+- large archives;
 - staging;
 - export;
-- immagini VM utente;
+- user VM images;
 - backup locali.
 
-Lezione:
-- un layout buono non separa solo il sistema;
-- separa anche i grossi volumi di dati per darti più controllo mentale.
+Lesson:
+- a good layout doesn't just separate the system;
+- it also separates large volumes of data to give you more mental control.
 
-## 5. Perché VM e container meritano subvolumi propri
+## 5. Why VMs and containers deserve their own subvolumes
 
-Le VM e i container sono workload ad alta scrittura.
+VMs and containers are write-intensive workloads.
 
-Se li lasci nel root snapshot:
+If you leave them in the root snapshot:
 
-- gli snapshot crescono troppo;
-- il rollback diventa meno leggibile;
-- il confine tra "sistema" e "workload" si rovina.
+- snapshots grow too large;
+- rollback becomes less readable;
+- the boundary between "system" and "workload" becomes blurred.
 
-Per questo `Margine` separa:
+This is why `Margine` separates:
 
 - `/var/lib/libvirt`
 - `/var/lib/machines`
 - `/var/lib/containers`
 
-### Distinzione importante: rootful vs rootless
+### Important distinction: rootful vs rootless
 
-Questa è una sottigliezza che vale la pena imparare bene.
+This is a subtlety worth learning well.
 
-`Podman` rootful tende a stare sotto:
+`Podman` rootful tends to come under:
 
 - `/var/lib/containers`
 
@@ -138,68 +138,68 @@ Questa è una sottigliezza che vale la pena imparare bene.
 
 - `~/.local/share/containers`
 
-Quindi:
+So:
 
-- i container rootful vanno trattati come workload di sistema e separati;
-- i container rootless fanno parte della vita utente e stanno naturalmente in
+- rootful containers should be treated as system workloads and separated;
+- rootless containers are part of user life and are naturally in
   `@home`.
 
-## 6. Perché non continuiamo ad aggiungere subvolumi all'infinito
+## 6. Why don't we keep adding subvolumes endlessly
 
-Perché più subvolumi non significa automaticamente più qualità.
+Because more subvolumes does not automatically mean more quality.
 
-Un layout degenera quando ogni directory diventa candidata a essere separata.
+A layout degenerates when each directory becomes a candidate for being separated.
 
-La regola sana è questa:
+The healthy rule is this:
 
-- separa solo ciò che deve vivere o rollbackare in modo diverso.
+- it just separates what needs to live or rollback differently.
 
-Per questo NON separiamo, per esempio:
+This is why we DO NOT separate, for example:
 
 - `/opt`
 - `/var/lib/pacman`
-- gran parte di `/usr` e `/etc`
+- much of `/usr` and `/etc`
 
-Lezione:
-- separare male è peggio che non separare affatto.
+Lesson:
+- separating badly is worse than not separating at all.
 
-## 7. Perché `compress=zstd:3`
+## 7. Why `compress=zstd:3`
 
-Qui la lezione non è "usa questa opzione e basta".
+The lesson here is not "just use this option".
 
-La lezione è:
+The lesson is:
 
-- scegli mount options che abbiano un senso operativo;
-- evita il tuning estetico o da benchmark.
+- choose mount options that make operational sense;
+- avoid aesthetic or benchmark tuning.
 
-`compress=zstd:3` ha senso perché:
+`compress=zstd:3` makes sense because:
 
-- migliora l'efficienza dello storage;
-- ha un costo CPU ragionevole;
-- resta una scelta spiegabile su un laptop moderno.
+- improves storage efficiency;
+- has a reasonable CPU cost;
+- it remains an explainable choice on a modern laptop.
 
-## 8. Che cosa rende questo layout davvero migliore
+## 8. What really makes this layout better
 
-Non lo rende migliore il numero di subvolumi.
+The number of subvolumes doesn't make it better.
 
-Lo rende migliore il fatto che definisce bene i confini tra:
+What makes it better is that it clearly defines the boundaries between:
 
-- sistema operativo;
-- dati utente;
-- cache e rumore;
-- workload virtualizzati;
-- dataset voluminosi.
+- operating system;
+- user data;
+- cache and noise;
+- virtualized workloads;
+- voluminous datasets.
 
-Questa è la vera architettura.
-Il resto è solo sintassi.
+This is real architecture.
+The rest is just syntax.
 
-## 9. La regola finale da ricordare
+## 9. The final rule to remember
 
-Se un giorno dovrai cambiare il layout da solo, parti sempre da questa domanda:
+If one day you have to change the layout yourself, always start from this question:
 
-- "questi dati devono fare rollback insieme al sistema?"
+- "does this data need to be rolled back with the system?"
 
-Se la risposta è:
+If the answer is:
 
-- sì -> probabilmente stanno nel root snapshot
-- no -> probabilmente meritano un subvolume separato
+- yes -> they are probably in the root snapshot
+- no -> they probably deserve a separate subvolume

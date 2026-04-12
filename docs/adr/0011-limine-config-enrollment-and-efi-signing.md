@@ -1,131 +1,131 @@
-# ADR 0011 - Enrollment della config Limine e firma della catena EFI
+# ADR 0011 - Limine config enrollment and EFI chain signing
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Con ADR 0010 abbiamo definito come gli artefatti arrivano sulla `ESP`.
+With ADR 0010 we defined how the artifacts arrive on the `ESP`.
 
-Mancava però l'ultimo pezzo della trust chain:
+However, the last piece of the trust chain was missing:
 
-- come si protegge `limine.conf`;
-- quando si modifica `BOOTX64.EFI`;
-- quando si firma davvero la catena EFI;
-- come si collega tutto a `update-all`.
+- how to protect `limine.conf`;
+- when modifying `BOOTX64.EFI`;
+- when you actually sign the EFI chain;
+- how does it all connect to `update-all`.
 
-## Problema da risolvere
+## Problem to solve
 
-Con `Limine`, la sola firma del binario EFI non basta a proteggere anche la
-configurazione.
+With `Limine`, the EFI binary signature alone is not enough to protect the
+configuration.
 
-La documentazione ufficiale di Limine raccomanda infatti:
+In fact, the official Limine documentation recommends:
 
-- di calcolare il `BLAKE2B` di `limine.conf`;
-- di incorporarlo nel binario EFI con `limine enroll-config`;
-- di firmare poi il binario risultante con Secure Boot.
+- to calculate the `BLAKE2B` of `limine.conf`;
+- to embed it in the EFI binary with `limine enroll-config`;
+- then sign the resulting binary with Secure Boot.
 
-Se si firma `BOOTX64.EFI` prima di `enroll-config`, la firma viene invalidata.
+If you sign `BOOTX64.EFI` before `enroll-config`, the signature is invalidated.
 
-## Decisione
+## Decision
 
-Per `Margine v1`, il refresh della trust chain EFI segue questa sequenza:
+For `Margine v1`, the EFI trust chain refresh follows this sequence:
 
-1. si generano gli artefatti di boot fuori dalla `ESP`;
-2. si fa il deploy sulla `ESP`;
-3. si reinstalla il binario `Limine` unsigned sul path EFI finale;
-4. si calcola il `BLAKE2B` del `limine.conf` già deployato;
+1. boot artifacts are generated out of `ESP`;
+2. deploy on `ESP`;
+3. reinstall the unsigned `Limine` binary on the final EFI path;
+4. the `BLAKE2B` of the `limine.conf` already deployed is calculated;
 5. si esegue `limine enroll-config` sul `BOOTX64.EFI` già deployato;
-6. si firma con `sbctl` il `BOOTX64.EFI` risultante;
-7. si firmano con `sbctl` anche le `UKI` presenti sulla `ESP`;
-8. si esegue `sbctl verify` come controllo finale.
+6. the resulting `BOOTX64.EFI` is signed with `sbctl`;
+7. the `UKI` present on the `ESP` are also signed with `sbctl`;
+8. you run `sbctl verify` as a final check.
 
-## Regola fondamentale
+## Fundamental rule
 
-L'enrollment della config e la firma devono avvenire sugli artefatti finali
-presenti sulla `ESP`, non sulle copie di staging.
+Config enrollment and signing must occur on the final artifacts
+present on the `ESP`, not on the staging copies.
 
-Motivo:
+Reason:
 
-- `limine enroll-config` modifica in-place il binario EFI;
-- la firma valida deve corrispondere al file effettivamente bootato dal
+- `limine enroll-config` modifies the EFI binary in-place;
+- the valid signature must match the file actually booted from
   firmware.
 
-## Regola di sequenza
+## Sequence rule
 
-L'ordine corretto è:
+The correct order is:
 
 1. deploy;
 2. reinstall del loader Limine unsigned;
 3. enrollment del digest config;
 4. firma;
-5. verifica.
+5. verify.
 
-Non è ammesso invertire `enroll-config` e `sbctl sign`.
-Non è ammesso neppure reenrollare un loader che ha già subito mutazioni
-precedenti senza prima reinstallare il binario unsigned di origine.
+It is not allowed to reverse `enroll-config` and `sbctl sign`.
+It is not even allowed to re-roll a loader that has already undergone mutations
+above without first reinstalling the source unsigned binary.
 
-## Regola di rientro
+## Return rule
 
-Ogni volta che cambia `limine.conf`, il `BOOTX64.EFI` deve essere:
+Whenever `limine.conf` changes, the `BOOTX64.EFI` must be:
 
-1. reinstallato dalla copia unsigned di riferimento;
+1. reinstalled from the unsigned reference copy;
 2. reenrolled con il nuovo hash;
-3. rifirmato.
+3. re-signed.
 
-Questa non è una stranezza di `Margine`.
-È una proprietà del modello di sicurezza di `Limine`.
+This is not a quirk of `Margine`.
+It is a property of the `Limine` security model.
 
-## Ruolo di sbctl
+## Role of sbctl
 
 In `Margine v1`, `sbctl` gestisce:
 
-- creazione delle chiavi;
-- enrollment delle chiavi nel firmware;
+- creation of keys;
+- key enrollment in the firmware;
 - firma dei binari EFI;
-- verifica della catena firmata.
+- signed chain verification.
 
-La creazione/enrollment delle chiavi non è parte del ciclo di update ordinario.
-La firma e la verifica invece sì.
+Key creation/enrollment is not part of the ordinary update cycle.
+Signature and verification, however, yes.
 
-## Integrazione con update-all
+## Integration with update-all
 
-`update-all` può orchestrare anche il refresh della trust chain, ma solo dopo
+`update-all` can also orchestrate the trust chain refresh, but only afterwards
 il deploy su `ESP`.
 
-La divisione dei ruoli diventa quindi:
+The division of roles therefore becomes:
 
 - `generate-limine-config`: produce `limine.conf`;
-- `deploy-boot-artifacts`: copia gli artefatti sulla `ESP`;
-- `refresh-efi-trust`: enrolla la config e firma la catena EFI;
-- `update-all`: orchestra l'ordine corretto anche sul sistema già installato.
+- `deploy-boot-artifacts`: copy the artifacts to `ESP`;
+- `refresh-efi-trust`: enroll the config and sign the EFI chain;
+- `update-all`: orchestrate the correct order even on the already installed system.
 
-Questo vale sia per il path manuale sia per il path di manutenzione ordinaria.
+This applies to both the manual path and the ordinary maintenance path.
 
-Se `update-all` o `refresh-efi-trust` saltano il reinstall del loader unsigned
-prima di `enroll-config`, il rischio concreto è il classico `incorrect digest`
-in `sbctl verify` sul loader Limine attivo.
+If `update-all` or `refresh-efi-trust` skip reinstalling the unsigned loader
+before `enroll-config`, the concrete risk is the classic `incorrect digest`
+in `sbctl verify` on the active Limine loader.
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa scelta ci dà:
+This choice gives us:
 
-- una trust chain leggibile;
-- una relazione esplicita tra config deployata e binario firmato;
-- un processo ripetibile dopo ogni update del kernel o del bootloader;
-- meno spazio per errori manuali.
+- a readable trust chain;
+- an explicit relationship between deployed config and signed binary;
+- a repeatable process after each kernel or bootloader update;
+- less room for manual errors.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
 Pensa così:
 
-- `limine.conf` è importante quanto il bootloader;
-- `Limine` controlla questa config tramite il suo hash;
-- quell'hash viene scritto dentro `BOOTX64.EFI`;
-- quindi il file cambia;
-- quindi la firma va fatta dopo.
+- `limine.conf` is as important as the bootloader;
+- `Limine` checks this config by its hash;
+- that hash is written into `BOOTX64.EFI`;
+- then the file changes;
+- therefore the signature must be done afterwards.
 
-La regola mentale da ricordare è:
+The mental rule to remember is:
 
 `deploy -> reinstall unsigned loader -> enroll-config -> sign -> verify`

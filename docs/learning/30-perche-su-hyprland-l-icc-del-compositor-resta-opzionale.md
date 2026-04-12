@@ -1,61 +1,61 @@
-# Perche' su Hyprland l'ICC del compositor resta opzionale
+# Because on Hyprland the composer's ICC remains optional
 
-Il punto non e' se `Hyprland` supporta oppure no gli ICC.
+The point is not whether `Hyprland` supports ICCs or not.
 
-Li supporta.
+He supports them.
 
-Il punto vero e' un altro:
+The real point is another:
 
-- dove vuoi applicare la trasformazione colore;
-- quanto facilmente vuoi poter capire un problema;
-- quanto sei sicuro del profilo che stai usando.
+- where you want to apply the color transformation;
+- how easily you want to be able to understand a problem;
+- how confident you are in the profile you are using.
 
-## I tre livelli
+## The three levels
 
-Nel nostro caso esistono tre livelli distinti:
+In our case there are three distinct levels:
 
-- il profilo ICC come asset;
-- `colord` come registro di sistema;
-- il compositor `Hyprland` come possibile punto di applicazione globale.
+- the ICC profile as an asset;
+- `colord` as system registry;
+- the `Hyprland` composer as a possible global application point.
 
-Questi tre livelli non vanno confusi.
+These three levels should not be confused.
 
-## Perche' non lo attiviamo subito
+## Why don't we activate it right away
 
-Un ICC caricato nel compositor cambia il comportamento di tutta la sessione.
+An ICC loaded into the composer changes the behavior of the entire session.
 
-Questo significa che, se qualcosa non torna:
+This means that if something doesn't add up:
 
-- non capisci subito se il problema e' nel profilo;
-- non capisci subito se il problema e' nell'applicazione;
-- non capisci subito se il problema e' nel compositor.
+- you don't immediately understand if the problem is in the profile;
+- you don't immediately understand if the problem is in the application;
+- you don't immediately understand if the problem is in the composer.
 
-Per una `v1` didattica e stabile, questa e' una pessima partenza.
+For a didactic and stable `v1`, this is a terrible start.
 
-## La strategia di Margine
+## The Margin strategy
 
-La strategia scelta e' questa:
+The chosen strategy is this:
 
-1. preservare i profili ICC buoni;
-2. installare e tenere `colord`;
-3. usare prima le applicazioni che supportano davvero il color management;
-4. lasciare l'ICC di `Hyprland` come passo successivo e consapevole.
+1. preserve good ICC profiles;
+2. install and hold `colord`;
+3. use applications that really support color management first;
+4. Leave the ICC of `Hyprland` as the next, conscious step.
 
-## Cosa significa in pratica
+## What this means in practice
 
 Per ora:
 
-- `darktable` e' il punto principale in cui il profilo display conta davvero;
-- il browser non riceve tweak ICC aggressivi;
-- `Hyprland` non impone un ICC globale di default.
+- `darktable` is the main point where the display profile really matters;
+- the browser does not receive aggressive ICC tweaks;
+- `Hyprland` does not enforce a global ICC by default.
 
-Poi, quando il flusso sara' validato bene sul monitor reale, potremo aggiungere
-la riga `icc` nella configurazione monitor di `Hyprland`.
+Then, when the flow is validated well on the real monitor, we can add
+the `icc` line in the monitor configuration of `Hyprland`.
 
-## Regola mentale giusta
+## Right mental rule
 
-Se stai ancora costruendo il sistema:
+If you are still building the system:
 
-- prima rendi affidabili stack e asset;
-- poi scegli dove applicare il colore;
-- solo alla fine sposti la leva piu' globale.
+- first make stack and assets reliable;
+- then choose where to apply the color;
+- only at the end do you move the most global lever.

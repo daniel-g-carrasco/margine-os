@@ -1,66 +1,66 @@
-# Scope e allowlist iniziale
+# Scope and initial allowlist
 
-Questo file è fondamentale: evita di clonare la spazzatura della macchina
-attuale.
+This file is crucial: avoid cloning your machine's junk
+current.
 
-## Regola base
+## Basic rule
 
-Entra nel progetto solo ciò che è:
+Only what is included in the project:
 
-- voluto;
-- compreso;
-- mantenibile;
-- coerente con gli obiettivi.
+- wanted;
+- included;
+- maintainable;
+- consistent with the objectives.
 
-## Incluso da subito
+## Included immediately
 
-- Arch Linux minimale e riproducibile
-- `Hyprland` e componenti collegati
+- Minimal and playable Arch Linux
+- `Hyprland` and connected components
 - `waybar`
 - `hyprlock`
 - `hypridle`
 - `hyprpaper`
 - `mako`
 - `walker`
-- `hyprlauncher` come fallback ufficiale del launcher
+- `hyprlauncher` as the official launcher fallback
 - stack screenshot / screen recording
 - `EasyEffects`
-- `update-all` come entrypoint operativo
+- `update-all` as operational entrypoint
 - `Btrfs` + `LUKS2`
 - `Secure Boot` + `TPM2`
-- `greetd + tuigreet` con autologin iniziale e `hyprlock`
-- documentazione didattica
-- repository Git locale + GitHub
-- `Firefox` puro, con configurazione enforced ma non estrema
-- `Thunderbird` ufficiale come mail client baseline
-- `kitty` come terminale baseline
-- tooling esplicito per coding e amministrazione (`tmux`, `opencode`,
-  monitor di sistema e utility CLI)
-- `OpenSSH` come stack remoto baseline (client sempre presente, server pronto)
-- firewall preconfigurato e semplice da gestire
+- `greetd + tuigreet` with initial autologin and `hyprlock`
+- educational documentation
+- local Git repository + GitHub
+- Pure `Firefox`, with enforced but not extreme configuration
+- `Thunderbird` official as baseline mail client
+- `kitty` as baseline terminal
+- explicit tooling for coding and administration (`tmux`, `opencode`,
+system monitor and CLI utilities)
+- `OpenSSH` as baseline remote stack (client always present, server ready)
+- pre-configured and easy to manage firewall
 
-## Escluso da subito
+## Excluded immediately
 
 - `Floorp`
-- `GNOME` come ambiente principale
-- `Ghostty` come secondo terminale baseline
-- copia cieca dei pacchetti attuali
-- componenti `-git` come base del sistema
-- AUR non strettamente necessari
+- `GNOME` as the main environment
+- `Ghostty` as the second baseline terminal
+- blind copy of current packages
+- `-git` components as the basis of the system
+- AURs not strictly necessary
 - `HyprPanel`
 
-## Eccezioni AUR candidate
+## Candidate AUR exceptions
 
 - `koofr-desktop-bin`
 
-Nota:
-- al momento, sulla macchina attuale, `Koofr` risulta installato come pacchetto
-  AUR (`koofr-desktop-bin`);
-- non entra automaticamente nel progetto: va prima giustificato come eccezione.
+Note:
+- at the moment, on the current machine, `Koofr` is installed as a package
+AUR (`koofr-desktop-bin`);
+- it does not automatically enter the project: it must first be justified as an exception.
 
-## Elementi da decidere più avanti
+## Elements to be decided later
 
-- gestore snapshot (`Snapper` come base, eventuale compat layer)
-- scelta definitiva del bootloader
-- sostituti non-GNOME per alcune app correnti
-- workflow colore / ICC / viewer per fotografia
+- snapshot manager (`Snapper` as base, possible compact layer)
+- final choice of bootloader
+- non-GNOME replacements for some current apps
+- color workflow / ICC / viewer for photography

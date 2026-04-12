@@ -1,82 +1,82 @@
-# ADR 0030 - Baseline accesso remoto e firewall
+# ADR 0030 - Remote access and firewall baseline
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Contesto
+## Context
 
-`Margine` deve essere una workstation pratica anche per:
+`Margine` must also be a practical workstation for:
 
-- collegarsi ad altri server;
-- offrire accesso remoto quando serve;
-- non nascere con porte esposte in modo casuale.
+- connect to other servers;
+- offer remote access when needed;
+- Don't be born with haphazardly exposed doors.
 
-Questo richiede di distinguere bene quattro cose:
+This requires distinguishing four things:
 
-- pacchetto `openssh`;
-- servizio `sshd`;
+- package `openssh`;
+- service `sshd`;
 - firewall;
-- apertura effettiva della porta SSH.
+- effective opening of the SSH port.
 
-## Decisione
+## Decision
 
-Per `Margine v1` adottiamo:
+For `Margine v1` we adopt:
 
-- `openssh` come baseline;
-- `ufw` come firewall baseline;
-- `sshd` configurato ma non aperto automaticamente verso l'esterno;
-- helper semplici per abilitare o disabilitare il server SSH quando serve.
+- `openssh` as baseline;
+- `ufw` as baseline firewall;
+- `sshd` configured but not automatically opened to the outside;
+- Simple helpers to enable or disable the SSH server when needed.
 
-## Perche' UFW
+## Because UFW
 
-Per `Margine v1`, `ufw` ha un vantaggio chiaro:
+For `Margine v1`, `ufw` has a clear advantage:
 
-- e' piu' semplice e didattico di `nftables` puro;
-- e' sufficiente per un laptop personale e una workstation single-user;
-- consente una baseline leggibile senza nascondere troppo cosa succede.
+- it is simpler and more didactic than pure `nftables`;
+- it is sufficient for a personal laptop and a single-user workstation;
+- allows for a readable baseline without hiding too much what's going on.
 
-`nftables` resta piu' nativo e piu' flessibile, ma per la `v1` non ci serve
-quella complessita'.
+`nftables` remains more native and more flexible, but for `v1` we don't need it
+that complexity.
 
-## Scelte specifiche
+## Specific choices
 
 ### 1. Policy firewall
 
-La baseline `ufw` e':
+The baseline `ufw` is:
 
 - `deny incoming`
 - `allow outgoing`
 - `deny routed`
 
-Questo significa:
+This means:
 
-- la macchina esce liberamente;
-- non espone servizi in ingresso per default.
+- the car comes out freely;
+- does not expose incoming services by default.
 
 ### 2. SSH server
 
-`openssh` e' presente sia per il client sia per il server.
+`openssh` is present for both the client and the server.
 
-Pero' `sshd` non viene considerato "pubblico" in automatico.
+However, `sshd` is not automatically considered "public".
 
-Il progetto installa:
+The project installs:
 
-- un piccolo drop-in `sshd_config.d`;
-- un helper per attivare il server;
-- un helper per disattivarlo.
+- a small drop-in `sshd_config.d`;
+- a helper to activate the server;
+- a helper to disable it.
 
 ### 3. Apertura porta SSH
 
-La porta SSH non viene aperta di default nel firewall.
+The SSH port is not opened by default in the firewall.
 
-Quando l'utente decide di voler davvero esporre la macchina via SSH, usa:
+When the user decides they really want to expose the machine via SSH, use:
 
 - `margine-enable-ssh-server`
 
-Questo:
+This:
 
-- abilita `sshd.service`;
+- enable `sshd.service`;
 - apre la porta con `ufw limit 22/tcp`.
 
 Per tornare indietro:
@@ -85,32 +85,32 @@ Per tornare indietro:
 
 ### 4. Hardening minimo di SSH
 
-La baseline aggiunge solo un hardening piccolo e non intrusivo:
+The baseline adds only a small, non-intrusive hardening:
 
 - `PermitRootLogin no`
 - `X11Forwarding no`
 - `UseDNS no`
 
-Non imponiamo nella `v1` un modello key-only rigido, per non rompere
-immediatamente l'usabilita' del server su una macchina personale.
+We do not impose a rigid key-only model in `v1`, so as not to break it
+immediately the usability of the server on a personal machine.
 
-## Conseguenze
+## Consequences
 
 ### Positive
 
-- il sistema nasce con accesso remoto pronto ma non esposto a caso;
-- il firewall ha una policy semplice e leggibile;
-- l'utente puo' attivare SSH in un comando, senza dover reinventare tutto.
+- the system is born with remote access ready but not exposed at random;
+- the firewall has a simple and readable policy;
+- the user can enable SSH in one command, without having to reinvent everything.
 
 ### Negative
 
-- `ufw` non e' la soluzione piu' "pura" possibile;
-- la policy SSH resta volutamente prudente e non massimamente restrittiva.
+- `ufw` is not the most "pure" solution possible;
+- the SSH policy remains deliberately prudent and not extremely restrictive.
 
-## Per uno studente
+## For a student
 
-La regola da imparare e' questa:
+The rule to learn is this:
 
-- installare un server non significa doverlo esporre subito;
-- avere un firewall non significa bloccare tutto alla cieca;
-- la baseline buona e' quella che separa pacchetto, servizio e apertura porta.
+- installing a server does not mean having to expose it immediately;
+- having a firewall doesn't mean blocking everything blindly;
+- the good baseline is the one that separates package, service and door opening.

@@ -1,95 +1,95 @@
-# Come ragiona update-all
+# How update-all thinks
 
-Questa nota accompagna:
+This note accompanies:
 
 - [update-all](/home/daniel/dev/margine-os/scripts/update-all)
 
-La domanda giusta non è:
+The right question is not:
 
-- "quali comandi lancia?"
+- "What commands does it run?"
 
-La domanda giusta è:
+The right question is:
 
-- "in che ordine ragiona?"
+- "in what order do you think?"
 
-## 1. Perché l'ordine conta
+## 1. Why order matters
 
-In un sistema come `Margine`, aggiornare non significa solo scaricare pacchetti.
+In a system like `Margine`, upgrading isn't just about downloading packages.
 
-Aggiornare significa anche:
+Updating also means:
 
 - preservare la recovery;
 - rigenerare il boot path;
-- verificare che la trust chain non si rompa.
+- verify that the trust chain does not break.
 
-Per questo `update-all` ha bisogno di fasi, non di una lista casuale di
-comandi.
+This is why `update-all` needs phases, not a random list of
+commands.
 
-## 2. Cosa è core e cosa è accessorio
+## 2. What is core and what is accessory
 
-Per `Margine v1` il core è:
+For `Margine v1` the core is:
 
 - `pacman`
 - `mkinitcpio`
-- generazione `limine.conf`
-- verifiche finali
+- generation `limine.conf`
+- final checks
 
-Gli strati accessori sono:
+The accessory layers are:
 
 - AUR
 - Flatpak
 - `fwupd`
 
-Questo non vuol dire che siano inutili.
-Vuol dire che non hanno lo stesso peso architetturale del core.
+This doesn't mean they are useless.
+It means that they do not have the same architectural weight as the core.
 
-## 3. Perché alcuni errori devono fermare tutto
+## 3. Because some mistakes have to stop everything
 
-Se fallisce `pacman`, oppure fallisce la rigenerazione della parte boot, non ha
-senso continuare come se nulla fosse.
+If `pacman` fails, or regeneration of the boot part fails, it has no
+meaning to continue as if nothing had happened.
 
-Quello è un errore hard.
+That's a hard mistake.
 
-Se invece fallisce un layer accessorio, come `Flatpak`, il sistema base può
-essere comunque stato aggiornato correttamente.
+However, if an accessory layer, such as `Flatpak`, fails, the base system can
+however, it has been updated correctly.
 
-Quello è un errore soft.
+That's a soft error.
 
-Questa distinzione è molto importante da imparare:
+This distinction is very important to learn:
 
-- non tutti i fallimenti hanno lo stesso peso.
+- not all failures have the same weight.
 
-## 4. Perché supportiamo il dry-run
+## 4. Why we support dry-run
 
-`--dry-run` serve a una cosa molto precisa:
+`--dry-run` serves a very precise thing:
 
-- vedere il flusso prima di eseguirlo davvero.
+- see the flow before actually running it.
 
-È utile per tre motivi:
+It is useful for three reasons:
 
-- didattica;
+- teaching;
 - debugging;
-- fiducia nel processo.
+- trust in the process.
 
-Uno script importante che non puoi ispezionare con calma prima di lanciarlo è
-uno script che ti educa male.
+An important script that you cannot calmly inspect before launching is
+a script that educates you badly.
 
-## 5. Perché non fa ancora tutto
+## 5. Because he doesn't do everything yet
 
-La prima versione di `update-all` non chiude tutta la pipeline finale EFI.
+The first version of `update-all` does not close all final EFI pipeline.
 
-Questo è intenzionale.
+This is intentional.
 
-La regola del progetto è:
+The project rule is:
 
-- prima rendiamo chiaro il modello;
-- poi completiamo l'automazione.
+- first let's make the model clear;
+- then we complete the automation.
 
-Meglio uno script incompleto ma leggibile, che uno script apparentemente
+An incomplete but readable script is better than an apparently script
 "completo" ma opaco.
 
-## 6. La regola finale da ricordare
+## 6. The final rule to remember
 
-`update-all` non è un posto dove si nasconde la complessità.
+`update-all` is not a place where complexity hides.
 
-È un posto dove la complessità viene messa in ordine.
+It is a place where complexity is brought to order.

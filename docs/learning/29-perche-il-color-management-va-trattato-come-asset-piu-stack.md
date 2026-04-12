@@ -1,56 +1,56 @@
-# Perché il color management va trattato come asset più stack
+# Why color management should be treated as a multi-stack asset
 
-Nel color management ci sono due cose molto diverse.
+In color management there are two very different things.
 
 ## 1. Lo stack
 
-Lo stack e' l'insieme degli strumenti:
+The stack is the set of tools:
 
 - `darktable`
 - `argyllcms`
 - `displaycal`
 - `colord`
 
-Questi sono pacchetti, servizi e strumenti.
+These are packages, services and tools.
 
-## 2. Gli asset
+## 2. The assets
 
-Gli asset sono i risultati del tuo lavoro:
+Assets are the results of your work:
 
-- profili ICC;
-- stili fotografici;
-- eventuali preset ben riusciti.
+- ICC profiles;
+- photographic styles;
+- any successful presets.
 
-Questi non sono "configurazione di sistema" in senso puro.
-Sono oggetti preziosi prodotti dall'utente.
+These are not "system configuration" in the pure sense.
+They are precious objects produced by the user.
 
-## Perché questa distinzione conta
+## Why this distinction matters
 
-Se li mischi, succede questo:
+If you mix them, this happens:
 
-- copi log e database come se fossero importanti;
-- non sai piu' quali profili erano quelli giusti;
-- il repo smette di spiegare qualcosa.
+- copy logs and databases as if they were important;
+- you no longer know which profiles were the right ones;
+- the repo stops explaining anything.
 
 Se li separi, ottieni:
 
-- stack chiaro e riproducibile;
-- asset selezionati e preservati;
-- meno rumore.
+- clear and reproducible stack;
+- selected and preserved assets;
+- less noise.
 
 ## Esempio concreto
 
-Nel tuo caso:
+In your case:
 
-- `Darktable` e `ArgyllCMS` fanno parte dello stack;
-- il profilo `FW13_140cd_D65_2.2_S.icc` e' un asset;
-- i log `DisplayCAL` non sono un asset e non sono stack: sono rumore storico.
+- `Darktable` and `ArgyllCMS` are part of the stack;
+- the `FW13_140cd_D65_2.2_S.icc` profile is an asset;
+- `DisplayCAL` logs are not an asset and are not stacks: they are historical noise.
 
-## La regola pratica
+## The rule of thumb
 
-Nel dubbio:
+When in doubt:
 
-- i pacchetti si reinstallano;
-- i profili ICC buoni si preservano;
-- i log si buttano.
+- the packages are reinstalled;
+- good ICC profiles are preserved;
+- the logs are thrown away.
 

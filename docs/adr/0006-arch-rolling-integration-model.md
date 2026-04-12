@@ -1,143 +1,143 @@
-# ADR 0006 - Modello di integrazione con Arch rolling
+# ADR 0006 - Integration model with Arch rolling
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Una domanda importante è emersa presto:
+An important question soon emerged:
 
-- `Margine` va aggiornato ogni volta che Arch o il kernel vengono aggiornati?
+- Does `Margine` need to be updated every time Arch or the kernel is updated?
 
-Se questa domanda resta implicita, il progetto rischia di essere interpretato in
-due modi sbagliati:
+If this question remains implicit, the project risks being interpreted in
+two wrong ways:
 
-- come una distro congelata da ricostruire ad ogni update;
-- oppure come una raccolta di dotfiles scollegata dalla realtà del rolling
+- like a frozen distro to be rebuilt with each update;
+- or as a collection of dotfiles disconnected from the reality of rolling
   release.
 
-Nessuna delle due interpretazioni è corretta.
+Neither interpretation is correct.
 
-## Problema da risolvere
+## Problem to solve
 
 `Margine` vuole essere:
 
 - riproducibile;
-- didattico;
-- mantenibile;
+- educational;
+- maintainable;
 - compatibile con Arch rolling.
 
-Questo significa che dobbiamo distinguere chiaramente:
+This means that we must clearly distinguish:
 
-- chi fornisce i pacchetti;
-- chi definisce l'assemblaggio del sistema;
-- quando va aggiornata la repo `margine-os`;
-- quando basta aggiornare il sistema installato.
+- who provides the packages;
+- who defines the assembly of the system;
+- when the `margine-os` repo should be updated;
+- when you just need to update the installed system.
 
-## Decisione
+## Decision
 
-`Margine` NON è un fork congelato di Arch.
+`Margine` is NOT a frozen fork of Arch.
 
-`Margine` è un layer di assemblaggio e manutenzione sopra Arch rolling, composto
+`Margine` is an assembly and maintenance layer on top of Arch rolling, composed
 da:
 
-- manifest di pacchetti;
-- file di configurazione;
-- script di bootstrap e post-install;
-- hook di manutenzione;
-- documentazione e ADR.
+- package manifest;
+- configuration files;
+- bootstrap and post-install scripts;
+- maintenance hooks;
+- documentation and ADR.
 
-## Cosa significa in pratica
+## What this means in practice
 
-### Installazione
+### Installation
 
-Da una base Arch pulita:
+From a clean Arch base:
 
-- `pacman` installa i pacchetti più aggiornati disponibili in quel momento nei
-  repo ufficiali;
-- i nostri script applicano sopra quei pacchetti la forma `Margine`.
+- `pacman` installs the most current packages available at that time
+official repositories;
+- our scripts apply the `Margine` form on top of those packages.
 
-Quindi la repo `margine-os` non serve a "fornire pacchetti Arch".
-Serve a definire come quei pacchetti vengono combinati.
+So the `margine-os` repo is not for "providing Arch packages".
+It is used to define how those packages are combined.
 
-### Aggiornamento ordinario del sistema
+### Routine system update
 
-Un sistema `Margine` già installato si aggiorna come una normale Arch:
+An already installed `Margine` system updates like a normal Arch:
 
-- update dei pacchetti;
-- rigenerazione artefatti locali necessari;
-- snapshot e recovery secondo la policy del progetto.
+- package updates;
+- regeneration of necessary local artefacts;
+- snapshot and recovery according to the project policy.
 
-Non serve modificare la repo `margine-os` a ogni aggiornamento ordinario.
+There is no need to modify the `margine-os` repo with each regular update.
 
-### Quando invece va aggiornata la repo
+### When the repo needs to be updated instead
 
-La repo `margine-os` va aggiornata quando cambia uno di questi strati:
+The `margine-os` repo must be updated when one of these layers changes:
 
-- nome o disponibilità di un pacchetto;
-- path o formato di un file gestito dal progetto;
-- comportamento di strumenti chiave, come `mkinitcpio`, `sbctl`, `Limine`,
+- name or availability of a package;
+- path or format of a project-managed file;
+- behavior of key tools, such as `mkinitcpio`, `sbctl`, `Limine`,
   `systemd-cryptenroll`;
-- policy del progetto;
-- scelta di un nuovo componente;
-- script di installazione o manutenzione.
+- project policy;
+- choice of a new component;
+- installation or maintenance script.
 
-In altre parole:
+In other words:
 
-- Arch cambia continuamente;
-- `Margine` cambia solo quando deve adattare o migliorare la sua architettura.
+- Arch is constantly changing;
+- `Margine` only changes when it needs to adapt or improve its architecture.
 
-## Regola di compatibilità
+## Compatibility rule
 
-Per la `v1`, `Margine` seguirà questa regola semplice:
+For `v1`, `Margine` will follow this simple rule:
 
-- supportiamo lo stato corrente dei repo ufficiali Arch;
-- non promettiamo compatibilità con snapshot arbitrari e remoti del passato.
+- we support the current state of the official Arch repositories;
+- we do not promise compatibility with arbitrary and remote snapshots from the past.
 
-Questo è coerente con un progetto basato su Arch rolling.
+This is consistent with an Arch rolling based project.
 
-## Conseguenze pratiche
+## Practical consequences
 
-### Vantaggi
+### Advantages
 
-- non dobbiamo "rilasciare una distro" ad ogni update Arch;
-- possiamo installare sempre da pacchetti aggiornati;
-- la manutenzione resta concentrata su ciò che controlliamo davvero;
-- il progetto resta piccolo e leggibile.
+- we don't have to "release a distro" with every Arch update;
+- we can always install from updated packages;
+- maintenance remains focused on what we really control;
+- the project remains small and readable.
 
-### Costi
+### Costs
 
-- dobbiamo tenere d'occhio i cambiamenti upstream che impattano la nostra
-  automazione;
-- ogni tanto un ADR o uno script andranno aggiornati;
-- il progetto deve essere testato contro l'Arch attuale, non solo scritto bene.
+- we need to keep an eye on upstream changes that impact ours
+automation;
+- every now and then an ADR or a script will need to be updated;
+- the project needs to be tested against the current Arch, not just well written.
 
-## Rapporto con `update-all`
+## Relationship with `update-all`
 
-Lo script `update-all` non diventa un package manager alternativo.
+The `update-all` script does not become an alternative package manager.
 
-Il suo ruolo corretto sarà:
+Its correct role will be:
 
-- orchestrare update, snapshot, rigenerazione `UKI`, firme e verifiche;
-- non sostituire la fonte dei pacchetti.
+- orchestrate updates, snapshots, `UKI` regeneration, signatures and verifications;
+- do not replace the package source.
 
-La fonte dei pacchetti resta:
+The source of the packages remains:
 
-- `pacman` per i repo ufficiali;
-- AUR solo dove esplicitamente ammesso dal progetto.
+- `pacman` for official repositories;
+- AUR only where explicitly permitted by the project.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
-Se lo spieghiamo nel modo più diretto possibile:
+If we explain it in the most direct way possible:
 
-- Arch fornisce i mattoni;
-- `Margine` decide come montarli;
-- quando Arch aggiorna un mattone, di solito basta aggiornare il sistema;
-- tocchiamo la repo `margine-os` solo quando cambia il modo in cui montiamo i
-  mattoni.
+- Arch supplies the bricks;
+- `Margine` decides how to mount them;
+- when Arch updates a brick, it usually just updates the system;
+- we only touch the `margine-os` repo when the way we mount i changes
+bricks.
 
-Questa è la differenza tra:
+This is the difference between:
 
-- una distro congelata;
-- e un framework riproducibile sopra una rolling release.
+- a frozen distro;
+- and a reproducible framework on top of a rolling release.

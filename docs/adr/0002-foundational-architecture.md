@@ -1,156 +1,156 @@
-# ADR 0002 - Architettura fondativa di Margine
+# ADR 0002 - Founding architecture of Margine
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Questo è il primo ADR veramente strutturale.
-Serve a decidere le fondamenta che influenzano quasi tutto il resto:
+This is the first truly structural ADR.
+It serves to decide the foundations that influence almost everything else:
 
-- come parte il sistema;
-- come viene protetto;
-- come si sblocca il disco;
-- come si organizzano i dati;
-- come si fanno snapshot e rollback.
+- how the system starts;
+- how it is protected;
+- how to unlock the disk;
+- how the data is organised;
+- how to do snapshots and rollbacks.
 
-Se sbagliamo qui, ci portiamo dietro attrito e fragilità in tutte le fasi
-successive.
+If we make mistakes here, we bring with us friction and fragility at all stages
+subsequent ones.
 
-## Requisiti del progetto
+## Project requirements
 
-La base architetturale deve essere:
+The architectural basis must be:
 
-- compatibile con `Arch Linux`;
-- coerente con `Framework Laptop 13 AMD`;
-- adatta a `Hyprland` come ambiente principale;
-- orientata a stabilità e manutenzione;
-- sicura, ma non inutilmente barocca;
-- abbastanza semplice da poter essere capita e modificata a mano da Daniel;
-- molto forte sul piano della recovery.
+- compatible with `Arch Linux`;
+- consistent with `Framework Laptop 13 AMD`;
+- suitable for `Hyprland` as the main environment;
+- oriented towards stability and maintenance;
+- confident, but not unnecessarily baroque;
+- simple enough to be understood and modified by hand by Daniel;
+- very strong in terms of recovery.
 
-## Problema da risolvere
+## Problem to solve
 
-Ci sono due tensioni principali:
+There are two main tensions:
 
-1. vogliamo una base moderna e pulita (`UKI`, `Secure Boot`, `TPM2`, `LUKS2`);
-2. vogliamo anche una recovery molto semplice da usare, specialmente tramite
-   snapshot bootabili.
+1. we want a modern and clean base (`UKI`, `Secure Boot`, `TPM2`, `LUKS2`);
+2. we also want a very simple recovery to use, especially via
+   bootable snapshots.
 
-In precedenza avevamo dato più peso alla pulizia architetturale.
-Dopo chiarimento dei requisiti, è emerso che la semplicità della recovery non è
-un vezzo: è un requisito vero del progetto.
+Previously we had given more weight to architectural cleanliness.
+After clarification of the requirements, it turned out that the simplicity of recovery is not
+a quirk: it is a real requirement of the project.
 
-## Opzioni considerate
+## Options considered
 
-### Opzione A
+### Option A
 
 `systemd-boot` + `UKI` + `sbctl` + `TPM2` + `LUKS2` + `Btrfs` + `Snapper`
 
-Vantaggi:
+Advantages:
 
-- è la soluzione più pulita e moderna per Arch;
-- si integra molto bene con `Secure Boot`;
-- si integra molto bene con `TPM2` via `systemd-cryptenroll`;
-- riduce la complessità della catena di boot;
-- è molto adatta a un sistema personale mantenuto con disciplina.
+- it is the cleanest and most modern solution for Arch;
+- integrates very well with `Secure Boot`;
+- integrates very well with `TPM2` via `systemd-cryptenroll`;
+- reduces the complexity of the boot chain;
+- is very suitable for a personal system maintained with discipline.
 
-Svantaggi:
+Disadvantages:
 
-- il rollback da boot menu non è immediato;
-- richiede una recovery più procedurale;
-- non valorizza il requisito espresso da Daniel: snapshot bootabili facili da
-  usare.
+- rollback from boot menu is not immediate;
+- requires more procedural recovery;
+- does not enhance the requirement expressed by Daniel: easy bootable snapshots
+  use.
 
-### Opzione B
+### Option B
 
 `Limine` + `UKI` + `Snapper` + `LUKS2` + `TPM2` + `Btrfs`
 
-Vantaggi:
+Advantages:
 
-- migliora molto la UX di recovery;
-- si presta bene a snapshot bootabili, in linea con il modello adottato da
+- greatly improves the UX of recovery;
+- lends itself well to bootable snapshots, in line with the model adopted by
   Omarchy;
-- rende più naturale testare e ripristinare snapshot dal boot;
-- risponde meglio al requisito "recovery semplice e concreta".
+- makes it more natural to test and restore snapshots from boot;
+- better responds to the "simple and concrete recovery" requirement.
 
-Svantaggi:
+Disadvantages:
 
-- richiede più validazione sul fronte `Secure Boot`;
-- richiede più attenzione nel disegno della trust chain;
-- è meno lineare della strada `systemd-boot` se l'unico criterio fosse la
-  pulizia del boot stack.
+- requires more validation on the `Secure Boot` front;
+- requires more attention in the design of the trust chain;
+- is less linear than the `systemd-boot` road if the only criterion were the
+  boot stack cleanup.
 
-### Opzione C
+### Option C
 
 `GRUB` + `Snapper` + `grub-btrfs`
 
-Vantaggi:
+Advantages:
 
-- rollback da menu di boot noto e collaudato;
-- ecosistema molto diffuso quando si parla di snapshot avviabili.
+- rollback from known and proven boot menu;
+- very popular ecosystem when it comes to bootable snapshots.
 
-Svantaggi:
+Disadvantages:
 
-- non è la direzione architetturale che vogliamo privilegiare;
-- catena di boot più pesante;
-- meno coerenza con l'obiettivo di tenere il progetto moderno e leggibile.
+- it is not the architectural direction that we want to favor;
+- heavier boot chain;
+- less coherence with the aim of keeping the project modern and readable.
 
-## Decisione
+## Decision
 
-Per `Margine v1` adottiamo:
+For `Margine v1` we adopt:
 
-- `UEFI` puro;
-- `Limine` come bootloader e boot manager principale;
-- `UKI` come formato standard di boot;
-- `LUKS2` per la cifratura del disco;
-- `TPM2` tramite `systemd-cryptenroll`, con fallback umano esplicito;
-- `Btrfs` come filesystem principale;
-- `Snapper` come motore base per snapshot e rollback;
-- `Secure Boot` come obiettivo esplicito della `v1`, ma solo dopo validazione
-  rigorosa della catena con `Limine`.
+- `UEFI` pure;
+- `Limine` as bootloader and main boot manager;
+- `UKI` as standard boot format;
+- `LUKS2` for disk encryption;
+- `TPM2` through `systemd-cryptenroll`, with explicit human fallback;
+- `Btrfs` as main filesystem;
+- `Snapper` as base engine for snapshots and rollbacks;
+- `Secure Boot` as an explicit objective of `v1`, but only after validation
+  strict chain with `Limine`.
 
-## Chiarimento importante
+## Important clarification
 
-Questa decisione NON dice:
+This decision does NOT say:
 
-- "Limine è una versione migliorata di `systemd-boot`";
-- "systemd-boot è sbagliato";
-- "la pulizia architetturale non conta più".
+- "Limine is an improved version of `systemd-boot`";
+- "systemd-boot is wrong";
+- "architectural cleanliness no longer matters".
 
 Dice invece:
 
-- `Limine` e `systemd-boot` sono due bootloader distinti, con priorità diverse;
-- per questo progetto, adesso, la recovery semplice pesa più della minimizzazione
-  assoluta del boot stack;
-- la scelta di `Limine` è accettata solo insieme a un piano serio di validazione
-  per `Secure Boot`, `UKI` e `TPM2`.
+- `Limine` and `systemd-boot` are two distinct bootloaders, with different priorities;
+- for this project, now, simple recovery weighs more than minimization
+  boot stack absolute;
+- the choice of `Limine` is accepted only together with a serious validation plan
+  for `Secure Boot`, `UKI` and `TPM2`.
 
-## Perché Limine in questa v1
+## Why Limine in this v1
 
-La ragione centrale è semplice:
+The central reason is simple:
 
-- Daniel considera la recovery semplice una caratteristica molto importante;
-- `Limine` rende più naturale un'esperienza con snapshot bootabili;
-- Omarchy usa proprio questa direzione per sbloccare una UX di recovery molto
-  forte.
+- Daniel considers simple recovery a very important feature;
+- `Limine` makes a more natural experience with bootable snapshots;
+- Omarchy uses this very direction to unlock a very recovery UX
+  strong.
 
-Quindi, per `Margine`, `Limine` non entra come vezzo estetico.
-Entra come risposta a un requisito operativo reale.
+So, for `Margine`, `Limine` doesn't come in as an aesthetic quirk.
+It comes in as a response to a real operational requirement.
 
-## Condizioni di validazione
+## Validation conditions
 
-La scelta è considerata riuscita solo se verifichiamo tutti questi punti:
+The choice is considered successful only if we verify all these points:
 
-1. `Limine` avvia `UKI` firmate in modo affidabile.
-2. `Secure Boot` resta effettivamente sotto controllo nostro.
-3. `TPM2` con `LUKS2` ha un recovery path pulito e documentato.
-4. Gli snapshot `Snapper` sono davvero bootabili e ripristinabili in modo
-   coerente.
+1. `Limine` starts `UKI` reliably signed.
+2. `Secure Boot` remains effectively under our control.
+3. `TPM2` with `LUKS2` has a clean and documented recovery path.
+4. `Snapper` snapshots are truly bootable and restoreable
+   coherent.
 
-Se uno di questi quattro punti fallisce in modo strutturale, la fallback
-architecture sarà:
+If one of these four points fails structurally, fallback
+architecture will be:
 
 - `systemd-boot`
 - `UKI`
@@ -160,110 +160,110 @@ architecture sarà:
 - `Btrfs`
 - `Snapper`
 
-Quindi la decisione è forte, ma non cieca.
+So the decision is strong, but not blind.
 
-## Nota di implementazione
+## Implementation note
 
-La direzione architetturale resta:
+The architectural direction remains:
 
 - `Secure Boot`
 - `LUKS2`
 - `TPM2`
 
-Ma il rollout corretto non è monolitico.
+But proper rollout is not monolithic.
 
-La sequenza operativa corretta è:
+The correct operating sequence is:
 
-1. installazione base con `LUKS2`
-2. validazione boot e desktop
+1. basic installation with `LUKS2`
+2. boot and desktop validation
 3. bootstrap `Secure Boot`
-4. solo dopo, enrollment `TPM2` sul path di boot normale
+4. only then, enroll `TPM2` on the normal boot path
 
-Questo punto è importante perché una enrollment `TPM2` fatta prima della
-stabilizzazione di `Secure Boot` o della `UKI` finale rischia di legarsi ai PCR
-sbagliati e quindi di rompersi al reboot successivo.
+This point is important because an enrollment `TPM2` done before the
+stabilization of `Secure Boot` or the final `UKI` risks binding to PCR
+wrong and therefore breaking on the next reboot.
 
-## Implicazioni pratiche
+## Practical implications
 
 ### Boot
 
-La catena di boot sarà pensata così:
+The boot chain will be designed like this:
 
-1. firmware UEFI;
+1. UEFI firmware;
 2. `Limine`;
 3. `UKI`;
-4. sblocco disco con `LUKS2` e supporto `TPM2`;
-5. root su `Btrfs`.
+4. unlock disk with `LUKS2` and support `TPM2`;
+5. root on `Btrfs`.
 
-### Sicurezza
+### Safety
 
-La sicurezza non dovrà dipendere da un solo fattore.
+Security should not depend on just one factor.
 
-Quindi prevediamo:
+So we predict:
 
-- sblocco tramite `TPM2` come percorso comodo;
+- unlock via `TPM2` as a convenient route;
 - recovery key;
-- passphrase di emergenza;
-- documentazione chiara di recovery.
+- emergency passphrase;
+- clear recovery documentation.
 
-### Snapshot
+### Snapshots
 
-Gli snapshot saranno progettati come funzione operativa centrale, non come
-accessorio.
+Snapshots will be designed as a central operational function, not as
+accessory.
 
-Quindi:
+So:
 
-- layout Btrfs pensato per snapshot sensati;
-- hook aggiornamenti pre/post;
-- snapshot bootabili come obiettivo esplicito;
-- procedura di restore documentata.
+- Btrfs layout designed for sensible snapshots;
+- pre/post update hooks;
+- bootable snapshots as an explicit target;
+- documented restore procedure.
 
-### Manutenibilità
+### Maintainability
 
-Questa scelta è meno minimale della strada `systemd-boot`, ma più aderente ai
-requisiti reali di `Margine`.
+This choice is less minimal than the `systemd-boot` road, but more in line with the
+real requirements of `Margine`.
 
-In altre parole:
+In other words:
 
-- perdiamo un po' di linearità teorica;
-- guadagniamo una recovery più forte e più usabile.
+- we lose a bit of theoretical linearity;
+- we gain a stronger and more usable recovery.
 
-## Decisioni rinviate
+## Decisions postponed
 
-Questo ADR NON chiude ancora:
+This ADR is NOT closing yet:
 
-- schema esatto delle partizioni;
-- schema esatto dei subvolumi Btrfs;
-- policy operativa di snapshot automatici;
-- dettagli di firma e hook della catena `Limine + UKI + Secure Boot`;
-- policy PCR per `TPM2`.
+- exact partition scheme;
+- exact scheme of Btrfs subvolumes;
+- automatic snapshot operational policy;
+- signature and hook details of the `Limine + UKI + Secure Boot` chain;
+- PCR policy for `TPM2`.
 
-Questi punti verranno affrontati in ADR successivi.
+These points will be addressed in subsequent ADRs.
 
-Nota:
-- il login path finale è stato poi chiuso in ADR successivi con `greetd +
-  tuigreet`, autologin iniziale e `hyprlock`.
+Note:
+- the final login path was then closed in subsequent ADRs with `greetd +
+  tuigreet`, initial autologin and `hyprlock`.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
-Se lo spiegassimo in modo diretto:
+If we explained it directly:
 
-- `Limine` è il pezzo che ci dà una recovery più interessante al boot;
-- `UKI` è un formato di boot moderno e ordinato;
-- `LUKS2` protegge i dati sul disco;
-- `TPM2` può aiutare a sbloccare il disco in modo comodo, ma non sostituisce il
-  recovery;
-- `Btrfs` ci dà snapshot e flessibilità;
-- `Snapper` ci aiuta a gestire bene gli snapshot;
-- non stiamo scegliendo la strada più minimale;
-- stiamo scegliendo la strada che valorizza di più la recovery, ma senza
-  rinunciare a rigore e verifiche.
+- `Limine` is the piece that gives us a more interesting recovery at boot;
+- `UKI` is a modern and tidy boot format;
+- `LUKS2` protects data on disk;
+- `TPM2` can help you unlock the disk conveniently, but it does not replace the
+recovery;
+- `Btrfs` gives us snapshots and flexibility;
+- `Snapper` helps us manage snapshots well;
+- we are not choosing the most minimal path;
+- we are choosing the path that most values ​​recovery, but without
+  give up rigor and checks.
 
-## Riferimenti
+## References
 
-- Omarchy, issue ufficiale su `Limine + Snapper`:
+- Omarchy, official issue on `Limine + Snapper`:
   https://github.com/basecamp/omarchy/issues/1068
-- Limine, repository ufficiale:
+- Limine, official repository:
   https://github.com/limine-bootloader/limine
 - ArchWiki, panoramica bootloader:
   https://wiki.archlinux.org/title/Boot_loader

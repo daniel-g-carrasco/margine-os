@@ -1,67 +1,67 @@
-# Visione del progetto
+# Vision of the project
 
-## Obiettivo
+## Objective
 
-Ottenere da una installazione Arch pulita un sistema equivalente a quello
-desiderato, non a quello casualmente accumulato nel tempo.
+Obtain from a clean Arch installation a system equivalent to that
+desired, not that casually accumulated over time.
 
-Il sistema dovrà essere:
+The system must be:
 
-- riproducibile;
-- stabile;
-- veloce;
-- ben documentato;
-- didattico;
-- facile da modificare a mano in futuro.
+- reproducible;
+- stable;
+- fast;
+- well documented;
+- educational;
+- easy to edit by hand in the future.
 
-## Idea guida
+## Guiding idea
 
-Questo progetto non vuole creare "una ISO da hacker". Vuole creare un sistema
-che Daniel capisce davvero.
+This project does not want to create "a hacker ISO". He wants to create a system
+that Daniel really understands.
 
-Per questo:
+Because of this:
 
-- ogni sottosistema avrà note didattiche;
-- ogni decisione importante avrà un ADR;
-- ogni fase avrà criteri di completamento;
-- ogni automazione dovrà restare leggibile.
+- each subsystem will have teaching notes;
+- every important decision will have an ADR;
+- each phase will have completion criteria;
+- each automation must remain legible.
 
-## Identità tecnica
+## Technical identity
 
 - Base: `Arch Linux`
-- Desktop principale: `Hyprland`
-- Macchina target: `Framework Laptop 13 AMD`
+- Primary Desktop: `Hyprland`
+- Target machine: `Framework Laptop 13 AMD`
 - Filesystem: `Btrfs`
-- Cifratura: `LUKS2`
-- Sicurezza target: `Secure Boot` sotto nostre chiavi + `TPM2` per sblocco
-  automatico `LUKS` sul path di boot normale
-- Focus: fotografia, stabilità, rollback, manutenzione chiara
+- Encryption: `LUKS2`
+- Target security: `Secure Boot` under our keys + `TPM2` for unlocking
+automatic `LUKS` on the normal boot path
+- Focus: photography, stability, rollback, clear maintenance
 
-## Nota sullo stato attuale
+## Current status note
 
-L'architettura desiderata è:
+The desired architecture is:
 
-- `LUKS2` sempre presente
-- `Secure Boot` bootstrapato dopo l'installazione
-- `TPM2` enrollato dopo che il path di boot firmato è già stabile
+- `LUKS2` always present
+- `Secure Boot` bootstrapped after installation
+- `TPM2` enrolled after the signed boot path is already stable
 
-Quindi:
+So:
 
-- il target non è "Secure Boot o TPM2"
-- il target è `Secure Boot + LUKS2 + TPM2`
-- ma il rollout corretto è graduale e post-install, non tutto in un unico passo
+- the target is not "Secure Boot or TPM2"
+- the target is `Secure Boot + LUKS2 + TPM2`
+- but the correct rollout is gradual and post-install, not all in one step
 
-## Cosa non faremo
+## What we won't do
 
-- Non copieremo tutte le app correnti senza filtro.
-- Non useremo AUR come base del sistema.
-- Non confonderemo "funziona adesso" con "è una buona scelta architetturale".
-- Non introdurremo troppi layer di astrazione al primo giro.
+- We will not copy all current apps without filter.
+- We will not use AUR as the basis of the system.
+- Let's not confuse "it works now" with "it's a good architectural choice."
+- We won't introduce too many abstraction layers in the first round.
 
-## Nome
+## Name
 
-- Nome umano del sistema: `Margine`
-- Nome tecnico del repository: `margine-os`
+- Human System Name: `Margine`
+- Repository technical name: `margine-os`
 
-Motivo: `Margine` ha personalità. `margine-os` è più pratico per git, package
-namespace e naming dei file.
+Reason: `Margine` has personality. `margine-os` is more convenient for git, package
+namespace and file naming.

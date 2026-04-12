@@ -1,22 +1,22 @@
-# 39 - Perche' la prima installazione va provata in VM
+#39 - Why the first installation should be tried in VM
 
-Quando costruisci un sistema come `Margine`, il primo errore da evitare e':
+When building a system like `Margine`, the first mistake to avoid is:
 
-"sembra tutto giusto nei file, quindi provo subito sul laptop vero".
+"Everything looks right in the files, so I'll try it on the real laptop now."
 
-E' un errore perche':
+It's an error because:
 
-- il provisioning disco e' distruttivo;
-- la boot chain UEFI puo' rompersi in modo silenzioso;
-- una live ISO reale introduce variabili che i `dry-run` non coprono.
+- disk provisioning is destructive;
+- UEFI boot chain can break silently;
+- a real live ISO introduces variables that `dry-run` don't cover.
 
-La VM serve proprio a questo:
+The VM is used for exactly this:
 
-- ridurre il rischio;
-- ripetere il test;
-- vedere se il bootstrap arriva davvero al primo boot.
+- reduce the risk;
+- repeat the test;
+- see if the bootstrap really comes on the first boot.
 
-La regola pratica e':
+The rule of thumb is:
 
-1. prima VM;
+1. first VM;
 2. poi hardware reale.

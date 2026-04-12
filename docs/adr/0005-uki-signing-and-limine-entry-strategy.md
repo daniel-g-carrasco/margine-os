@@ -1,300 +1,298 @@
-# ADR 0005 - Strategia per UKI, firme e entry Limine
+# ADR 0005 - Strategy for UKI, signatures, and Limine entries
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Gli ADR precedenti hanno fissato:
+Previous ADRs have set:
 
-- il bootloader (`Limine`);
-- il formato di boot (`UKI`);
-- la catena di fiducia (`Secure Boot`, `TPM2`);
-- il layout storage (`LUKS2`, `Btrfs`, `Snapper`).
+- the bootloader (`Limine`);
+- the boot format (`UKI`);
+- the trust chain (`Secure Boot`, `TPM2`);
+- the storage layout (`LUKS2`, `Btrfs`, `Snapper`).
 
-Mancava però la parte operativa più importante:
+However, the most important operational part was missing:
 
-- dove vivono i file di boot;
-- come vengono generate le `UKI`;
-- cosa viene firmato;
-- come si distinguono boot normale e recovery;
-- come si conciliano snapshot bootabili e politica `TPM2`.
+- where the boot files live;
+- how `UKI` are generated;
+- what is signed;
+- how normal boot and recovery are distinguished;
+- how do you reconcile bootable snapshots and `TPM2` policy.
 
-## Problema da risolvere
+## Problem to solve
 
-C'è una tensione tecnica reale:
+There is a real technical tension:
 
-- per il boot quotidiano vogliamo una catena stabile, semplice e poco fragile;
-- per la recovery snapshot-friendly vogliamo invece poter cambiare la root bootata
-  in modo esplicito.
+- for daily booting we want a stable, simple and not very fragile chain;
+- for snapshot-friendly recovery we want to be able to change the booted root
+  explicitly.
 
-Con `systemd-stub`, se una `UKI` contiene una `.cmdline` incorporata e
-`Secure Boot` è attivo, gli override della kernel command line via bootloader
-vengono ignorati.
+With `systemd-stub`, if a `UKI` contains an embedded `.cmdline` and
+`Secure Boot` is active, kernel command line overrides via bootloader
+they are ignored.
 
-Questo è ottimo per il boot normale, ma rende meno naturale una recovery basata
-su snapshot diversi.
+This is great for normal booting, but makes snapshot-based recovery less natural.
 
-## Decisione
+## Decision
 
-Per `Margine v1` adottiamo una strategia a due percorsi:
+For `Margine v1` we adopt a two-path strategy:
 
-1. percorso `prod`, stabile e TPM-friendly;
-2. percorso `recovery`, flessibile e snapshot-friendly.
+1. `prod` route, stable and TPM-friendly;
+2. `recovery` path, flexible and snapshot-friendly.
 
-Questa separazione è intenzionale.
-Non è ridondanza: è gestione corretta di due casi d'uso diversi.
+This separation is intentional.
+It's not redundancy: it's correct management of two different use cases.
 
-## Percorso prod
+## Product path
 
-### File previsti
+### Expected files
 
-- `ESP/EFI/BOOT/BOOTX64.EFI` -> binario `Limine` firmato
-- `ESP/EFI/BOOT/limine.conf` -> configurazione principale
-- `ESP/EFI/Linux/margine-linux.efi` -> `UKI` principale firmata
-- `ESP/EFI/Linux/margine-linux-fallback.efi` -> `UKI` fallback firmata
+- `ESP/EFI/BOOT/BOOTX64.EFI` -> signed binary `Limine`
+- `ESP/EFI/BOOT/limine.conf` -> main configuration
+- `ESP/EFI/Linux/margine-linux.efi` -> `UKI` main signed
+- `ESP/EFI/Linux/margine-linux-fallback.efi` -> `UKI` signed fallback
 
-### Generazione
+### Generation
 
-Le `UKI` di produzione saranno generate con `mkinitcpio`.
+Production `UKI` will be generated with `mkinitcpio`.
 
-La command line di produzione sarà incorporata nella `UKI`, partendo da:
+The production command line will be embedded in `UKI`, starting from:
 
 - `/etc/kernel/cmdline`
 
-### Motivo
+### Reason
 
-Questo ci dà:
+This gives us:
 
-- boot ripetibile;
-- meno ambiguità;
-- una catena `TPM2` più leggibile;
-- minor dipendenza da parametri passati al volo dal bootloader.
+- repeatable boot;
+- less ambiguity;
+- a more readable `TPM2` chain;
+- less dependency on parameters passed on the fly by the bootloader.
 
-### Uso previsto
+### Intended use
 
-Questo è il percorso usato per:
+This is the path used for:
 
-- boot quotidiano;
-- fallback kernel ordinario;
-- validazione stabile di `TPM2`.
+- daily boot;
+- standard fallback kernel;
+- stable validation of `TPM2`.
 
-## Percorso recovery
+## Recovery path
 
-### File previsti
+### Expected files
 
-- `ESP/EFI/Linux/margine-recovery.efi` -> `UKI` di recovery firmata
+- `ESP/EFI/Linux/margine-recovery.efi` -> `UKI` of signed recovery
 
-### Generazione
+### Generation
 
-La `UKI` di recovery sarà costruita senza command line incorporata.
+The recovery `UKI` will be built without a built-in command line.
 
-Le entry `Limine` di recovery passeranno quindi la command line al momento del
+The recovery `Limine` entries will then pass the command line at the time of
 boot.
 
-### Motivo
+### Reason
 
-Questo permette di cambiare in modo esplicito:
+This allows you to explicitly change:
 
 - `rootflags=subvol=...`
 - target snapshot
-- eventuali parametri di manutenzione
+- any maintenance parameters
 
-senza dover rigenerare una `UKI` diversa per ogni snapshot.
+without having to regenerate a different `UKI` for each snapshot.
 
-### Uso previsto
+### Intended use
 
-Questo percorso è pensato per:
+This path is designed for:
 
-- boot di snapshot `Snapper`;
-- manutenzione;
-- recovery ragionata;
-- boot di emergenza.
+- `Snapper` snapshot boot;
+- maintenance;
+- reasoned recovery;
+- emergency boot.
 
-### Regola di sicurezza importante
+### Important safety rule
 
-Nel percorso recovery NON assumiamo come requisito il comodo sblocco automatico
-via `TPM2`.
+In the recovery path we do NOT assume convenient automatic unlocking via `TPM2` as a requirement.
 
-Qui il percorso umano corretto è:
+Here the correct human path is:
 
 - recovery key;
-- oppure passphrase amministrativa.
+- or administrative passphrase.
 
-Questo è accettabile, perché la recovery non è il path ottimizzato per la
-frizione minima.
-È il path ottimizzato per rientrare in controllo.
+This is acceptable, because recovery is not the optimized path for
+minimal friction.
+It is the optimized path to regain control.
 
-## Strategia per TPM2
+## TPM2 strategy
 
-La politica `TPM2` iniziale resta:
+The initial `TPM2` policy remains:
 
 - `PCR 7+11`
 
-ma solo per il percorso `prod`.
+but only for the `prod` path.
 
-Motivo:
+Reason:
 
-- `PCR 7` lega lo sblocco allo stato `Secure Boot`;
-- `PCR 11` lega lo sblocco al contenuto della `UKI` bootata.
+- `PCR 7` links the unlocking to the `Secure Boot` state;
+- `PCR 11` links the unlocking to the contents of the booted `UKI`.
 
-Non usiamo `PCR 12` nel percorso `prod`, perché non vogliamo dipendere da una
-command line esterna.
+We don't use `PCR 12` in the `prod` path, because we don't want to depend on an
+external command line.
 
-Nel percorso `recovery`, dove la command line arriva da `Limine`, accettiamo
-che il boot possa richiedere il fallback umano.
+In the `recovery` path, where the command line comes from `Limine`, we accept
+that booting may require human fallback.
 
-## Strategia per Secure Boot
+## Secure Boot strategy
 
-Adottiamo:
+We adopt:
 
-- chiavi proprietarie gestite con `sbctl`;
-- firma delle `UKI`;
-- firma del binario EFI di `Limine`.
+- proprietary keys managed with `sbctl`;
+- signature of `UKI`;
+- EFI binary signature of `Limine`.
 
-In più, seguendo la documentazione ufficiale di `Limine`, il file
-`limine.conf` dovrà essere vincolato al binario EFI tramite:
+Furthermore, following the official `Limine` documentation, the file
+`limine.conf` will need to be bound to the EFI binary via:
 
 - `limine enroll-config`
 
-Questo è fondamentale.
+This is fundamental.
 
-Firmare il solo binario EFI senza proteggere anche la configurazione
-significherebbe lasciare scoperto il file che decide:
+Sign only the EFI binary without also protecting the configuration
+it would mean leaving the file that decides uncovered:
 
-- quali entry esistono;
-- quali path vengono usate;
-- quali parametri di boot vengono passati.
+- which entries exist;
+- which paths are used;
+- what boot parameters are passed.
 
-## Posizionamento dei file
+## File placement
 
 ### Limine
 
-`Limine` sarà installato nel percorso fallback UEFI:
+`Limine` will be installed in the UEFI fallback location:
 
 - `ESP/EFI/BOOT/BOOTX64.EFI`
 
-La configurazione principale vivrà accanto al binario:
+The main configuration will live next to the binary:
 
 - `ESP/EFI/BOOT/limine.conf`
 
-Questa scelta sfrutta direttamente il comportamento documentato da `Limine`,
-che su UEFI cerca prima il config file accanto al proprio EFI executable.
+This choice directly exploits the behavior documented by `Limine`,
+which on UEFI first looks for the config file next to your EFI executable.
 
 ### UKI
 
-Le `UKI` vivranno in:
+The `UKI` will live in:
 
 - `ESP/EFI/Linux/`
 
-Motivo:
+Reason:
 
-- percorso chiaro e standardizzato;
-- separa il boot manager dai payload di boot;
-- resta coerente con l'ecosistema moderno delle `UKI`.
+- clear and standardized path;
+- separates the boot manager from the boot payloads;
+- remains consistent with the modern `UKI` ecosystem.
 
-## Struttura logica delle entry Limine
+## Logical structure of Limine entries
 
-La configurazione `Limine` distinguerà almeno tre gruppi:
+The `Limine` configuration will distinguish at least three groups:
 
 - `Margine`
 - `Fallback`
 - `Recovery`
 
-### Entry normali
+### Normal entries
 
-Le entry normali useranno:
+Normal entries will use:
 
 - `protocol: efi`
 - `path: boot():/EFI/Linux/margine-linux.efi`
 
-oppure:
+or:
 
 - `path: boot():/EFI/Linux/margine-linux-fallback.efi`
 
-### Entry recovery
+### Recovery entries
 
-Le entry recovery useranno:
+Recovery entries will use:
 
 - `protocol: efi`
 - `path: boot():/EFI/Linux/margine-recovery.efi`
 - `cmdline: ...`
 
-con parametri mirati allo snapshot o al contesto di manutenzione.
+with parameters targeted to the snapshot or maintenance context.
 
-## Config statica e parti generate
+## Static config and generated parts
 
-`limine.conf` non dovrà essere mantenuto tutto a mano.
+`limine.conf` will not have to be maintained entirely by hand.
 
-Adottiamo questa regola:
+We adopt this rule:
 
-- intestazione e entry base versionate nel repository;
-- sezione recovery generata automaticamente.
+- header and entry base versioned in the repository;
+- automatically generated recovery section.
 
-In pratica:
+In practice:
 
-- una parte del file è stabile;
-- una parte dipende dagli snapshot disponibili.
+- part of the file is stable;
+- some of it depends on the available snapshots.
 
-Questo evita due errori opposti:
+This avoids two opposite errors:
 
-- configurazione completamente manuale e fragile;
-- configurazione completamente opaca e non leggibile.
+- completely manual and fragile setup;
+- completely opaque and unreadable configuration.
 
-## Pipeline di update attesa
+## Update pipeline pending
 
-Dopo ogni aggiornamento rilevante del boot path, la pipeline dovrà essere:
+After each relevant boot path update, the pipeline should be:
 
-1. snapshot pre-update
-2. rigenerazione `UKI` normali
-3. rigenerazione `UKI` recovery, se necessario
-4. copia/refresh del binario `Limine`
-5. generazione di `limine.conf`
+1. pre-update snapshot
+2. regenerate the normal `UKI`
+3. regeneration `UKI` recovery, if necessary
+4. copy/refresh binary `Limine`
+5. generation of `limine.conf`
 6. `limine enroll-config`
-7. firma con `sbctl`
-8. verifica firme
-9. snapshot post-update
+7. sign with `sbctl`
+8. verify signatures
+9. post-update snapshot
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa scelta ci dà un compromesso forte:
+This choice gives us a strong compromise:
 
-- boot normale pulito e stabile;
-- recovery più flessibile;
-- nessun obbligo di generare una `UKI` diversa per ogni snapshot;
-- `TPM2` concentrato dove ha davvero senso;
-- recovery ancora possibile anche quando la trust chain "comoda" non è
-  disponibile.
+- clean and stable normal boot;
+- more flexible recovery;
+- no obligation to generate a different `UKI` for each snapshot;
+- `TPM2` concentrated where it actually makes sense;
+- recovery still possible even when the trust chain is not "convenient".
 
-## Cosa NON facciamo nella v1
 
-Non facciamo, per ora:
+## What we DON'T do in v1
 
-- una `UKI` diversa per ogni snapshot;
-- un design che pretende `TPM2` seamless anche nella recovery;
-- una dipendenza da `shim/MOK`;
-- una configurazione `Limine` editata solo a mano direttamente sulla `ESP`.
+Let's not do, for now:
 
-## Per uno studente: la versione semplice
+- a different `UKI` for each snapshot;
+- a design that demands `TPM2` seamless even in recovery;
+- a dependency on `shim/MOK`;
+- a `Limine` configuration edited only by hand directly on the `ESP`.
 
-Se lo diciamo in modo molto diretto:
+## For a student: the simple version
 
-- il boot di tutti i giorni deve essere stabile;
-- la recovery deve essere flessibile;
-- non è obbligatorio che siano lo stesso percorso tecnico.
+If we say it very directly:
 
-Per questo usiamo:
+- everyday booting must be stable;
+- recovery must be flexible;
+- it is not mandatory that they are the same technical path.
 
-- `UKI` con command line incorporata per il boot normale;
-- `UKI` recovery più flessibile per snapshot e manutenzione.
+For this we use:
 
-Questa è una vera decisione architetturale:
+- `UKI` with an embedded command line for normal boot;
+- `UKI` more flexible recovery for snapshots and maintenance.
 
-- non massimizza la purezza teorica;
-- massimizza il controllo operativo.
+This is a real architectural decision:
 
-## Riferimenti
+- does not maximize theoretical purity;
+- maximizes operational control.
+
+## References
 
 - `mkinitcpio(8)`:
   man locale
@@ -310,5 +308,5 @@ Questa è una vera decisione architetturale:
   https://raw.githubusercontent.com/limine-bootloader/limine/v11.x/USAGE.md
 - `Limine` `FAQ.md`:
   https://raw.githubusercontent.com/limine-bootloader/limine/v11.x/FAQ.md
-- file list del pacchetto Arch `limine`:
+- Arch package list file `limine`:
   https://archlinux.org/packages/extra/x86_64/limine/files/

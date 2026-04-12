@@ -1,43 +1,43 @@
-# ADR 0023 - Modello di migrazione selettiva delle configurazioni
+# ADR 0023 - Selective configuration migration model
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Contesto
+## Context
 
-Il progetto ha ormai una base installativa abbastanza matura da poter portare in
-`Margine` anche configurazioni nate sulla macchina reale.
+The project now has an installed base mature enough to be able to bring in
+`Margine` also configurations created on the real machine.
 
-Qui nasce un rischio classico:
+Here a classic risk arises:
 
-- copiare tutta la home;
-- copiare `/etc` per inerzia;
-- trasferire stato, cache, desktop file generati, profili browser o file
-  temporanei come se fossero configurazione.
+- copy the entire home page;
+- copy `/etc` by inertia;
+- Transfer state, cache, desktop generated files, browser profiles or files
+  temporary as if they were configuration.
 
-Questo approccio e' l'opposto di quello che vogliamo.
+This approach is the opposite of what we want.
 
-## Decisione
+## Decision
 
-`Margine` adotta un modello di migrazione selettiva basato su:
+`Margine` adopts a selective migration model based on:
 
-- allowlist esplicita dei file `home` approvati;
-- lista separata delle configurazioni di sistema da riesaminare;
-- versionamento nel repo solo dei file che hanno senso come baseline target;
-- esclusione esplicita di profili opachi, cache, stato volatile e artefatti
-  generati.
+- explicit allowlist of approved `home` files;
+- separate list of system configurations to review;
+- versioning in the repo only of the files that make sense as baseline targets;
+- explicit exclusion of opaque profiles, cache, volatile state and artifacts
+  generated.
 
-## Regole operative
+## Operational rules
 
 ### 1. Home
 
-Un file o directory della home entra nel progetto solo se:
+A home file or directory enters the project only if:
 
-- e' leggibile e spiegabile;
-- ha senso su una nuova installazione;
-- non contiene stato effimero;
-- non dipende da identificatori generati localmente.
+- it is readable and explainable;
+- makes sense on a new installation;
+- does not contain ephemeral state;
+- does not depend on locally generated identifiers.
 
 Esempi tipici:
 
@@ -45,64 +45,64 @@ Esempi tipici:
 - `~/.config/kitty/kitty.conf`
 - `~/.config/mimeapps.list`
 - `~/.config/user-dirs.*`
-- piccoli wrapper in `~/.local/bin`
+- small wrappers in `~/.local/bin`
 
-### 2. Sistema
+### 2. System
 
-Le configurazioni fuori dalla home non vengono importate automaticamente.
+Configurations outside the home are not automatically imported.
 
-Vengono invece classificate in una lista di review:
+Instead, they are classified in a list of reviews:
 
-- se sono ancora corrette, si traducono in file target puliti;
-- se sono workaround locali o dipendono dal sistema attuale, si riscrivono;
-- se sono rumore, si scartano.
+- if they are still correct, they result in clean target files;
+- if they are local workarounds or depend on the current system, they are rewritten;
+- if they are noise, they are discarded.
 
-### 3. Browser e profili utente
+### 3. Browsers and user profiles
 
-I profili browser completi NON entrano nel repo.
+Complete browser profiles do NOT go into the repo.
 
-Motivo:
+Reason:
 
-- mischiano impostazioni, cache, stato, estensioni, database e cronologia;
-- sono poco didattici;
-- sono fragili come baseline riproducibile.
+- mix settings, cache, status, extensions, database and history;
+- they are not very didactic;
+- are fragile as a reproducible baseline.
 
-Per i browser si preferiscono:
+For browsers we prefer:
 
-- policy di sistema;
-- file di configurazione chiari;
-- provisioning esplicito delle scelte basilari.
+- system policies;
+- clear configuration files;
+- explicit provisioning of basic choices.
 
-### 4. Inventario
+### 4. Inventory
 
-`Margine` mantiene:
+`Margine` keeps:
 
-- una allowlist `home` approvata;
-- una lista `system` da riesaminare;
-- uno script di inventario che confronta macchina corrente e repo.
+- an approved `home` allowlist;
+- a `system` list to review;
+- an inventory script that compares current machine and repo.
 
-## Conseguenze
+## Consequences
 
 ### Positive
 
-- si evita di trascinare spazzatura nel nuovo sistema;
-- la migrazione resta leggibile e didattica;
-- app per app diventa chiaro cosa stiamo davvero portando.
+- it avoids dragging rubbish into the new system;
+- migration remains readable and didactic;
+- app by app it becomes clear what we are really bringing.
 
 ### Negative
 
-- serve piu' lavoro iniziale;
-- alcune configurazioni vanno ricostruite meglio invece che copiate;
-- la migrazione non e' mai "tutto e subito".
+- more initial work is needed;
+- some configurations are better reconstructed rather than copied;
+- migration is never "all at once".
 
-## Per uno studente
+## For a student
 
-Migrare bene non significa "fare il backup della home".
-Significa distinguere:
+Migrating well does not mean "backing up your home".
+It means distinguishing:
 
-- stato personale;
-- configurazione utile;
-- rumore tecnico.
+- personal status;
+- useful configuration;
+- technical noise.
 
-`Margine` porta solo il secondo.
+`Margine` carries only the second one.
 

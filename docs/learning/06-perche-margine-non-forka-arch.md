@@ -1,131 +1,131 @@
-# Perché Margine non "forka" Arch
+# Why Margine doesn't "fork" Arch
 
-Questa nota risponde a un dubbio molto naturale:
+This note answers a very natural doubt:
 
-- se costruiamo una distro personale, dobbiamo aggiornarla ogni volta che Arch
-  aggiorna qualcosa?
+- if we build a personal distro, we have to update it every time Arch
+update anything?
 
-La risposta corretta, per come stiamo progettando `Margine`, è:
+The correct answer, as we are designing `Margine`, is:
 
-- no, non in quel senso.
+- no, not in that sense.
 
-## 1. Due livelli diversi
+## 1. Two different levels
 
-Per capire bene il progetto devi separare due livelli.
+To understand the project well you must separate two levels.
 
-### Livello 1: Arch
+### Level 1: Arch
 
 Arch fornisce:
 
-- i pacchetti;
+- packages;
 - il kernel;
 - `systemd`;
-- gli aggiornamenti rolling;
-- gli strumenti base.
+- rolling updates;
+- the basic tools.
 
-### Livello 2: Margine
+### Level 2: Margin
 
 `Margine` fornisce:
 
-- la selezione dei pacchetti giusti;
-- le configurazioni;
-- gli script;
-- gli hook;
-- la documentazione;
-- la logica di recovery e manutenzione.
+- selecting the right packages;
+- the configurations;
+- scripts;
+- the hooks;
+- documentation;
+- the recovery and maintenance logic.
 
-La lezione importante è questa:
+The important lesson is this:
 
-- `Margine` non sostituisce Arch;
+- `Margine` does not replace Arch;
 - `Margine` organizza Arch.
 
-## 2. Perché questo modello è migliore per noi
+## 2. Why this model is better for us
 
-Se facessimo un vero fork congelato di Arch, dovremmo:
+If we did a true frozen fork of Arch, we would:
 
-- inseguire ogni update molto più da vicino;
-- gestire build e pacchetti in proprio;
-- alzare di molto la complessità del progetto.
+- follow each update much more closely;
+- manage your own builds and packages;
+- greatly increase the complexity of the project.
 
-Questo non è coerente con i nostri obiettivi.
+This is not consistent with our goals.
 
-Noi vogliamo:
+We want:
 
-- un sistema personale forte e riproducibile;
-- non diventare una mini-distribuzione generalista.
+- a strong and reproducible personal system;
+- do not become a generalist mini-distribution.
 
-## 3. Cosa succede quando fai una installazione nuova
+## 3. What happens when you do a fresh installation
 
-Quando installerai `Margine` da zero, succederà questo:
+When you install `Margine` from scratch, this will happen:
 
-1. parti da una base Arch pulita;
-2. `pacman` prende i pacchetti disponibili in quel momento;
-3. i nostri script ricostruiscono la forma `Margine` sopra quei pacchetti.
+1. start from a clean Arch base;
+2. `pacman` takes the packages available at that moment;
+3. our scripts reconstruct the `Margine` shape on top of those packages.
 
-Quindi non installerai:
+So you won't install:
 
-- "una vecchia fotografia congelata del sistema"
+- "an old frozen photograph of the system"
 
-Installerai invece:
+Instead you will install:
 
-- "la forma aggiornata di Margine sopra l'Arch di oggi".
+- "today's updated form of Margin over Arch".
 
-## 4. Cosa succede quando aggiorni il sistema già installato
+## 4. What happens when you upgrade the already installed system
 
-Qui la regola è ancora più semplice.
+Here the rule is even simpler.
 
-Aggiornare un sistema `Margine` significherà, in generale:
+Updating a `Margine` system will, in general, mean:
 
-- aggiornare i pacchetti;
-- rigenerare gli artefatti che dipendono dal boot path;
-- verificare che snapshot e firme siano coerenti.
+- update packages;
+- regenerate artifacts that depend on the boot path;
+- verify that snapshots and signatures are consistent.
 
-Non significa:
+It doesn't mean:
 
-- riscrivere ogni volta la repo `margine-os`.
+- rewrite the `margine-os` repo every time.
 
-## 5. Quando invece va cambiata la repo
+## 5. When the repo needs to be changed instead
 
-La repo va cambiata quando cambia il progetto, non ogni volta che cambia un
-pacchetto.
+The repo must be changed when the project changes, not every time a project changes
+package.
 
 Esempi veri:
 
-- cambia il nome di un pacchetto che usiamo;
-- cambia il path di `Limine`;
-- cambia il comportamento di `mkinitcpio`;
-- decidiamo una nuova policy `TPM2`;
-- sostituiamo un'applicazione.
+- change the name of a package we use;
+- change the path of `Limine`;
+- change the behavior of `mkinitcpio`;
+- we decide on a new policy `TPM2`;
+- we replace an application.
 
-Questa è una distinzione da capire molto bene:
+This is a distinction that needs to be understood very well:
 
-- aggiornare il sistema è manutenzione ordinaria;
-- aggiornare la repo è manutenzione architetturale.
+- updating the system is routine maintenance;
+- updating the repo is architectural maintenance.
 
-## 6. Dove si colloca `update-all`
+## 6. Where is `update-all` located?
 
-`update-all` non sarà "il posto dove vivono i pacchetti".
+`update-all` will not be "the place where packages live".
 
-Sarà piuttosto il direttore d'orchestra di operazioni come:
+Rather, he will be the conductor of operations such as:
 
-- snapshot pre-update;
+- pre-update snapshot;
 - `pacman -Syu`;
-- rigenerazione `UKI`;
+- regeneration `UKI`;
 - firma;
 - verifiche;
-- snapshot post-update.
+- post-update snapshot.
 
-Questa è una distinzione sana.
+This is a healthy distinction.
 
 Un buon script orchestra.
-Non finge di essere il repository del sistema.
+It does not pretend to be the system repository.
 
-## 7. La regola mentale da ricordare
+## 7. The mental rule to remember
 
-Se un giorno ti confondi, ricordati questa frase:
+If one day you get confused, remember this phrase:
 
-- Arch fornisce i componenti.
-- Margine definisce il sistema.
+- Arch provides the components.
+- Margin defines the system.
 
-Se tieni separate bene queste due idee, tutto il progetto diventa molto più
-leggibile.
+If you keep these two ideas well separated, the whole project becomes much more
+readable.

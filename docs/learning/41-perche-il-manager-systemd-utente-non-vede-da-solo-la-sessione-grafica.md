@@ -1,78 +1,78 @@
-# Perche' il manager `systemd --user` non vede da solo la sessione grafica
+# Because the `systemd --user` manager doesn't see the graphics session itself
 
-Questo problema e' facile da fraintendere.
+This problem is easy to misunderstand.
 
-## Il terminale e il manager utente non sono la stessa cosa
+## Terminal and user manager are not the same thing
 
-Quando lanci un comando da terminale, il processo figlio eredita l'ambiente
-della shell:
+When you run a terminal command, the child process inherits the environment
+of the shell:
 
 - `WAYLAND_DISPLAY`
 - `DISPLAY`
 - `HYPRLAND_INSTANCE_SIGNATURE`
 - variabili dei toolkit
 
-Quando invece un'app viene lanciata da:
+However, when an app is launched by:
 
 - `systemd-run --user --scope`
 
-la sorgente dell'ambiente non e' la tua shell. E' il manager `systemd --user`.
+the environment source is not your shell. It's manager `systemd --user`.
 
-Quindi la domanda giusta non e':
+So the right question is not:
 
-- "Il terminale vede la variabile?"
+- "Does the terminal see the variable?"
 
 ma:
 
-- "Il manager utente la conosce?"
+- "Does the user manager know you?"
 
-## Perche' Walker ed Elephant fanno emergere il bug
+## Because Walker and Elephant bring out the bug
 
 Nel workflow di `Margine`:
 
-- `Walker` e' il launcher;
-- `Elephant` fa da backend;
-- il lancio finale puo' passare per `systemd-run --user --scope`.
+- `Walker` is the launcher;
+- `Elephant` acts as the backend;
+- the final launch can go through `systemd-run --user --scope`.
 
-Se `systemd --user` non conosce la sessione grafica corretta, le app:
+If `systemd --user` doesn't know the correct graphics session, the apps:
 
-- possono non aprirsi;
-- possono aprirsi in modo incoerente;
-- possono sembrare sane da terminale ma non dal launcher.
+- they may not open;
+- may open inconsistently;
+- they may appear healthy from the terminal but not from the launcher.
 
-## Perche' `greetd` non basta
+## Because `greetd` is not enough
 
-`greetd` avvia la sessione, ma non puo' materializzare in anticipo variabili
-che esistono solo quando Hyprland e' gia' partito davvero.
+`greetd` starts the session, but cannot materialize variables in advance
+which only exist when Hyprland has already really left.
 
 Per esempio:
 
 - `WAYLAND_DISPLAY`
 - `HYPRLAND_INSTANCE_SIGNATURE`
 
-Per questo il punto corretto non e' "prima di Hyprland", ma "subito dopo il
-bootstrap della sessione Hyprland".
+For this reason the correct point is not "before Hyprland", but "immediately after
+Hyprland session bootstrap".
 
-## La soluzione giusta
+## The right solution
 
-La soluzione non e' correggere app per app.
+The solution is not to fix app by app.
 
-La soluzione giusta e':
+The right solution is:
 
-1. prendere le variabili essenziali dalla sessione Hyprland reale;
-2. importarle nel manager `systemd --user`;
-3. importarle anche nell'ambiente di attivazione D-Bus;
-4. farlo molto presto nel bootstrap della sessione.
+1. take the essential variables from the real Hyprland session;
+2. import them into the `systemd --user` manager;
+3. also import them into the D-Bus activation environment;
+4. do this very early in the session bootstrap.
 
-In pratica:
+In practice:
 
 - `systemctl --user import-environment ...`
 - `dbus-update-activation-environment --systemd ...`
 
-## Cosa valida davvero il fix
+## What really validates the fix
 
-Il fix e' valido quando:
+Il fix is valido quando:
 
-- `systemctl --user show-environment` contiene le stesse variabili essenziali
-  della shell della sessione;
-- `Walker` lancia app con lo stesso contesto grafico essenziale del terminale.
+- `systemctl --user show-environment` contains the same essential variables
+  of the session shell;
+- `Walker` launches apps with the same essential graphic context as the terminal.

@@ -1,53 +1,53 @@
-# Perché uno snapshot bootabile non è un rollback completo
+# Because a bootable snapshot is not a full rollback
 
-Vedere uno snapshot nel menu di boot e' molto potente.
+Seeing a snapshot in the boot menu is very powerful.
 
-Ma e' facile farsi ingannare e pensare:
+But it's easy to be fooled and think:
 
-- "allora il sistema puo' sempre tornare indietro da solo".
+- "then the system can always go back on its own".
 
-Non e' cosi'.
+It's not like that.
 
-## Cosa fa davvero uno snapshot bootabile
+## What a bootable snapshot really does
 
-Ti permette di:
+It allows you to:
 
-- avviare uno stato precedente del root filesystem;
-- ispezionarlo;
-- capire cosa si e' rotto;
-- usare quello stato come base per un rollback consapevole.
+- boot to a previous state of the root filesystem;
+- inspect it;
+- understand what broke;
+- use that state as the basis for conscious rollback.
 
-Questo e' tantissimo, ma non e' tutto.
+This is a lot, but it's not all.
 
-## Cosa NON fa da solo
+## What he does NOT do alone
 
-Non riallinea automaticamente:
+Does not automatically realign:
 
-- la `ESP`;
-- le firme EFI;
-- le `UKI`;
-- lo stato esterno a Btrfs;
-- eventuali side effect di aggiornamenti firmware o pacchetti.
+- the `ESP`;
+- EFI signatures;
+- the `UKI`;
+- the state external to Btrfs;
+- any side effects of firmware or package updates.
 
-Quindi uno snapshot bootabile e':
+So a bootable snapshot is:
 
-- un ottimo punto di recupero;
-- non una bacchetta magica.
+- an excellent recovery point;
+- not a magic wand.
 
-## Perché in Margine usiamo la recovery UKI
+## Why in Margin we use UKI recovery
 
-Quando booti uno snapshot da menu, il tuo obiettivo non dovrebbe essere:
+When booting a snapshot from the menu, your goal should not be:
 
-- "continuare come se nulla fosse".
+- "continue as if nothing had happened".
 
-Dovrebbe essere:
+It should be:
 
-- "entrare in un ambiente leggibile e sicuro per capire il problema".
+- "enter a readable and safe environment to understand the problem".
 
-Per questo `Margine` usa la `UKI` di recovery e monta lo snapshot in `ro`.
+For this `Margine` uses the recovery `UKI` and mounts the snapshot in `ro`.
 
-## La regola semplice
+## The simple rule
 
-Uno snapshot bootabile serve a recuperare bene.
-Il rollback completo richiede ancora una pipeline coerente.
+A bootable snapshot serves to recover well.
+Full rollback still requires a consistent pipeline.
 

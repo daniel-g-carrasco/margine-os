@@ -1,58 +1,58 @@
-# ADR 0017 - Utente amministrativo e baseline sessione
+# ADR 0017 - Administrative user and session baseline
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Fino a questo punto il bootstrap di `Margine` arrivava a:
+Up to this point the `Margine` bootstrap went as far as:
 
-- storage pronto;
-- sistema base installato;
-- servizi principali abilitati.
+- storage ready;
+- basic system installed;
+- main services enabled.
 
-Mancava però una cosa fondamentale:
+However, one fundamental thing was missing:
 
-- un utente amministrativo davvero usabile.
+- a really usable administrative user.
 
-## Problema da risolvere
+## Problem to solve
 
-Un sistema non è davvero pronto se si ferma a:
+A system is not truly ready if it stops at:
 
 - `root`;
-- pacchetti installati;
-- hostname e locale configurati.
+- installed packages;
+- hostname and locale configured.
 
-Serve anche:
+Also needed:
 
-- un utente amministrativo;
-- `sudo` configurato bene;
-- gruppi scelti in modo ragionato;
-- prime directory utente coerenti.
+- an administrative user;
+- `sudo` configured well;
+- groups chosen in a reasoned way;
+- first consistent user directories.
 
-## Decisione
+## Decision
 
 Per `Margine v1` introduciamo:
 
-- il pacchetto `sudo` nella base;
-- un template versionato per `/etc/sudoers.d/10-margine-wheel`;
-- uno script dedicato `scripts/provision-system-user`;
-- integrazione del provisioning utente dentro `bootstrap-in-chroot`.
+- the `sudo` package in the base;
+- a versioned template for `/etc/sudoers.d/10-margine-wheel`;
+- a dedicated script `scripts/provision-system-user`;
+- integration of user provisioning into `bootstrap-in-chroot`.
 
-## Regola amministrativa
+## Administrative rule
 
-L'utente creato da questo flow è un utente amministrativo moderno:
+The user created by this flow is a modern administrative user:
 
-- appartiene a `wheel`;
-- usa `sudo` con password;
-- non riceve `NOPASSWD` di default.
+- belongs to `wheel`;
+- use `sudo` with password;
+- does not receive `NOPASSWD` by default.
 
-## Regola gruppi
+## Rule groups
 
-La baseline non copia i gruppi dell'utente corrente alla cieca.
+The baseline does not copy the current user's groups blindly.
 
-In `Margine v1` la baseline amministrativa è:
+In `Margine v1` the administrative baseline is:
 
 - `wheel`
 - `video`
@@ -61,71 +61,71 @@ In `Margine v1` la baseline amministrativa è:
 - `libvirt`
 - `colord`
 
-Più eventuali gruppi espliciti passati via argomento.
+Plus any explicit groups passed via topic.
 
-Motivazione:
+Reason:
 
-- `wheel` serve all'amministrazione via `sudo`;
-- `video` e `render` coprono la baseline workstation per GPU e stack
+- `wheel` is used for administration via `sudo`;
+- `video` and `render` cover the workstation baseline for GPU and stack
   AMD/ROCm/OpenCL;
-- `kvm` e `libvirt` evitano che il primo uso di VM e virtualizzazione cada su
-  problemi di permessi inutili;
-- `colord` è coerente con un profilo macchina orientato anche a fotografia e
-  gestione colore.
+- `kvm` and `libvirt` prevent the first use of VMs and virtualization from falling on
+unnecessary permission issues;
+- `colord` is consistent with a camera profile also oriented towards photography and
+color management.
 
-`audio` non entra di default:
+`audio` does not enter by default:
 
-- sulla macchina di riferimento il sottosistema audio funziona già tramite ACL
+- on the reference machine the audio subsystem already works via ACL
   moderne su `/dev/snd`;
-- aggiungerlo senza necessità reale allargherebbe la baseline senza un guadagno
-  concreto.
+- adding it without real need would broaden the baseline without a gain
+concrete.
 
-Non entrano comunque di default gruppi storici come `network` o `storage`,
-perché qui non aggiungono un vantaggio chiaro.
+However, historical groups such as `network` or `storage` do not enter by default,
+because they don't add a clear benefit here.
 
-## Regola password
+## Adjust password
 
-Lo script accetta opzionalmente un hash password.
+The script optionally accepts a password hash.
 
-Se l'hash non viene fornito:
+If the hash is not provided:
 
-- l'utente viene creato comunque;
-- ma resta necessario un `passwd` manuale prima del login normale.
+- the user is created anyway;
+- but a manual `passwd` is still required before normal login.
 
-Questa scelta evita di obbligare il progetto a trattare password in chiaro.
+This choice avoids forcing the project to deal with plaintext passwords.
 
-## Regola sessione
+## Session rule
 
-In questo ADR chiudiamo solo la baseline minima:
+In this ADR we only close the minimum baseline:
 
-- utente;
+- user;
 - `sudo`;
 - `xdg-user-dirs`;
-- servizi base di sistema.
+- basic system services.
 
-Il login path finale viene invece chiuso da ADR successivi:
+The final login path is instead closed by subsequent ADRs:
 
 - `greetd`;
-- `tuigreet` come fallback;
-- autologin iniziale dell'utente principale;
-- `hyprlock` come lockscreen immediata all'ingresso sessione.
+- `tuigreet` as fallback;
+- initial main user autologin;
+- `hyprlock` as immediate lockscreen upon session entry.
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa scelta ci dà:
+This choice gives us:
 
-- un bootstrap che produce davvero un sistema amministrabile;
-- una baseline più pulita e moderna;
-- meno accoppiamento tra provisioning utente e login path finale;
-- una base coerente su cui agganciare il provisioning della sessione.
+- a bootstrap that actually produces an administrable system;
+- a cleaner and more modern baseline;
+- less coupling between user provisioning and final login path;
+- a consistent basis on which to hook session provisioning.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
-Un sistema installato non è ancora un sistema pronto.
+An installed system is not yet a ready system.
 
-Diventa pronto quando puoi:
+Get ready when you can:
 
-- entrare con il tuo utente;
-- usare `sudo`;
-- avere una home coerente;
-- partire da regole semplici e comprensibili.
+- log in with your user;
+- use `sudo`;
+- have a coherent home;
+- start from simple and understandable rules.

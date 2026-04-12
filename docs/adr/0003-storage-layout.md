@@ -1,92 +1,90 @@
-# ADR 0003 - Layout di partizioni, subvolumi e mount strategy
+# ADR 0003 - Layout of partitions, subvolumes and mount strategy
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Contesto
+## Context
 
-La macchina attuale ha già una base sensata:
+The current machine already has a sensible base:
 
-- `ESP` separata montata su `/boot`
-- resto del disco in `LUKS2`
+- a separate `ESP` mounted on `/boot`
+- rest of the disk in `LUKS2`
 - root `Btrfs`
-- subvolumi separati per `/`, `/home`, `/.snapshots`, `/var/cache`,
+- separate subvolumes for `/`, `/home`, `/.snapshots`, `/var/cache`,
   `/var/log`
 
-Questa base è buona, ma non è ancora il layout migliore per gli obiettivi di
+This base is good, but it's still not the best layout for the goals of
 `Margine`:
 
-- `Limine` + snapshot bootabili
+- `Limine` + bootable snapshots
 - `Btrfs` + `Snapper`
-- recovery molto forte
-- uso futuro con VM e container
-- snapshot puliti e poco rumorosi
+- very strong recovery
+- future use with VMs and containers
+- clean and low-noise snapshots
 
-## Requisiti
+## Requirements
 
-Il layout deve:
+The layout must:
 
-- restare semplice da capire;
-- supportare `LUKS2` e `Btrfs` in modo pulito;
-- non gonfiare inutilmente gli snapshot root;
-- distinguere bene tra "stato del sistema" e "dati ad alta mutazione";
-- essere pronto per `libvirt`, `systemd-nspawn` e container;
-- non complicare inutilmente `Limine + UKI`.
+- remain simple to understand;
+- support `LUKS2` and `Btrfs` cleanly;
+- avoid bloating root snapshots unnecessarily;
+- clearly distinguish between "system state" and "highly mutable data";
+- be ready for `libvirt`, `systemd-nspawn` and containers;
+- don't unnecessarily complicate `Limine + UKI`.
 
-## Decisione
+## Decision
 
-Per `Margine v1` adottiamo questo layout target.
+For `Margine v1` we adopt this target layout.
 
-## Partizioni
+## Partitions
 
-### Partizione 1
+### Partition 1
 
-- tipo: `ESP`
+- type: `ESP`
 - filesystem: `FAT32`
-- dimensione: `4 GiB`
+- size: `4 GiB`
 - mountpoint: `/boot`
 
-Motivo:
+Reason:
 
-- con `Limine + UKI + snapshot bootabili` è utile avere un `/boot` ampio;
-- evitare `ESP` piccole riduce attrito quando aumentano kernel, UKI e artefatti
-  di recovery;
-- un singolo `/boot` FAT e molto più semplice da capire di una combinazione
-  `ESP + XBOOTLDR` nella `v1`.
+- with `Limine + UKI + bootable snapshots` it is useful to have a large `/boot`;
+- avoid small `ESP` reduces friction when kernel, UKI and recovery artifacts grow;
+- a single `/boot` FAT is much easier to understand than a combination
+`ESP + XBOOTLDR` into `v1`.
 
-### Partizione 2
+### Partition 2
 
-- tipo: `LUKS2`
-- dimensione: resto del disco
-- contenuto: un solo filesystem `Btrfs`
+- type: `LUKS2`
+- size: rest of the disk
+- content: a single filesystem `Btrfs`
 
-Motivo:
+Reason:
 
-- struttura pulita;
-- recovery lineare;
-- nessuna frammentazione architetturale inutile.
+- a clean structure;
+- linear recovery;
+- no unnecessary architectural fragmentation.
 
 ## Swap
 
-Per la `v1` NON adottiamo una partizione swap dedicata.
+For `v1` we do NOT adopt a dedicated swap partition.
 
-Scelta:
+Choice:
 
-- `zram` come swap principale;
-- niente ibernazione come requisito della `v1`.
+- `zram` as main swap;
+- no hibernation as required by `v1`.
 
-Motivo:
+Reason:
 
-- l'ibernazione aggiunge complessità importante a `LUKS2 + TPM2 + snapshot`;
-- non è coerente con l'obiettivo di tenere la prima versione leggibile.
+- hibernation adds important complexity to `LUKS2 + TPM2 + snapshot`;
+- is not consistent with the goal of keeping the first version readable.
 
-Se in futuro l'ibernazione diventa requisito reale, verrà affrontata come ADR
-separato.
+If hibernation becomes a real requirement in the future, it will be addressed in a separate ADR.
 
-## Subvolumi target
+## Target subvolumes
 
-### Subvolumi di base
+### Basic subvolumes
 
 - `@` -> `/`
 - `@home` -> `/home`
@@ -98,146 +96,146 @@ separato.
 - `@srv` -> `/srv`
 - `@data` -> `/data`
 
-### Subvolumi per virtualizzazione e container
+### Subvolumes for virtualization and containers
 
 - `@var_lib_libvirt` -> `/var/lib/libvirt`
 - `@var_lib_machines` -> `/var/lib/machines`
 - `@var_lib_containers` -> `/var/lib/containers`
 
-### Subvolumi opzionali, solo se servono davvero
+### Optional subvolumes, only if you really need them
 
 - `@var_lib_docker` -> `/var/lib/docker`
 - `@var_lib_flatpak` -> `/var/lib/flatpak`
 
-## Tabella operativa di riferimento
+## Operational reference table
 
-| Subvolume | Mountpoint | Ruolo | Entra nel rollback di sistema? | Nota |
+| Subvolume | Mountpoint | Role | Does it enter system rollback? | Notes |
 | --- | --- | --- | --- | --- |
-| `@` | `/` | stato del sistema | sì | contiene il sistema operativo vero e proprio |
-| `@home` | `/home` | dati utente | no | tiene separata la vita dell'utente dal rollback root |
-| `@snapshots` | `/.snapshots` | storage Snapper | non direttamente | ospita gli snapshot e la loro metadata |
-| `@var_log` | `/var/log` | log persistenti | no | evita rumore negli snapshot root |
-| `@var_cache` | `/var/cache` | cache persistenti | no | evita crescita inutile degli snapshot |
-| `@var_tmp` | `/var/tmp` | temporanei persistenti | no | separa file effimeri ma persistenti ai reboot |
-| `@root` | `/root` | spazio operativo amministrativo | no | evita di mescolare materiale admin e stato OS |
-| `@srv` | `/srv` | dati serviti localmente | no | utile per servizi locali e publish tree |
-| `@data` | `/data` | dataset, archivi, staging | no | punto ordinato per materiale grande o longevo |
-| `@var_lib_libvirt` | `/var/lib/libvirt` | virtualizzazione rootful | no | contiene immagini, XML e runtime di libvirt |
-| `@var_lib_machines` | `/var/lib/machines` | `systemd-nspawn` | no | separa macchine/immagini nspawn dagli snapshot OS |
-| `@var_lib_containers` | `/var/lib/containers` | container rootful | no | copre Podman rootful e workload simili |
-| `@var_lib_docker` | `/var/lib/docker` | Docker rootful | no | si crea solo se Docker entra davvero nel progetto |
-| `@var_lib_flatpak` | `/var/lib/flatpak` | Flatpak di sistema | no | opzionale: utile solo se Flatpak system-wide sarà parte della allowlist |
+| `@` | `/` | system status | yes | contains the actual operating system |
+| `@home` | `/home` | user data | no | keeps user life separate from the rollback root |
+| `@snapshots` | `/.snapshots` | Snapper storage | not directly | hosts snapshots and their metadata |
+| `@var_log` | `/var/log` | persistent logs | no | avoid noise in root snapshots |
+| `@var_cache` | `/var/cache` | persistent caches | no | avoid unnecessary snapshot growth |
+| `@var_tmp` | `/var/tmp` | temporary persistent | no | separates ephemeral but persistent files on reboots |
+| `@root` | `/root` | administrative operating space | no | avoid mixing admin and OS status material |
+| `@srv` | `/srv` | data served locally | no | useful for local services and publish trees |
+| `@data` | `/data` | datasets, archives, staging | no | neat stitch for large or long-lived material |
+| `@var_lib_libvirt` | `/var/lib/libvirt` | rootful virtualization | no | contains images, XML and libvirt runtime |
+| `@var_lib_machines` | `/var/lib/machines` | `systemd-nspawn` | no | separate nspawn machines/images from OS snapshots |
+| `@var_lib_containers` | `/var/lib/containers` | rootful containers | no | covers rootful Podman and similar workloads |
+| `@var_lib_docker` | `/var/lib/docker` | Rootful Docker | no | is created only if Docker actually enters the project |
+| `@var_lib_flatpak` | `/var/lib/flatpak` | System Flatpak | no | optional: only useful if Flatpak system-wide will be part of the allowlist |
 
-## Politica dati per workload moderni
+## Data policy for modern workloads
 
 ### VM
 
-Per le VM ci interessa separare due categorie:
+For VMs we want to separate two categories:
 
-- metadata e runtime del gestore;
-- immagini disco vere e proprie.
+- hypervisor metadata and runtime;
+- actual disk images.
 
-`/var/lib/libvirt` viene quindi separato come subvolume dedicato.
-Se useremo immagini molto grandi o ad alta scrittura, potremo applicare
-`NOCOW` in modo mirato solo a directory come:
+`/var/lib/libvirt` is then separated as a dedicated subvolume.
+If we will use very large or high writing images, we will be able to apply
+`NOCOW` targeted only to directories such as:
 
 - `/var/lib/libvirt/images`
 - `/data/vm`
 
 ### Container
 
-Per i container dobbiamo distinguere tra `rootful` e `rootless`.
+For containers we must distinguish between `rootful` and `rootless`.
 
-- `rootful` usa tipicamente `/var/lib/containers`
-- `rootless` usa tipicamente `~/.local/share/containers`
+- `rootful` typically uses `/var/lib/containers`
+- `rootless` typically uses `~/.local/share/containers`
 
-Questo significa che il layout proposto copre già bene i container `rootful`,
-mentre quelli `rootless` restano naturalmente dentro `@home`, cioè fuori dal
-rollback di sistema ma dentro i dati utente.
+This means that the proposed layout already covers the `rootful` containers well,
+while those `rootless` naturally remain inside `@home`, that is, outside the
+system rollback but inside user data.
 
 ### Flatpak
 
-Non diamo per scontato che `Flatpak` faccia parte della `v1`.
-Se entrerà, distingueremo:
+We do not assume that `Flatpak` is part of `v1`.
+If it enters, we will distinguish:
 
-- `system-wide`: candidato a `@var_lib_flatpak`
-- `per-user`: resterà sotto `~/.local/share/flatpak`, quindi dentro `@home`
+- `system-wide`: candidate for `@var_lib_flatpak`
+- `per-user`: it will remain under `~/.local/share/flatpak`, then inside `@home`
 
-## Regola architetturale importante
+## Important architectural rule
 
-Gli snapshot root devono contenere lo stato del sistema.
+Root snapshots must contain system state.
 
-Non devono contenere, per quanto possibile:
+They must not contain, as far as possible:
 
 - cache;
-- log ad alta rotazione;
-- file temporanei persistenti;
-- dischi di VM;
-- storage dei container;
-- dataset utente voluminosi e molto mutabili.
+- high rotation log;
+- persistent temporary files;
+- VM disks;
+- container storage;
+- voluminous and highly mutable user datasets.
 
-Questa è la vera ragione del layout.
-Non è "ordine estetico". È qualità del rollback.
+This is the real reason for the layout.
+It is not "aesthetic order". It is rollback quality.
 
-## Cosa resta dentro il root snapshot
+## What remains inside the root snapshot
 
-Resta dentro `@` tutto ciò che definisce il sistema:
+Everything that defines the system remains inside `@`:
 
 - `/etc`
 - `/usr`
 - `/opt`
 - `/var/lib/pacman`
 - `/var/lib/systemd`
-- le configurazioni di sistema che devono tornare indietro insieme al sistema
+- system configurations that need to go back with the system
 
-## Cosa NON separiamo
+## What we DO NOT separate
 
 ### `/opt`
 
-Resta dentro `@`.
+Remains inside `@`.
 
-Motivo:
+Reason:
 
-- molti pacchetti installano lì;
-- separarlo aumenterebbe il rischio di disallineamento tra package database e
-  contenuto reale.
+- many packages install there;
+- separating it would increase the risk of misalignment between database and package
+real content.
 
 ### `/var/lib/pacman`
 
-Resta dentro `@`.
+Remains inside `@`.
 
-Motivo:
+Reason:
 
-- il database dei pacchetti deve restare coerente con lo snapshot del sistema;
-- separarlo renderebbe i rollback molto più ambigui.
+- the database package must remain consistent with the system snapshot;
+- separating it would make rollbacks much more ambiguous.
 
 ## Mount options
 
 ### Btrfs
 
-Per i subvolumi Btrfs useremo come base:
+For Btrfs subvolumes we will use as a basis:
 
 - `rw`
 - `relatime`
 - `compress=zstd:3`
 - `ssd`
 
-Scelte consapevoli:
+Conscious choices:
 
-- non puntiamo a mount options aggressive o "da benchmark";
-- vogliamo un sistema stabile e leggibile;
-- la compressione `zstd` è un vantaggio concreto su laptop moderno.
+- we don't aim for aggressive or "benchmark" mount options;
+- we want a stable and readable system;
+- `zstd` compression is a real advantage on modern laptops.
 
-Non fisseremo invece in `fstab`, salvo necessità reale:
+However, we will not set in `fstab`, unless really necessary:
 
 - `space_cache=v2`
 - `autodefrag`
 - `discard=async`
 
-Motivo:
+Reason:
 
-- preferiamo esplicitare solo ciò che è davvero una scelta architetturale;
-- lasciamo ai default moderni del kernel Btrfs ciò che non ci serve irrigidire.
+- we prefer to explain only what is truly an architectural choice;
+- we leave to the modern defaults of the Btrfs kernel what we don't need to harden.
 
 ### Trim
 
@@ -245,46 +243,46 @@ Usiamo:
 
 - `fstrim.timer`
 
-Non usiamo come default:
+We do not use as default:
 
 - `discard=async`
 
-Motivo:
+Reason:
 
-- preferiamo una strategia più lineare e meno rumorosa dal punto di vista del
+- we prefer a more linear and less noisy strategy from the point of view of
   mount.
 
 ## NOCOW
 
-Non useremo `NOCOW` in modo indiscriminato.
+We will not use `NOCOW` indiscriminately.
 
-Lo applicheremo solo dove ha davvero senso, e prima che i dati vengano scritti:
+We'll only apply it where it really makes sense, and before the data is written:
 
 - `/var/lib/libvirt/images`
-- eventuali directory utente dedicate a immagini disco, per esempio
+- any user directories dedicated to disk images, for example
   `/data/vm`
 
-Non lo applicheremo di default a:
+We will not apply it by default to:
 
 - `/var/lib/containers`
 
-Motivo:
+Reason:
 
-- i container hanno pattern diversi dalle immagini disco delle VM;
-- un blanket `NOCOW` qui sarebbe una scelta troppo grossolana.
+- containers have different patterns from VM disk images;
+- a blanket `NOCOW` here would be too crude a choice.
 
-## Filosofia di recovery
+## Recovery philosophy
 
-La recovery del sistema seguirà questa logica:
+System recovery will follow this logic:
 
-- gli snapshot root servono a recuperare lo stato del sistema;
-- `home`, `data`, VM e container non devono inquinare quello snapshot;
-- `Limine` deve poter esporre snapshot bootabili in modo chiaro;
-- il restore deve essere comprensibile anche a mente fredda.
+- root snapshots are used to recover the system state;
+- `home`, `data`, VMs and containers must not pollute that snapshot;
+- `Limine` must be able to expose bootable snapshots in a clear way;
+- the restore must be understandable even with a cold mind.
 
-## Rapporto con il layout attuale
+## Relationship to the current layout
 
-### Cosa manteniamo
+### What we keep
 
 - `ESP + LUKS2 + Btrfs`
 - `@`
@@ -293,35 +291,35 @@ La recovery del sistema seguirà questa logica:
 - `@var_log`
 - `@var_cache`
 
-### Cosa miglioriamo
+### What we improve
 
-- aggiungiamo `@var_tmp`
-- aggiungiamo `@root`
-- aggiungiamo `@srv`
-- aggiungiamo `@data`
-- separiamo le aree di virtualizzazione e container
-- definiamo una strategia esplicita `NOCOW`
-- fissiamo mount options più sensate per la nuova architettura
+- we add `@var_tmp`
+- we add `@root`
+- we add `@srv`
+- we add `@data`
+- we separate the virtualization and container areas
+- we define an explicit strategy `NOCOW`
+- let's set mount options that make more sense for the new architecture
 
-## Perché questo è il layout migliore per Margine
+## Because this is the best layout for Margin
 
-Perché bilancia bene quattro cose insieme:
+Because it balances four things well together:
 
-1. recovery forte;
-2. semplicità mentale;
-3. compatibilità con `Btrfs + Snapper`;
-4. crescita futura verso VM e container senza sporcare gli snapshot root.
+1. strong recovery;
+2. mental simplicity;
+3. compatibility with `Btrfs + Snapper`;
+4. future growth towards VMs and containers without dirtying the root snapshots.
 
-Non è il layout "più minimale possibile".
-È il layout più coerente con il progetto.
+It's not the "minimalest possible" layout.
+It is the layout most consistent with the project.
 
-## Riferimenti
+## References
 
 - ArchWiki, `Btrfs`:
   https://wiki.archlinux.org/title/Btrfs
 - ArchWiki, `Snapper`:
   https://wiki.archlinux.org/title/Snapper
-- ArchWiki, note su layout Btrfs e snapshot:
+- ArchWiki, notes on Btrfs layouts and snapshots:
   https://wiki.archlinux.org/title/User:M0p/Btrfs_subvolumes
-- ArchWiki, esempio di layout con subvolumi separati:
+- ArchWiki, example layout with separate subvolumes:
   https://wiki.archlinux.org/title/User:Thawn

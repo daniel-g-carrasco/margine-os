@@ -1,80 +1,80 @@
-# Come funziona l'installer guidato dai manifest
+# How the manifest-driven installer works
 
-## L'idea chiave
+## The key idea
 
-I manifest sono la verità sul contenuto del sistema.
+Manifests are the truth about the contents of the system.
 
-Lo script installativo non è la fonte della policy.
-È solo il motore che esegue quella policy.
+The installation script is not the source of the policy.
+It's just the engine that executes that policy.
 
-## Perché è importante
+## Why it matters
 
-Se la lista dei pacchetti sta dentro uno script gigantesco, succedono due cose:
+If the package list is inside a giant script, two things happen:
 
-- diventa difficile capire cosa stai installando;
-- diventa difficile cambiare una scelta senza toccare la logica.
+- it becomes difficult to understand what you are installing;
+- it becomes difficult to change a choice without touching logic.
 
-Separare `dati` e `logica` è il modo corretto.
+Separating `dati` and `logica` is the correct way.
 
-In questo caso:
+In this case:
 
-- i `dati` sono i manifest;
-- la `logica` è lo script che li legge.
+- the `dati` are the manifests;
+- the `logica` is the script that reads them.
 
-## I tre mondi diversi
+## The three different worlds
 
-In `Margine` distinguiamo tre mondi:
+In `Margine` we distinguish three worlds:
 
-1. repo ufficiali Arch
+1. official Arch repo
 2. AUR
 3. Flatpak
 
-Sembrano tutti "software da installare", ma non sono la stessa cosa.
+They all look like "software to install", but they are not the same thing.
 
-Per questo lo script non li tratta tutti allo stesso modo.
+This is why the script doesn't treat them all the same.
 
-## Cosa fa il percorso di default
+## What the default path does
 
-Il percorso normale installa solo i layer ufficiali, nell'ordine deciso dal
-progetto.
+The normal route installs only the official layers, in the order decided by
+project.
 
-Questo è il punto importante:
+This is the important point:
 
-- il default deve essere il percorso più solido e più supportabile.
+- the default must be the strongest and most supportable path.
 
-## Perché AUR e Flatpak non sono di default
+## Because AUR and Flatpak are not by default
 
-Perché sono due scelte consapevoli:
+Because they are two conscious choices:
 
-- AUR aumenta la superficie di manutenzione;
-- Flatpak aggiunge un altro ecosistema.
+- AUR increases the maintenance surface;
+- Flatpak adds another ecosystem.
 
-Non sono "sbagliati".
-Semplicemente non devono entrare nel bootstrap base senza che tu lo decida.
+They are not "wrong".
+They just don't have to go into the basic bootstrap without you deciding to.
 
-## Perché serve il dry-run
+## Why dry-run is needed
 
-`dry-run` ti permette di vedere:
+`dry-run` allows you to see:
 
-- quali layer stai installando;
-- quali pacchetti verranno passati a `pacman`;
-- se stai per includere AUR o Flatpak.
+- which layers are you installing;
+- which packets will be passed to `pacman`;
+- if you are going to include AUR or Flatpak.
 
-Didatticamente è molto utile perché ti fa leggere il piano prima di eseguirlo.
+Educationally it is very useful because it makes you read the plan before executing it.
 
-## Come modificarlo bene
+## How to edit it well
 
-Se vuoi cambiare il sistema target:
+If you want to change the target system:
 
-- modifichi i manifest.
+- edit manifests.
 
-Se vuoi cambiare il comportamento dell'installer:
+If you want to change the behavior of the installer:
 
-- modifichi lo script.
+- edit the script.
 
-Questa distinzione è fondamentale.
+This distinction is fundamental.
 
-## La regola mentale giusta
+## The right mental rule
 
-Se ti trovi a voler modificare un pacchetto dentro lo script, probabilmente stai
-toccando il posto sbagliato.
+If you find yourself wanting to modify a package inside the script, you probably are
+touching the wrong place.

@@ -1,12 +1,12 @@
-# ADR 0013 - Installazione dei pacchetti guidata dai manifest
+# ADR 0013 - Manifest-driven package installation
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Ora che `Margine` ha manifest separati per:
+Now that `Margine` has separate manifests for:
 
 - base;
 - hardware;
@@ -17,36 +17,36 @@ Ora che `Margine` ha manifest separati per:
 - AUR;
 - Flatpak;
 
-serve un modo coerente per trasformarli in installazione vera.
+we need a coherent way to transform them into real installations.
 
-## Problema da risolvere
+## Problem to solve
 
-Se i manifest restano solo documentazione, il progetto perde forza.
+If manifests remain just documentation, the project loses strength.
 
-Se invece li usiamo senza regole, rischiamo di:
+If, however, we use them without rules, we risk:
 
-- mischiare repo ufficiali, AUR e Flatpak;
-- perdere l'ordine dei layer;
-- introdurre installazioni poco leggibili;
-- rendere `Margine` difficile da mantenere.
+- mix official repos, AUR and Flatpak;
+- lose the order of the layers;
+- introduce difficult to read installations;
+- make `Margine` difficult to maintain.
 
-## Decisione
+## Decision
 
-Per `Margine v1`, l'installazione dei pacchetti sarà manifest-driven.
+For `Margine v1`, package installation will be manifest-driven.
 
-Questo significa:
+This means:
 
-1. i pacchetti ufficiali vengono letti da manifest `*.txt` versionati;
-2. i layer ufficiali hanno un ordine esplicito;
-3. un piccolo baseline AUR entra nel percorso di default solo dove serve a non
-   rompere il desktop target;
-4. Flatpak non entra nel percorso di default;
-5. le eccezioni AUR non essenziali e Flatpak si abilitano solo con flag
-   espliciti.
+1. official packages are read from versioned `*.txt` manifests;
+2. the official layers have an explicit order;
+3. a small baseline AUR enters the default path only where it is not needed
+   break the target desktop;
+4. Flatpak does not enter the default path;
+5. Non-essential AUR and Flatpak exceptions are enabled only with flags
+   explicit.
 
-## Ordine canonico dei layer ufficiali
+## Canonical order of official layers
 
-L'ordine base è:
+The basic order is:
 
 1. `base-system`
 2. `hardware-framework13-amd`
@@ -59,67 +59,67 @@ L'ordine base è:
 9. `apps-photo-audio-video`
 10. `fonts`
 
-## Regola AUR
+## AUR rule
 
-Il manifest `aur-baseline.txt` viene installato automaticamente.
+The `aur-baseline.txt` manifest is installed automatically.
 
-Motivo:
+Reason:
 
-- `Margine` usa `walker` come launcher preferito;
-- `walker` richiede `elephant`;
-- senza questi pacchetti il desktop installato sarebbe incoerente rispetto alla
-  baseline dichiarata.
+- `Margine` uses `walker` as preferred launcher;
+- `walker` requires `elephant`;
+- without these packages the installed desktop would be inconsistent with the
+  declared baseline.
 
-Il manifest `aur-exceptions.txt` invece non viene installato automaticamente.
+However, the `aur-exceptions.txt` manifest is not installed automatically.
 
-Motivo:
+Reason:
 
-- vogliamo che il percorso standard resti il piu' possibile ancorato ai repo
-  ufficiali;
-- le eccezioni AUR non essenziali devono restare una scelta consapevole.
+- we want the standard path to remain as anchored to the repos as possible
+  officers;
+- non-essential AUR exceptions must remain a conscious choice.
 
 ## Regola Flatpak
 
-Il manifest `flatpaks/apps.txt` non viene installato automaticamente.
+The `flatpaks/apps.txt` manifest is not automatically installed.
 
-Motivo:
+Reason:
 
-- Flatpak è un layer diverso da `pacman`;
-- vogliamo evitare che entri "di nascosto" nel bootstrap base.
+- Flatpak is a different layer than `pacman`;
+- we want to prevent it from "secretly" entering the base bootstrap.
 
-## Regola di deduplicazione
+## Deduplication rule
 
-Se lo stesso pacchetto finisce in più manifest selezionati, lo script lo
-installa una sola volta.
+If the same package ends up in multiple selected manifests, the script will
+install only once.
 
-Questo rende i manifest più tolleranti senza degradare l'esecuzione.
+This makes manifests more forgiving without degrading execution.
 
-## Regola di leggibilità
+## Readability rule
 
-Lo script installativo deve:
+The installation script must:
 
-- supportare `dry-run`;
-- poter mostrare i layer disponibili;
-- poter installare solo alcuni layer;
-- restare piccolo e leggibile.
+- support `dry-run`;
+- being able to show the available layers;
+- being able to install only some layers;
+- stay small and readable.
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa scelta ci dà:
+This choice gives us:
 
-- un bootstrap iniziale già utile;
-- manifest che diventano davvero eseguibili;
-- un confine chiaro tra ufficiale, AUR di baseline, AUR opzionale e Flatpak;
-- una base buona per lo script da live ISO.
+- an already useful initial bootstrap;
+- manifests that become truly executable;
+- a clear boundary between official, baseline AUR, optional AUR and Flatpak;
+- a good basis for scripting from live ISO.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
-Pensa ai manifest come a una distinta base.
+Think of manifests as a bill of materials.
 
-Lo script non deve "decidere" cosa installare.
-Deve solo:
+The script does not have to "decide" what to install.
+You just have to:
 
-1. leggere i manifest giusti;
-2. rispettare l'ordine;
-3. usare il gestore corretto;
-4. non mescolare i mondi per sbaglio.
+1. read the right manifestos;
+2. respect the order;
+3. use the correct manager;
+4. Don't mix the worlds by accident.

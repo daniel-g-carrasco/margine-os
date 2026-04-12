@@ -1,62 +1,62 @@
-# Perché la connettività va separata in layer
+# Because connectivity must be separated into layers
 
-Quando configuri rete, Wi-Fi, VPN e Bluetooth è facile fare confusione, perché
-tutti questi pezzi sembrano "la stessa cosa".
+When setting up network, Wi-Fi, VPN and Bluetooth it's easy to get confused, because
+all these pieces seem "the same thing".
 
-In realtà non lo sono.
+In reality they are not.
 
-## I tre livelli da capire
+## The three levels to understand
 
-### 1. Orchestrazione
+### 1. Orchestration
 
-Questo è il livello che decide:
+This is the level that decides:
 
-- quali connessioni esistono;
-- quale profilo è attivo;
-- come si integrano VPN, DNS e stato rete.
+- what connections exist;
+- which profile is active;
+- how VPN, DNS and network status integrate.
 
-In `Margine`, questo livello è `NetworkManager`.
+In `Margine`, this level is `NetworkManager`.
 
 ### 2. Backend hardware o protocollo
 
-Questo è il livello che parla davvero con il dispositivo o col protocollo:
+This is the layer that really talks to the device or protocol:
 
-- `iwd` per il Wi-Fi;
-- `bluez` per il Bluetooth;
-- strumenti kernel/user-space per `WireGuard`.
+- `iwd` for Wi-Fi;
+- `bluez` for Bluetooth;
+- kernel/user-space tools for `WireGuard`.
 
-Questo livello non deve per forza decidere l'intera politica del sistema.
+This level does not have to decide the entire policy of the system.
 
-### 3. Interfaccia utente
+### 3. User interface
 
-Questo è il livello che tu vedi:
+This is the level you see:
 
 - `impala`;
 - `bluetui`;
-- il menu VPN in `waybar`.
+- the VPN menu in `waybar`.
 
-Questi strumenti sono importanti, ma non devono essere scambiati per il
-"motore" del sistema.
+These tools are important, but should not be mistaken for the
+"engine" of the system.
 
-## Perché è utile pensarla così
+## Because it's useful to think like this
 
-Se un giorno cambi l'interfaccia, non devi buttare via l'architettura.
+If one day you change the interface, you don't have to throw away the architecture.
 
 Esempio:
 
-- puoi sostituire `impala` con un altro TUI;
-- ma `NetworkManager + iwd` può restare intatto.
+- you can replace `impala` with another TUI;
+- but `NetworkManager + iwd` can remain intact.
 
-Questo è esattamente il motivo per cui `Margine` non vuole una configurazione
-casuale "presa dalla macchina che oggi funziona", ma un sistema scomponibile e
-leggibile.
+This is exactly why `Margine` doesn't want a setup
+random "taken from the machine that works today", but a decomposable system and
+readable.
 
-## La regola pratica
+## The rule of thumb
 
-Quando aggiungi un pezzo alla connettività, chiediti sempre:
+When adding a piece to connectivity, always ask yourself:
 
-- è il cervello?
-- è il motore?
-- o è solo l'interfaccia?
+- is it the brain?
+- is it the engine?
+- or is it just the interface?
 
-Se non sai rispondere, stai ancora mescolando i layer.
+If you don't know the answer, you're still mixing layers.

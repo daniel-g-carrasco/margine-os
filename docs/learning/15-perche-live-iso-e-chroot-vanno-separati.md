@@ -1,78 +1,78 @@
-# Perché live ISO e chroot vanno separati
+# Because live ISO and chroot must be separated
 
 ## Il problema
 
-Quando installi Arch da live ISO, stai lavorando in due mondi diversi:
+When you install Arch from live ISO, you are working in two different worlds:
 
-1. il sistema temporaneo della chiavetta;
-2. il sistema vero che stai costruendo sotto `/mnt`.
+1. the temporary key system;
+2. the actual system you are building under `/mnt`.
 
-Se ti dimentichi questa distinzione, inizi a scrivere script confusi.
+If you forget this distinction, you start writing confusing scripts.
 
-## Primo mondo: la live ISO
+## First world: the live ISO
 
-Qui hai strumenti utili per installare:
+Here you have useful tools to install:
 
 - `pacstrap`
 - `genfstab`
 - `arch-chroot`
 
-Ma non stai ancora "dentro" il sistema finale.
+But you are not yet "in" the final system.
 
-## Secondo mondo: il sistema target
+## Second world: the target system
 
-Dopo `pacstrap`, dentro `/mnt` esiste già un sistema Arch di base.
+After `pacstrap`, a basic Arch system already exists inside `/mnt`.
 
-A quel punto ha senso entrarci con `arch-chroot` e lavorare lì come se fosse la
-macchina vera.
+At that point it makes sense to enter it with `arch-chroot` and work there as if it were there
+real car.
 
-## Che cosa non va fatto
+## What should not be done
 
-Non è una buona idea scrivere uno script unico gigantesco che:
+It's not a good idea to write a giant single script that:
 
-- monta;
-- installa;
-- genera `fstab`;
-- entra nel chroot;
-- configura locale;
-- crea utenti;
-- installa desktop;
-- prepara bootloader;
-- firma Secure Boot.
+- mount;
+- install;
+- generate `fstab`;
+- enter the chroot;
+- configure local;
+- create users;
+- install desktop;
+- prepare bootloader;
+- Secure Boot signature.
 
-Quel tipo di script diventa presto fragile e opaco.
+That kind of script quickly becomes brittle and opaque.
 
-## La divisione giusta
+## The right division
 
-La divisione didatticamente corretta è:
+The didactically correct division is:
 
-- fase 1: preparazione del target dalla live ISO;
-- fase 2: configurazione del target dall'interno del target.
+- phase 1: preparation of the target from the live ISO;
+- phase 2: configuration of the target from inside the target.
 
-## Perché pacstrap non deve fare tutto
+## Because pacstrap doesn't have to do everything
 
-`pacstrap` serve a creare il sistema base.
+`pacstrap` is used to create the basic system.
 
-Non è il posto giusto per tutta la logica del progetto.
+Not the right place for all the logic of the project.
 
-Se lo usi bene:
+If you use it well:
 
-- installa il minimo necessario;
-- ti porta a un chroot utile;
-- da lì continui in modo più pulito.
+- install the minimum necessary;
+- takes you to a useful chroot;
+- from there you continue more cleanly.
 
-## Come si collega a Margine
+## How it relates to Margin
 
-In `Margine` questo significa:
+In `Margine` this means:
 
-- `bootstrap-live-iso` prepara il target;
-- `bootstrap-in-chroot` continua il lavoro;
-- `install-from-manifests` installa i layer ufficiali e opzionali.
+- `bootstrap-live-iso` prepares the target;
+- `bootstrap-in-chroot` continues the work;
+- `install-from-manifests` installs the official and optional layers.
 
-## La regola mentale da ricordare
+## The mental rule to remember
 
-La live ISO prepara.
-Il chroot configura.
+The live ISO prepares.
+The chroot configures.
 
-Se uno script inizia a confondere questi due ruoli, sta diventando più brutto
-di quanto dovrebbe.
+If a script starts confusing these two roles, it's getting uglier
+than it should.

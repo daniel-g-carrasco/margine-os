@@ -1,53 +1,53 @@
-# Perché il desktop non è solo una cartella di dotfiles
+# Because the desktop is not just a folder of dotfiles
 
-Molti pensano che "riprodurre il desktop" significhi:
+Many people think that "render the desktop" means:
 
-- copiare `~/.config`;
-- incrociare le dita;
-- sperare che tutto riparta.
+- copy `~/.config`;
+- cross your fingers;
+- hope that everything starts again.
 
-Questa non è architettura. È archeologia.
+This is not architecture. It's archaeology.
 
-## Cos'è davvero un desktop layer
+## What a desktop layer really is
 
-Un desktop layer è l'insieme di:
+A desktop layer is the set of:
 
-- pacchetti installati;
-- file di configurazione;
-- piccoli script di supporto;
-- regole di avvio della sessione.
+- installed packages;
+- configuration file;
+- small support scripts;
+- session start rules.
 
-Se manca uno di questi pezzi, il desktop non è davvero riproducibile.
+If one of these pieces is missing, the desktop is truly unplayable.
 
-## Perché `Margine` lo tratta come un layer separato
+## Because `Margine` treats it as a separate layer
 
-Perché il desktop ha esigenze diverse dal sistema base.
+Because the desktop has different needs from the basic system.
 
-Il sistema base deve sapere:
+The basic system must know:
 
-- come fare boot;
-- come montare il disco;
-- come creare l'utente.
+- how to boot;
+- how to mount the disk;
+- how to create the user.
 
-Il desktop deve sapere:
+The desktop needs to know:
 
-- come parte la sessione;
-- quale launcher usare;
-- come si mostra la barra;
-- come si gestiscono screenshot, notifiche e lockscreen.
+- how the session starts;
+- which launcher to use;
+- how the bar is shown;
+- how to manage screenshots, notifications and lockscreen.
 
-Mescolare tutto nello stesso contenitore rende il progetto più difficile da
-capire e più fragile da mantenere.
+Mixing everything in the same container makes the project more difficult
+understand and more fragile to maintain.
 
-## La lezione importante
+## The important lesson
 
-Un buon progetto non copia la tua home.
+A good project doesn't copy your home.
 
-Seleziona:
+Select:
 
-- cosa è davvero baseline;
-- cosa è solo stato locale;
-- cosa è personale e non deve entrare nel repository.
+- what baseline really is;
+- what is only local state;
+- what is personal and should not enter the repository.
 
-Per questo `Margine` versiona il desktop, ma non i tuoi wallpaper privati, non
-la cache, non i database runtime e non i lock file.
+This is why `Margine` versions the desktop, but not your private wallpapers
+the cache, not the runtime databases and not the lock files.

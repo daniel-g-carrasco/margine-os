@@ -1,72 +1,72 @@
-# Perché l'utente amministrativo va progettato
+# Because the administrative user must be designed
 
-## Il punto importante
+## The important point
 
-Creare un utente non è solo lanciare `useradd`.
+Creating a user isn't just throwing `useradd`.
 
 Stai decidendo:
 
-- come amministrerai la macchina;
-- quanto sarà leggibile la configurazione;
-- quanto sarà facile capire i permessi nel tempo.
+- how you will manage the machine;
+- how readable the configuration will be;
+- how easy it will be to understand permissions over time.
 
-## L'errore classico
+## The classic mistake
 
-L'errore classico è questo:
+The classic mistake is this:
 
-- aggiungere l'utente a molti gruppi "per sicurezza";
-- non sapere più perché quei gruppi esistono;
-- ritrovarsi con permessi troppo larghi.
+- add the user to many groups "for security";
+- no longer knowing why those groups exist;
+- find yourself with permissions that are too broad.
 
-## La scelta di Margine
+## Choosing Margin
 
-Per `Margine v1` non usiamo né la baseline minima assoluta né il copia-incolla
-cieco della macchina corrente.
+For `Margine v1` we use neither absolute minimum baseline nor copy-paste
+blind of the current machine.
 
-Scegliamo invece una baseline da workstation personale:
+Instead, let's choose a personal workstation baseline:
 
-- `wheel` per l'amministrazione;
-- `video` e `render` per GPU, ROCm e OpenCL;
-- `kvm` e `libvirt` perché il progetto vuole essere pronto anche per VM e
-  container;
-- `colord` perché `Margine` nasce con un orientamento forte verso fotografia e
-  gestione colore.
+- `wheel` for administration;
+- `video` and `render` for GPU, ROCm and OpenCL;
+- `kvm` and `libvirt` because the project also wants to be ready for VM e
+  containers;
+- `colord` because `Margine` was born with a strong orientation towards photography and
+  color management.
 
-La regola didattica non cambia:
+The teaching rule does not change:
 
-- ogni gruppo deve avere un motivo chiaro;
-- se un gruppo entra di default, va scritto e spiegato.
+- each group must have a clear reason;
+- if a group enters by default, it must be written and explained.
 
-Per questo `audio` resta fuori:
+This is why `audio` remains out:
 
-- sul sistema reale di partenza non è richiesto per far funzionare PipeWire;
-- oggi l'accesso ai device audio passa normalmente da ACL dinamiche.
+- on the real starting system it is not required to make PipeWire work;
+- today access to audio devices normally passes through dynamic ACLs.
 
-## Perché usiamo un file sudoers versionato
+## Because we use a versioned sudoers file
 
-Perché `sudo` è parte dell'architettura operativa.
+Because `sudo` is part of the operational architecture.
 
-Se lo lasci implicito, un giorno non ricorderai più:
+If you leave it implicit, one day you will no longer remember:
 
-- se il comportamento era stock;
-- se lo hai modificato;
-- dove l'hai modificato.
+- if the behavior was stock;
+- if you have modified it;
+- where you changed it.
 
-Con un file versionato, la regola è chiara e tracciabile.
+With a versioned file, the rule is clear and traceable.
 
-## Perché l'hash password è opzionale
+## Because the password hash is optional
 
-Perché un installer riproducibile non deve spingerti a scrivere password in
-chiaro dentro i comandi o nei documenti.
+Because a reproducible installer shouldn't push you to write passwords in
+clear within commands or documents.
 
-L'hash è un compromesso tecnico ragionevole:
+The hash is a reasonable technical compromise:
 
-- automazione quando serve;
-- nessuna password in chiaro nella repo.
+- automation when needed;
+- no plaintext password in the repo.
 
-## La regola mentale da ricordare
+## The mental rule to remember
 
-Un buon utente amministrativo non nasce da privilegi buttati a caso.
+A good administrative user is not born from privileges thrown away at random.
 
-Nasce da una baseline intenzionale, spiegata e adatta allo scopo della
-macchina.
+It arises from an intentional, explained and fit-for-purpose baseline
+machine.

@@ -1,51 +1,51 @@
-# Perche' validare il runtime non e' la stessa cosa che installare pacchetti
+# Because validating the runtime is not the same as installing packages
 
-Quando un progetto cresce, e' facile cadere in questa illusione:
+When a project grows, it is easy to fall into this illusion:
 
-- "se il pacchetto e' nel manifest, allora il sottosistema e' a posto"
+- "if the package is in the manifest, then the subsystem is fine"
 
-Non e' vero.
+It is not true.
 
-## Tre livelli diversi
+## Three different levels
 
-Per ogni sottosistema hai almeno tre livelli:
+For each subsystem you have at least three levels:
 
-1. pacchetto installato
-2. servizio o configurazione attiva
-3. comportamento reale sull'hardware
+1. package installed
+2. active service or configuration
+3. real behavior on the hardware
 
-## Esempio semplice
+## Simple example
 
-Puoi avere:
+You can have:
 
-- `fprintd` installato
-- il hook di resume presente
-- e comunque trovare errori reali durante la sospensione
+- `fprintd` installed
+- the resume hook present
+- and still find real errors during suspension
 
-Oppure:
+Or:
 
-- `snapper` installato
-- `/.snapshots` montato
-- ma nessuna config vera o snapshot utili
+- `snapper` installed
+- `/.snapshots` mounted
+- but no real config or useful snapshots
 
-## La regola di Margine
+## The Margin rule
 
-Per questo `Margine` vuole sia:
+For this reason `Margine` wants to be:
 
-- script di bootstrap;
-- sia script di validazione runtime.
+- bootstrap script;
+- both runtime validation scripts.
 
-Gli script di installazione dicono:
+The installation scripts say:
 
-- cosa dovrebbe esserci
+- what should be there
 
-Gli script di validazione dicono:
+The validation scripts say:
 
-- cosa sta davvero funzionando
+- what is really working
 
-## Per uno studente
+## For a student
 
-Installare e validare sono due fasi diverse.
+Installing and validating are two different phases.
 
-Se le confondi, costruisci sistemi che sembrano completi nei file, ma si
-rompono appena li usi davvero.
+If you mix them up, you build systems that look complete in the files, but yeah
+they break as soon as you actually use them.

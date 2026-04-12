@@ -1,110 +1,110 @@
-# Come funziona il bootstrap di Secure Boot
+# How Secure Boot bootstrap works
 
-## L'idea di fondo
+## The basic idea
 
-Quando installi `Margine` su una macchina nuova, ci sono due momenti diversi:
+When you install `Margine` on a new machine, there are two different times:
 
-1. il momento in cui insegni al firmware di quali chiavi fidarsi;
-2. il momento in cui firmi davvero i file che il firmware dovrà avviare.
+1. the moment you teach the firmware which keys to trust;
+2. the moment you actually sign the files that the firmware will have to boot.
 
-Questi due momenti sono collegati, ma non sono la stessa cosa.
+These two moments are connected, but they are not the same thing.
 
-## Primo momento: fiducia nel firmware
+## First moment: trust in the firmware
 
 Con `sbctl` facciamo tre cose:
 
-1. controlliamo lo stato attuale;
-2. creiamo la gerarchia di chiavi;
-3. enrolliamo le chiavi nel firmware.
+1. we check the current status;
+2. we create the key hierarchy;
+3. we enroll the keys in the firmware.
 
-La gerarchia è questa:
+The hierarchy is this:
 
 - `PK`
 - `KEK`
 - `db`
 
-Non devi ricordare tutti i dettagli adesso.
-Ti basta sapere che è la catena standard di `Secure Boot`.
+You don't have to remember all the details now.
+All you need to know is that it's the standard `Secure Boot` chain.
 
-## Perché serve Setup Mode
+## Why Setup Mode is needed
 
-Il firmware non accetta nuove chiavi arbitrarie in qualsiasi momento.
+The firmware does not accept new arbitrary keys at any time.
 
-Prima devi portarlo in `Setup Mode`.
+You need to get it to `Setup Mode` first.
 
-In pratica, il flusso corretto è:
+In practice, the correct flow is:
 
-1. riavvio nel firmware;
-2. sezione Secure Boot;
-3. cancellazione delle chiavi correnti oppure almeno della `PK`;
-4. ritorno in Linux;
-5. esecuzione del bootstrap `sbctl`.
+1. reboot into firmware;
+2. Secure Boot section;
+3. deletion of the current keys or at least the `PK`;
+4. return to Linux;
+5. running the `sbctl` bootstrap.
 
-## Perché usiamo -m
+## Why do we use -m
 
-`sbctl` raccomanda di includere i certificati Microsoft durante l'enrollment.
+`sbctl` recommends including Microsoft certificates during enrollment.
 
-Questo non significa "delegare tutto a Microsoft".
-Significa semplicemente evitare di rompere componenti firmware o Option ROM che
-si aspettano anche quelle firme.
+This doesn't mean "delegate everything to Microsoft."
+It simply means avoiding breaking firmware or Option ROM components that
+they also expect those signatures.
 
-Quindi per `Margine v1` il default prudente è:
+So for `Margine v1` the conservative default is:
 
 ```bash
 sbctl enroll-keys -m
 ```
 
-## Perché non mettiamo subito le chiavi sbctl nel TPM
+## Why don't we put the sbctl keys in the TPM right away
 
-Perché in `Margine v1` il `TPM` ci serve già per una cosa molto importante:
+Because in `Margine v1` we already need `TPM` for a very important thing:
 
-- aiutare lo sblocco di `LUKS2`.
+- help unlock `LUKS2`.
 
-Se in questa fase mettiamo nel `TPM` anche il modello di storage delle chiavi
-`sbctl`, aumentiamo la complessità senza un guadagno chiaro per la prima
-versione.
+If at this stage we also put the key storage model in the `TPM`
+`sbctl`, we increase the complexity without a clear gain for the former
+version.
 
-Per questo partiamo con:
+For this reason we start with:
 
-- chiavi `sbctl` come file;
-- root cifrata con `LUKS2`;
-- `TPM2` concentrato sul path di sblocco disco.
+- keys `sbctl` as file;
+- root encrypted with `LUKS2`;
+- `TPM2` focused on the disk unlock path.
 
 ## Dove entra refresh-efi-trust
 
-Una volta che il firmware si fida delle nostre chiavi, dobbiamo firmare davvero
-i file di boot.
+Once the firmware trusts our keys, we have to actually sign
+the boot files.
 
-Lì entra in gioco:
+That's where it comes into play:
 
 - `refresh-efi-trust`
 
-che fa:
+which does:
 
 1. hash di `limine.conf`;
 2. `limine enroll-config`;
-3. firma di `BOOTX64.EFI`;
-4. firma delle `UKI`;
-5. verifica finale.
+3. signature of `BOOTX64.EFI`;
+4. signature of `UKI`;
+5. final check.
 
-## La regola mentale giusta
+## The right mental rule
 
-Il bootstrap di `Secure Boot` non è "aggiornare il sistema".
+`Secure Boot` bootstrapping is not "updating the system".
 
-È "preparare il firmware a fidarsi del sistema".
+It's "preparing the firmware to trust the system".
 
-Per questo non lo mettiamo dentro `update-all`.
+This is why we don't put it in `update-all`.
 
-## Come modificarlo in futuro
+## How to change it in the future
 
-Le scelte modificabili sono:
+The editable choices are:
 
 - usare o meno `-m`;
-- esportare o meno le chiavi;
-- usare in futuro chiavi `TPM` per `sbctl`;
-- aggiungere ulteriori certificati OEM o custom.
+- export the keys or not;
+- use `TPM` keys for `sbctl` in the future;
+- add additional OEM or custom certificates.
 
-La cosa che non va confusa è la separazione dei momenti:
+The thing that should not be confused is the separation of moments:
 
-- prima si costruisce la fiducia;
-- poi si firmano i file.
+- trust is built first;
+- then you sign the files.

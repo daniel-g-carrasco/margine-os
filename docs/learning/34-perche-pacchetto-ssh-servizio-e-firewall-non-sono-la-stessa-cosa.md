@@ -1,53 +1,53 @@
-# Perche' pacchetto SSH, servizio e firewall non sono la stessa cosa
+# Because SSH package, service and firewall are not the same thing
 
-Questo e' un punto che crea spesso confusione.
+This is a point that often creates confusion.
 
-Molti pensano:
+Many think:
 
-- \"ho installato OpenSSH, quindi il server e' gia' esposto\"
+- \"I installed OpenSSH, so the server is already exposed\"
 
-oppure:
+or:
 
-- \"ho un firewall, quindi posso ignorare il servizio\"
+- \"I have a firewall, so I can ignore the service\"
 
-Sono due idee sbagliate.
+These are two wrong ideas.
 
-## I quattro livelli veri
+## The four true levels
 
-Qui ci sono quattro livelli distinti:
+There are four distinct levels here:
 
-1. il pacchetto `openssh`
-2. il servizio `sshd`
-3. il firewall
-4. la regola che apre davvero la porta
+1. the `openssh` package
+2. the `sshd` service
+3. the firewall
+4. the rule that really opens the door
 
-## Esempio semplice
+## Simple example
 
-Puoi avere:
+You can have:
 
-- `openssh` installato
-- `sshd` spento
-- `ufw` attivo
-- nessuna porta aperta
+- `openssh` installed
+- `sshd` off
+- `ufw` active
+- no open doors
 
-In questo caso la macchina:
+In this case the machine:
 
-- puo' usare il client SSH per uscire;
-- non accetta connessioni SSH in ingresso.
+- can use SSH client to log out;
+- does not accept incoming SSH connections.
 
-## La scelta di Margine
+## Choosing Margin
 
-`Margine` usa proprio questa separazione:
+`Margine` uses exactly this separation:
 
-- il pacchetto c'e';
-- il firewall c'e';
-- il server si abilita quando serve davvero.
+- the package is there;
+- the firewall is there;
+- the server is enabled when it is really needed.
 
-## Perche' e' una scelta buona
+## Because it's a good choice
 
-Per un laptop personale e' meglio cosi':
+For a personal laptop it's better like this:
 
-- non ti dimentichi il server aperto su reti casuali;
-- non devi reinstallare o riconfigurare tutto quando ti serve SSH;
-- capisci davvero la differenza tra presenza del software ed esposizione del
-  servizio.
+- don't forget the server open on random networks;
+- you don't have to reinstall or reconfigure everything when you need SSH;
+- you really understand the difference between presence of the software and exposure of the
+  service.

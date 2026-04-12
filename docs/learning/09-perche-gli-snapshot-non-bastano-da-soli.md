@@ -1,108 +1,108 @@
-# Perché gli snapshot non bastano da soli
+# Because snapshots alone aren't enough
 
-Questa nota spiega una cosa molto importante da capire presto:
+This note explains something very important to understand early:
 
-- avere `Btrfs + Snapper` non significa che tutto il sistema sia automaticamente
-  ripristinabile in un solo gesto.
+- having `Btrfs + Snapper` doesn't mean the whole system is automatically
+resettable in a single gesture.
 
-## 1. Cosa proteggono gli snapshot
+## 1. What snapshots protect
 
-Gli snapshot di `Snapper` proteggono il subvolume che hai deciso di
+`Snapper` snapshots protect the subvolume you chose
 snapshotare.
 
-Nel nostro progetto, il focus è:
+In our project, the focus is:
 
 - root `Btrfs`
 
-Quindi proteggono molto bene:
+So they protect very well:
 
 - `/etc`
 - `/usr`
-- parte strutturale di `/var`
-- lo stato del sistema nel filesystem root
+- structural part of `/var`
+- the system state in the root filesystem
 
-## 2. Cosa NON proteggono da soli
+## 2. What they DON'T protect themselves
 
-Non proteggono automaticamente:
+They do not automatically protect:
 
 - la `ESP`
 - i file EFI
 - le `UKI`
-- il binario `Limine`
-- la configurazione EFI già copiata sulla partizione di boot
+- the binary `Limine`
+- the EFI configuration already copied to the boot partition
 
-Questo succede per un motivo semplice:
+This happens for a simple reason:
 
-- la `ESP` non vive dentro il subvolume root snapshotato.
+- the `ESP` does not live inside the snapshotted root subvolume.
 
-## 3. Perché questa distinzione è fondamentale
+## 3. Why this distinction is fundamental
 
-Se non la capisci bene, rischi di fare un errore pericoloso:
+If you don't understand it well, you risk making a dangerous mistake:
 
-- credere che uno snapshot root basti a riportare indietro l'intera macchina.
+- believe that a root snapshot is enough to bring the entire machine back.
 
-Non basta.
+It's not enough.
 
-Lo snapshot ti riporta indietro il sistema root.
+The snapshot brings you back the root system.
 Il boot path, invece, va:
 
-- mantenuto coerente;
-- oppure rigenerato.
+- kept consistent;
+- or regenerated.
 
-## 4. E allora a cosa servono davvero gli snapshot?
+## 4. So what are snapshots really for?
 
-Servono eccome.
-Servono tantissimo.
+They are really useful.
+They are very useful.
 
-Ma servono per il loro compito giusto:
+But they serve their right purpose:
 
-- recuperare il sistema root;
-- confrontare stati;
-- tornare indietro dopo update o modifiche rischiose;
+- recover the root system;
+- compare states;
+- go back after updates or risky changes;
 - fornire una base forte per la recovery.
 
-Non servono, da soli, a risolvere tutta la catena di boot.
+They do not, by themselves, solve the entire boot chain.
 
-## 5. Dove entra in gioco update-all
+## 5. Where update-all comes into play
 
-Qui entra in gioco il disegno corretto della pipeline.
+This is where proper pipeline design comes into play.
 
-`snap-pac` crea snapshot pre/post durante `pacman`.
-Poi `update-all` deve occuparsi del resto:
+`snap-pac` creates pre/post snapshots during `pacman`.
+Then `update-all` has to take care of the rest:
 
 - rigenerare `UKI`
-- aggiornare `limine.conf`
+- update `limine.conf`
 - fare `limine enroll-config`
 - firmare
-- verificare
+- check
 
-Questa è una lezione importante:
+This is an important lesson:
 
-- la recovery buona non si affida a un solo strumento;
-- mette insieme strumenti con responsabilità diverse.
+- good recovery doesn't rely on just one tool;
+- brings together tools with different responsibilities.
 
-## 6. Perché non attiviamo subito le timeline
+## 6. Why don't we activate the timelines right away
 
-Perché nella `v1` vogliamo prima massimizzare il segnale.
+Because in `v1` we want to maximize the signal first.
 
-Il valore più grande oggi viene da:
+The largest value today comes from:
 
-- snapshot pre/post degli update;
-- snapshot manuali prima di interventi rischiosi.
+- pre/post snapshot of updates;
+- manual snapshots before risky interventions.
 
-Le timeline automatiche sul root rischiano di creare molto rumore prima ancora
-che abbiamo chiuso bene il resto della pipeline.
+Automatic timelines on the root risk creating a lot of noise even earlier
+that we closed the rest of the pipeline well.
 
-## 7. La regola finale da ricordare
+## 7. The final rule to remember
 
-Se un giorno ti chiedi:
+If one day you ask yourself:
 
-- "ho uno snapshot, quindi sono totalmente al sicuro?"
+- "I have a snapshot, so I'm totally safe?"
 
-la risposta corretta è:
+the correct answer is:
 
-- sei molto più al sicuro sul root filesystem;
-- ma la coerenza del boot path va comunque gestita.
+- you are much safer on the root filesystem;
+- but the consistency of the boot path must still be managed.
 
-Questa distinzione è uno dei punti che separa un setup "appariscente" da una
-architettura davvero solida.
+This distinction is one of the points that separates a "flashy" setup from a
+really solid architecture.

@@ -1,47 +1,47 @@
-# Perché un wrapper guidato è diverso da un installer magico
+# Why a guided wrapper is different from a magic installer
 
-## Il punto importante
+## The important point
 
-Un installer guidato non deve nascondere il sistema.
+An installer wizard doesn't have to hide your system.
 
-Deve renderlo più leggibile.
+It needs to make it more readable.
 
-## La trappola da evitare
+## The trap to avoid
 
-La trappola classica è questa:
+The classic trap is this:
 
-- un'interfaccia comoda;
-- tanta logica implicita;
-- poca comprensibilità reale.
+- a convenient interface;
+- lots of implicit logic;
+- little real comprehensibility.
 
-Alla prima anomalia, l'utente non sa più dove mettere mano.
+At the first anomaly, the user no longer knows where to turn.
 
-## La scelta di Margine
+## Choosing Margin
 
-Il wrapper guidato di `Margine` fa una cosa più onesta:
+The `Margine` wrapper wizard does a more honest thing:
 
-- ti chiede i parametri in ordine;
-- ti mostra un riepilogo;
-- poi chiama gli script reali del progetto.
+- asks you for the parameters in order;
+- shows you a summary;
+- then call the actual project scripts.
 
-Quindi il "wizard" non sostituisce l'architettura.
+So the "wizard" does not replace the architecture.
 
-La attraversa.
+He crosses it.
 
-## Perché è didatticamente migliore
+## Because it is educationally better
 
-Perché domani potrai:
+Because tomorrow you will be able to:
 
-- usare il wizard;
-- oppure saltarlo e chiamare direttamente gli script sottostanti.
+- use the wizard;
+- or skip it and call the scripts below directly.
 
-Questo è il segno di un buon design:
+This is the sign of good design:
 
-- comodità per oggi;
-- comprensibilità per domani.
+- convenience for today;
+- understandability for tomorrow.
 
-## La regola mentale da ricordare
+## The mental rule to remember
 
-Se un wrapper guidato ti impedisce di capire cosa succede, è troppo opaco.
+If a guided wrapper prevents you from understanding what's happening, it's too opaque.
 
-Se ti accompagna senza nasconderti i pezzi, è fatto bene.
+If it accompanies you without hiding the pieces, it's done well.

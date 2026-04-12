@@ -1,67 +1,67 @@
 # ADR 0012 - Bootstrap di Secure Boot con sbctl
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Finora abbiamo definito:
+So far we have defined:
 
-- come generare `limine.conf`;
-- come deployare gli artefatti sulla `ESP`;
-- come enrollare la config Limine e firmare la catena EFI.
+- how to generate `limine.conf`;
+- how to deploy the artifacts on the `ESP`;
+- how to enroll the Limine config and sign the EFI chain.
 
-Mancava però un punto fondamentale:
+However, one fundamental point was missing:
 
-- come si inizializza davvero `Secure Boot` su una macchina nuova.
+- how do you actually initialize `Secure Boot` on a new machine.
 
-## Problema da risolvere
+## Problem to solve
 
-`update-all` non è il posto giusto per creare chiavi o enrollarle nel firmware.
+`update-all` is not the right place to create keys or enroll them in firmware.
 
-Quelle operazioni:
+Those operations:
 
-- sono rare;
-- possono richiedere `Setup Mode` nel firmware;
-- hanno un profilo di rischio diverso dal normale update del sistema.
+- they are rare;
+- they can require `Setup Mode` in the firmware;
+- have a risk profile different from normal system updates.
 
-Serve quindi un flusso separato, esplicito e didattico.
+We therefore need a separate, explicit and didactic flow.
 
-## Decisione
+## Decision
 
-Per `Margine v1`, il bootstrap di `Secure Boot` viene gestito con `sbctl` in un
-percorso separato da `update-all`.
+For `Margine v1`, `Secure Boot` bootstrapping is handled with `sbctl` in a
+path separated by `update-all`.
 
-La sequenza canonica è:
+The canonical sequence is:
 
-1. verificare stato UEFI e `Setup Mode`;
-2. creare le chiavi con `sbctl create-keys`, se mancanti;
-3. enrollare le chiavi con `sbctl enroll-keys -m`;
-4. refreshare la trust chain EFI;
-5. riavviare;
-6. verificare `sbctl status`.
+1. check UEFI status and `Setup Mode`;
+2. create keys with `sbctl create-keys`, if missing;
+3. enroll keys with `sbctl enroll-keys -m`;
+4. refresh the EFI trust chain;
+5. restart;
+6. check `sbctl status`.
 
-Prima della fase firmware, il percorso consigliato diventa:
+Before the firmware phase, the recommended path becomes:
 
-1. export delle chiavi pubbliche attualmente enrollate;
-2. ispezione dei binari EFI presenti sulla `ESP`;
-3. solo dopo, ingresso in firmware e passaggio a `Setup Mode`.
+1. export of the currently enrolled public keys;
+2. inspection of the EFI tracks present on the `ESP`;
+3. only afterwards, enter the firmware and move to `Setup Mode`.
 
-## Regola di Setup Mode
+## Setup Mode rule
 
-Il bootstrap non deve tentare di aggirare il firmware.
+Bootstrap should not attempt to bypass the firmware.
 
-Se la macchina non è in `Setup Mode`, il provisioning deve fermarsi e chiedere
-all'utente di:
+If the machine is not in `Setup Mode`, provisioning must stop and ask
+to the user:
 
-- riavviare nel firmware;
-- entrare nel menu Secure Boot;
-- cancellare almeno la `PK` o comunque portare la macchina in `Setup Mode`.
+- reboot into firmware;
+- enter the Secure Boot menu;
+- delete at least `PK` or in any case bring the machine to `Setup Mode`.
 
-In `Margine v1` non usiamo opzioni aggressive tipo `--yolo`.
+In `Margine v1` we don't use aggressive options like `--yolo`.
 
-## Regola Microsoft
+## Microsoft rule
 
 Per l'enrollment usiamo di default:
 
@@ -69,71 +69,71 @@ Per l'enrollment usiamo di default:
 sbctl enroll-keys -m -f
 ```
 
-Motivo:
+Reason:
 
-- `sbctl` raccomanda di includere i certificati Microsoft per ridurre i rischi
-  legati a Option ROM e firmware firmati dal vendor.
-- i certificati firmware builtin `db/KEK` aiutano a ridurre il rischio di
-  rompere catene OEM o dual-boot gia' esistenti.
+- `sbctl` recommends including Microsoft certificates to reduce risk
+related to vendor-signed Option ROMs and firmware.
+- builtin `db/KEK` firmware certificates help reduce the risk of
+break existing OEM or dual-boot chains.
 
-Per casi avanzati, `sbctl` espone anche `--append` e `--custom`, ma in
-`Margine` non diventano il default: restano strumenti da usare solo quando si
-sa gia' quali altre chiavi custom devono sopravvivere.
+For advanced cases, `sbctl` also exposes `--append` and `--custom`, but in
+`Margine` do not become the default: they remain tools to be used only when yes
+it already knows which other custom keys must survive.
 
-## Regola chiavi
+## Rule keys
 
-In `Margine v1`, le chiavi `sbctl` restano del tipo predefinito `file`.
+In `Margine v1`, `sbctl` keys remain the default type `file`.
 
-Motivi:
+Reasons:
 
-- root è già cifrata con `LUKS2`;
-- il modello è più semplice da capire e da debuggare;
-- non vogliamo intrecciare da subito due usi diversi del `TPM`:
-  - sblocco `LUKS2`;
-  - protezione delle chiavi `Secure Boot`.
+- root is already encrypted with `LUKS2`;
+- the model is easier to understand and debug;
+- we don't want to immediately intertwine two different uses of `TPM`:
+  - unlock `LUKS2`;
+  - `Secure Boot` key protection.
 
-Le chiavi `TPM` di `sbctl` restano un possibile esperimento futuro, non la base
-della `v1`.
+The `TPM` keys of `sbctl` remain a possible future experiment, not the basis
+of the `v1`.
 
 ## Regola export
 
-L'export di chiavi private non è automatico.
+The export of private keys is not automatic.
 
-Se l'utente vuole esportarle, deve farlo in modo esplicito e consapevole.
+If the user wants to export them, he must do so explicitly and consciously.
 
-Motivo:
+Reason:
 
-- esportare chiavi di `Secure Boot` è un'operazione sensibile;
-- non vogliamo generare copie extra senza una decisione chiara.
+- exporting `Secure Boot` keys is a sensitive operation;
+- we don't want to generate extra copies without a clear decision.
 
-## Separazione dei ruoli
+## Separation of roles
 
-Per `Margine` la divisione corretta diventa:
+For `Margine` the correct division becomes:
 
-- `provision-secure-boot-preflight`: export chiavi pubbliche correnti e
-  ispezione `ESP`;
-- `provision-secure-boot`: bootstrap iniziale delle chiavi e dell'enrollment;
+- `provision-secure-boot-preflight`: export current public keys e
+inspection `ESP`;
+- `provision-secure-boot`: initial bootstrap of keys and enrollment;
 - `refresh-efi-trust`: refresh della catena EFI già deployata;
-- `update-all`: manutenzione ordinaria del sistema.
+- `update-all`: routine system maintenance.
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa scelta ci dà:
+This choice gives us:
 
-- un bootstrap leggibile;
-- meno rischio di mischiare update ordinari e operazioni firmware;
-- un recovery path più chiaro se qualcosa va storto;
-- una base didattica solida.
+- a readable bootstrap;
+- less risk of mixing ordinary updates and firmware operations;
+- a clearer recovery path if something goes wrong;
+- a solid teaching base.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
-Pensa a `Secure Boot` come a due problemi diversi:
+Think of `Secure Boot` as two different problems:
 
-1. chi decide di chi fidarsi;
-2. quali file vengono effettivamente firmati.
+1. who decides who to trust;
+2. which files are actually signed.
 
-`sbctl create-keys` e `sbctl enroll-keys` risolvono il primo problema.
+`sbctl create-keys` and `sbctl enroll-keys` solve the first problem.
 
-`refresh-efi-trust` risolve il secondo.
+`refresh-efi-trust` solves the second.
 
-È per questo che i due flussi devono restare separati.
+This is why the two flows must remain separate.

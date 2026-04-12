@@ -1,63 +1,63 @@
-# Come ragiona il provisioning storage
+# How we think about provisioning storage
 
-## Il punto importante
+## The important point
 
-Partizionare e formattare un disco non è "installare pacchetti".
+Partitioning and formatting a disk is not "installing packages".
 
-È la parte più distruttiva e meno reversibile del bootstrap.
+It is the most destructive and least reversible part of the bootstrap.
 
-Per questo la trattiamo come uno script dedicato, separato dal resto.
+This is why we treat it as a dedicated script, separate from the rest.
 
 ## La sequenza logica
 
-Il ragionamento corretto è:
+The correct reasoning is:
 
-1. scegliere il disco giusto;
-2. cancellare la struttura precedente;
-3. creare la nuova tabella GPT;
-4. creare `ESP` e partizione cifrata;
-5. inizializzare `LUKS2`;
-6. aprire il mapping;
-7. creare `Btrfs`;
-8. creare i subvolumi;
-9. montare tutto nel layout finale.
+1. choose the right disk;
+2. delete the previous structure;
+3. create the new GPT table;
+4. create `ESP` and encrypted partition;
+5. initialize `LUKS2`;
+6. open the mapping;
+7. create `Btrfs`;
+8. create the subvolumes;
+9. assemble everything into the final layout.
 
-## Perché usiamo un manifest per i subvolumi
+## Why do we use a manifest for subvolumes
 
-Per evitare che il progetto abbia due verità diverse:
+To avoid the project having two different truths:
 
-- una nei documenti;
-- una nello script.
+- one in the documents;
+- one in the script.
 
 Con il manifest:
 
-- l'architettura dice quali subvolumi devono esistere;
-- lo script li crea leggendo quella fonte.
+- the architecture says which subvolumes must exist;
+- the script creates them by reading that source.
 
-## Perché il target finale è già montato
+## Because the final target is already mounted
 
-Perché il passo successivo, `bootstrap-live-iso`, ha bisogno di un target
-pronto.
+Because the next step, `bootstrap-live-iso`, needs a target
+ready.
 
-L'idea è questa:
+The idea is this:
 
-- lo script storage ti lascia `/mnt` in stato coerente;
-- poi il bootstrap può fare `pacstrap`, `fstab` e handoff al chroot.
+- the storage script leaves you `/mnt` in a consistent state;
+- then the bootstrap can do `pacstrap`, `fstab` and handoff to the chroot.
 
-## Perché lo script deve essere paranoico
+## Because the script must be paranoid
 
-Perché qui un errore non è un warning.
-È perdita dati.
+Because here an error is not a warning.
+It's data loss.
 
-Quindi la paranoia è giusta:
+So the paranoia is right:
 
-- disco esplicito;
-- conferma distruttiva esplicita;
-- niente autodetect creativo.
+- explicit record;
+- explicit destructive confirmation;
+- no creative autodetect.
 
-## La regola mentale da ricordare
+## The mental rule to remember
 
-Se uno script storage ti sembra troppo comodo, probabilmente è troppo
-pericoloso.
+If a storage script seems too convenient, it's probably too much
+dangerous.
 
-Qui vogliamo uno script leggibile, severo e prevedibile.
+Here we want a readable, strict and predictable script.

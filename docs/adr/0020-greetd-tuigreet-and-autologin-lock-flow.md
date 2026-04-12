@@ -1,121 +1,121 @@
-# ADR 0020 - `greetd + tuigreet` con autologin iniziale e lock immediato
+# ADR 0020 - `greetd + tuigreet` with initial autologin and immediate lock
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Fino a qui `Margine` aveva lasciato aperta la scelta del login path finale:
+Up to this point `Margine` had left the choice of the final login path open:
 
 - `greetd`
 - TTY puro
-- altro display manager
+- other display manager
 
-Nel frattempo, l'uso reale della macchina ha chiarito una preferenza forte:
+Meanwhile, real-world use of the machine made clear a strong preference:
 
-- niente `GDM`;
-- niente doppio passaggio login manager + lockscreen con estetiche diverse;
-- esperienza coerente con `Hyprland` e `hyprlock`.
+- nothing `GDM`;
+- no double-step login manager + lockscreen with different aesthetics;
+- experience consistent with `Hyprland` and `hyprlock`.
 
-## Problema da risolvere
+## Problem to solve
 
-Vogliamo una UX semplice e uniforme, ma senza trasformare il bootstrap in una
-catena fragile o troppo "magica".
+We want a simple and uniform UX, but without turning the bootstrap into one
+fragile or too "magical" chain.
 
-Serve quindi decidere:
+You therefore need to decide:
 
-1. chi avvia la sessione;
-2. se esiste ancora un greeter fallback;
-3. come si concilia l'autologin con la lockscreen.
+1. who starts the session;
+2. whether a fallback greeter still exists;
+3. How do you reconcile autologin with the lockscreen.
 
-## Decisione
+## Decision
 
-Per `Margine v1` il percorso scelto è:
+For `Margine v1` the chosen path is:
 
-- `greetd` come login manager minimale;
-- `tuigreet` come greeter fallback;
-- `initial_session` di `greetd` configurata per avviare automaticamente
-  l'utente principale nella sessione `Hyprland`;
-- `hyprlock` lanciato immediatamente all'avvio della sessione grafica.
+- `greetd` as minimal login manager;
+- `tuigreet` as fallback greeter;
+- `initial_session` of `greetd` configured to start automatically
+  the primary user in session `Hyprland`;
+- `hyprlock` launched immediately when starting the graphics session.
 
-In pratica:
+In practice:
 
-`boot -> greetd -> autologin iniziale -> Hyprland -> hyprlock`
+`boot -> greetd -> initial autologin -> Hyprland -> hyprlock`
 
-Se la sessione termina o l'utente effettua logout, il fallback torna a:
+If the session ends or the user logs out, the fallback reverts to:
 
 `greetd -> tuigreet`
 
-## Perché non TTY puro
+## Why not pure TTY
 
-TTY puro è più semplice come teoria, ma peggiore come UX per il target reale
-di `Margine`:
+Pure TTY is simpler in theory, but worse in UX for the real target
+of `Margine`:
 
-- laptop personale;
-- reinstallabile;
-- orientato a uso quotidiano;
-- con attenzione all'estetica e alla coerenza.
+- personal laptop;
+- reinstallable;
+- oriented for daily use;
+- with attention to aesthetics and coherence.
 
-Con `greetd` otteniamo:
+With `greetd` we get:
 
-- gestione pulita della sessione;
-- fallback leggibile;
-- niente dipendenza da display manager pesanti;
-- migliore allineamento con `Hyprland`.
+- clean session management;
+- readable fallback;
+- no dependency on heavy display managers;
+- better alignment with `Hyprland`.
 
-## Perché non `GDM`
+## Why not `GDM`
 
-`GDM` risolve il login, ma trascina con sé un mondo GNOME che `Margine` non
-vuole usare come infrastruttura principale.
+`GDM` fixes login, but brings with it a GNOME world that `Margine` doesn't
+wants to use as main infrastructure.
 
-Inoltre la combinazione:
+Furthermore the combination:
 
 `GDM -> login -> Hyprland -> hyprlock`
 
-duplica il momento di accesso e rompe l'uniformità visiva.
+it duplicates the moment of access and breaks the visual uniformity.
 
-## Chiarimento importante: autologin e lockscreen non sono la stessa cosa
+## Important clarification: autologin and lockscreen are not the same thing
 
-Questa scelta è intenzionale, ma va capita bene:
+This choice is intentional, but it is understood well:
 
-- `tuigreet` autentica *prima* della sessione;
-- `autologin + hyprlock` entra nella sessione e poi la blocca subito.
+- `tuigreet` authenticates *before* the session;
+- `autologin + hyprlock` enters the session and then blocks it immediately.
 
-Per un laptop personale cifrato e single-user, questo compromesso è
-accettabile e desiderabile.
+For an encrypted, single-user personal laptop, this is a compromise
+acceptable and desirable.
 
-Per una macchina multiutente o con policy più rigide, non sarebbe la scelta
-giusta.
+For a multi-user machine or with stricter policies, this would not be the choice
+right.
 
-## Implementazione v1
+## Implementation v1
 
-`Margine` versiona:
+`Margine` version:
 
-- un template di `/etc/greetd/config.toml`;
-- un provisioner che lo renderizza con l'utente principale;
-- enable di `greetd.service`.
+- a template of `/etc/greetd/config.toml`;
+- a provisioner that renders it with the main user;
+- enable by `greetd.service`.
 
-La configurazione usa:
+The configuration uses:
 
 - `default_session = tuigreet`
 - `initial_session = /usr/bin/start-hyprland`
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa decisione dà a `Margine`:
+This decision gives `Margine`:
 
-- un login path moderno ma minimale;
-- una UX coerente con `Hyprland`;
-- un fallback pulito dopo logout;
-- una separazione netta dal mondo GNOME.
+- a modern but minimal login path;
+- a UX consistent with `Hyprland`;
+- a clean fallback after logout;
+- a clear separation from the GNOME world.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
-Qui il punto non è "come faccio a entrare nel desktop?".
+The point here is not "how do I get into the desktop?".
 
-Il punto è: "chi controlla l'ingresso alla sessione, e con che esperienza?".
+The question is: "who controls entry to the session, and with what experience?".
 
-`greetd` è il portiere.
-`tuigreet` è il banco reception di riserva.
-`hyprlock` è la porta interna che vedi davvero ogni giorno.
+`greetd` is the doorman.
+`tuigreet` is the reserve reception desk.
+`hyprlock` is the interior door you actually see every day.

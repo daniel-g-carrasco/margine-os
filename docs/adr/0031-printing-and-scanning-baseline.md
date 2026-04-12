@@ -1,118 +1,118 @@
-# ADR 0031 - Baseline stampa e scanner
+# ADR 0031 - Print and Scan Baseline
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Contesto
+## Context
 
-`Margine` deve gestire bene:
+`Margine` must handle well:
 
-- stampanti di rete moderne;
-- multifunzione USB moderne;
-- scanner di rete o integrati in dispositivi `IPP/eSCL`;
-- gestione semplice senza introdurre subito driver vendor-specifici.
+- modern network printers;
+- modern USB multifunctions;
+- network scanners or integrated into `IPP/eSCL` devices;
+- simple management without immediately introducing vendor-specific drivers.
 
-Serve quindi decidere:
+You therefore need to decide:
 
-- quale stack usare per la stampa;
-- quale stack usare per gli scanner;
-- come gestire discovery e naming locale;
-- quali strumenti offrire per la gestione quotidiana.
+- which stack to use for printing;
+- which stack to use for scanners;
+- how to manage local discovery and naming;
+- which tools to offer for daily management.
 
-## Decisione
+## Decision
 
-Per `Margine v1` adottiamo una baseline `driverless-first`:
+For `Margine v1` we adopt a `driverless-first` baseline:
 
 - `CUPS` per la stampa;
-- `cups-filters` e `ghostscript` come supporto pratico di conversione;
-- `Avahi + nss-mdns` per discovery e risoluzione `mDNS/DNS-SD`;
-- `ipp-usb` per i dispositivi USB moderni che espongono `IPP over USB`;
+- `cups-filters` and `ghostscript` as practical conversion support;
+- `Avahi + nss-mdns` for discovery and resolution `mDNS/DNS-SD`;
+- `ipp-usb` for modern USB devices that expose `IPP over USB`;
 - `SANE` per il layer scanner;
-- `sane-airscan` per scanner `eSCL/WSD` e multifunzione moderni;
-- `system-config-printer` come strumento principale di gestione stampanti;
-- `simple-scan` come frontend scanner semplice.
+- `sane-airscan` for modern `eSCL/WSD` scanners and MFPs;
+- `system-config-printer` as the main printer management tool;
+- `simple-scan` as a simple scanner frontend.
 
-## Perche' questa scelta
+## Why this choice
 
-Il criterio e' coerente col resto del progetto:
+The criterion is consistent with the rest of the project:
 
-- preferire standard aperti e diffusi;
-- preferire pacchetti ufficiali Arch;
-- evitare stack vendor-specifici finche' non servono davvero;
-- separare motore, discovery e interfaccia.
+- prefer open and widespread standards;
+- prefer official Arch packages;
+- avoid vendor-specific stacks until they are really needed;
+- separate engine, discovery and interface.
 
-### Lato stampa
+### Print side
 
-Qui i pezzi sono:
+Here the pieces are:
 
-- `CUPS` come scheduler di stampa;
-- `Avahi` per scoprire code e dispositivi in rete;
-- `ipp-usb` per parlare `IPP` anche a dispositivi USB moderni.
+- `CUPS` as print scheduler;
+- `Avahi` to discover queues and devices on the network;
+- `ipp-usb` to talk `IPP` even to modern USB devices.
 
-Questa base copre bene il caso piu' comune di oggi:
+This basis covers well the most common case today:
 
 - `IPP Everywhere`
 - AirPrint
 - Mopria
 
-### Lato scanner
+### Scanner side
 
-Qui i pezzi sono:
+Here the pieces are:
 
-- `SANE` come backend generale;
-- `sane-airscan` per dispositivi di rete moderni e multifunzione.
+- `SANE` as general backend;
+- `sane-airscan` for modern, multifunctional network devices.
 
 ## Discovery locale
 
-Per far funzionare bene la discovery locale con `Avahi`, `Margine` aggiorna la
+To make local discovery work well with `Avahi`, `Margine` updates the
 linea `hosts:` di `/etc/nsswitch.conf` per includere `mdns_minimal
-[NOTFOUND=return]`, senza sovrascrivere l'intero file.
+[NOTFOUND=return]`, without overwriting the entire file.
 
-## Gestione quotidiana
+## Daily management
 
-Per `Margine v1` il percorso consigliato e':
+For `Margine v1` the recommended path is:
 
-- `system-config-printer` per aggiungere e modificare stampanti;
-- `simple-scan` per la scansione di base;
-- `http://localhost:631` come interfaccia CUPS di supporto, non come metodo
-  primario.
+- `system-config-printer` to add and modify printers;
+- `simple-scan` for basic scanning;
+- `http://localhost:631` as a supporting CUPS interface, not as a method
+primary.
 
-## Servizi abilitati
+## Services enabled
 
-La baseline abilita:
+The baseline enables:
 
 - `cups.socket`
 - `avahi-daemon.service`
 - `avahi-daemon.socket`
 - `ipp-usb.service`
 
-## Cosa non entra nella v1
+## What doesn't make it into v1
 
-Per ora non entrano nella baseline:
+For now they do not enter the baseline:
 
-- driver vendor-specifici per vecchie stampanti;
-- backend scanner proprietari;
-- condivisione server-side avanzata di scanner (`saned`);
-- code di stampa preconfigurate per modelli specifici.
+- vendor-specific drivers for older printers;
+- proprietary scanner backends;
+- advanced server-side sharing of scanners (`saned`);
+- pre-configured print queues for specific models.
 
-## Conseguenze
+## Consequences
 
 ### Positive
 
-- baseline semplice, moderna e riproducibile;
-- buona copertura per stampanti/scanner moderni;
-- gestione coerente con il resto del sistema GTK/Wayland.
+- simple, modern and reproducible baseline;
+- good coverage for modern printers/scanners;
+- management consistent with the rest of the GTK/Wayland system.
 
 ### Negative
 
-- alcuni dispositivi vecchi potrebbero richiedere pacchetti extra;
-- il path `driverless-first` non copre tutto il parco hardware esistente.
+- some older devices may require extra packages;
+- the `driverless-first` path does not cover all existing hardware.
 
-## Per uno studente
+## For a student
 
-La lezione qui e' questa:
+The lesson here is this:
 
-- stampare non significa solo installare `cups`;
-- scansionare non significa solo installare `simple-scan`;
-- discovery, backend e interfaccia sono tre livelli diversi.
+- printing doesn't just mean installing `cups`;
+- scanning doesn't just mean installing `simple-scan`;
+- discovery, backend and interface are three different levels.

@@ -1,139 +1,139 @@
-# ADR 0007 - Modello di generazione di limine.conf
+# ADR 0007 - Model generation of limine.conf
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Abbiamo già:
+We already have:
 
-- una strategia per `Limine`
-- un template versionato di `limine.conf`
-- una distinzione chiara tra percorso `prod` e `recovery`
+- a strategy for `Limine`
+- a versioned template of `limine.conf`
+- a clear distinction between path `prod` and `recovery`
 
-Mancava però una regola operativa su un punto importante:
+However, an operational rule was missing on an important point:
 
-- `limine.conf` finale si scrive a mano o si genera?
+- Is the final `limine.conf` written by hand or generated?
 
-## Problema da risolvere
+## Problem to solve
 
-Il file `limine.conf` contiene due tipi di informazione molto diversi:
+The `limine.conf` file contains two very different types of information:
 
-### Struttura stabile
+### Stable structure
 
 - timeout
 - branding
 - entry `Produzione`
 - entry `Fallback`
-- schema della sezione `Recovery`
+- diagram of the `Recovery` section
 
-### Dati variabili
+### Variable data
 
 - `UUID` del root filesystem
-- `UUID` del contenitore `LUKS2`
-- elenco di entry recovery e snapshot
+- `UUID` of container `LUKS2`
+- list of recovery entries and snapshots
 
-Se trattiamo tutto il file allo stesso modo, cadiamo in uno di due errori:
+If we treat the entire file the same way, we fall into one of two errors:
 
-- o lo manteniamo tutto a mano, e diventa fragile;
-- o lo generiamo tutto in modo opaco, e smette di essere leggibile.
+- or we keep it all by hand, and it becomes fragile;
+- or we generate it all opaquely, and it stops being readable.
 
-## Decisione
+## Decision
 
-Per `Margine v1`, `limine.conf` sarà un artefatto generato.
+For `Margine v1`, `limine.conf` will be a generated artifact.
 
-La sua sorgente logica sarà composta da:
+Its logical source will be composed of:
 
-1. template versionato nel repository;
-2. facts macchina passati al generatore;
-3. blocco recovery generato o fornito separatamente.
+1. template versioned in the repository;
+2. machine facts passed to generator;
+3. recovery block generated or provided separately.
 
-## Regola fondamentale
+## Fundamental rule
 
-Il file finale sulla `ESP` NON è la sorgente autorevole.
+The final file on `ESP` is NOT the authoritative source.
 
-La sorgente autorevole è:
+The authoritative source is:
 
-- il template in Git;
-- più i dati macchina;
-- più il blocco recovery generato.
+- the template in Git;
+- plus machine data;
+- plus the generated recovery block.
 
-Questo significa che:
+This means that:
 
-- il file finale può essere rigenerato;
-- non deve essere editato a mano come fonte principale;
-- se viene editato manualmente, quelle modifiche non sono considerate stabili.
+- the final file can be regenerated;
+- does not have to be hand-edited as the primary source;
+- if it is edited manually, those changes are not considered stable.
 
-## Scelta operativa iniziale
+## Initial operational choice
 
-Introduciamo uno script piccolo e leggibile:
+Let's introduce a small and readable script:
 
 - `scripts/generate-limine-config`
 
 Lo script deve:
 
 - leggere il template;
-- sostituire i placeholder macchina;
-- opzionalmente sostituire il blocco recovery tra marker noti;
-- scrivere il risultato su file o su `stdout`.
+- replace machine placeholders;
+- optionally replace the recovery block between known markers;
+- write the result to file or to `stdout`.
 
-## Input iniziali richiesti
+## Initial inputs required
 
-Per la `v1`, gli input minimi del generatore sono:
+For `v1`, the minimum generator inputs are:
 
 - `ROOT_UUID`
 - `LUKS_UUID`
 
-Input opzionale:
+Optional input:
 
-- file esterno con entry recovery già pronte
+- external file with recovery entries ready
 
-## Cosa NON fa il generatore nella prima versione
+## What the generator does NOT do in the first version
 
-Nella prima versione il generatore NON:
+In the first version the generator DOES NOT:
 
-- scandisce da solo gli snapshot `Snapper`;
-- interroga direttamente il sistema installato per scoprire ogni dettaglio;
-- modifica la `ESP` per conto proprio;
+- scans `Snapper` snapshots by itself;
+- directly interrogate the installed system to discover every detail;
+- modifies the `ESP` on your own;
 - firma file;
 - esegue `limine enroll-config`.
 
-Questa limitazione è intenzionale.
+This limitation is intentional.
 
-La prima versione deve essere:
+The first version must be:
 
-- facile da leggere;
-- facile da testare;
-- facile da comporre con step successivi.
+- easy to read;
+- easy to test;
+- easy to compose with subsequent steps.
 
-## Perché questa scelta è sana
+## Because this choice is healthy
 
-Perché separa bene le responsabilità:
+Because it separates responsibilities well:
 
 - template: struttura
 - generatore: rendering
-- futuro discovery layer: recupero snapshot
+- future discovery layer: snapshot recovery
 - futuro deploy layer: copia su `ESP`, enroll config, firma
 
-In altre parole:
+In other words:
 
-- prima costruiamo la pipeline;
-- poi la automatizziamo a strati.
+- first we build the pipeline;
+- then we automate it in layers.
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa scelta ci permette di fare tre cose utili:
+This choice allows us to do three useful things:
 
-1. testare il rendering senza toccare il boot reale;
-2. versionare la struttura senza congelare dati macchina;
-3. aggiungere più avanti generatori recovery senza riscrivere tutto.
+1. test the rendering without touching the real boot;
+2. version the structure without freezing machine data;
+3. add recovery generators later without rewriting everything.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
-Se lo spieghiamo in modo diretto:
+If we explain it directly:
 
-- il template è lo stampo;
-- gli UUID e le entry recovery sono il contenuto variabile;
+- the template is the mold;
+- UUIDs and entry recoveries are the variable content;
 - lo script mette insieme le due cose;
-- il file finale non è "la verità", è il risultato del processo.
+- the final file is not "the truth", it is the result of the process.

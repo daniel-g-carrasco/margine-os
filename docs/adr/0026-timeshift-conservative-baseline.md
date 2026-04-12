@@ -1,82 +1,82 @@
-# ADR 0026 - Baseline conservativa di Timeshift in Margine
+# ADR 0026 - Conservative Timeshift Baseline in Margin
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Contesto
+## Context
 
-`Margine` installa anche `Timeshift`, ma l'architettura del progetto e'
-costruita intorno a:
+`Margine` also installs `Timeshift`, but the project architecture is
+built around:
 
 - `Btrfs`
 - `Snapper`
 - `Limine`
 - `UKI`
 
-Questo significa che `Timeshift` non puo' essere trattato come motore
-principale del rollback senza creare ambiguita'.
+This means that `Timeshift` cannot be treated as an engine
+main rollback without creating ambiguity.
 
-In piu' c'e' un vincolo importante: la documentazione ufficiale di `Timeshift`
-indica che il supporto Btrfs e' limitato ai layout di tipo Ubuntu con soli
-subvolumi `@` e `@home`.
+Furthermore, there is an important constraint: the official documentation of `Timeshift`
+indicates that Btrfs support is limited to Ubuntu-style layouts with soli
+subvolumes `@` and `@home`.
 
-`Margine` invece usa un layout piu' ricco, con ulteriori subvolumi dedicati.
+`Margine` instead uses a richer layout, with additional dedicated subvolumes.
 
-## Decisione
+## Decision
 
-Per `Margine v1` adottiamo una baseline conservativa:
+For `Margine v1` we adopt a conservative baseline:
 
-- `Timeshift` resta installato;
-- viene versionato un `default.json` pulito e senza UUID macchina-specifici;
-- `btrfs_mode` resta disabilitato nei default;
-- gli snapshot automatici `Timeshift` restano disabilitati di default;
-- la scelta del backup device resta esplicita e successiva all'installazione.
+- `Timeshift` remains installed;
+- a clean `default.json` is versioned without machine-specific UUIDs;
+- `btrfs_mode` remains disabled in the defaults;
+- automatic snapshots `Timeshift` remain disabled by default;
+- the choice of backup device remains explicit and subsequent to installation.
 
-## Motivazione
+## Motivation
 
-### 1. Evitare configurazioni ufficialmente non supportate
+### 1. Avoid officially unsupported configurations
 
-Non vogliamo preconfigurare `Timeshift` in una modalita' che la documentazione
-ufficiale dichiara fuori supporto per layout Btrfs diversi da `@/@home`.
+We don't want to pre-configure `Timeshift` in a way that the documentation
+official declares no support for Btrfs layouts other than `@/@home`.
 
-### 2. Evitare doppio motore automatico di rollback
+### 2. Avoid double engine automatic rollback
 
-Se `Snapper` e' il motore principale per:
+If `Snapper` is the main engine for:
 
-- snapshot di sistema;
-- recovery da update;
-- entry bootabili via `Limine`;
+- system snapshot;
+- recovery from update;
+- entries bootable via `Limine`;
 
-allora `Timeshift` non deve fare finta di essere la stessa cosa.
+then `Timeshift` doesn't have to pretend to be the same thing.
 
-### 3. Tenere Timeshift come strumento complementare
+### 3. Keep Timeshift as a companion tool
 
-`Timeshift` puo' restare utile come strumento:
+`Timeshift` can remain useful as a tool:
 
-- manuale;
-- di familiarita' per l'utente;
-- eventualmente orientato a `rsync` su target separato.
+- manual;
+- familiarity for the user;
+- possibly oriented to `rsync` on separate target.
 
-## Conseguenze
+## Consequences
 
 ### Positive
 
-- niente UUID ereditati dalla macchina sorgente;
-- niente preconfigurazione fragile o fuorviante;
-- coerenza chiara: `Snapper` prima, `Timeshift` come extra.
+- no UUIDs inherited from the source machine;
+- no fragile or misleading preconfiguration;
+- clear consistency: `Snapper` first, `Timeshift` as extra.
 
 ### Negative
 
-- `Timeshift` non parte subito come sistema di snapshot automatici;
-- l'utente dovra' scegliere in seguito il backup device se vorra' usarlo.
+- `Timeshift` does not start immediately as an automatic snapshot system;
+- the user will then have to choose the backup device if he wants to use it.
 
-## Per uno studente
+## For a student
 
-Qui il punto didattico e' importante:
+Here the teaching point is important:
 
-- installare un pacchetto non significa doverlo rendere il pezzo centrale del
-  progetto;
-- se un tool ha limiti strutturali rispetto alla tua architettura, e' meglio
-  usarlo in modo prudente che forzarlo.
+- installing a package doesn't mean you have to make it the centerpiece of the
+  project;
+- if a tool has structural limits compared to your architecture, that's better
+  use it prudently than force it.
 

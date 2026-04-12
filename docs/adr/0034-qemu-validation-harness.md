@@ -1,34 +1,34 @@
-# ADR 0034 - Harness QEMU per validazione installativa
+# ADR 0034 - QEMU Harness for installation validation
 
-## Stato
+## State
 
-Accettato
+Accepted
 
 ## Problema
 
-Una validazione seria di `Margine` non va fatta prima sul laptop reale.
+Serious validation of `Margine` should not be done on the real laptop first.
 
-Prima serve un ambiente che permetta di testare:
+First you need an environment that allows you to test:
 
 - live ISO Arch;
-- disco vuoto;
+- blank disk;
 - firmware UEFI;
-- reboot senza rischi;
-- ciclo completo installazione -> primo boot.
+- risk-free reboot;
+- complete installation cycle -> first boot.
 
-## Decisione
+## Decision
 
-Introduciamo un harness di validazione basato su:
+We introduce a validation harness based on:
 
 - `QEMU`
 - `OVMF`
-- Arch ISO ufficiale
+- Official Arch ISO
 
-Lo scopo non e' sostituire la prova sul ferro vero, ma diventare il primo gate
-obbligatorio prima di toccare il laptop reale.
+The aim is not to replace the real iron test, but to become the first gate
+mandatory before touching the actual laptop.
 
-## Conseguenze
+## Consequences
 
-- i regressi nel bootstrap diventano piu' visibili;
-- il testing iniziale resta ripetibile;
-- il rischio sul sistema reale si abbassa molto.
+- bootstrap regressions become more visible;
+- initial testing remains repeatable;
+- the risk on the real system is greatly reduced.

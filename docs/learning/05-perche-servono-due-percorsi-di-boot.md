@@ -1,120 +1,120 @@
-# Perché servono due percorsi di boot
+# Because you need two boot paths
 
-Questa nota spiega una scelta che a prima vista può sembrare strana:
+This note explains a choice that may seem strange at first glance:
 
-- perché non usare un solo percorso di boot per tutto?
+- why not just use one boot path for everything?
 
-La risposta breve è:
+The short answer is:
 
-- perché il boot quotidiano e la recovery hanno obiettivi diversi.
+- because daily boot and recovery have different goals.
 
-## 1. Il boot normale vuole stabilità
+## 1. Normal boot wants stability
 
-Nel boot di tutti i giorni ci interessa soprattutto questo:
+In everyday booting we are especially interested in this:
 
-- che funzioni sempre;
-- che sia ripetibile;
-- che `TPM2` non sia fragile;
-- che gli aggiornamenti rompano il meno possibile.
+- that it always works;
+- that it is repeatable;
+- that `TPM2` is not fragile;
+- that updates break as little as possible.
 
-Per questo il percorso `prod` usa una `UKI` con command line incorporata.
+For this reason the `prod` path uses a `UKI` with embedded command line.
 
-La lezione qui è semplice:
+The lesson here is simple:
 
-- meno parametri variabili nel boot normale significa meno fragilità.
+- fewer variable parameters in normal boot means less fragility.
 
-## 2. La recovery vuole flessibilità
+## 2. Recovery requires flexibility
 
-La recovery, invece, vuole una cosa diversa:
+Recovery, however, wants something different:
 
-- poter scegliere cosa bootare;
-- poter puntare a uno snapshot specifico;
-- poter entrare in manutenzione senza dover ricostruire mezza catena.
+- being able to choose what to boot;
+- being able to point to a specific snapshot;
+- being able to go into maintenance without having to rebuild half the chain.
 
-Per questo il percorso `recovery` usa una `UKI` separata, più flessibile, a cui
-`Limine` passa la command line.
+This is why the `recovery` path uses a separate, more flexible, `UKI` to which
+`Limine` passes the command line.
 
-La lezione è:
+The lesson is:
 
-- la recovery non deve essere ottimizzata per il comfort quotidiano;
-- deve essere ottimizzata per restituirti controllo.
+- recovery does not have to be optimized for daily comfort;
+- it needs to be optimized to give you back control.
 
-## 3. Il conflitto tecnico da capire bene
+## 3. The technical conflict to be understood well
 
-Con `systemd-stub`, se la `UKI` contiene una `.cmdline` e `Secure Boot` è
-attivo, gli override della command line vengono ignorati.
+With `systemd-stub`, if the `UKI` contains a `.cmdline` and `Secure Boot` is
+active, command line overrides are ignored.
 
-Questo è ottimo per il boot normale.
-Ma per gli snapshot è scomodo, perché ogni snapshot potrebbe voler bootare con:
+This is great for normal booting.
+But for snapshots it's inconvenient, because every snapshot might want to boot with:
 
 - `rootflags=subvol=...`
 
-diverso.
+different.
 
-Quindi non è un problema di gusto.
-È proprio un conflitto tra due esigenze:
+So it's not a taste issue.
+It is really a conflict between two needs:
 
-- stabilità del boot normale;
-- variabilità della recovery.
+- normal boot stability;
+- variability of recovery.
 
-## 4. L'errore mentale da evitare
+## 4. The mental error to avoid
 
-L'errore classico è voler forzare una sola soluzione per tutto.
+The classic mistake is wanting to force a single solution for everything.
 
-Questo porta spesso a uno di due risultati:
+This often leads to one of two results:
 
-- o il boot normale diventa più fragile del dovuto;
-- o la recovery diventa troppo rigida per essere davvero utile.
+- or the normal boot becomes more fragile than it should;
+- or recovery becomes too rigid to be truly useful.
 
-Il progetto `Margine` evita questo errore così:
+The `Margine` project avoids this error like this:
 
-- due percorsi diversi;
-- una sola architettura coerente.
+- two different routes;
+- a single coherent architecture.
 
-## 5. Perché il TPM resta sul percorso prod
+## 5. Why does the TPM stay on the prod path
 
-`TPM2` è comodissimo quando il boot path è stabile.
+`TPM2` is very convenient when the boot path is stable.
 
-Infatti nel percorso `prod` le PCR iniziali sensate sono:
+In fact, in the `prod` path the sensible initial PCRs are:
 
 - `7`
 - `11`
 
-Questo funziona bene perché la `UKI` è stabile e il contenuto è definito.
+This works well because the `UKI` is stable and the content is defined.
 
-Nel percorso `recovery`, invece, la command line può cambiare.
-Quindi pretendere lo stesso identico comfort `TPM2` anche lì sarebbe più
-fragile che utile.
+In the `recovery` path, however, the command line can change.
+So expecting the exact same comfort `TPM2` there too would be more
+fragile than useful.
 
-La lezione importante è:
+The important lesson is:
 
-- non tutte le comodità devono valere in tutti i percorsi.
+- not all conveniences have to apply to all routes.
 
-## 6. Perché questo design è più maturo
+## 6. Because this design is more mature
 
-È più maturo perché distingue:
+It is more mature because it distinguishes:
 
-- percorso ottimizzato per la frequenza d'uso;
-- percorso ottimizzato per il recupero da errore.
+- route optimized for frequency of use;
+- optimized path for error recovery.
 
-Questa è una regola molto generale di architettura:
+This is a very general rule of architecture:
 
-- il path normale e il path di emergenza non devono per forza essere identici;
-- devono essere entrambi chiari.
+- the normal path and the emergency path do not necessarily have to be identical;
+- they must both be clear.
 
-## 7. La regola finale da ricordare
+## 7. The final rule to remember
 
-Se un giorno ti chiedi:
+If one day you ask yourself:
 
-- "perché non semplifichiamo tutto a un unico boot path?"
+- "why don't we simplify everything to a single boot path?"
 
-la risposta giusta è:
+the right answer is:
 
-- perché semplificare male significa confondere due problemi diversi.
+- because simplifying badly means confusing two different problems.
 
-Un buon progetto non cerca di avere "meno pezzi" in astratto.
-Cerca di avere:
+A good design doesn't try to have "fewer pieces" in the abstract.
+Try to have:
 
-- pezzi distinti;
-- responsabilità chiare;
-- recovery umana quando serve davvero.
+- distinct pieces;
+- clear responsibilities;
+- human recovery when it's really needed.

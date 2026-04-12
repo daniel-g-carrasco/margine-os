@@ -1,106 +1,106 @@
-# ADR 0014 - Bootstrap da live ISO in due fasi
+# ADR 0014 - Bootstrap from live ISO in two steps
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
 Ora `Margine` ha già:
 
-- manifest eseguibili;
-- installer guidato dai manifest;
-- pipeline boot/trust;
-- bootstrap iniziale di `Secure Boot`.
+- executable manifests;
+- manifest-driven installer;
+- boot/trust pipeline;
+- initial bootstrap of `Secure Boot`.
 
-Manca però il primo punto di ingresso reale da installazione pulita:
+However, the first real entry point from a clean installation is missing:
 
-- il bootstrap da live ISO.
+- bootstrapping from live ISO.
 
-## Problema da risolvere
+## Problem to solve
 
-L'ambiente live ISO e il sistema target non sono la stessa cosa.
+ISO live environment and target system are not the same thing.
 
-Se li trattiamo come un unico contesto, finiamo per mischiare:
+If we treat them as a single context, we end up mixing:
 
-- operazioni che devono avvenire su `/mnt`;
-- operazioni che hanno senso solo dentro il sistema target;
-- logica più difficile da capire e da testare.
+- operations that must take place on `/mnt`;
+- operations that make sense only within the target system;
+- logic more difficult to understand and test.
 
-## Decisione
+## Decision
 
-Per `Margine v1`, il bootstrap installativo viene diviso in due fasi:
+For `Margine v1`, the installation bootstrap is divided into two phases:
 
-1. fase live ISO
+1. ISO live phase
 2. fase in chroot
 
 ## Fase 1 - Live ISO
 
-La fase live ISO si occupa solo di:
+The live ISO phase only deals with:
 
-- verificare il target mountato;
-- installare il primo set minimo di pacchetti con `pacstrap`;
-- generare `fstab`;
-- copiare la repo `margine-os` dentro il target;
-- opzionalmente entrare nel chroot e passare il testimone alla fase 2.
+- check the mounted target;
+- install the first minimum set of packages with `pacstrap`;
+- generate `fstab`;
+- copy the `margine-os` repo into the target;
+- optionally enter the chroot and pass the baton to phase 2.
 
 ## Fase 2 - Chroot
 
-La fase in chroot si occupa di:
+The chroot phase deals with:
 
-- configurazione base del sistema;
-- installazione dei layer rimanenti guidata dai manifest;
-- enable dei servizi fondamentali;
-- preparazione del sistema per i passi successivi di boot e desktop.
+- basic system configuration;
+- manifest-driven installation of remaining layers;
+- enable fundamental services;
+- preparing the system for the next boot and desktop steps.
 
-## Regola del set minimo per pacstrap
+## Minimum set rule for pacstrap
 
-Nella `v1`, `pacstrap` non installerà tutti i layer.
+In `v1`, `pacstrap` will not install all layers.
 
-Installerà solo i layer minimi per portare il sistema in uno stato utile al
+It will install only the minimum layers to bring the system into a useful state
 chroot:
 
 1. `base-system`
 2. `hardware-framework13-amd`
 3. `security-and-recovery`
 
-I layer desktop e applicativi resteranno alla fase 2.
+The desktop and application layers will remain in phase 2.
 
-## Regola di handoff
+## Handoff rule
 
-La fase 1 non deve duplicare la logica della fase 2.
+Phase 1 must not duplicate the logic of phase 2.
 
-Deve invece:
+Instead, it must:
 
-- copiare la repo;
-- chiamare uno script dentro il target;
-- passargli i parametri necessari.
+- copy the repo;
+- call a script inside the target;
+- pass it the necessary parameters.
 
-## Regola di prudenza
+## Rule of prudence
 
-Il bootstrap `v1` non fa ancora:
+The `v1` bootstrap doesn't do this yet:
 
-- partizionamento automatico;
-- setup automatico LUKS/Btrfs;
-- creazione utente finale;
-- installazione completa del bootloader.
+- automatic partitioning;
+- automatic LUKS/Btrfs setup;
+- end user creation;
+- full bootloader installation.
 
-Quelle parti arriveranno dopo, a blocchi separati.
+Those parts will come later, in separate blocks.
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa scelta ci dà:
+This choice gives us:
 
-- uno script live ISO piccolo e leggibile;
-- una fase chroot più testabile;
-- meno assunzioni nascoste;
-- una base buona per crescere senza rifare tutto.
+- a small and readable ISO live script;
+- a more testable chroot phase;
+- fewer hidden hires;
+- a good basis for growing without redoing everything.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
 Pensa così:
 
-- la live ISO prepara il tavolo;
-- il chroot cucina davvero il sistema.
+- live ISO sets the table;
+- chroot really cooks the system.
 
-Se provi a fare tutto nella live ISO, il codice si sporca subito.
+If you try to do everything in the live ISO, the code gets dirty right away.

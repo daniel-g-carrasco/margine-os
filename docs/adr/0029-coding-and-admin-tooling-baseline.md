@@ -1,38 +1,38 @@
-# ADR 0029 - Baseline tooling per coding e amministrazione
+# ADR 0029 - Baseline tooling for coding and administration
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Contesto
+## Context
 
-`Margine` non e' solo un desktop grafico.
-Deve nascere anche come macchina pratica per:
+`Margine` is not just a graphical desktop.
+It must also be born as a practical machine for:
 
-- coding quotidiano;
-- ispezione del sistema;
+- daily coding;
+- system inspection;
 - debugging leggero;
-- lavoro terminal-first.
+- terminal-first work.
 
-Lasciare questi strumenti impliciti dentro `base` o dispersi tra altri layer
-renderebbe il progetto meno leggibile.
+Leave these tools implicit within `base` or dispersed among other layers
+it would make the project less readable.
 
-## Decisione
+## Decision
 
 `Margine v1` introduce un layer dedicato:
 
 - `coding-system-tools`
 
-Questo layer raccoglie il tooling workstation per terminale e amministrazione,
+This layer collects workstation tooling for terminal and administration,
 separandolo da:
 
-- base di sistema;
+- system basis;
 - desktop Hyprland;
-- applicazioni utente.
+- user applications.
 
-## Contenuto baseline
+## Baseline content
 
-Il layer include, tra gli altri:
+The layer includes, among others:
 
 - `tmux`
 - `opencode`
@@ -51,62 +51,62 @@ Il layer include, tra gli altri:
 - `strace`
 - `lsof`
 
-## Scelte specifiche
+## Specific choices
 
-### 1. Kitty resta il terminale baseline
+### 1. Kitty remains the baseline terminal
 
-`kitty` non entra in questo layer.
+`kitty` does not fit into this layer.
 
-Motivo:
+Reason:
 
 - fa parte del desktop baseline;
-- non e' uno strumento ausiliario, ma il terminale standard della sessione.
+- it is not an auxiliary tool, but the standard session terminal.
 
-### 2. Opencode entra nei repo ufficiali
+### 2. Opencode enters the official repositories
 
-Poiche' `opencode` oggi risulta disponibile nei repo ufficiali Arch, non viene
-trattato come eccezione AUR.
+Since `opencode` is currently available in the official Arch repositories, it is not available
+treated as an AUR exception.
 
-### 3. Comandi base gia' presenti
+### 3. Basic commands already present
 
-Alcuni strumenti sono gia' portati in macchina da Arch stessa o da dipendenze
+Some tools are already ported by Arch itself or by dependencies
 ampie.
 
-Li rendiamo comunque espliciti quando fanno parte dell'esperienza che vogliamo
-garantire, cosi' il manifest descrive davvero il sistema target.
+However, we make them explicit when they are part of the experience we want
+ensure, so the manifest actually describes the target system.
 
-### 4. Ghostty esce dal perimetro
+### 4. Ghostty exits the perimeter
 
-`Ghostty` non entra nella baseline `v1`.
+`Ghostty` does not fit into the `v1` baseline.
 
-Motivo:
+Reason:
 
-- il terminale baseline e' gia' `kitty`;
-- mantenere due terminali come default aumenterebbe rumore e duplicazione.
+- the baseline terminal is already `kitty`;
+- keeping two terminals as default would increase noise and duplication.
 
-## Conseguenze
+## Consequences
 
 ### Positive
 
-- il progetto dichiara chiaramente il suo corredo da workstation;
-- i tool utili per coding e amministrazione non restano impliciti;
-- il layer resta facile da estendere.
+- the project clearly declares its workstation equipment;
+- useful tools for coding and administration do not remain implicit;
+- the layer remains easy to extend.
 
 ### Negative
 
-- il numero di pacchetti espliciti aumenta;
-- alcune utility risultano ridondanti rispetto a cio' che Arch gia' porta con
+- the number of explicit packets increases;
+- some utilities are redundant compared to what Arch already brings with it
   se'.
 
-## Per uno studente
+## For a student
 
-La regola qui e' semplice:
+The rule here is simple:
 
-- non tutto cio' che esiste nel sistema merita un layer;
-- ma cio' che definisce il tuo modo di lavorare si'.
+- not everything that exists in the system deserves a layer;
+- but what defines your way of working does.
 
-Per questo `Margine` separa:
+This is why `Margine` separates:
 
-- la base del sistema;
+- the basis of the system;
 - il desktop;
-- il tooling da terminale.
+- terminal tooling.

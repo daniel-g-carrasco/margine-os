@@ -1,55 +1,55 @@
-# Perché Firefox va configurato con policy e Neovim con file
+# Because Firefox must be configured with policies and Neovim with files
 
-Non tutte le applicazioni espongono la configurazione nello stesso modo.
+Not all applications expose the configuration in the same way.
 
 ## Firefox
 
-`Firefox` ha due mondi distinti:
+`Firefox` has two distinct worlds:
 
-- il profilo utente completo;
-- le policy di sistema.
+- the complete user profile;
+- system policies.
 
-Il profilo utente contiene troppo:
+The user profile contains too much:
 
-- cronologia;
-- estensioni;
-- stato locale;
-- database interni;
-- preferenze miste a dati personali.
+- chronology;
+- extensions;
+- local state;
+- internal databases;
+- preferences mixed with personal data.
 
-Per un sistema riproducibile e didattico, e' una base pessima.
+For a reproducible and didactic system, this is a terrible basis.
 
-Le policy invece servono proprio a definire:
+The policies, on the other hand, serve precisely to define:
 
-- il comportamento base desiderato;
-- alcune regole da applicare sempre;
-- un baseline chiaro tra installazioni diverse.
+- the desired basic behavior;
+- some rules to always apply;
+- a clear baseline between different installations.
 
-Per questo in `Margine` `Firefox` viene trattato con policy.
+This is why in `Margine` `Firefox` is treated with policy.
 
 ## Neovim / LazyVim
 
-Qui la situazione e' l'opposto.
+Here the situation is the opposite.
 
-La configurazione di `Neovim` e':
+The configuration of `Neovim` is:
 
-- testuale;
-- modulare;
-- leggibile;
-- relativamente piccola;
-- davvero rappresentativa del workflow.
+- textual;
+- modular;
+- readable;
+- relatively small;
+- truly representative of the workflow.
 
-Quindi ha molto senso versionarla come file normali.
+So it makes a lot of sense to version them as regular files.
 
-## La lezione generale
+## The general lesson
 
-La domanda non e':
+The question is not:
 
-- "dove salvo i file?"
+- "where do I save the files?"
 
-La domanda giusta e':
+The right question is:
 
-- "qual e' il meccanismo di configurazione piu' pulito per questa applicazione?"
+- "what is the cleanest configuration mechanism for this application?"
 
 Per `Firefox`:
 
@@ -57,5 +57,5 @@ Per `Firefox`:
 
 Per `Neovim`:
 
-- file di configurazione.
+- configuration file.
 

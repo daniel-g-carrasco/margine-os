@@ -1,41 +1,41 @@
-# ADR 0036: import esplicito dell'ambiente Hyprland nel manager `systemd --user`
+# ADR 0036: explicit import of the Hyprland environment in the `systemd --user` manager
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Contesto
+## Context
 
-`Margine` usa `Walker` come launcher di default e `Elephant` come backend dati.
-`Elephant` puo' lanciare applicazioni attraverso `systemd-run --user --scope`.
+`Margine` uses `Walker` as the default launcher and `Elephant` as the data backend.
+`Elephant` can launch applications through `systemd-run --user --scope`.
 
-Questo crea una distinzione importante:
+This creates an important distinction:
 
-- il terminale utente vede direttamente l'ambiente ricco della sessione
+- the user terminal directly sees the rich environment of the session
   Hyprland;
-- il manager `systemd --user` non vede automaticamente tutte le variabili della
-  sessione grafica;
-- le app avviate da `Walker -> Elephant -> systemd-run --user --scope` possono
-  quindi ricevere un contesto grafico piu' povero o incoerente.
+- the `systemd --user` manager does not automatically see all the variables of the
+graphic session;
+- apps launched from `Walker -> Elephant -> systemd-run --user --scope` can
+therefore receive a poorer or inconsistent graphic context.
 
-Il caso locale di `wayland-scroll-factor` ha reso il problema piu' evidente, ma
-non e' la root cause architetturale da correggere in `Margine`.
+The local case of `wayland-scroll-factor` made the problem more evident, but
+it is not the architectural root cause to be fixed in `Margine`.
 
-## Decisione
+## Decision
 
-`Margine` importa esplicitamente l'ambiente grafico essenziale della sessione
-Hyprland nel manager `systemd --user` e nel contesto di attivazione D-Bus.
+`Margine` explicitly imports the essential graphical environment of the session
+Hyprland in the `systemd --user` manager and in the D-Bus activation context.
 
-La soluzione e':
+The solution is:
 
-- script versionato `margine-import-session-environment`;
-- esecuzione come prima `exec-once` della sessione in `hyprland.conf`;
-- avvio del servizio launcher subito dopo l'import dell'ambiente;
-- uso congiunto di:
+- script versioned `margine-import-session-environment`;
+- running as first `exec-once` of session in `hyprland.conf`;
+- starting the launcher service immediately after importing the environment;
+- joint use of:
   - `systemctl --user import-environment`
   - `dbus-update-activation-environment --systemd`
 
-Le variabili candidate sono:
+The candidate variables are:
 
 - `DISPLAY`
 - `WAYLAND_DISPLAY`
@@ -49,8 +49,8 @@ Le variabili candidate sono:
 - `HYPRLAND_INSTANCE_SIGNATURE`
 - `XDG_RUNTIME_DIR`
 
-Lo script applica anche default sensati quando la sessione non ha ancora
-esplicitato alcuni valori:
+The script also applies sensible defaults when the session doesn't have it yet
+explained some values:
 
 - `XDG_CURRENT_DESKTOP=Hyprland`
 - `XDG_SESSION_TYPE=wayland`
@@ -60,33 +60,33 @@ esplicitato alcuni valori:
 - `MOZ_ENABLE_WAYLAND=1`
 - `_JAVA_AWT_WM_NONREPARENTING=1`
 
-## Perche' qui e non altrove
+## Because here and not elsewhere
 
-Il punto scelto e' Hyprland stesso, non `greetd`.
+The point chosen is Hyprland itself, not `greetd`.
 
-Motivo:
+Reason:
 
-- `greetd` puo' avviare la sessione, ma non conosce ancora variabili come
+- `greetd` can start the session, but it doesn't know how variables yet
   `WAYLAND_DISPLAY` o `HYPRLAND_INSTANCE_SIGNATURE`;
-- quelle variabili esistono in modo affidabile solo dopo che Hyprland ha creato
-  davvero la sessione;
-- quindi il primo punto architetturalmente corretto per importarle e'
-  l'avvio iniziale della sessione Hyprland.
+- those variables only reliably exist after Hyprland has created
+really the session;
+- therefore the first architecturally correct point to import them is
+the initial start of the Hyprland session.
 
-## Conseguenze
+## Consequences
 
 Positive:
 
-- `Walker` e `Elephant` smettono di dipendere da workaround locali;
-- il manager `systemd --user` riceve lo stesso contesto grafico essenziale che
-  vede la shell della sessione;
-- anche le attivazioni D-Bus grafiche restano coerenti.
-- `Elephant` non viene piu' abilitato come servizio di sessione persistente:
-  viene avviato on-demand dal launcher dopo l'import dell'ambiente, cosi' non
-  puo' partire troppo presto.
+- `Walker` and `Elephant` stop depending on local workarounds;
+- the `systemd --user` manager receives the same essential graphical context that
+sees the session shell;
+- Graphical D-Bus activations also remain consistent.
+- `Elephant` is no longer enabled as a persistent session service:
+it is started on-demand by the launcher after importing the environment, not so
+he may leave too soon.
 
 Negative:
 
-- il fix dipende da un passaggio esplicito in `hyprland.conf`;
-- se in futuro `Margine` cambiera' entrypoint di sessione, questo punto andra'
-  rivalutato.
+- the fix depends on an explicit step in `hyprland.conf`;
+- if in the future `Margine` changes session entrypoint, this point will
+reevaluated.

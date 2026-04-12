@@ -1,46 +1,46 @@
-# Note didattiche
+# Teaching notes
 
-Questa cartella servirà a spiegare i sottosistemi "come a uno studente".
+This folder will be used to explain the subsystems "as to a student".
 
-Argomenti previsti:
+Planned topics:
 
 - bootloader, UEFI e Secure Boot
-- TPM2 e sblocco LUKS
-- Btrfs e subvolumi
-- confronto tra layout attuale e layout target
-- validazione della catena di boot
-- separazione tra boot normale e recovery
-- modello di integrazione con Arch rolling
-- lettura del template Limine
-- funzionamento del generatore Limine
-- policy snapshot e limiti della recovery
-- ragionamento dell'orchestratore update-all
+- TPM2 and LUKS unlock
+- Btrfs and subvolumes
+- comparison between current layout and target layout
+- validation of the boot chain
+- separation between normal boot and recovery
+- integration model with Arch rolling
+- reading the Limine template
+- operation of the Limine generator
+- snapshot policy and recovery limits
+- update-all orchestrator reasoning
 - deploy sicuro sulla ESP
-- enrollment della config Limine e firma EFI
-- bootstrap iniziale di Secure Boot
-- snapshot e rollback
+- Limine config enrollment and EFI signing
+- Secure Boot initial bootstrap
+- snapshots and rollbacks
 - pacman, hook e manutenzione
-- Hyprland e componenti del desktop
-- portal, polkit e sessione utente
-- stack grafico AMD
+- Hyprland and desktop components
+- portal, polkit and user session
+- AMD graphics stack
 - audio su Framework 13
-- migrazione selettiva delle configurazioni
-- configurazione applicativa versionata
-- snapshot bootabili e limiti del rollback
-- snapshot pre-update e snapshot granulari
+- selective migration of configurations
+- versioned application configuration
+- Bootable snapshots and rollback limits
+- pre-update snapshots and granular snapshots
 - color management e fotografia su Linux
 - ICC su Hyprland: app-first contro compositor-first
-- browser e mailer: pacchetto, default e dati personali
-- review app-per-app dei profili personali
-- tooling da terminale e amministrazione come layer dedicato
-- differenza tra pacchetto SSH, servizio e firewall
-- stampa, scanner e discovery di rete
-- validazione runtime del sistema
-- virtualizzazione e container come baseline separata
-- boot chain iniziale come prerequisito del test end-to-end
-- validazione installativa in VM prima del ferro vero
-- separazione tra `VRR`, refresh rate e power profile sul laptop
-- import dell'ambiente Hyprland nel manager `systemd --user`
+- browser and mailer: package, default and personal data
+- app-by-app review of personal profiles
+- terminal tooling and administration as a dedicated layer
+- difference between SSH package, service and firewall
+- printing, scanning and network discovery
+- runtime validation of the system
+- virtualization and containers as a separate baseline
+- Initial boot chain as a prerequisite for end-to-end testing
+- installation validation in VM before real iron
+- separation between `VRR`, refresh rate and power profile on the laptop
+- import the Hyprland environment into the `systemd --user` manager
 
-Regola:
-- ogni nota deve spiegare il "cosa", il "perché" e il "come modificarlo".
+Rule:
+- each note must explain the "what", the "why" and the "how to change it".

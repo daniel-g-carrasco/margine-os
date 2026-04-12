@@ -1,67 +1,67 @@
-# Come funziona il primo generatore di limine.conf
+# How the first limine.conf generator works
 
-Questa nota accompagna:
+This note accompanies:
 
 - [generate-limine-config](/home/daniel/dev/margine-os/scripts/generate-limine-config)
 
-L'idea è molto semplice:
+The idea is very simple:
 
-- il template definisce la forma;
-- il generatore inserisce i dati macchina;
-- il file finale diventa un artefatto riproducibile.
+- the template defines the shape;
+- the generator enters the machine data;
+- the final file becomes a playable artifact.
 
-## 1. Cosa prende in input
+## 1. What it takes as input
 
-La prima versione del generatore chiede solo due dati obbligatori:
+The first version of the generator asks only for two mandatory data:
 
 - `ROOT_UUID`
 - `LUKS_UUID`
 
-Può inoltre ricevere:
+You can also receive:
 
-- un file con entry recovery da inserire tra i marker del template
+- a file with recovery entries to be inserted between the template markers
 
-## 2. Cosa produce
+## 2. What it produces
 
 Produce un `limine.conf` finale dove:
 
-- i placeholder `@ROOT_UUID@` e `@LUKS_UUID@` sono sostituiti;
-- il blocco recovery viene lasciato di default oppure rimpiazzato da quello
+- placeholders `@ROOT_UUID@` and `@LUKS_UUID@` are replaced;
+- the recovery block is left as default or replaced by it
   fornito.
 
-## 3. Perché non scopre già tutto da solo
+## 3. Because he doesn't find out everything himself already
 
-Perché il primo obiettivo non è "automazione massima".
-Il primo obiettivo è:
+Because the first goal is not "maximum automation".
+The first objective is:
 
-- rendere la pipeline leggibile;
-- poterla testare senza effetti collaterali;
-- evitare uno script troppo furbo troppo presto.
+- make the pipeline readable;
+- being able to test it without side effects;
+- avoid a script that's too clever too soon.
 
-Questa è una regola importante da imparare:
+This is an important rule to learn:
 
-- l'automazione buona nasce spesso in due fasi:
-- prima rendering chiaro;
-- poi discovery e integrazione.
+- good automation often arises in two phases:
+- first clear rendering;
+- then discovery and integration.
 
-## 4. Perché supporta anche stdout
+## 4. Because it also supports stdout
 
-Perché così possiamo:
+Because this way we can:
 
 - testarlo facilmente;
-- usarlo in pipe;
-- confrontare output e template senza toccare file reali.
+- use it in pipes;
+- compare output and template without touching real files.
 
-È una piccola scelta, ma molto sana.
+It's a small choice, but very healthy.
 
-## 5. Cosa arriverà dopo
+## 5. What comes next
 
-Nei passi successivi aggiungeremo:
+In the next steps we will add:
 
-- generazione vera delle entry snapshot;
+- true generation of entry snapshots;
 - deploy su `ESP`;
 - `limine enroll-config`;
-- firma e verifica.
+- sign and verify.
 
-Quindi questo script non chiude il problema.
-Costruisce la base giusta per chiuderlo bene.
+So this script doesn't close the problem.
+It builds the right base to close it well.

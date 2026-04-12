@@ -1,116 +1,116 @@
-# ADR 0015 - Provisioning storage da live ISO
+# ADR 0015 - Provisioning storage from live ISO
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Con ADR 0014 abbiamo separato:
+With ADR 0014 we have separated:
 
-- fase live ISO
+- ISO live phase
 - fase chroot
 
-Mancava però il passo ancora precedente:
+However, the previous step was missing:
 
-- preparare davvero lo storage target.
+- really prepare the target storage.
 
-## Problema da risolvere
+## Problem to solve
 
-Per installare `Margine` da zero servono operazioni molto delicate:
+To install `Margine` from scratch, very delicate operations are required:
 
-- creare la tabella GPT;
-- creare la `ESP`;
-- preparare `LUKS2`;
-- creare il filesystem `Btrfs`;
-- creare i subvolumi;
-- montare il layout target in modo coerente con il progetto.
+- create the GPT table;
+- create the `ESP`;
+- prepare `LUKS2`;
+- create the `Btrfs` filesystem;
+- create subvolumes;
+- mount the target layout in a manner consistent with the project.
 
-Se questo passaggio resta manuale o implicito, il bootstrap resta incompleto.
+If this step remains manual or implicit, the bootstrap remains incomplete.
 
-## Decisione
+## Decision
 
-Per `Margine v1`, il provisioning storage sarà gestito da uno script separato
-da eseguire dalla live ISO.
+For `Margine v1`, storage provisioning will be handled by a separate script
+to be performed from the live ISO.
 
-Lo script deve:
+The script must:
 
-1. operare su un disco esplicitamente indicato;
-2. richiedere una conferma distruttiva esplicita;
-3. creare `GPT + ESP + LUKS2 + Btrfs`;
-4. creare i subvolumi leggendo il manifest del progetto;
-5. montare il target pronto per il bootstrap live ISO.
+1. operate on an explicitly indicated disk;
+2. require explicit destructive confirmation;
+3. create `GPT + ESP + LUKS2 + Btrfs`;
+4. create the subvolumes by reading the project manifest;
+5. Mount the target ready to bootstrap live ISO.
 
-## Regola di distruttività
+## Destructiveness rule
 
-Lo script è distruttivo per design.
+The script is destructive by design.
 
-Per questo, in `Margine v1`, non parte mai senza un flag esplicito di conferma.
+For this reason, in `Margine v1`, it never starts without an explicit confirmation flag.
 
-Non sono ammessi:
+The following are not allowed:
 
-- autodetect del disco;
-- "best guess" sul target corretto;
-- esecuzione silenziosa su device non confermati.
+- disk autodetect;
+- "best guess" on the correct target;
+- silent execution on unconsignaturesd devices.
 
-## Regola partizioni
+## Adjust partitions
 
-Lo schema adottato è quello già deciso da ADR 0003:
+The scheme adopted is the one already decided by ADR 0003:
 
-- partizione 1: `ESP` FAT32 da `4 GiB`
-- partizione 2: resto del disco in `LUKS2`
+- partition 1: `ESP` FAT32 from `4 GiB`
+- partition 2: rest of the disk in `LUKS2`
 
-## Regola filesystem
+## Adjust filesystem
 
-Dentro `LUKS2` si crea un solo filesystem `Btrfs`.
+Inside `LUKS2` you create a single filesystem `Btrfs`.
 
-I subvolumi vengono creati leggendo `manifests/storage-subvolumes.txt`.
+Subvolumes are created by reading `manifests/storage-subvolumes.txt`.
 
-Questo evita che lo script e il documento architetturale divergano.
+This prevents the script and the architectural document from diverging.
 
-## Regola mount
+## Mount rule
 
-Il target finale viene montato così:
+The final target is mounted like this:
 
-- `@` su `/`
-- altri subvolumi sui rispettivi mountpoint
-- `ESP` su `/boot`
+- `@` to `/`
+- other subvolumes on their respective mountpoints
+- `ESP` to `/boot`
 
-Le mount options di base sono coerenti con ADR 0003:
+The basic mount options are consistent with ADR 0003:
 
 - `rw`
 - `relatime`
 - `compress=zstd:3`
 - `ssd`
 
-## Regola di ambito
+## Scope rule
 
-In `Margine v1`, questo script non fa ancora:
+In `Margine v1`, this script does not yet do:
 
 - enrollment `TPM2`
-- installazione del bootloader
-- configurazione finale di `crypttab`
-- partizionamento avanzato o multi-disk
-- ibernazione
+- installing the bootloader
+- final configuration of `crypttab`
+- advanced or multi-disk partitioning
+- hibernation
 
-Fa una cosa sola:
+It does only one thing:
 
-- prepara bene il disco per il bootstrap successivo.
+- prepare the disk well for the next bootstrap.
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa scelta ci dà:
+This choice gives us:
 
-- uno storage path ripetibile;
-- coerenza tra ADR, manifest e script;
-- meno rischio di errori manuali;
-- una base forte per l'installazione completa.
+- a repeatable storage path;
+- consistency between ADR, manifest and script;
+- less risk of manual errors;
+- a strong base for complete installation.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
 Pensa così:
 
-- prima prepari il terreno;
-- poi costruisci la casa.
+- first prepare the ground;
+- then build the house.
 
-Lo storage provisioning è il momento in cui prepari il terreno.
+Storage provisioning is where you set the stage.

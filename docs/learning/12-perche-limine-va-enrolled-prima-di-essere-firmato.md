@@ -1,83 +1,83 @@
-# Perché Limine va "enrolled" prima di essere firmato
+# Because Limine must be "enrolled" before being signed
 
-## Il problema in una frase
+## The problem in one sentence
 
-`limine enroll-config` modifica il binario `BOOTX64.EFI`.
+`limine enroll-config` modifies the `BOOTX64.EFI` binary.
 
-Se tu firmi prima e modifichi dopo, la firma non corrisponde più al contenuto
-del file.
+If you sign first and edit later, the signature no longer corresponds to the content
+of the file.
 
-## Che cosa fa davvero enroll-config
+## What enroll-config actually does
 
-Il comando:
+The command:
 
 ```bash
 limine enroll-config <bootloader.efi> <blake2b-di-limine.conf>
 ```
 
-scrive dentro il binario EFI di Limine l'hash `BLAKE2B` del file
+writes the `BLAKE2B` hash of the file into the Limine EFI binary
 `limine.conf`.
 
-Questo serve a fare una cosa precisa:
+This serves to do one specific thing:
 
-- impedire che qualcuno modifichi `limine.conf` senza che Limine se ne accorga.
+- prevent someone from modifying `limine.conf` without Limine realizing it.
 
-## Perché non basta firmare solo il bootloader
+## Because it's not enough to just sign the bootloader
 
-Se firmi solo `BOOTX64.EFI`, ma lasci la config libera di cambiare, hai ancora
+If you just sign `BOOTX64.EFI`, but leave the config free to change, you still have
 un punto debole:
 
-- il firmware si fida del binario;
-- il binario però potrebbe leggere una config alterata.
+- the firmware trusts the binary;
+- however, the binary could read an altered config.
 
-Il meccanismo di `enroll-config` chiude proprio questo buco.
+The `enroll-config` mechanism closes this very hole.
 
-## L'ordine corretto
+## The correct order
 
-L'ordine corretto è:
+The correct order is:
 
-1. copiare `BOOTX64.EFI` sulla `ESP`;
-2. copiare `limine.conf` sulla `ESP`;
-3. calcolare l'hash di quel `limine.conf`;
-4. eseguire `limine enroll-config` sul `BOOTX64.EFI` già deployato;
-5. firmare il `BOOTX64.EFI` risultante;
+1. copy `BOOTX64.EFI` to `ESP`;
+2. copy `limine.conf` to `ESP`;
+3. calculate the hash of that `limine.conf`;
+4. run `limine enroll-config` on the already deployed `BOOTX64.EFI`;
+5. sign the resulting `BOOTX64.EFI`;
 6. firmare le `UKI`;
-7. verificare tutto con `sbctl verify`.
+7. verify everything with `sbctl verify`.
 
-## Perché usiamo il file sulla ESP e non quello di staging
+## Because we use the file on the ESP and not the staging one
 
-Perché il firmware non boota il file di staging.
-Boota il file sulla `ESP`.
+Why the firmware doesn't boot the staging file.
+Boot the file to `ESP`.
 
-Quindi la catena di fiducia deve essere costruita sul file finale, non su una
-copia intermedia.
+So the chain of trust must be built on the final file, not on one
+intermediate copy.
 
-## La regola pratica da ricordare
+## The rule of thumb to remember
 
-Quando cambia `limine.conf`, non basta ricopiare il file.
+When `limine.conf` changes, it is not enough to copy the file.
 
 Devi anche:
 
-1. aggiornare l'hash dentro `BOOTX64.EFI`;
+1. update hash inside `BOOTX64.EFI`;
 2. rifirmare `BOOTX64.EFI`.
 
-## Come si collega a Margine
+## How it relates to Margin
 
-In `Margine` questo diventa un flusso esplicito:
+In `Margine` this becomes an explicit stream:
 
-- `deploy-boot-artifacts` installa i file;
-- `refresh-efi-trust` allinea hash e firme;
-- `update-all` orchestra il tutto.
+- `deploy-boot-artifacts` installs files;
+- `refresh-efi-trust` allinea hash e signatures;
+- `update-all` orchestrates everything.
 
-## Se vuoi modificare il comportamento in futuro
+## If you want to change behavior in the future
 
-Le leve vere sono queste:
+The real levers are these:
 
-- il path del `BOOTX64.EFI`;
-- il path del `limine.conf`;
+- the path of the `BOOTX64.EFI`;
+- the path of the `limine.conf`;
 - quali `UKI` firmare;
-- se il refresh della trust chain è automatico o manuale.
+- whether the trust chain refresh is automatic or manual.
 
-Quello che non va cambiato alla leggera è l'ordine logico:
+What should not be changed lightly is the logical order:
 
 `deploy -> enroll-config -> sign -> verify`

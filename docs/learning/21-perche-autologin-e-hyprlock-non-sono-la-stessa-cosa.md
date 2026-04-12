@@ -1,77 +1,77 @@
-# Perché autologin e `hyprlock` non sono la stessa cosa
+# Because autologin and `hyprlock` are not the same thing
 
-Quando si progetta l'accesso a un sistema grafico, è facile pensare:
+When designing access to a graphical system, it's easy to think:
 
-> "Se tanto poi compare `hyprlock`, allora è uguale a fare login nel greeter."
+> "If `hyprlock` then appears, then it is the same as logging into the greeter."
 
-Non è vero.
+It is not true.
 
-## Due modelli diversi
+## Two different models
 
-### Modello A
+### Model A
 
 `greetd -> tuigreet -> autenticazione -> sessione`
 
-Qui l'utente viene autenticato *prima* che la sessione parta.
+Here the user is authenticated *before* the session starts.
 
-### Modello B
+### Model B
 
 `greetd -> autologin -> Hyprland -> hyprlock`
 
-Qui la sessione parte subito, ma viene bloccata immediatamente dalla
+Here the session starts immediately, but is blocked immediately by
 lockscreen.
 
-## Perché allora scegliere il modello B?
+## Why then choose model B?
 
-Perché il progetto `Margine` è pensato, almeno nella `v1`, per:
+Because the `Margine` project is designed, at least in `v1`, to:
 
-- un laptop personale;
-- un solo utente principale;
-- disco cifrato;
-- priorità alta alla coerenza estetica e operativa.
+- a personal laptop;
+- only one main user;
+- encrypted disk;
+- high priority to aesthetic and operational coherence.
 
-In questo contesto, il modello B offre:
+In this context, model B offers:
 
-- una UX più uniforme;
-- un solo linguaggio visivo;
-- meno dipendenza da un display manager "ingombrante".
+- a more uniform UX;
+- a single visual language;
+- less dependence on a "bulky" display manager.
 
-## Cosa si perde
+## What is lost
 
-Il modello B non va descritto come se fosse identico al modello A.
+Model B should not be described as if it were identical to Model A.
 
 Si perde:
 
-- una separazione più rigida tra fase di boot e fase di sessione;
-- un confine di autenticazione più classico;
-- una semantica più adatta a macchine condivise.
+- a more rigid separation between boot phase and session phase;
+- a more classic authentication boundary;
+- a semantics more suitable for shared machines.
 
-## Perché allora mantenere anche `tuigreet`
+## Why then also keep `tuigreet`
 
-Perché serve un fallback pulito.
+Because we need a clean fallback.
 
-`greetd` ha due concetti:
+`greetd` has two concepts:
 
-- `default_session`: il greeter normale;
-- `initial_session`: la sessione iniziale lanciata una volta per boot.
+- `default_session`: the normal greeter;
+- `initial_session`: the initial session launched once per boot.
 
-Questo permette di avere entrambe le cose:
+This allows you to have both:
 
-- autologin iniziale per l'utente principale;
-- `tuigreet` disponibile dopo logout o quando l'autologin non è il percorso
-  giusto.
+- initial autologin for main user;
+- `tuigreet` available after logout or when autologin is not the path
+  right.
 
-## La lezione vera
+## The real lesson
 
-Quando configuri un login path non stai solo scegliendo "un programma che apre
-il desktop".
+When you configure a login path you are not just choosing "a program that opens
+the desktop".
 
-Stai scegliendo:
+You are choosing:
 
-- dove avviene l'autenticazione;
-- quanta fiducia dai al contesto della macchina;
-- quale esperienza vuoi rendere normale;
-- quale fallback vuoi lasciare quando qualcosa cambia.
+- where authentication takes place;
+- how much trust you give to the context of the machine;
+- what experience do you want to make normal;
+- what fallback do you want to leave when something changes.
 
-Per `Margine`, la scelta è: macchina personale, sessione coerente, fallback
-pulito.
+For `Margine`, the choice is: personal machine, session consistent, fallback
+clean.

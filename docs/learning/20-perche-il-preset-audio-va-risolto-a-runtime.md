@@ -1,48 +1,48 @@
-# Perché il preset audio va risolto a runtime
+# Because the audio preset must be resolved at runtime
 
-## Il punto importante
+## The important point
 
-Un preset audio non vive nel vuoto.
+An audio preset doesn't live in a vacuum.
 
-Per funzionare bene deve sapere:
+To work well it must know:
 
-- su quale hardware sta girando;
-- su quale output deve agganciarsi;
-- quali file accessori servono davvero.
+- what hardware it is running on;
+- which output it should hook to;
+- which accessory files are really needed.
 
-## L'errore classico
+## The classic mistake
 
-L'errore tipico è questo:
+The typical error is this:
 
-- copiare il preset in home;
-- sperare che il nome del device sia identico ovunque;
-- applicarlo globalmente a tutto.
+- copy the preset to home;
+- hope that the device name is identical everywhere;
+- apply it globally to everything.
 
-Questa scorciatoia sembra comoda, ma è fragile.
+This shortcut seems convenient, but it's fragile.
 
-## La scelta di Margine
+## Choosing Margin
 
-`Margine` divide il problema in due:
+`Margine` divides the problem in two:
 
-1. versiona tutto ciò che è stabile:
-   - preset;
-   - IR del convolver;
-   - servizio utente;
-2. risolve a runtime tutto ciò che dipende dalla macchina reale:
-   - vendor e modello;
-   - sink audio interno;
-   - route degli altoparlanti.
+1. release everything that is stable:
+   - presets;
+   - IR of the convolver;
+   - user service;
+2. solves at runtime everything that depends on the real machine:
+   - vendor and model;
+   - internal audio sink;
+   - speaker route.
 
-## Perché è didatticamente migliore
+## Because it is educationally better
 
-Perché ti insegna una regola utile in tanti contesti:
+Because it teaches you a useful rule in many contexts:
 
-- i file statici vanno in Git;
-- i fatti dinamici vanno rilevati quando esistono davvero.
+- static files go to Git;
+- dynamic facts must be detected when they really exist.
 
-Questo vale per l'audio, ma anche per rete, dischi, monitor e boot entries.
+This applies to audio, but also to network, disks, monitors and boot entries.
 
-## La regola mentale da ricordare
+## The mental rule to remember
 
-Non hardcodare in installazione ciò che il sistema può scoprire meglio al
-momento giusto.
+Don't hardcode into installation what the system can best discover
+right time.

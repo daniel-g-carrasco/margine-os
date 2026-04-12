@@ -1,47 +1,47 @@
-# Perche' il tooling da terminale merita un layer dedicato
+# Why terminal tooling deserves a dedicated layer
 
-Quando costruisci un sistema tuo, c'e' un errore molto comune:
+When you build your own system, there is a very common mistake:
 
-- pensare che i tool da terminale siano \"sottintesi\"
+- think that terminal tools are \"implied\"
 
-In realta' non lo sono.
+Actually I'm not.
 
 Tra:
 
-- un sistema che ha solo Arch di base;
-- e un sistema pensato per lavorare davvero;
+- a system that only has basic Arch;
+- and a system designed to really work;
 
-la differenza spesso sta proprio qui.
+the difference often lies right here.
 
-## Esempio semplice
+## Simple example
 
 `tmux`, `ripgrep`, `fd`, `jq`, `htop`, `radeontop`, `opencode`.
 
-Nessuno di questi e' \"ornamentale\".
-Definiscono il modo in cui lavori, cerchi, debuggghi e amministri la macchina.
+None of these are \"ornamental\".
+They define how you work, search, debug, and administer the machine.
 
-## Perche' non basta dire \"tanto c'e' base\"
+## Because it's not enough to say \"there's a basis\"
 
-Alcuni comandi arrivano gia' con Arch.
+Some commands already come with Arch.
 
-Ma se li lasci impliciti:
+But if you leave them implicit:
 
-- il repo non spiega piu' il sistema target;
-- non sai piu' quali strumenti consideri davvero essenziali;
-- il bootstrap diventa meno leggibile.
+- the repo no longer explains the target system;
+- you no longer know which tools you consider truly essential;
+- bootstrap becomes less readable.
 
-## La scelta di Margine
+## Choosing Margin
 
-Per questo `Margine` tiene separati:
+For this reason `Margine` keeps separate:
 
-- base del sistema;
-- desktop grafico;
-- tooling da terminale e amministrazione.
+- basis of the system;
+- graphical desktop;
+- terminal tooling and administration.
 
-## Cosa ci guadagni
+## What's in it for you
 
-Quando tra mesi riaprirai il repo, capirai subito:
+When you reopen the repo in months, you will immediately understand:
 
-- quali strumenti servono a lavorare;
-- quali servono al desktop;
-- quali sono solo dipendenze incidentali.
+- what tools are used to work;
+- which ones are needed for the desktop;
+- which are only incidental dependencies.

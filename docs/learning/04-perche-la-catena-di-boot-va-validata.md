@@ -1,8 +1,8 @@
-# Perché la catena di boot va validata, non solo assemblata
+# Because the boot chain must be validated, not just assembled
 
-Questa nota spiega il senso dell'ADR 0004.
+This note explains the meaning of ADR 0004.
 
-Quando si leggono in fila queste parole:
+When you read these words in a row:
 
 - `Limine`
 - `UKI`
@@ -11,155 +11,155 @@ Quando si leggono in fila queste parole:
 - `LUKS2`
 - `Snapper`
 
-si rischia di fare un errore mentale molto comune:
+you risk making a very common mental mistake:
 
-- pensare che basti "mettere insieme i pezzi".
+- thinking that it is enough to "put the pieces together".
 
-Non basta.
+It's not enough.
 
-## 1. Una catena è forte quanto il suo punto più fragile
+## 1. A chain is only as strong as its most fragile point
 
-Un sistema del genere ha almeno tre obiettivi contemporanei:
+Such a system has at least three simultaneous objectives:
 
 - avviare bene;
 - proteggere bene;
 - recuperare bene.
 
-Se ne fallisce uno, il progetto peggiora anche se gli altri due sembrano forti.
+If one fails, the project gets worse even if the other two seem strong.
 
 Esempio:
 
-- se il boot è comodo ma `Secure Boot` è improvvisato, la sicurezza è debole;
-- se la sicurezza è forte ma gli update rompono sempre `TPM2`, la manutenzione è
-  cattiva;
-- se la recovery è teorica ma nessuno osa usarla, non è vera recovery.
+- if booting is convenient but `Secure Boot` is improvised, security is weak;
+- if security is strong but updates always break `TPM2`, maintenance is
+bad;
+- if the recovery is theoretical but no one dares to use it, it is not real recovery.
 
-## 2. Perché partiamo da UKI
+## 2. Why we start from UKI
 
-Una `UKI` è utile perché mette in un solo oggetto firmabile:
+A `UKI` is useful because it puts in a single signable object:
 
 - kernel
 - initramfs
 - command line
 
-La lezione importante è questa:
+The important lesson is this:
 
-- meno file critici sparsi nel boot path significa meno ambiguità.
+- fewer critical files scattered across the boot path means less ambiguity.
 
-Se firmi un oggetto unico, la trust chain diventa più leggibile.
+If you sign a unique object, the trust chain becomes more readable.
 
-## 3. Perché ci interessa così tanto la command line incorporata
+## 3. Why we care so much about the built-in command line
 
-La kernel command line non è un dettaglio decorativo.
-Può cambiare il comportamento del sistema in modo reale.
+The kernel command line is not a decorative detail.
+It can change the behavior of the system in a real way.
 
-Se la lasci troppo libera:
+If you leave it too loose:
 
-- la catena di fiducia si complica;
-- i PCR diventano più delicati;
-- la ripetibilità del boot peggiora.
+- the chain of trust becomes more complicated;
+- PCRs become more delicate;
+- boot repeatability worsens.
 
-Per questo, nella prima validazione, la scelta sana è:
+For this reason, in the first validation, the healthy choice is:
 
-- command line incorporata nella `UKI`.
+- command line embedded in `UKI`.
 
-Non perché sia l'unico modo possibile.
-Perché è il modo più disciplinato da cui partire.
+Not because it's the only possible way.
+Because it's the most disciplined way to start.
 
-## 4. Perché `TPM2` non va legato a PCR a caso
+## 4. Why `TPM2` should not be tied to PCR at random
 
-Qui c'è una lezione molto importante.
+There is a very important lesson here.
 
-Il TPM non è "magia che sblocca il disco".
-Il TPM sblocca il disco solo se lo stato misurato della macchina corrisponde a
-quello che hai deciso di considerare valido.
+TPM is not "magic that unlocks the disk".
+The TPM unlocks the disk only if the measured state of the machine matches
+what you have decided to consider valid.
 
-Quindi il problema non è:
+So the problem is not:
 
 - "uso TPM sì o no?"
 
-Il problema vero è:
+The real problem is:
 
-- "a cosa lego il TPM?"
+- "What do I tie the TPM to?"
 
-Per `Margine v1`, la partenza sensata è:
+For `Margine v1`, the sensible starting point is:
 
 - `PCR 7`
 - `PCR 11`
 
-Perché:
+Why:
 
-- `PCR 7` segue lo stato di `Secure Boot` e dei certificati;
-- `PCR 11` segue il contenuto della `UKI`.
+- `PCR 7` follows the status of `Secure Boot` and certificates;
+- `PCR 11` follows the contents of `UKI`.
 
-Invece partire subito con PCR come `0` o `2` sarebbe più fragile, perché lì
-entrano più facilmente firmware e componenti hardware che cambiano durante la
-vita reale della macchina.
+Instead starting immediately with PCR like `0` or `2` would be more fragile, because there
+firmware and hardware components that change during the process are more easily entered
+real life of the car.
 
-## 5. Perché la recovery key viene prima del TPM
+## 5. Because the recovery key comes before the TPM
 
-Questa è una regola di maturità tecnica:
+This is a rule of technical maturity:
 
-- prima prepari il fallback umano;
-- poi aggiungi l'automazione comoda.
+- first prepare the human fallback;
+- then add convenient automation.
 
-Ordine corretto:
+Correct order:
 
-1. passphrase amministrativa
+1. administrative passphrase
 2. recovery key
 3. TPM2
 
-Se inverti questo ordine, stai costruendo comodità prima della sicurezza
-operativa.
+If you reverse this order, you are building convenience before security
+operational.
 
-## 6. Perché gli snapshot bootabili sono un vero test architetturale
+## 6. Why bootable snapshots are a real architectural test
 
-Gli snapshot bootabili non sono una decorazione.
+Bootable snapshots are not decoration.
 
-Sono il punto in cui si incontrano:
+They are the point where they meet:
 
 - filesystem
 - bootloader
-- politica di recovery
-- fiducia nel sistema
+- recovery policy
+- trust in the system
 
-Se funzionano male, `Limine` perde gran parte del motivo per cui lo abbiamo
-scelto.
+If they malfunction, `Limine` loses much of the reason we have it
+choice.
 
-Per questo nel progetto non diremo mai:
+This is why in the project we will never say:
 
-- "più o meno gli snapshot ci sono"
+- "more or less the snapshots are there"
 
-Diremo invece:
+Instead we will say:
 
-- si bootano davvero;
-- sai riconoscere cosa hai bootato;
-- sai tornare indietro senza panico.
+- they really boot;
+- you know how to recognize what you have booted;
+- you know how to go back without panic.
 
-## 7. Perché validiamo per gate
+## 7. Why we validate by gate
 
-Validare per gate significa non confondere i problemi.
+Validating by gate means not confusing problems.
 
 Esempio:
 
-- se fallisce `TPM2`, non vogliamo chiederci anche se il problema sia `Snapper`;
-- se fallisce `Secure Boot`, non vogliamo ancora avere in mezzo tre kernel, due
+- if `TPM2` fails, we also don't want to wonder if the problem is `Snapper`;
+- if `Secure Boot` fails, we still don't want to have three kernels in between, two
   boot path e addon vari.
 
-Ogni gate isola una domanda chiara.
+Each gate isolates a clear question.
 
-Questa è la vera ragione per cui un progetto complesso resta leggibile.
+This is the real reason why a complex project remains readable.
 
-## 8. La lezione da portare a casa
+## 8. The take-home lesson
 
-Montare tanti pezzi avanzati non significa avere un'architettura avanzata.
+Assembling many advanced pieces does not mean having an advanced architecture.
 
-Hai davvero un'architettura quando puoi rispondere bene a queste domande:
+You really have an architecture when you can answer these questions well:
 
-- cosa stiamo fidando?
-- cosa stiamo misurando?
-- cosa succede dopo un update?
-- come rientro se qualcosa si rompe?
+- What are we trusting?
+- What are we measuring?
+- what happens after an update?
+- How do I get back if something breaks?
 
-Se sai rispondere a queste quattro domande, allora stai già ragionando da
-progettista e non solo da utente.
+If you can answer these four questions, then you are already thinking from
+designer and not just as a user.

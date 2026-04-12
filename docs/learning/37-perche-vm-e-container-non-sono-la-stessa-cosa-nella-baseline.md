@@ -1,63 +1,63 @@
-# Perche' VM e container non sono la stessa cosa nella baseline
+# Because VMs and containers are not the same thing in the baseline
 
-Molto spesso si dice:
+Very often it is said:
 
-- "mi serve la virtualizzazione"
+- "I need virtualization"
 
-ma dentro questa frase stai mescolando due mondi diversi:
+but within this sentence you are mixing two different worlds:
 
-- macchine virtuali
-- container
+- virtual machines
+- containers
 
 ## VM
 
 Le VM usano un hypervisor.
 
-Nel caso di `Margine`:
+In the case of `Margine`:
 
 - `KVM`
 - `QEMU`
 - `libvirt`
 - `virt-manager`
 
-Qui il focus e':
+Here the focus is:
 
-- guest completi
-- firmware virtuale
-- dischi virtuali
-- rete virtuale
-- TPM virtuale se serve
+- complete guests
+- virtual firmware
+- virtual disks
+- virtual network
+- Virtual TPM if needed
 
 ## Container
 
-I container usano il kernel dell'host.
+Containers use the host's kernel.
 
-Nel caso di `Margine`:
+In the case of `Margine`:
 
 - `podman`
 
-Qui il focus e':
+Here the focus is:
 
-- processi isolati
-- immagini OCI
-- flusso piu' leggero
-- meno overhead di una VM completa
+- isolated processes
+- OCI images
+- lighter flow
+- less overhead than a full VM
 
-## Perche' separarli
+## Why separate them
 
-Se li tratti come "la stessa cosa", fai due errori:
+If you treat them as "the same thing", you make two mistakes:
 
-1. sottovaluti quanto serve davvero a una VM desktop
-2. complichi inutilmente il percorso container
+1. You underestimate how much a desktop VM really needs
+2. You unnecessarily complicate the container path
 
-Per questo `Margine` tiene una baseline unica di area, ma con ruoli chiari:
+For this reason `Margine` keeps a single area baseline, but with clear roles:
 
 - `libvirt/qemu` per le VM
-- `podman` per i container
+- `podman` for containers
 
-## Per uno studente
+## For a student
 
-La regola semplice e' questa:
+The simple rule is this:
 
-- se vuoi un altro sistema operativo completo, pensi in termini di VM
-- se vuoi un ambiente isolato che usa il tuo kernel, pensi in termini di container
+- if you want another complete OS, think in terms of VMs
+- if you want an isolated environment that uses your kernel, think in terms of containers

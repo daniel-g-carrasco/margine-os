@@ -1,23 +1,23 @@
-# ADR 0032 - Baseline virtualizzazione e container
+# ADR 0032 - Virtualization and container baseline
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Contesto
+## Context
 
-`Margine` ha gia' preparato storage, gruppi utente e subvolumi per:
+`Margine` has already prepared storage, user groups and subvolumes for:
 
 - VM `KVM/QEMU`;
 - `libvirt`;
 - workload container rootful e rootless.
 
-Pero' fino ad ora mancava una baseline pacchetti e runtime coerente. Questo
-lasciava un buco tra architettura storage e utilizzo reale.
+But until now, a coherent package baseline and runtime was missing. This
+it left a gap between storage architecture and actual usage.
 
-## Decisione
+## Decision
 
-Per `Margine v1` adottiamo:
+For `Margine v1` we adopt:
 
 - `libvirt`
 - `qemu-desktop`
@@ -28,52 +28,52 @@ Per `Margine v1` adottiamo:
 - `swtpm`
 - `podman`
 
-In piu':
+In more:
 
-- installiamo un drop-in `libvirtd.conf.d` per usare il gruppo `libvirt`;
-- impostiamo `qemu:///system` come URI predefinito;
-- forniamo un helper per abilitare `libvirtd` in modo corretto, inizializzando
-  prima la chiave segreta richiesta da libvirt;
-- la rete `default` di `libvirt` viene poi portata in autostart da quello
-  stesso helper quando disponibile.
+- we install a `libvirtd.conf.d` drop-in to use the `libvirt` group;
+- we set `qemu:///system` as the default URI;
+- we provide a helper to enable `libvirtd` correctly, initializing
+first the secret key required by libvirt;
+- the `default` network of `libvirt` is then autostarted by that
+same helper when 
 
-## Perche' questa scelta
+## Why this choice
 
-Il criterio e' semplice:
+The criterion is simple:
 
-- per le VM serve un percorso immediato e leggibile;
-- per i container serve una baseline moderna, non Docker-first;
-- la macchina e' una workstation personale, quindi `virt-manager` ha senso.
+- for VMs you need an immediate and readable path;
+- for containers you need a modern baseline, not Docker-first;
+- the machine is a personal workstation, so `virt-manager` makes sense.
 
-## Cosa non entra nella v1
+## What doesn't make it into v1
 
-Non entrano ancora:
+They don't enter yet:
 
-- Docker come baseline;
+- Docker as baseline;
 - Kubernetes locali;
-- orchestrazione multi-host;
-- tuning avanzato di rete bridge custom.
+- multi-host orchestration;
+- Advanced custom bridge network tuning.
 
-## Conseguenze
+## Consequences
 
 ### Positive
 
-- il progetto torna coerente con i subvolumi gia' previsti;
-- la macchina e' pronta per VM desktop e container OCI senza rework;
-- la distinzione tra VM e container resta chiara.
+- the project becomes consistent with the subvolumes already foreseen;
+- the machine is ready for desktop VMs and OCI containers without rework;
+- the distinction between VM and container remains clear.
 
 ### Negative
 
-- e' un layer in piu' nella baseline;
-- `libvirtd` non puo' piu' essere trattato come servizio "sempre on" del primo
-  boot, perche' le release attuali di libvirt richiedono uno stato iniziale
-  coerente per le credenziali.
+- it is an extra layer in the baseline;
+- `libvirtd` can no longer be treated as an "always on" service of the first
+boot, because current releases of libvirt require an initial state
+consistent for credentials.
 
-## Per uno studente
+## For a student
 
-La lezione qui e' questa:
+The lesson here is this:
 
-- preparare storage per le VM non basta;
-- mettere l'utente nel gruppo `libvirt` non basta;
-- finche' non esistono pacchetti, helper di bootstrap e check ripetibili, non hai una
-  baseline: hai solo intenzioni.
+- preparing storage for VMs is not enough;
+- putting the user in the `libvirt` group is not enough;
+- until packages, bootstrap helpers, and repeatable checks exist, you don't have a
+baseline: you only have intentions.

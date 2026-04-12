@@ -1,79 +1,79 @@
-# Come leggere il primo template di Limine
+# How to read the first Limine template
 
-Questa nota accompagna il file:
+This note accompanies the file:
 
 - [limine.conf.template](/home/daniel/dev/margine-os/files/esp/EFI/BOOT/limine.conf.template)
 
-Lo scopo del template non è essere già "finito".
-Lo scopo è fissare la struttura giusta.
+The purpose of the template is not to already be "finished".
+The aim is to establish the right structure.
 
-## 1. Cosa c'è di statico
+## 1. What's static
 
-Nel template ci sono parti che vogliamo tenere stabili:
+In the template there are parts that we want to keep stable:
 
 - timeout;
 - branding;
 - entry `Produzione`;
 - entry `Fallback`;
-- sezione `Recovery`.
+- `Recovery` section.
 
-Questa è la parte del file che ha senso versionare in Git.
+This is the part of the file that makes sense to version in Git.
 
-## 2. Cosa invece è variabile
+## 2. What is variable instead
 
-Ci sono due tipi di dati che non vogliamo scrivere a mano ogni volta:
+There are two types of data that we don't want to write by hand every time:
 
-- identificativi macchina, come `UUID`;
-- elenco delle entry recovery/snapshot.
+- machine identifiers, such as `UUID`;
+- list of recovery/snapshot entries.
 
-Per questo nel template trovi placeholder come:
+For this reason in the template you will find placeholders such as:
 
 - `@ROOT_UUID@`
 - `@LUKS_UUID@`
 
-e dei marker come:
+and markers like:
 
 - `BEGIN MARGINE GENERATED RECOVERY ENTRIES`
 - `END MARGINE GENERATED RECOVERY ENTRIES`
 
-La lezione qui è importante:
+The lesson here is important:
 
-- versioniamo la struttura;
-- generiamo i dati variabili.
+- we version the structure;
+- we generate the variable data.
 
-## 3. Perché esiste una entry "Recovery manuale"
+## 3. Why there is a "Manual recovery" entry
 
-Serve come baseline minima.
+It serves as a minimum baseline.
 
-Anche se il generatore snapshot non fosse ancora pronto, vogliamo già avere:
+Even if the snapshot generator isn't ready yet, we already want to have:
 
 - una `UKI` recovery;
-- una entry recovery riconoscibile;
-- un posto chiaro dove iniettare la command line.
+- a recognizable recovery entries;
+- a clear place to inject the command line.
 
-Questa è una regola molto sana:
+This is a very healthy rule:
 
-- prima costruisci un fallback semplice;
-- poi costruisci l'automazione avanzata.
+- first build a simple fallback;
+- then build advanced automation.
 
-## 4. Perché usiamo `boot():/EFI/Linux`
+## 4. Why we use `boot():/EFI/Linux`
 
-Perché il config file vive accanto a `Limine` sulla `ESP`, e `Limine`
-documenta che `boot():` punta alla partizione da cui viene letto il config.
+Because the config file lives next to `Limine` on `ESP`, and `Limine`
+documents that `boot():` points to the partition from which the config is read.
 
-Quindi:
+So:
 
-- `Limine` sta in `EFI/BOOT`;
-- le `UKI` stanno in `EFI/Linux`;
-- il config le raggiunge con path chiari e leggibili.
+- `Limine` is in `EFI/BOOT`;
+- the `UKI` are in `EFI/Linux`;
+- the config reaches them with clear and readable paths.
 
-## 5. Cosa manca ancora
+## 5. What is still missing
 
-Mancano ancora tre pezzi fondamentali:
+Three key pieces are still missing:
 
-- il generatore del file finale;
-- la logica che scopre gli snapshot bootabili;
-- gli hook che rigenerano il file dopo update o cambi di snapshot.
+- the generator of the final file;
+- the logic that discovers bootable snapshots;
+- hooks that regenerate the file after updates or snapshot changes.
 
-Quindi questo file non è "l'ultima tappa".
-È il primo punto in cui la strategia di boot diventa concreta.
+So this file is not the "last stop".
+This is the first point where the boot strategy becomes concrete.

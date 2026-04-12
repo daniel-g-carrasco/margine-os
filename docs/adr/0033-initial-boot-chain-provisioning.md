@@ -1,47 +1,47 @@
-# ADR 0033 - Provisioning iniziale della boot chain
+# ADR 0033 - Initial boot chain provisioning
 
-## Stato
+## State
 
-Accettato
+Accepted
 
 ## Problema
 
-`Margine` aveva gia':
+`Margine` already had:
 
 - storage provisioning;
 - bootstrap live ISO;
 - bootstrap in chroot;
-- generazione `limine.conf`;
-- deploy e refresh della trust chain per gli aggiornamenti.
+- generation `limine.conf`;
+- deploy and refresh the trust chain for updates.
 
-Mancava pero' un pezzo fondamentale: il primo provisioning della boot chain
-durante l'installazione iniziale.
+However, a fundamental piece was missing: the first provisioning of the boot chain
+during the initial installation.
 
-Senza questo passaggio, il progetto poteva installare il sistema ma non
-chiudere davvero il boot path `Limine + UKI`.
+Without this step, the project could install the system but not
+really close the `Limine + UKI` boot path.
 
-## Decisione
+## Decision
 
-Introduciamo un provisioner dedicato:
+We introduce a dedicated provisioner:
 
 - `provision-initial-boot-chain`
 
-Questo script, eseguito nella fase chroot, deve:
+This script, executed in the chroot phase, must:
 
-1. installare la baseline `mkinitcpio`;
-2. renderizzare `/etc/kernel/cmdline` con gli UUID reali del target;
-3. generare tre `UKI`:
-   - produzione
-   - fallback
+1. install baseline `mkinitcpio`;
+2. render `/etc/kernel/cmdline` with the target's real UUIDs;
+3. generate three `UKI`:
+   - production
+   - fallbacks
    - recovery
-4. renderizzare `limine.conf`;
-5. installare `Limine` sulla `ESP`;
-6. eseguire `limine enroll-config`.
+4. render `limine.conf`;
+5. install `Limine` on `ESP`;
+6. run `limine enroll-config`.
 
-## Conseguenze
+## Consequences
 
-- l'installazione iniziale diventa davvero bootabile con `Limine`;
-- i test end-to-end in VM diventano finalmente sensati;
-- la parte `Secure Boot` resta separata:
-  il bootstrap iniziale installa la boot chain, ma non forza ancora
-  l'enrollment delle chiavi firmware.
+- the initial installation becomes truly bootable with `Limine`;
+- end-to-end testing in VM finally makes sense;
+- the `Secure Boot` part remains separate:
+the initial bootstrap installs the boot chain, but doesn't force it yet
+firmware key enrollment.

@@ -82,7 +82,7 @@ The `Limine` menu keeps:
 
 And it additionally exposes:
 
-- the latest generated snapshot entries
+- the latest snapshot generated entries
 
 ## Consequences
 

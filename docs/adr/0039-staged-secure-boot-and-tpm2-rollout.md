@@ -1,137 +1,137 @@
 # ADR 0039 - Rollout staged di Secure Boot e TPM2
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Contesto
+## Context
 
-`Margine` vuole arrivare a questo risultato operativo:
+`Margine` wants to achieve this operational result:
 
-- boot normale firmato e verificato con `Secure Boot`;
-- root cifrata con `LUKS2`;
-- sblocco automatico del path di boot normale tramite `TPM2`;
-- path di recovery separato, piu' esplicito e tollerante verso fallback umani.
+- normal boot signed and verified with `Secure Boot`;
+- root encrypted with `LUKS2`;
+- automatic unlocking of the normal boot path via `TPM2`;
+- separate recovery path, more explicit and tolerant of human fallbacks.
 
-Il problema e' che questi obiettivi non possono essere compressi in un singolo
-passaggio "magico" dell'installer senza aumentare troppo il rischio di:
+The problem is that these objectives cannot be compressed into a single one
+"magic" step of the installer without excessively increasing the risk of:
 
-- sealing TPM2 sui PCR sbagliati;
-- enrollment `sbctl` lanciato senza preflight serio;
-- rottura di dual boot o catene OEM gia' esistenti;
-- stato installato ambiguo, difficile da debuggare.
+- TPM2 sealing on wrong PCRs;
+- enrollment `sbctl` launched without serious preflight;
+- breakage of existing dual boots or OEM chains;
+- ambiguous installed state, difficult to debug.
 
-## Decisione
+## Decision
 
-Per `Margine`, `Secure Boot` e `TPM2` non vengono trattati come una singola
-feature monolitica di installazione.
+For `Margine`, `Secure Boot` and `TPM2` are not treated as a single
+monolithic installation feature.
 
-Il rollout corretto viene invece spezzato in fasi:
+The correct rollout is instead broken into phases:
 
-1. installazione base del sistema;
-2. validazione post-install di boot, desktop e update path;
+1. basic system installation;
+2. post-install validation of boot, desktop and update path;
 3. preflight `Secure Boot`;
-4. bootstrap `sbctl` con macchina in `Setup Mode`;
-5. primo reboot di validazione Secure Boot;
-6. staging TPM2 (`crypttab.initramfs` + UKI finali);
-7. reboot manuale sul path finale;
-8. enrollment TPM2 contro lo stato PCR finale;
-9. reboot finale e validazione auto-unlock.
+4. bootstrap `sbctl` with machine in `Setup Mode`;
+5. first Secure Boot validation reboot;
+6. TPM2 staging (`crypttab.initramfs` + final UKI);
+7. manual reboot on the final path;
+8. TPM2 enrollment versus final PCR status;
+9. final reboot and auto-unlock validation.
 
-## Stato implementativo attuale
+## Current implementation status
 
-Quello che oggi e' gia' chiuso e versionato:
+What is already closed and versioned today:
 
-- bootstrap `Secure Boot` post-install separato dall'installer;
-- refresh della trust chain EFI con `refresh-efi-trust`;
-- manutenzione ordinaria tramite `update-all` sul sistema gia' installato;
-- reinstall del loader `Limine` unsigned prima di `enroll-config`;
-- rifirma del loader attivo dopo `enroll-config`;
-- verifica finale con `sbctl verify`.
+- bootstrap `Secure Boot` post-install separated from the installer;
+- refresh EFI trust chain with `refresh-efi-trust`;
+- ordinary maintenance via `update-all` on the system already installed;
+- reinstall unsigned `Limine` loader before `enroll-config`;
+- resigning the active loader after `enroll-config`;
+- final check with `sbctl verify`.
 
-Quello che resta volutamente staged:
+What remains deliberately staged:
 
-- enrollment `TPM2` automatico non dentro l'installer;
-- sealing solo dopo reboot sul path finale corretto;
-- validazione end-to-end in VM solo con `swtpm`.
+- automatic enrollment `TPM2` not inside the installer;
+- sealing only after reboot on the correct final path;
+- end-to-end validation in VM only with `swtpm`.
 
 ## Regola Secure Boot
 
-Il bootstrap `Secure Boot` deve essere preceduto da un preflight esplicito.
+The `Secure Boot` bootstrap must be preceded by an explicit preflight.
 
-Quindi:
+So:
 
-- `provision-secure-boot-preflight` esporta le chiavi pubbliche attualmente
-  enrollate;
-- ispeziona i binari EFI presenti sulla `ESP`;
-- lascia un marker persistente sul sistema;
-- `provision-secure-boot` rifiuta di procedere se quel marker manca, salvo
-  override esplicito.
+- `provision-secure-boot-preflight` exports public keys currently
+  enroll;
+- inspect the EFI rails present on the `ESP`;
+- leaves a persistent marker on the system;
+- `provision-secure-boot` refuses to proceed if that marker is missing, save
+  explicit override.
 
-Questo non elimina tutti i rischi, ma riduce il caso piu' banale e piu'
-pericoloso: l'utente che entra in `Setup Mode` e lancia subito l'enrollment
-senza avere nemmeno salvato lo stato precedente.
+This does not eliminate all risks, but it makes the case more trivial and more
+dangerous: the user who enters `Setup Mode` and immediately launches the enrollment
+without even having saved the previous state.
 
-## Regola chiavi firmware e dual boot
+## Adjust firmware and dual boot keys
 
-Il default prudente resta:
+The prudent default remains:
 
 ```bash
 sbctl enroll-keys -m -f
 ```
 
-Motivo:
+Reason:
 
-- `-m` aiuta a non rompere Windows e componenti firmati Microsoft;
-- `-f` aiuta a non perdere catene OEM builtin del firmware.
+- `-m` helps not to break Windows and Microsoft-branded components;
+- `-f` helps not to lose firmware builtin OEM chains.
 
-Ma questo NON equivale a preservare automaticamente qualunque altra Linux che
-usi proprie chiavi custom.
+But this is NOT the same as automatically preserving any other Linux that
+use your own custom keys.
 
-Quindi la policy architetturale e':
+So the architectural policy is:
 
-- proteggere bene il caso Windows/OEM;
-- non promettere la preservazione automatica di chiavi custom terze;
-- richiedere valutazione esplicita per host con Secure Boot gia' personalizzato.
+- protect Windows/OEM case well;
+- do not promise automatic preservation of third-party custom keys;
+- request explicit evaluation for hosts with already customized Secure Boot.
 
-## Regola TPM2
+## TPM2 rule
 
-Il rollout TPM2 corretto non parte prima che `Secure Boot` sia gia' stabile.
+The correct TPM2 rollout does not start before `Secure Boot` is already stable.
 
-La policy iniziale e':
+The initial policy is:
 
 - enrollment contro `PCR 7+11`;
-- pretesa di `Secure Boot` gia' attivo e fuori da `Setup Mode`;
-- primo passaggio di staging senza sealing;
+- claim of `Secure Boot` already active and outside of `Setup Mode`;
+- first staging pass without sealing;
 - un reboot manuale sul path finale;
-- solo dopo, sealing TPM2 vero con `systemd-cryptenroll`.
+- only after that, sealing true TPM2 with `systemd-cryptenroll`.
 
-Questo approccio e' piu' lento, ma molto meno fragile.
+This approach is slower, but much less fragile.
 
-## Regola QEMU
+## QEMU rule
 
-La validazione TPM2 in VM non e' considerata reale senza vTPM.
+TPM2 validation in VM is not considered real without vTPM.
 
-Quindi il harness QEMU deve:
+So the QEMU harness must:
 
-- usare `swtpm` quando disponibile;
+- use `swtpm` when available;
 - esporre un TPM virtuale al guest;
-- dichiarare esplicitamente quando il test TPM2 e' reale e quando invece no.
+- explicitly declare when the TPM2 test is real and when it is not.
 
-## Conseguenze
+## Consequences
 
-Questa decisione comporta:
+This decision involves:
 
-- piu' passaggi operativi;
+- more operational steps;
 - meno ambiguita';
-- documentazione piu' lunga ma piu' onesta;
-- migliore separazione tra "installazione riuscita" e "boot security completa".
+- longer but more honest documentation;
+- better separation between "installation successful" and "boot security complete".
 
-In pratica:
+In practice:
 
-- l'installer non deve fingersi piu' completo di quanto sia davvero;
-- la security di boot deve essere trattata come rollout guidato;
-- i controlli post-install devono includere esplicitamente `Secure Boot`,
-  `TPM2`, `vTPM` in QEMU, e il caso SSH per debug remoto.
-- il path installato di manutenzione (`update-all`) fa parte della superficie
-  di sicurezza e deve restare allineato alla stessa sequenza della trust chain.
+- the installer must not pretend to be more complete than it really is;
+- boot security must be treated as a guided rollout;
+- post-install checks must explicitly include `Secure Boot`,
+`TPM2`, `vTPM` in QEMU, and the SSH case for remote debugging.
+- the installed maintenance path (`update-all`) is part of the surface
+security and must remain aligned to the same sequence of the trust chain.

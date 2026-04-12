@@ -1,12 +1,12 @@
-# ADR 0004 - Matrice di validazione per boot, trust chain e recovery
+# ADR 0004 - Validation matrix for boot, trust chain and recovery
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Gli ADR 0002 e 0003 hanno scelto una direzione ambiziosa:
+ADR 0002 and 0003 chose an ambitious direction:
 
 - `Limine`
 - `UKI`
@@ -16,250 +16,250 @@ Gli ADR 0002 e 0003 hanno scelto una direzione ambiziosa:
 - `Btrfs`
 - `Snapper`
 
-Questa combinazione è interessante, ma non va trattata come un collage di
+This combination is interesting, but should not be treated as a collage of
 feature.
 
-Un sistema del genere è valido solo se reggono insieme tre cose:
+Such a system is only valid if three things hold together:
 
-- la catena di fiducia;
+- the chain of trust;
 - la recovery;
-- la manutenzione dopo gli aggiornamenti.
+- maintenance after updates.
 
-Per questo `Margine` adotta una matrice di validazione esplicita.
+For this reason `Margine` adopts an explicit validation matrix.
 
-## Problema da risolvere
+## Problem to solve
 
-Le architetture di boot falliscono spesso in uno di questi modi:
+Boot architectures often fail in one of these ways:
 
-- funzionano solo sulla carta;
-- sono sicure ma troppo fragili agli aggiornamenti;
-- fanno recovery male;
-- fanno recovery bene ma rompono la trust chain;
-- dipendono da passaggi manuali troppo opachi.
+- they only work on paper;
+- they are safe but too fragile to updates;
+- they do recovery badly;
+- they do recovery well but break the trust chain;
+- they depend on manual steps that are too opaque.
 
-Il nostro obiettivo non è "abilitare feature".
-È dimostrare che la combinazione scelta è sostenibile.
+Our goal is not to "enable features".
+It is to demonstrate that the chosen combination is sustainable.
 
-## Decisione
+## Decision
 
 Per `Margine v1`, la catena `Limine + UKI + Secure Boot + TPM2 + Snapper` sarà
-considerata riuscita solo se supera cinque gate.
+considered successful only if it passes five gates.
 
-## Gate 1 - UKI affidabili e avviabili
+## Gate 1 - Reliable and bootable UKIs
 
-### Ipotesi da validare
+### Hypothesis to be validated
 
-`Limine` deve poter avviare in modo affidabile una `UKI` generata con strumenti
+`Limine` must be able to reliably launch a tool-generated `UKI`
 standard di Arch.
 
-### Scelta operativa
+### Operational choice
 
-Partiamo con la soluzione più lineare:
+Let's start with the most linear solution:
 
-- generazione `UKI` tramite `mkinitcpio`
-- una sola linea kernel "prod" nella prima validazione
-- kernel command line incorporata nella `UKI`
+- generating `UKI` via `mkinitcpio`
+- a single "prod" kernel line in the first validation
+- kernel command line embedded in `UKI`
 
-### Perché questa scelta
+### Why this choice
 
-- `mkinitcpio` su Arch supporta già `UKI`;
-- incorporare la command line nella `UKI` riduce ambiguità;
-- meno variabili al primo giro significa validazione più seria.
+- `mkinitcpio` on Arch already supports `UKI`;
+- embedding the command line in `UKI` reduces ambiguity;
+- fewer variables in the first round means more serious validation.
 
 ### Evidenze richieste
 
-- la `UKI` viene generata in modo ripetibile;
-- `Limine` la mostra e la avvia;
-- il sistema fa boot normale senza file di boot "sparsi";
-- la command line effettiva è quella prevista.
+- the `UKI` is generated in a repeatable way;
+- `Limine` shows it and starts it;
+- the system boots normally without "scattered" boot files;
+- the actual command line is the expected one.
 
-### Condizione di fallimento
+### Failure condition
 
-Fallisce il gate se:
+The gate fails if:
 
 - la generazione `UKI` dipende da workaround opachi;
-- `Limine` non la gestisce in modo stabile;
-- la boot entry dipende da manipolazioni manuali non ripetibili.
+- `Limine` does not handle it stably;
+- boot entry depends on non-repeatable manual manipulations.
 
-## Gate 2 - Secure Boot sotto il nostro controllo
+## Gate 2 - Secure Boot under our control
 
-### Ipotesi da validare
+### Hypothesis to be validated
 
-Possiamo usare `Secure Boot` senza delegare la fiducia a una catena che non
-controlliamo davvero.
+We can use `Secure Boot` without delegating trust to a chain that doesn't
+let's actually check.
 
-### Scelta operativa
+### Operational choice
 
-Adottiamo:
+We adopt:
 
-- chiavi nostre gestite con `sbctl`
-- firma delle `UKI`
+- our keys managed with `sbctl`
+- signature of `UKI`
 - firma dei binari EFI di `Limine`
-- mantenimento dei certificati Microsoft se servono per firmware o Option ROM
+- maintenance of Microsoft certificates if needed for firmware or Option ROM
 
-Non adottiamo nella `v1`:
+We do not adopt in `v1`:
 
 - `shim`
 - `MOK`
 
-salvo necessità reale emersa dai test.
+unless real needs emerged from the tests.
 
-### Perché questa scelta
+### Why this choice
 
-- `sbctl` è il gestore naturale su Arch;
-- tenere il controllo sulle chiavi è un requisito del progetto;
-- evitare `shim/MOK` nella `v1` riduce complessità gratuita.
+- `sbctl` is the natural handler on Arch;
+- keeping control over the keys is a project requirement;
+- avoiding `shim/MOK` in `v1` reduces cost-free complexity.
 
 ### Evidenze richieste
 
-- `sbctl status` mostra `Secure Boot` attivo;
-- `sbctl verify` conferma i file previsti firmati;
-- il sistema avvia `Limine` e la `UKI` firmata senza degradare la UX;
-- dopo un riavvio reale la macchina resta in modalità coerente con la policy.
+- `sbctl status` shows `Secure Boot` active;
+- `sbctl verify` confirms expected files signed;
+- the system launches `Limine` and the signed `UKI` without degrading the UX;
+- after a real reboot the machine remains in policy-consistent mode.
 
-### Condizione di fallimento
+### Failure condition
 
-Fallisce il gate se:
+The gate fails if:
 
-- la firma dei binari non è automatizzabile in modo chiaro;
-- aggiornare `Limine` o `UKI` richiede passaggi troppo fragili;
-- per far funzionare tutto dobbiamo introdurre una catena più complessa di
-  quella che volevamo evitare.
+- binary signature cannot be clearly automated;
+- updating `Limine` or `UKI` requires steps that are too fragile;
+- to make everything work we need to introduce a more complex chain of
+the one we wanted to avoid.
 
-## Gate 3 - TPM2 utile, non fragile
+## Gate 3 - TPM2 useful, not fragile
 
-### Ipotesi da validare
+### Hypothesis to be validated
 
-`TPM2` deve migliorare l'esperienza di sblocco del disco, senza trasformare ogni
-update in una trappola.
+`TPM2` should improve the disk unlocking experience, without transforming every
+update in a trap.
 
-### Scelta operativa
+### Operational choice
 
-Ordine di enrollment:
+Enrollment order:
 
-1. passphrase amministrativa
+1. administrative passphrase
 2. recovery key
-3. sblocco `TPM2`
+3. unlock `TPM2`
 
-Policy iniziale consigliata:
+Recommended initial policy:
 
 - PCR `7+11`
 
-Non includiamo nella `v1`, salvo necessità dimostrata:
+We do not include in the `v1`, unless proven necessary:
 
 - PCR `0`
 - PCR `2`
 - PCR `12`
 
-### Perché questa scelta
+### Why this choice
 
 Dal manuale di `systemd-cryptenroll`:
 
-- `PCR 7` riflette stato e certificati di `Secure Boot`
-- `PCR 11` riflette il contenuto della `UKI`
+- `PCR 7` reflects status and certificates of `Secure Boot`
+- `PCR 11` reflects the contents of `UKI`
 
-Lo stesso manuale segnala che PCR come `0` e `2` sono spesso troppo fragili per
-gli aggiornamenti. Inoltre, se la command line resta incorporata nella `UKI`,
-non abbiamo motivo di partire subito con `PCR 12`.
+The same manual warns that PCRs like `0` and `2` are often too fragile for
+the updates. Furthermore, if the command line remains embedded in the `UKI`,
+we have no reason to start with `PCR 12` right away.
 
 ### Evidenze richieste
 
-- boot normale con sblocco via `TPM2`;
-- fallimento corretto dello sblocco se la trust chain cambia in modo rilevante;
-- sblocco riuscito con recovery key quando `TPM2` non può unsealare;
-- procedura di re-enrollment comprensibile dopo aggiornamenti importanti.
+- normal boot with unlock via `TPM2`;
+- correct unlock failure if the trust chain changes significantly;
+- successful unlock with recovery key when `TPM2` can't unseale;
+- understandable re-enrollment procedure after major updates.
 
-### Condizione di fallimento
+### Failure condition
 
-Fallisce il gate se:
+The gate fails if:
 
-- aggiornamenti normali rompono troppo spesso l'unseal;
-- il recovery umano è ambiguo o incompleto;
-- la policy PCR è troppo fragile per un laptop reale.
+- normal updates break unseal too often;
+- human recovery is ambiguous or incomplete;
+- the PCR policy is too fragile for a real laptop.
 
-## Gate 4 - Snapshot davvero bootabili
+## Gate 4 - Really bootable snapshots
 
-### Ipotesi da validare
+### Hypothesis to be validated
 
-Gli snapshot di `Snapper` devono essere avviabili tramite `Limine` in modo
-coerente con il nostro modello di recovery.
+Snapshots of `Snapper` must be bootable via `Limine` in this way
+consistent with our recovery model.
 
-### Scelta operativa
+### Operational choice
 
-La recovery via snapshot deve dimostrare almeno tre cose:
+Recovery via snapshot must demonstrate at least three things:
 
-- boot di uno snapshot root noto;
-- riconoscibilità chiara dello stato bootato;
-- procedura di restore o rollback documentata.
+- boot a known root snapshot;
+- clear recognition of the booted state;
+- documented restore or rollback procedure.
 
-Gli snapshot bootabili sono una feature di recovery, non il percorso normale di
+Bootable snapshots are a recovery feature, not the normal path
 boot.
 
-### Perché questa scelta
+### Why this choice
 
-Qui si gioca il motivo vero per cui abbiamo scelto `Limine`.
-Se gli snapshot non diventano davvero bootabili, stiamo assorbendo complessità
-senza incassare il vantaggio principale.
+This is where the real reason why we chose `Limine` comes into play.
+If snapshots don't become truly bootable, we're absorbing complexity
+without taking the main advantage.
 
 ### Evidenze richieste
 
-- creazione di snapshot pre-update e post-update;
-- presenza di entry di recovery comprensibili;
-- boot riuscito in uno snapshot noto;
-- verifica che il sistema dentro lo snapshot corrisponda davvero allo stato
-  atteso;
-- procedura di ritorno al sistema corrente o di rollback spiegabile.
+- creation of pre-update and post-update snapshots;
+- presence of understandable recovery entries;
+- successful boot into a known snapshot;
+- verifies that the system inside the snapshot really matches the state
+expected;
+- explainable return to current system or rollback procedure.
 
-### Condizione di fallimento
+### Failure condition
 
-Fallisce il gate se:
+The gate fails if:
 
-- le entry di snapshot risultano troppo fragili;
-- la procedura richiede interventi manuali pericolosi su `/boot`;
-- la recovery è bella da vedere ma poco affidabile.
+- snapshot entries are too fragile;
+- the procedure requires dangerous manual interventions on `/boot`;
+- the recovery is nice to look at but not very reliable.
 
-## Gate 5 - Aggiornamenti sostenibili
+## Gate 5 - Sustainable Updates
 
-### Ipotesi da validare
+### Hypothesis to be validated
 
-La catena completa deve sopravvivere agli aggiornamenti ordinari, non solo al
-giorno zero.
+The complete chain must survive ordinary updates, not just the
+day zero.
 
-### Scelta operativa
+### Operational choice
 
-Ogni update importante deve poter attraversare questa pipeline:
+Every major update must be able to pass through this pipeline:
 
 1. snapshot pre
-2. update pacchetti
-3. rigenerazione `UKI`
-4. rifirma dei binari EFI
-5. refresh delle entry di boot/recovery
-6. snapshot post
-7. reboot di verifica
+2. update packages
+3. regeneration `UKI`
+4. resigning of EFI binaries
+5. refresh boot/recovery entries
+6. post snapshot
+7. verification reboot
 
 ### Evidenze richieste
 
-- almeno un aggiornamento kernel riuscito end-to-end;
-- nessun passaggio essenziale lasciato "a memoria";
-- stato `Secure Boot` ancora valido dopo l'update;
-- `TPM2` ancora coerente oppure recovery documentata e rapida;
-- snapshot di recovery ancora utilizzabili.
+- at least one successful end-to-end kernel update;
+- no essential passages left "by heart";
+- `Secure Boot` status still valid after update;
+- `TPM2` still consistent or documented and rapid recovery;
+- recovery snapshots still usable.
 
-### Condizione di fallimento
+### Failure condition
 
-Fallisce il gate se:
+The gate fails if:
 
-- il sistema è affidabile solo prima del primo kernel update;
-- la manutenzione richiede troppa manualità;
-- recovery e trust chain divergono dopo gli aggiornamenti.
+- the system is reliable only before the first kernel update;
+- maintenance requires too much manual work;
+- recovery and trust chain diverge after updates.
 
-## Criterio finale di accettazione
+## Final acceptance criterion
 
-L'architettura `Limine-first` resta accettata solo se tutti e cinque i gate
+The `Limine-first` architecture remains accepted only if all five gates
 passano.
 
-Se fallisce un gate strutturale, il fallback architetturale resta quello già
-definito:
+If a structural gate fails, the architectural fallback remains the same
+defined:
 
 - `systemd-boot`
 - `UKI`
@@ -269,32 +269,32 @@ definito:
 - `Btrfs`
 - `Snapper`
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questo ADR ci impone disciplina:
+This ADR imposes discipline on us:
 
-- niente attivazioni "a sentimento";
-- niente sicurezza non testata;
-- niente recovery solo teorica;
-- ogni sottosistema dovrà produrre evidenza verificabile.
+- no "feeling" activations;
+- no untested security;
+- no recovery only theoretical;
+- each subsystem will have to produce verifiable evidence.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
-La domanda non è:
+The question is not:
 
-- "riusciamo ad accendere tutto?"
+- "Can we turn everything on?"
 
-La domanda giusta è:
+The right question is:
 
-- "questa catena continua a funzionare bene anche dopo errori, aggiornamenti e
+- "this chain continues to work well even after errors, updates and
   recovery?"
 
-Questa matrice serve esattamente a questo:
+This matrix is ​​for exactly this:
 
-- prima dimostriamo che il design regge;
-- poi lo trasformiamo in installer e automazione.
+- first we prove that the design holds up;
+- then we transform it into installer and automation.
 
-## Riferimenti
+## References
 
 - `systemd-cryptenroll(1)`:
   man locale
@@ -304,7 +304,7 @@ Questa matrice serve esattamente a questo:
   man locale
 - `sbctl(8)`:
   https://man.archlinux.org/man/sbctl.8.en
-- `limine` pacchetto Arch:
+- `limine` Arch package:
   output locale di `pacman -Si limine`
-- Limine, repository ufficiale:
+- Limine, official repository:
   https://github.com/limine-bootloader/limine

@@ -1,81 +1,81 @@
-# ADR 0018 - Wrapper guidato per installazione da live ISO
+# ADR 0018 - Guided wrapper for installation from live ISO
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Perché esiste questo ADR
+## Why this ADR exists
 
-Gli script di `Margine` sono ormai abbastanza maturi da coprire:
+`Margine` scripts are now mature enough to cover:
 
 - storage provisioning;
 - bootstrap live ISO;
 - bootstrap in chroot;
-- provisioning utente.
+- user provisioning.
 
-Mancava però un punto importante di usabilità:
+However, an important usability point was missing:
 
-- un entrypoint guidato, passo passo.
+- a guided entrypoint, step by step.
 
-## Problema da risolvere
+## Problem to solve
 
-Un set di script robusti non equivale ancora a una buona esperienza
-d'installazione.
+A set of robust scripts still doesn't equate to a good experience
+of installation.
 
-Molti utenti si aspettano:
+Many users expect:
 
-- domande ordinate;
-- riepilogo finale;
-- distinzione chiara tra modalità distruttiva e non distruttiva;
-- istruzioni semplici da seguire anche mesi dopo.
+- ordered questions;
+- final summary;
+- clear distinction between destructive and non-destructive modes;
+- simple instructions to follow even months later.
 
-## Decisione
+## Decision
 
 Per `Margine v1` introduciamo:
 
 - `scripts/install-live-iso-guided`
 
-Questo script non sostituisce i wrapper e gli script sottostanti.
+This script does not replace the underlying wrappers and scripts.
 
-Li usa in modo guidato.
+He uses them in a guided way.
 
-## Modalità previste
+## Methods envisaged
 
-La prima versione supporta due modalità:
+The first version supports two modes:
 
 - `erase-disk`
 - `mounted-target`
 
-La prima usa `install-live-iso`.
+The first uses `install-live-iso`.
 
-La seconda usa `bootstrap-live-iso` su un target già montato.
+The second uses `bootstrap-live-iso` on an already mounted target.
 
-## Regola UX
+## Adjust UX
 
-La UX della `v1` resta volutamente semplice:
+The UX of the `v1` remains deliberately simple:
 
-- prompt testuali in shell;
-- nessuna dipendenza obbligatoria da `dialog`, `gum` o TUI esterne;
-- riepilogo finale prima dell'esecuzione.
+- text prompts in shell;
+- no mandatory dependencies on external `dialog`, `gum` or TUIs;
+- final summary before execution.
 
-## Regola password
+## Adjust password
 
-Se `openssl` è disponibile, il wrapper può generare al volo l'hash password
-utente.
+If `openssl` is available, the wrapper can generate the password hash on the fly
+user.
 
-Se non lo è, oppure se l'utente sceglie di non impostarla subito, il flow resta
-valido ma richiede un `passwd` finale.
+If it is not, or if the user chooses not to set it immediately, the flow remains
+valid but requires a trailing `passwd`.
 
-## Conseguenze pratiche
+## Practical consequences
 
-Questa scelta ci dà:
+This choice gives us:
 
-- un'esperienza già molto più vicina a `archinstall`;
-- zero dipendenze UX extra;
-- una reinstallazione futura più semplice da ricordare.
+- an experience already much closer to `archinstall`;
+- zero extra UX dependencies;
+- easier to remember future reinstallation.
 
-## Per uno studente: la versione semplice
+## For a student: the simple version
 
-Prima abbiamo costruito il motore.
+We built the engine first.
 
-Adesso stiamo mettendo un cruscotto leggibile davanti al motore.
+Now we are putting a readable dashboard in front of the engine.

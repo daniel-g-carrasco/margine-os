@@ -1,66 +1,66 @@
 # ADR 0035: Framework 13 AMD power baseline
 
-## Stato
+## State
 
-Accettato
+Accepted
 
-## Contesto
+## Context
 
-Sul Framework 13 AMD ci interessano due obiettivi diversi:
+On the AMD Framework 13 we are interested in two different objectives:
 
-- buona autonomia reale da laptop;
-- resa colore prevedibile per un sistema orientato anche alla fotografia.
+- good real laptop battery life;
+- predictable color rendering for a system also oriented towards photography.
 
-Nel runtime reale `Margine` ha gia' validato:
+In the real runtime `Margine` has already validated:
 
-- `power-profiles-daemon` con `amd_pstate` e `platform_profile`;
-- pannello interno a `2880x1920@120`;
-- `amdgpu_panel_power` esposto da `power-profiles-daemon` come azione
-  separata, con nota esplicita "may affect color quality";
-- `battery_aware` gia' disponibile dentro `power-profiles-daemon`.
+- `power-profiles-daemon` with `amd_pstate` and `platform_profile`;
+- panel inside `2880x1920@120`;
+- `amdgpu_panel_power` exposed by `power-profiles-daemon` as an action
+  separated, with explicit note "may affect color quality";
+- `battery_aware` already available in `power-profiles-daemon`.
 
-Questo cambia il quadro: non serve introdurre un secondo demone che riscriva
-senza sosta il profilo CPU. Serve invece rendere esplicita una policy minima,
-leggibile e persistente.
+This changes the picture: there is no need to introduce a second demon that rewrites
+the CPU profile continuously. Instead, we need to make a minimum policy explicit,
+readable and persistent.
 
-## Decisione
+## Decision
 
-`Margine v1` adotta questa baseline power per Framework 13 AMD:
+`Margine v1` adopts this power baseline for AMD Framework 13:
 
-- `power-profiles-daemon` resta il motore ufficiale dei profili energetici;
+- `power-profiles-daemon` remains the official engine of energy profiles;
 - `battery_aware=true`;
-- profilo base salvato: `balanced`;
+- saved basic profile: `balanced`;
 - `amdgpu_panel_power=false`;
 - `amdgpu_dpm=false`;
-- il cambio `60/120Hz` del pannello interno viene trattato separatamente, con
-  un servizio utente dedicato nel desktop layer;
-- `VRR` e cambio esplicito del refresh rate non vengono confusi: il primo resta
-  un supporto best-effort del monitor, il secondo e' lo strumento concreto per
-  l'autonomia.
+- the `60/120Hz` change of the internal panel is treated separately, with
+  a dedicated user service in the desktop layer;
+- `VRR` and explicit refresh rate change are not confused: the first remains
+  a best effort monitor support, the second is the concrete tool for
+  autonomy.
 
-La policy viene versionata come stato iniziale di
+The policy is versioned as the initial state of
 `/var/lib/power-profiles-daemon/state.ini`.
 
-## Conseguenze
+## Consequences
 
 Positive:
 
-- il comportamento power non resta implicito nello stato locale della macchina;
-- la mitigazione per il pannello AMD che puo' alterare i colori diventa parte
-  del progetto;
-- non introduciamo un watcher aggressivo che sovrascrive le scelte manuali
-  dell'utente sui profili CPU.
+- the power behavior is not implicit in the local state of the machine;
+- mitigation for AMD panel which can distort colors becomes part
+  of the project;
+- we do not introduce an aggressive watcher that overrides manual choices
+  of the user on the CPU profiles.
 
 Negative:
 
-- la baseline si appoggia a `power-profiles-daemon`, quindi la persistenza e'
-  modellata sul suo `state.ini`;
-- se in futuro cambiera' il formato dello stato di `power-profiles-daemon`,
-  questo layer andra' rivisto.
+- the baseline relies on `power-profiles-daemon`, so persistence is
+  modeled on his `state.ini`;
+- if the format of the `power-profiles-daemon` status changes in the future,
+  this layer will need to be revised.
 
-## Nota operativa
+## Operational notes
 
-Sul sistema reale corrente `power-profiles-daemon` e' attivo e la policy risulta
-gia' coerente, ma il servizio non e' ancora `enabled` al boot. Questo e'
-un dettaglio della macchina corrente, non del bootstrap di `Margine`, che invece
-abilita gia' il servizio di base.
+On the current real system `power-profiles-daemon` is active and the policy results
+already consistent, but the service is not yet `enabled` at boot. This is
+a detail of the current machine, not of the `Margine` bootstrap, which instead
+already enable the basic service.
