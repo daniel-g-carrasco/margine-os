@@ -54,6 +54,7 @@ recovery_entry_limit=12
 soft_failures=0
 boot_baseline_script=""
 sbctl_keys_dir="${SBCTL_KEYS_DIR:-/var/lib/sbctl/keys}"
+temp_outputs=()
 
 usage() {
   cat <<'EOF'
@@ -128,6 +129,30 @@ run_optional() {
     warn "${label} failed"
     soft_failures=1
   fi
+}
+
+cleanup_temp_outputs() {
+  local path=""
+  for path in "${temp_outputs[@]}"; do
+    [[ -n "$path" && -e "$path" ]] || continue
+    rm -f "$path"
+  done
+}
+
+register_temp_output() {
+  temp_outputs+=("$1")
+}
+
+make_runtime_output_path() {
+  local prefix="$1"
+  local suffix="$2"
+  local runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
+  local output=""
+
+  [[ -d "$runtime_dir" && -w "$runtime_dir" ]] || runtime_dir="/tmp"
+  output="$(mktemp -p "$runtime_dir" "${prefix}.XXXXXX.${suffix}")"
+  register_temp_output "$output"
+  printf '%s\n' "$output"
 }
 
 have_cmd() {
@@ -543,18 +568,19 @@ run_fwupd_update() {
 
 build_recovery_entries() {
   local generator="${repo_root}/scripts/generate-snapper-recovery-entries"
-  local output_path="${repo_root}/build/limine-recovery-entries.conf"
+  local output_path=""
   local args=(
     --root-uuid "$root_uuid"
     --luks-uuid "$luks_uuid"
     --snapper-config "$snapper_config"
     --snapshots-subvolume "$snapshots_subvolume"
     --limit "$recovery_entry_limit"
-    --output "$output_path"
   )
   local -a cmd=()
 
   [[ -x "$generator" ]] || die "recovery generator not executable: $generator"
+  output_path="$(make_runtime_output_path "margine-limine-recovery-entries" "conf")"
+  args+=(--output "$output_path")
 
   if [[ "$(id -u)" -eq 0 ]]; then
     cmd=("$generator")
@@ -598,7 +624,7 @@ render_limine_config() {
   fi
 
   if [[ -z "$output_path" ]]; then
-    output_path="${repo_root}/build/limine.conf"
+    output_path="$(make_runtime_output_path "margine-limine" "conf")"
   fi
 
   rendered_limine_output="$output_path"
@@ -767,6 +793,7 @@ run_final_verification() {
 }
 
 main() {
+  trap cleanup_temp_outputs EXIT
   parse_args "$@"
 
   if (( !use_boot && deploy_boot )); then
