@@ -69,6 +69,7 @@ die() {
   exit 1
 }
 
+# shellcheck disable=SC2317
 cleanup() {
   if [[ -n "$tmp_dir" && -d "$tmp_dir" ]]; then
     rm -rf "$tmp_dir"
@@ -123,7 +124,6 @@ emit_verbose_check_output() {
 run_check() {
   local label="$1"
   local output_file=""
-  local rc=0
   local bucket="pass"
   local result_label="PASS"
   shift
@@ -137,7 +137,6 @@ run_check() {
       result_label="WARN"
     fi
   else
-    rc=$?
     bucket="fail"
     result_label="FAIL"
     status=1
