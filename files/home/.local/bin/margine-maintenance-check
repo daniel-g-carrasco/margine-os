@@ -97,15 +97,15 @@ else
 
   if (( advisories_count > 0 )); then
     advisory_preview="$(printf '%s\n' "$advisories_output" | head -n 3)"
-    body="${body}\n\nAdvisories:\n${advisory_preview}"
+    body="$(printf '%s\n\nAdvisories:\n%s' "$body" "$advisory_preview")"
   fi
 
   if (( updates_count > 0 )); then
     updates_preview="$(printf '%s\n' "$updates_output" | head -n 4 | awk '{print $1}')"
-    body="${body}\n\nUpdates:\n${updates_preview}"
+    body="$(printf '%s\n\nUpdates:\n%s' "$body" "$updates_preview")"
   fi
 
-  body="${body}\n\nClick the notification to open Update All."
+  body="$(printf '%s\n\nClick the notification to open Update All.' "$body")"
 fi
 
 launch_update_all() {

@@ -13,14 +13,15 @@
   /* Panel */
   --panel-padding: 20px;
   --section-gap: 10px;
+  --section-edge-gap: 2px;
 
   /* Notifications */
   --panel-card-gap: 5px;
   --popup-card-gap: 5px;
   --popup-edge-gap: 10px;
-  --content-padding-x: 12px;
+  --content-padding-x: 10px;
   --content-padding-y: 12px;
-  --control-center-action-padding-x: 12px;
+  --control-center-action-padding-x: 10px;
 
   /* Icons */
   --notification-icon-size: 48px;
@@ -329,6 +330,7 @@ widget-notifications list {
 }
 
 .control-center .notification-row .notification-background {
+  margin: 0 var(--section-edge-gap);
   padding: 0;
 }
 
@@ -448,7 +450,7 @@ widget-notifications list {
 /* Widget title */
 
 .widget-title {
-  margin: 2px 2px var(--section-gap);
+  margin: 2px var(--section-edge-gap) var(--section-gap);
   padding: 0;
   min-height: 24px;
   padding-top: 4px;
@@ -479,7 +481,7 @@ widget-notifications list {
 /* Widget DND */
 
 .widget-dnd {
-  margin: 2px 2px var(--section-gap);
+  margin: 2px var(--section-edge-gap) var(--section-gap);
   padding: 0;
   min-height: 24px;
   color: @muted;
@@ -511,7 +513,7 @@ widget-notifications list {
 /* Widget MPRIS */
 
 .widget-mpris {
-  margin: 2px 2px var(--section-gap);
+  margin: 2px var(--section-edge-gap) var(--section-gap);
   padding: 0;
   background: rgba(26, 26, 26, 0.995);
   border: 1px solid @border;
@@ -532,7 +534,7 @@ widget-notifications list {
 
 .widget-mpris .widget-mpris-player .mpris-overlay {
   background: rgba(18, 18, 18, 0.8);
-  padding: 14px 16px 16px;
+  padding: 12px 14px 14px;
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-title {
@@ -558,10 +560,10 @@ widget-notifications list {
   background: rgba(18, 18, 18, 0.62);
   border: 1px solid @border;
   color: @fg;
-  min-height: 20px;
-  margin-top: 20px;
+  min-height: 18px;
+  margin-top: 16px;
   margin-right: 6px;
-  padding: 8px 8px;
+  padding: 6px 8px;
 }
 
 .widget-mpris .widget-mpris-player .mpris-overlay > box > button:hover {
@@ -573,7 +575,7 @@ widget-notifications list {
   border: none;
   color: @fg;
   margin: 0;
-  min-width: 34px;
+  min-width: 30px;
   padding: 0;
 }
 
