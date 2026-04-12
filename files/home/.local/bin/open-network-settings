@@ -2,16 +2,4 @@
 
 set -euo pipefail
 
-rfkill unblock wifi >/dev/null 2>&1 || true
-
-if [ -x "$HOME/.local/bin/open-network-applet-menu" ]; then
-  if "$HOME/.local/bin/open-network-applet-menu"; then
-    exit 0
-  fi
-fi
-
-if command -v nm-connection-editor >/dev/null 2>&1; then
-  exec "$HOME/.local/bin/gtk-dark-exec" nm-connection-editor
-fi
-
 exec "$HOME/.local/bin/open-network-tui"
