@@ -3,6 +3,13 @@ set -euo pipefail
 
 crypt_name=""
 crypttab_initramfs="/etc/crypttab.initramfs"
+issue_count=0
+root_source=""
+luks_device=""
+luks_uuid=""
+crypttab_entry=""
+crypttab_uuid=""
+crypttab_options=""
 
 usage() {
   cat <<'EOF'
@@ -24,6 +31,19 @@ die() {
   exit 1
 }
 
+note_issue() {
+  printf 'issue: %s\n' "$*" >&2
+  issue_count=$((issue_count + 1))
+}
+
+require_root() {
+  [[ "$(id -u)" -eq 0 ]] || die "validate-tpm2-auto-unlock must run as root"
+}
+
+ensure_command() {
+  command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
+
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -43,38 +63,121 @@ parse_args() {
   done
 }
 
-detect_crypt_name() {
-  local root_source=""
-
-  [[ -n "$crypt_name" ]] && return 0
+detect_root_source() {
   root_source="$(findmnt -no SOURCE / 2>/dev/null || true)"
   root_source="${root_source%%[*}"
+  [[ -n "$root_source" ]] || die "unable to detect root source from findmnt"
+}
+
+detect_crypt_name() {
+  [[ -n "$crypt_name" ]] && return 0
   [[ "$root_source" == /dev/mapper/* ]] || die "unable to infer LUKS mapper name from ${root_source}"
   crypt_name="${root_source##*/}"
 }
 
-main() {
-  parse_args "$@"
-  detect_crypt_name
+detect_luks_device() {
+  luks_device="$(
+    (cryptsetup status "$crypt_name" 2>/dev/null || true) \
+      | awk '/device:/ { print $2; exit }'
+  )"
+  [[ -n "$luks_device" ]] || die "unable to detect backing LUKS device for mapper ${crypt_name}"
+}
 
-  printf '=== TPM2 auto-unlock validation ===\n'
-  status_line "mapper" "$crypt_name"
-  status_line "systemd-analyze has-tpm2" "$(systemd-analyze has-tpm2 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+detect_luks_uuid() {
+  luks_uuid="$(blkid -s UUID -o value "$luks_device" 2>/dev/null || true)"
+  [[ -n "$luks_uuid" ]] || die "unable to detect LUKS UUID for ${luks_device}"
+}
+
+print_tpm2_presence() {
+  local has_tpm2=""
+
+  has_tpm2="$(systemd-analyze has-tpm2 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+  status_line "systemd-analyze has-tpm2" "$has_tpm2"
+  [[ "$has_tpm2" == yes* ]] || note_issue "systemd-analyze does not report a usable TPM2"
+}
+
+inspect_crypttab() {
   status_line "crypttab.initramfs exists" "$( [[ -f "$crypttab_initramfs" ]] && echo yes || echo no )"
+  [[ -f "$crypttab_initramfs" ]] || {
+    note_issue "${crypttab_initramfs} is missing"
+    return 0
+  }
 
-  if [[ -f "$crypttab_initramfs" ]]; then
-    printf '\n%s\n' "-- /etc/crypttab.initramfs --"
-    sed -n '1,80p' "$crypttab_initramfs"
+  crypttab_entry="$(awk -v name="$crypt_name" '$1 == name { print; exit }' "$crypttab_initramfs")"
+
+  printf '\n%s\n' "-- /etc/crypttab.initramfs --"
+  sed -n '1,80p' "$crypttab_initramfs"
+
+  if [[ -z "$crypttab_entry" ]]; then
+    note_issue "no ${crypt_name} entry found in ${crypttab_initramfs}"
+    return 0
   fi
 
-  printf '\n%s\n' "-- systemd-cryptenroll --"
-  systemd-cryptenroll "/dev/mapper/${crypt_name}" 2>&1 || true
+  crypttab_uuid="$(awk -v name="$crypt_name" '$1 == name { sub(/^UUID=/, "", $2); print $2; exit }' "$crypttab_initramfs")"
+  crypttab_options="$(awk -v name="$crypt_name" '$1 == name { print $4; exit }' "$crypttab_initramfs")"
 
+  status_line "crypttab mapper entry" "$crypt_name"
+  status_line "crypttab UUID" "${crypttab_uuid:-missing}"
+  status_line "crypttab options" "${crypttab_options:-missing}"
+
+  [[ "$crypttab_uuid" == "$luks_uuid" ]] || note_issue "crypttab UUID (${crypttab_uuid:-missing}) does not match LUKS UUID (${luks_uuid})"
+  [[ "$crypttab_options" == *tpm2-device=* ]] || note_issue "crypttab entry does not include tpm2-device="
+  [[ "$crypttab_options" == *tpm2-pcrs=* ]] || note_issue "crypttab entry does not include tpm2-pcrs="
+}
+
+inspect_enrollments() {
+  local enrollments=""
+  local enroll_rc=0
+
+  printf '\n%s\n' "-- systemd-cryptenroll --"
+  enrollments="$(systemd-cryptenroll "$luks_device" 2>&1)" || enroll_rc=$?
+  printf '%s\n' "$enrollments"
+
+  if (( enroll_rc != 0 )); then
+    note_issue "systemd-cryptenroll failed for ${luks_device}"
+    return 0
+  fi
+
+  grep -qi 'tpm2' <<<"$enrollments" || note_issue "no TPM2 enrollment found on ${luks_device}"
+}
+
+print_sbctl_status() {
   printf '\n%s\n' "-- sbctl status --"
   sbctl status 2>&1 || true
+}
 
+print_pcr_state() {
   printf '\n%s\n' "-- systemd-analyze pcrs 7 11 --"
   systemd-analyze pcrs 7 11 2>&1 || true
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  ensure_command findmnt
+  ensure_command cryptsetup
+  ensure_command blkid
+  ensure_command systemd-cryptenroll
+  ensure_command systemd-analyze
+  ensure_command sbctl
+  detect_root_source
+  detect_crypt_name
+  detect_luks_device
+  detect_luks_uuid
+
+  printf '=== TPM2 auto-unlock validation ===\n'
+  status_line "root source" "$root_source"
+  status_line "mapper" "$crypt_name"
+  status_line "LUKS device" "$luks_device"
+  status_line "LUKS UUID" "$luks_uuid"
+
+  print_tpm2_presence
+  inspect_crypttab
+  inspect_enrollments
+  print_sbctl_status
+  print_pcr_state
+
+  (( issue_count == 0 ))
 }
 
 main "$@"
