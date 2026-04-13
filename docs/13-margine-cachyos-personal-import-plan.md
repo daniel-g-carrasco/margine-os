@@ -27,17 +27,23 @@ Today `margine-cachyos` already uses CachyOS at these levels:
 - `linux-cachyos`
 - `linux-cachyos-headers`
 - Cachy-aware validation paths
+- product-aware `extra_package_layers`
+- product-aware `extra_provisioners`
+- a private low-risk package layer for:
+  - `chwd`
+  - `cachyos-hello`
+  - `cachyos-kernel-manager`
 
 That already gives the personal product a real Cachy base.
 
 What it does **not** yet adopt in a structured way:
 
-- `chwd`
-- `cachyos-hello`
-- `cachyos-kernel-manager`
 - selected runtime behavior from `cachyos-settings`
 - selected browser policy ideas from `cachyos-firefox-settings`
 - selected update/runtime ideas from `cachyos-hooks`
+
+The current `extra_provisioners` hook exists and is versioned, but remains a
+scaffold until the first curated behavior cherry-picks are ready.
 
 ## Hard architectural rule
 

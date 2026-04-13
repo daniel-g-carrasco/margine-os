@@ -36,6 +36,9 @@ git fetch upstream
 The private repository should add:
 
 - `products/margine-cachyos.toml`
+- private package layers such as `manifests/packages/cachyos-personal-extras.txt`
+- private product-specific provisioners such as
+  `scripts/provision-cachyos-personal-baseline`
 - private product-specific documentation
 - private rollout plans such as `docs/13-margine-cachyos-personal-import-plan.md`
 - private manifest overrides if needed
@@ -54,3 +57,11 @@ Then promote it to:
 - `products/margine-cachyos.toml`
 
 inside the private repository.
+
+If the private product needs product-specific installation extensions, use the
+optional manifest fields:
+
+- `extra_package_layers`
+- `extra_provisioners`
+
+and add the corresponding files only in the private repository.
