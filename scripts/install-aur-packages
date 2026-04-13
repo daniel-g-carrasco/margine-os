@@ -137,15 +137,12 @@ migrate_elephant_all() {
   local split_package=""
   local installed_package=""
   local installed=()
-  local -a local_packages=()
 
   for requested_package in "${packages[@]}"; do
     [[ "$requested_package" == "elephant-all" ]] || continue
 
-    mapfile -t local_packages < <(pacman -Qq 2>/dev/null || true)
-
     for split_package in "${elephant_split_packages[@]}"; do
-      if printf '%s\n' "${local_packages[@]}" | grep -Fxq "$split_package"; then
+      if pacman -Q "$split_package" >/dev/null 2>&1; then
         installed+=("$split_package")
       fi
     done
