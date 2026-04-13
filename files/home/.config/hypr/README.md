@@ -54,6 +54,12 @@ $editor = kitty -e nvim
 bind = $mainMod, E, exec, $editor
 ```
 
+For binds that should be self-documenting in `hyprctl binds`, prefer:
+
+```ini
+bindd = $mainMod, E, Open editor, exec, $editor
+```
+
 ### Add a new startup daemon
 
 Edit:
