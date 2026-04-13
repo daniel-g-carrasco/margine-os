@@ -18,6 +18,7 @@
     "tray",
     "custom/recording",
     "custom/vpn",
+    "custom/gaming-split-lock",
     "custom/network",
     "bluetooth",
     "custom/keepawake",
@@ -89,6 +90,16 @@
     "interval": 5,
     "on-click": "~/.local/bin/open-vpn-menu",
     "on-click-right": "~/.local/bin/vpn-menu --disconnect-all",
+    "escape": true
+  },
+
+  "custom/gaming-split-lock": {
+    "format": "{}",
+    "return-type": "json",
+    "exec-if": "[ -r /proc/sys/kernel/split_lock_mitigate ]",
+    "exec": "~/.local/bin/gaming-split-lock-status",
+    "interval": 5,
+    "on-click": "~/.local/bin/gaming-split-lock-status --notify",
     "escape": true
   },
 

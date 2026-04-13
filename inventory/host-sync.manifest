@@ -48,6 +48,7 @@
 .local/bin/battery-status
 .local/bin/brightness-osd
 .local/bin/easyeffects-status
+.local/bin/gaming-split-lock-status
 .local/bin/gtk-dark-exec
 .local/bin/gtk-dark-x11-exec
 .local/bin/hypr-refresh-rate-watch

@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+
+import glob
+import json
+import os
+import subprocess
+import sys
+from typing import Optional, Tuple
+
+
+KEY = "kernel.split_lock_mitigate"
+RUNTIME_PATH = "/proc/sys/kernel/split_lock_mitigate"
+SYSCTL_DIRS = [
+    "/etc/sysctl.d",
+    "/run/sysctl.d",
+    "/usr/local/lib/sysctl.d",
+    "/usr/lib/sysctl.d",
+    "/lib/sysctl.d",
+]
+SYSCTL_CONF = "/etc/sysctl.conf"
+
+
+def read_runtime_value() -> Optional[str]:
+    try:
+        with open(RUNTIME_PATH, "r", encoding="utf-8") as handle:
+            return handle.read().strip() or None
+    except OSError:
+        return None
+
+
+def iter_effective_sysctl_files() -> list[str]:
+    chosen: dict[str, str] = {}
+
+    for directory in SYSCTL_DIRS:
+        for path in sorted(glob.glob(os.path.join(directory, "*.conf"))):
+            basename = os.path.basename(path)
+            if basename not in chosen:
+                chosen[basename] = path
+
+    ordered = [chosen[name] for name in sorted(chosen)]
+    if os.path.exists(SYSCTL_CONF):
+        ordered.append(SYSCTL_CONF)
+
+    return ordered
+
+
+def normalize_key(raw_key: str) -> str:
+    return raw_key.strip().lstrip("-").replace("/", ".")
+
+
+def parse_persistent_value() -> Tuple[Optional[str], Optional[str]]:
+    final_value: Optional[str] = None
+    final_source: Optional[str] = None
+
+    for path in iter_effective_sysctl_files():
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                for raw_line in handle:
+                    stripped = raw_line.strip()
+                    if not stripped or stripped.startswith("#") or stripped.startswith(";"):
+                        continue
+                    if "=" not in stripped:
+                        continue
+
+                    key, value = stripped.split("=", 1)
+                    if normalize_key(key) != KEY:
+                        continue
+
+                    cleaned = value.split("#", 1)[0].strip()
+                    if not cleaned:
+                        continue
+
+                    final_value = cleaned
+                    final_source = path
+        except OSError:
+            continue
+
+    return final_value, final_source
+
+
+def build_payload() -> dict:
+    runtime_value = read_runtime_value()
+    persistent_value, persistent_source = parse_persistent_value()
+
+    if runtime_value is None:
+        return {"text": "", "class": "hidden", "tooltip": ""}
+
+    runtime_mode = "mitigation-active" if runtime_value == "1" else "gaming-override-active" if runtime_value == "0" else "unknown"
+    persistent_label = persistent_value if persistent_value is not None else "not-set"
+    persistent_mode = (
+        "mitigation-active"
+        if persistent_value == "1"
+        else "gaming-override-active"
+        if persistent_value == "0"
+        else "not-set"
+    )
+    source_label = persistent_source if persistent_source is not None else "no persistent override"
+
+    tooltip = "\n".join(
+        [
+            "Split-lock mitigation status",
+            f"Runtime: {runtime_value} ({runtime_mode})",
+            f"Persistent: {persistent_label} ({persistent_mode})",
+            f"Source: {source_label}",
+        ]
+    )
+
+    if runtime_value == "0":
+        classes = ["override-active"]
+        if persistent_value != "0":
+            classes.append("transient")
+        return {"text": "SL0", "class": " ".join(classes), "tooltip": tooltip}
+
+    if runtime_value == "1" and persistent_value == "0":
+        return {"text": "SL!", "class": "pending", "tooltip": tooltip}
+
+    if runtime_value not in {"0", "1"}:
+        return {"text": "SL?", "class": "unknown", "tooltip": tooltip}
+
+    return {"text": "", "class": "hidden", "tooltip": tooltip}
+
+
+def notify(payload: dict) -> int:
+    tooltip = str(payload.get("tooltip", "")).strip()
+    text = str(payload.get("text", "")).strip()
+    summary = "Split-lock mitigation"
+
+    if text == "SL0":
+        summary = "Split-lock gaming override active"
+    elif text == "SL!":
+        summary = "Split-lock state mismatch"
+    elif text == "SL?":
+        summary = "Split-lock state unknown"
+
+    if not shutil_which("notify-send"):
+        print(tooltip)
+        return 0
+
+    subprocess.run(["notify-send", summary, tooltip], check=False)
+    return 0
+
+
+def shutil_which(binary: str) -> Optional[str]:
+    for directory in os.environ.get("PATH", "").split(":"):
+        candidate = os.path.join(directory, binary)
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
+def main(argv: list[str]) -> int:
+    payload = build_payload()
+
+    if len(argv) > 1 and argv[1] == "--notify":
+        return notify(payload)
+
+    print(json.dumps(payload, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

@@ -152,6 +152,26 @@ The script can:
 This is a better fit for `Margine` because it makes the tradeoff visible and
 reviewable.
 
+## Runtime safety signal in Waybar
+
+Because this toggle is security-sensitive, the desktop also exposes a Waybar
+indicator.
+
+The indicator is intentionally conservative:
+
+- it stays hidden when mitigation is active and no override is pending
+- it shows `SL0` when the runtime value is actually `0`
+- it shows `SL!` when runtime and persistent intent do not match
+
+The tooltip reports:
+
+- current runtime value
+- effective persistent value
+- source file that currently wins in the sysctl configuration order
+
+This gives operators a lightweight but explicit signal when the gaming override
+is active or when the next reboot will not match the current runtime state.
+
 ## Why this model is preferable for `Margine`
 
 The project benefits are concrete:
