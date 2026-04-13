@@ -37,6 +37,7 @@ The private repository should add:
 
 - `products/margine-cachyos.toml`
 - private product-specific documentation
+- private rollout plans such as `docs/13-margine-cachyos-personal-import-plan.md`
 - private manifest overrides if needed
 - private release/build automation
 
