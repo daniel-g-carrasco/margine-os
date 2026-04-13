@@ -7,6 +7,12 @@ base_config="${config_dir}/hypr/hyprlock.conf"
 dry_run_flag="--margine-hyprlock-dry-run"
 runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
 runtime_config="/tmp/margine-hyprlock.generated.conf"
+monitor_name=""
+monitor_width=""
+monitor_height=""
+monitor_scale=""
+logical_width=""
+logical_height=""
 
 if [[ ! -d "$runtime_dir" ]]; then
   runtime_dir="/tmp"
@@ -82,67 +88,90 @@ clamp_value() {
   }'
 }
 
-scale_from_monitors() {
+replace_line_after_marker() {
+  local marker="$1"
+  local replacement="$2"
+
+  sed -i -E "/^[[:space:]]*# @${marker}[[:space:]]*$/{
+    n
+    s|^[[:space:]]*.*$|    ${replacement}|
+  }" "$runtime_config"
+}
+
+collect_monitor_metrics() {
   local monitor_json
-  local width
-  local scale
 
   if ! command -v jq >/dev/null 2>&1; then
-    log_debug "jq missing; falling back to 1.0 scale"
-    echo "1.0"
+    log_debug "jq missing; falling back to defaults"
+    monitor_name="unknown"
+    monitor_width="1920"
+    monitor_height="1080"
+    monitor_scale="1"
+    logical_width="1920"
+    logical_height="1080"
     return
   fi
 
   if ! monitor_json="$(hyprctl -j monitors 2>/dev/null)"; then
-    log_debug "hyprctl unavailable; falling back to 1.0 scale"
-    echo "1.0"
+    log_debug "hyprctl unavailable; falling back to defaults"
+    monitor_name="unknown"
+    monitor_width="1920"
+    monitor_height="1080"
+    monitor_scale="1"
+    logical_width="1920"
+    logical_height="1080"
     return
   fi
 
-  width="$(printf '%s\n' "$monitor_json" | jq -r '([.[]? | select(.focused == true) | .width // empty] + [.[]? | .width // empty] | .[0] // empty)' 2>/dev/null | head -n 1)"
-  if [[ -z "$width" ]]; then
-    width="$(printf '%s\n' "$monitor_json" | jq -r '[.[]? | .width // empty] | first // empty' 2>/dev/null)"
-  fi
-  scale="$(printf '%s\n' "$monitor_json" | jq -r '([.[]? | select(.focused == true) | .scale // empty] + [.[]? | .scale // empty] | .[0] // empty)' 2>/dev/null | head -n 1)"
-  if [[ -z "$scale" ]]; then
-    scale="$(printf '%s\n' "$monitor_json" | jq -r '[.[]? | .scale // empty] | first // empty' 2>/dev/null)"
-  fi
+  monitor_name="$(printf '%s\n' "$monitor_json" | jq -r '([.[]? | select(.focused == true) | .name // empty] + [.[]? | .name // empty] | .[0] // "unknown")' 2>/dev/null | head -n 1)"
+  monitor_width="$(printf '%s\n' "$monitor_json" | jq -r '([.[]? | select(.focused == true) | .width // empty] + [.[]? | .width // empty] | .[0] // 1920)' 2>/dev/null | head -n 1)"
+  monitor_height="$(printf '%s\n' "$monitor_json" | jq -r '([.[]? | select(.focused == true) | .height // empty] + [.[]? | .height // empty] | .[0] // 1080)' 2>/dev/null | head -n 1)"
+  monitor_scale="$(printf '%s\n' "$monitor_json" | jq -r '([.[]? | select(.focused == true) | .scale // empty] + [.[]? | .scale // empty] | .[0] // 1)' 2>/dev/null | head -n 1)"
 
-  if [[ -z "$width" || "$width" == "null" ]]; then
-    log_debug "could not determine monitor width; fallback to 1.0 scale"
-    echo "1.0"
-    return
-  fi
-  if [[ -z "$scale" || "$scale" == "null" || "$scale" == "0" ]]; then
-    scale="1"
-  fi
+  [[ -n "$monitor_width" && "$monitor_width" != "null" ]] || monitor_width="1920"
+  [[ -n "$monitor_height" && "$monitor_height" != "null" ]] || monitor_height="1080"
+  [[ -n "$monitor_scale" && "$monitor_scale" != "null" && "$monitor_scale" != "0" ]] || monitor_scale="1"
 
-  awk -v w="$width" -v s="$scale" 'BEGIN {
-    if (s <= 0) {
-      s = 1
-    }
-    logical = w / s
-    if (logical <= 0) {
-      print 1
-      exit
-    }
-    f = logical / 1920
-    if (f < 0.65) f = 0.65
-    if (f > 1.5) f = 1.5
-    print f
-  }'
+  logical_width="$(round_nearest "$(awk -v width="$monitor_width" -v scale="$monitor_scale" 'BEGIN {
+    if (scale <= 0) scale = 1
+    print width / scale
+  }')")"
+  logical_height="$(round_nearest "$(awk -v height="$monitor_height" -v scale="$monitor_scale" 'BEGIN {
+    if (scale <= 0) scale = 1
+    print height / scale
+  }')")"
 }
 
-render_and_run() {
+compute_clamped_y() {
+  local value="$1"
+  local safe_margin="$2"
+  local min_y=""
+  local max_y=""
+
+  min_y="$(round_nearest "$(awk -v h="$logical_height" -v safe="$safe_margin" 'BEGIN { print -((h / 2) - safe) }')")"
+  max_y="$(round_nearest "$(awk -v h="$logical_height" -v safe="$safe_margin" 'BEGIN { print (h / 2) - safe }')")"
+  clamp_value "$value" "$min_y" "$max_y"
+}
+
+render_runtime_config() {
   cp -f "$base_config" "$runtime_config"
 
-  sed -i -E "s|^([[:space:]]*)font_size = 96$|\\1font_size = ${time_font}|" "$runtime_config"
-  sed -i -E "s|^([[:space:]]*)font_size = 20$|\\1font_size = ${date_font}|" "$runtime_config"
-  sed -i -E "s|^([[:space:]]*)font_size = 22$|\\1font_size = ${user_font}|" "$runtime_config"
-  sed -i -E "s|^([[:space:]]*)font_size = 18$|\\1font_size = ${prompt_font}|" "$runtime_config"
-  sed -i -E "s|^([[:space:]]*)font_size = 16$|\\1font_size = ${fail_font}|" "$runtime_config"
-  sed -i -E "s|^([[:space:]]*size = 18%, )[0-9]+$|\\1${input_height}|" "$runtime_config"
-  sed -i -E "s|^([[:space:]]*size = )[0-9]+, 2$|\\1${line_width}, 2|" "$runtime_config"
+  replace_line_after_marker "margine_time_font" "font_size = ${time_font}"
+  replace_line_after_marker "margine_date_font" "font_size = ${date_font}"
+  replace_line_after_marker "margine_user_font" "font_size = ${user_font}"
+  replace_line_after_marker "margine_prompt_font" "font_size = ${prompt_font}"
+  replace_line_after_marker "margine_fail_font" "font_size = ${fail_font}"
+
+  replace_line_after_marker "margine_input_size" "size = ${input_width}, ${input_height}"
+  replace_line_after_marker "margine_accent_line_size" "size = ${line_width}, 2"
+
+  replace_line_after_marker "margine_input_position" "position = 0, ${input_y}"
+  replace_line_after_marker "margine_user_position" "position = 0, ${user_y}"
+  replace_line_after_marker "margine_date_position" "position = 0, ${date_y}"
+  replace_line_after_marker "margine_time_position" "position = 0, ${time_y}"
+  replace_line_after_marker "margine_prompt_position" "position = 0, ${prompt_y}"
+  replace_line_after_marker "margine_fail_position" "position = 0, ${fail_y}"
+  replace_line_after_marker "margine_accent_line_position" "position = 0, ${line_y}"
 }
 
 parse_args "$@"
@@ -166,35 +195,72 @@ if ! runtime_config="$(mktemp -p "$runtime_dir" margine-hyprlock.generated.XXXXX
 fi
 trap 'rm -f "$runtime_config"' EXIT
 
-scale="$(scale_from_monitors)"
+collect_monitor_metrics
 
-time_font=$(round_nearest "$(awk -v base=96 -v scale="$scale" 'BEGIN { print base * scale }')")
-date_font=$(round_nearest "$(awk -v base=20 -v scale="$scale" 'BEGIN { print base * scale }')")
-user_font=$(round_nearest "$(awk -v base=22 -v scale="$scale" 'BEGIN { print base * scale }')")
-prompt_font=$(round_nearest "$(awk -v base=18 -v scale="$scale" 'BEGIN { print base * scale }')")
-fail_font=$(round_nearest "$(awk -v base=16 -v scale="$scale" 'BEGIN { print base * scale }')")
-input_height=$(round_nearest "$(awk -v base=84 -v scale="$scale" 'BEGIN { print base * scale }')")
-line_width=$(round_nearest "$(awk -v base=120 -v scale="$scale" 'BEGIN { print base * scale }')")
+font_scale="$(clamp_value "$(awk -v h="$logical_height" 'BEGIN { print h / 1080 }')" 0.84 1.24)"
+time_font="$(round_nearest "$(awk -v base=112 -v scale="$font_scale" 'BEGIN { print base * scale }')")"
+date_font="$(round_nearest "$(awk -v base=23 -v scale="$font_scale" 'BEGIN { print base * scale }')")"
+user_font="$(round_nearest "$(awk -v base=25 -v scale="$font_scale" 'BEGIN { print base * scale }')")"
+prompt_font="$(round_nearest "$(awk -v base=20 -v scale="$font_scale" 'BEGIN { print base * scale }')")"
+fail_font="$(round_nearest "$(awk -v base=18 -v scale="$font_scale" 'BEGIN { print base * scale }')")"
 
-time_font="$(clamp_value "$time_font" 54 180)"
-date_font="$(clamp_value "$date_font" 14 40)"
-user_font="$(clamp_value "$user_font" 16 48)"
-prompt_font="$(clamp_value "$prompt_font" 12 36)"
-fail_font="$(clamp_value "$fail_font" 10 32)"
-input_height="$(clamp_value "$input_height" 56 160)"
-line_width="$(clamp_value "$line_width" 80 240)"
+time_font="$(clamp_value "$time_font" 82 168)"
+date_font="$(clamp_value "$date_font" 18 34)"
+user_font="$(clamp_value "$user_font" 19 38)"
+prompt_font="$(clamp_value "$prompt_font" 15 30)"
+fail_font="$(clamp_value "$fail_font" 14 28)"
 
-render_and_run
+input_width="$(round_nearest "$(awk -v w="$logical_width" 'BEGIN { print w * 0.22 }')")"
+input_height="$(round_nearest "$(awk -v base=92 -v scale="$font_scale" 'BEGIN { print base * scale }')")"
+line_width="$(round_nearest "$(awk -v width="$input_width" 'BEGIN { print width * 0.4 }')")"
+
+input_width="$(clamp_value "$input_width" 280 460)"
+input_height="$(clamp_value "$input_height" 72 126)"
+line_width="$(clamp_value "$line_width" 96 180)"
+
+safe_margin="$(round_nearest "$(awk -v h="$logical_height" 'BEGIN { print h * 0.08 }')")"
+safe_margin="$(clamp_value "$safe_margin" 56 120)"
+
+input_y="$(round_nearest "$(awk -v h="$logical_height" 'BEGIN { print -(h * 0.065) }')")"
+input_y="$(compute_clamped_y "$input_y" "$safe_margin")"
+
+user_gap="$(round_nearest "$(awk -v h="$logical_height" 'BEGIN { print h * 0.075 }')")"
+date_gap="$(round_nearest "$(awk -v h="$logical_height" 'BEGIN { print h * 0.215 }')")"
+time_gap="$(round_nearest "$(awk -v h="$logical_height" 'BEGIN { print h * 0.082 }')")"
+prompt_gap="$(round_nearest "$(awk -v h="$logical_height" 'BEGIN { print h * 0.095 }')")"
+fail_gap="$(round_nearest "$(awk -v h="$logical_height" 'BEGIN { print h * 0.072 }')")"
+
+user_gap="$(clamp_value "$user_gap" 44 92)"
+date_gap="$(clamp_value "$date_gap" 112 240)"
+time_gap="$(clamp_value "$time_gap" 38 92)"
+prompt_gap="$(clamp_value "$prompt_gap" 58 108)"
+fail_gap="$(clamp_value "$fail_gap" 42 88)"
+
+user_y="$(round_nearest "$(awk -v input="$input_y" -v gap="$user_gap" 'BEGIN { print input + gap }')")"
+date_y="$(round_nearest "$(awk -v user="$user_y" -v gap="$date_gap" 'BEGIN { print user + gap }')")"
+time_y="$(round_nearest "$(awk -v date="$date_y" -v gap="$time_gap" 'BEGIN { print date + gap }')")"
+prompt_y="$(round_nearest "$(awk -v input="$input_y" -v gap="$prompt_gap" 'BEGIN { print input - gap }')")"
+fail_y="$(round_nearest "$(awk -v input="$input_y" -v gap="$fail_gap" 'BEGIN { print input - gap }')")"
+line_y="$(round_nearest "$(awk -v user="$user_y" -v date="$date_y" 'BEGIN { print user + ((date - user) * 0.38) }')")"
+
+user_y="$(compute_clamped_y "$user_y" "$safe_margin")"
+date_y="$(compute_clamped_y "$date_y" "$safe_margin")"
+time_y="$(compute_clamped_y "$time_y" "$safe_margin")"
+prompt_y="$(compute_clamped_y "$prompt_y" "$safe_margin")"
+fail_y="$(compute_clamped_y "$fail_y" "$safe_margin")"
+line_y="$(compute_clamped_y "$line_y" "$safe_margin")"
+
+render_runtime_config
 
 if (( do_dry_run )); then
-  printf '[%s] scale=%s time_font=%s date_font=%s user_font=%s prompt_font=%s fail_font=%s input_height=%s line_width=%s\n' \
-    "$SCRIPT_NAME" "$scale" "$time_font" "$date_font" "$user_font" "$prompt_font" "$fail_font" "$input_height" "$line_width" \
+  printf '[%s] monitor=%s raw=%sx%s scale=%s logical=%sx%s font_scale=%s time_font=%s date_font=%s user_font=%s prompt_font=%s fail_font=%s input_width=%s input_height=%s line_width=%s input_y=%s user_y=%s date_y=%s time_y=%s prompt_y=%s fail_y=%s line_y=%s\n' \
+    "$SCRIPT_NAME" "$monitor_name" "$monitor_width" "$monitor_height" "$monitor_scale" "$logical_width" "$logical_height" "$font_scale" "$time_font" "$date_font" "$user_font" "$prompt_font" "$fail_font" "$input_width" "$input_height" "$line_width" "$input_y" "$user_y" "$date_y" "$time_y" "$prompt_y" "$fail_y" "$line_y" \
     >&2
   printf 'Generated config: %s\n' "$runtime_config"
-  sed -n '1,80p' "$runtime_config"
+  sed -n '1,220p' "$runtime_config"
   exit 0
 fi
 
-log_debug "using generated config: ${runtime_config} (scale=${scale})"
+log_debug "using generated config: ${runtime_config} (monitor=${monitor_name} logical=${logical_width}x${logical_height} font_scale=${font_scale})"
 
 hyprlock -c "$runtime_config" "${lock_args[@]}"

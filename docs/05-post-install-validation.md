@@ -290,10 +290,12 @@ If `jq` is available, `hyprlock` is launched through:
 This wrapper:
 
 - reads the focused monitor geometry from `hyprctl -j monitors`
-- computes a scale factor using logical width (`width / scale`) against a
-  1920px baseline
-- rescales and clamps selected values (time/date/user/prompt fonts, input field,
-  accent line width)
+- derives logical monitor dimensions (`width / scale`, `height / scale`)
+- computes clamped font and size values from logical height and logical width
+- anchors the layout around the authentication block instead of scaling each
+  widget independently
+- rescales and clamps fonts, input width/height, accent line width, and the
+  vertical positions for time/date/user/fingerprint labels
 - writes a temporary generated config and launches `hyprlock -c` with it
 
 Quick checks:
@@ -302,10 +304,16 @@ Quick checks:
 command -v margine-hyprlock
 command -v jq
 margine-hyprlock --margine-hyprlock-dry-run >/tmp/margine-hyprlock.debug 2>&1
-sed -n '1,40p' /tmp/margine-hyprlock.debug
+sed -n '1,80p' /tmp/margine-hyprlock.debug
 ```
 
-The debug output should show the computed scale and selected temp config path.
+The debug output should show:
+
+- the selected monitor name
+- raw and logical geometry
+- computed font and size values
+- computed positions for the centered auth layout
+- the selected temp config path
 
 Failure fallback path is expected when no monitor JSON is available: lock still
 starts via plain `hyprlock` without crash.
