@@ -20,8 +20,6 @@ declare -a home_payload=(
   ".config/swaync/launch.sh"
   ".config/swaync/style.css"
   ".config/swayosd/style.css"
-  ".config/wlogout/layout"
-  ".config/wlogout/style.css"
   ".config/walker/config.toml"
   ".config/walker/themes/default/style.css"
   ".config/waybar/config.jsonc"
@@ -182,7 +180,6 @@ fix_ownership() {
     "${home_dir}/.config/satty" \
     "${home_dir}/.config/swaync" \
     "${home_dir}/.config/swayosd" \
-    "${home_dir}/.config/wlogout" \
     "${home_dir}/.config/walker" \
     "${home_dir}/.config/waybar" \
     "${home_dir}/.local/bin"
