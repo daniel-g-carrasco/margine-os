@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Log Out
+Comment=End the current Hyprland session
+Exec=/home/daniel/.local/bin/margine-session-control logout
+Icon=system-log-out
+Categories=System;
+Keywords=logout;session;hyprland;
+Terminal=false
+NoDisplay=false

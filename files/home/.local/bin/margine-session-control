@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  margine-session-control <action>
+
+Actions:
+  lock
+  display-off
+  suspend
+  logout
+  reboot
+  poweroff
+  menu
+EOF
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+lock_screen() {
+  if [[ -x "$HOME/.local/bin/margine-hyprlock" ]]; then
+    exec "$HOME/.local/bin/margine-hyprlock"
+  fi
+
+  exec loginctl lock-session
+}
+
+lock_in_background() {
+  if pgrep -x hyprlock >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [[ -x "$HOME/.local/bin/margine-hyprlock" ]]; then
+    nohup "$HOME/.local/bin/margine-hyprlock" >/dev/null 2>&1 &
+    disown || true
+    sleep 0.4
+    return 0
+  fi
+
+  loginctl lock-session >/dev/null 2>&1 || true
+  sleep 0.2
+}
+
+display_off() {
+  have_cmd hyprctl || die "hyprctl not found"
+  lock_in_background
+  exec hyprctl dispatch dpms off
+}
+
+suspend_session() {
+  loginctl lock-session >/dev/null 2>&1 || true
+  exec systemctl suspend
+}
+
+logout_session() {
+  have_cmd hyprctl || die "hyprctl not found"
+  exec hyprctl dispatch exit
+}
+
+reboot_system() {
+  exec systemctl reboot
+}
+
+poweroff_system() {
+  exec systemctl poweroff
+}
+
+open_menu() {
+  if have_cmd wlogout; then
+    exec wlogout
+  fi
+
+  if have_cmd hyprshutdown; then
+    exec hyprshutdown
+  fi
+
+  exec "$0" logout
+}
+
+main() {
+  local action="${1:-}"
+
+  case "$action" in
+    lock) lock_screen ;;
+    display-off) display_off ;;
+    suspend) suspend_session ;;
+    logout) logout_session ;;
+    reboot) reboot_system ;;
+    poweroff) poweroff_system ;;
+    menu) open_menu ;;
+    --help|-h|"") usage ;;
+    *) die "unknown action: $action" ;;
+  esac
+}
+
+main "$@"

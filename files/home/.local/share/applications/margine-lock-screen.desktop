@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Lock Screen
+Comment=Lock the current session with Hyprlock
+Exec=/home/daniel/.local/bin/margine-session-control lock
+Icon=system-lock-screen
+Categories=System;Security;
+Keywords=lock;screen;hyprlock;session;
+Terminal=false
+NoDisplay=false

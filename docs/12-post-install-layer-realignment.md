@@ -138,6 +138,8 @@ Examples:
 - after `provision-hyprland-desktop`: run `hyprctl reload`
 - after Waybar changes: relaunch Waybar
 - after SwayNC changes: relaunch SwayNC
+- after launcher `.desktop` changes: run `provision-user-app-config`
+- after launcher helper-script changes: run `provision-hyprland-desktop`
 
 For the dynamic lock-screen rollout specifically, the usual VM loop is:
 
@@ -148,6 +150,10 @@ sudo /root/margine-os/scripts/provision-hyprland-desktop --username daniel
 systemctl --user daemon-reload
 hyprctl reload
 ```
+
+For launcher ownership and design rules specifically, see:
+
+- [`14-desktop-launchers.md`](14-desktop-launchers.md)
 
 ## 5. Discover available layers
 

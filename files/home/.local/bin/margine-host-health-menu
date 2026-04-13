@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+backend=""
+
+clear_screen() {
+  if [[ -t 1 ]] && command -v clear >/dev/null 2>&1; then
+    clear
+  fi
+}
+
+find_backend() {
+  local candidate=""
+  local -a candidates=(
+    /usr/local/bin/margine-validate-host-health
+    /usr/local/lib/margine/scripts/validate-host-health
+    "$HOME/dev/margine-os/scripts/validate-host-health"
+    "$HOME/dev/margine-os-personal/scripts/validate-host-health"
+  )
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -x "$candidate" ]]; then
+      backend="$candidate"
+      return 0
+    fi
+  done
+
+  printf 'error: no host health backend found.\n' >&2
+  return 1
+}
+
+pause_screen() {
+  printf '\nPress Enter to continue...'
+  read -r _
+}
+
+show_help_screen() {
+  clear_screen
+  cat <<'EOF'
+=== Host health check control ===
+
+This terminal tool exposes the versioned health validators shipped by Margine.
+
+Available checks:
+  - session-only validation
+  - root-owned validation
+  - root-owned validation including virtualization/container stack
+  - combined standard flow
+
+Notes:
+  - session mode inspects desktop/runtime state from the current graphical user
+  - root mode inspects boot, recovery, Secure Boot, TPM2, and other privileged state
+  - root actions go through sudo on purpose
+EOF
+  pause_screen
+}
+
+run_session_check() {
+  clear_screen
+  "$backend" --session || true
+  pause_screen
+}
+
+run_root_check() {
+  clear_screen
+  sudo "$backend" --root || true
+  pause_screen
+}
+
+run_virtualization_check() {
+  clear_screen
+  sudo "$backend" --root --with-virtualization || true
+  pause_screen
+}
+
+run_standard_flow() {
+  clear_screen
+  "$backend" --session || true
+  printf '\n'
+  sudo "$backend" --root || true
+  pause_screen
+}
+
+print_menu() {
+  clear_screen
+  cat <<'EOF'
+=== Host health check control ===
+
+1. Run session check
+2. Run root check
+3. Run root check with virtualization
+4. Run standard flow (session + root)
+5. Help
+6. Exit
+EOF
+}
+
+main() {
+  local choice=""
+  find_backend
+
+  while true; do
+    print_menu
+    read -rp $'\nChoice [1-6]: ' choice
+
+    case "$choice" in
+      1) run_session_check ;;
+      2) run_root_check ;;
+      3) run_virtualization_check ;;
+      4) run_standard_flow ;;
+      5) show_help_screen ;;
+      6) exit 0 ;;
+      *) ;;
+    esac
+  done
+}
+
+main "$@"

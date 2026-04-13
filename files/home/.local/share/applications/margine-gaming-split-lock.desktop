@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Gaming Split-Lock Control
+Comment=Inspect or change the split-lock gaming override
+Exec=/home/daniel/.local/bin/open-gaming-split-lock-menu
+Icon=applications-games
+Categories=System;
+Keywords=gaming;split-lock;kernel;performance;security;
+Terminal=false
+NoDisplay=false

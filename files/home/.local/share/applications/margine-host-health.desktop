@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Host Health Check
+Comment=Run Margine runtime and root health validation
+Exec=/home/daniel/.local/bin/open-host-health-menu
+Icon=utilities-system-monitor
+Categories=System;
+Keywords=health;validation;maintenance;diagnostics;
+Terminal=false
+NoDisplay=false

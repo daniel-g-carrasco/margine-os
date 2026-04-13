@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Turn Off Displays
+Comment=Lock the session and turn off connected displays
+Exec=/home/daniel/.local/bin/margine-session-control display-off
+Icon=video-display
+Categories=System;
+Keywords=display;screen;dpms;off;lock;
+Terminal=false
+NoDisplay=false

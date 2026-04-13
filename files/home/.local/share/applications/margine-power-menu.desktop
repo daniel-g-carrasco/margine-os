@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Power Menu
+Comment=Open the session power menu
+Exec=/home/daniel/.local/bin/margine-session-control menu
+Icon=system-shutdown
+Categories=System;
+Keywords=power;menu;logout;reboot;shutdown;
+Terminal=false
+NoDisplay=false
