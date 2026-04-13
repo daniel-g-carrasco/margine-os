@@ -157,7 +157,6 @@ recognition matters more than generic DE consistency.
   - baseline implementation uses `wlogout` from the automatic AUR baseline
   - `hyprshutdown` is an optional fallback
   - if no backend is available, the launcher must fail safe and notify instead of logging out
-  - the Margine `wlogout` path is keyboard-first: it shows keybinds, uses a versioned layout, and temporarily disables pointer devices while the menu is open
 
 ### Other critical controls
 
