@@ -17,6 +17,12 @@ The goal is:
   Monitor topology, scale, and placement.
 - `hypridle.conf`
   Idle policy: dim, lock, DPMS-off, suspend.
+- `hyprlock.conf`
+  Lockscreen template consumed by the `margine-hyprlock` wrapper.
+- `hyprpaper.conf`
+  Static wallpaper source of truth for the hyprpaper daemon.
+- `hyprlauncher.conf`
+  Launcher UX defaults: focus, cache, finders, window size.
 - `conf.d/10-variables.conf`
   Modifier aliases and launcher variables like `$terminal` and `$browser`.
 - `conf.d/20-autostart.conf`
@@ -113,6 +119,28 @@ Edit:
 
 Keep the stages ordered from least destructive to most destructive:
 dim, lock, displays off, suspend.
+
+### Change lockscreen look or structure
+
+Edit:
+
+- `hyprlock.conf` for static visuals and widget ordering
+- `~/.local/bin/margine-hyprlock` for dynamic scaling and placement logic
+
+Do not edit `@margine_*` markers casually. They are owned by the wrapper.
+
+### Change wallpaper behavior
+
+Edit:
+
+- `hyprpaper.conf` for wallpaper source and fit mode
+- `~/.local/bin/launch-hyprpaper` for process startup policy
+
+### Change launcher size or finder behavior
+
+Edit:
+
+- `hyprlauncher.conf`
 
 ### Add a new screenshot, volume, or media shortcut
 
