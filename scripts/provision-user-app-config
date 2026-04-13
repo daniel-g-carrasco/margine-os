@@ -49,6 +49,10 @@ log() {
   printf '%s\n' "$*"
 }
 
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
 die() {
   printf 'error: %s\n' "$*" >&2
   exit 1
@@ -189,6 +193,18 @@ install_firefox_policy() {
     /etc/firefox/policies/policies.json
 }
 
+apply_papirus_folder_defaults() {
+  log
+  log "==> Apply Papirus folder baseline"
+
+  if ! command -v papirus-folders >/dev/null 2>&1; then
+    warn "papirus-folders not found; skipping folder color baseline"
+    return 0
+  fi
+
+  run_cmd papirus-folders --theme Papirus-Dark --color paleorange --update-caches
+}
+
 install_global_update_all() {
   local support_root="/usr/local/lib/margine"
 
@@ -260,6 +276,7 @@ main() {
   install_darktable_baseline
   install_libreoffice_baseline
   install_firefox_policy
+  apply_papirus_folder_defaults
   install_global_update_all
   cleanup_legacy_desktop_entries
   fix_ownership

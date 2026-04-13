@@ -75,7 +75,6 @@
 .local/share/applications/margine-lock-screen.desktop
 .local/share/applications/margine-log-out.desktop
 .local/share/applications/margine-power-off.desktop
-.local/share/applications/margine-papirus-folder-colors.desktop
 .local/share/applications/margine-power-settings.desktop
 .local/share/applications/margine-reboot.desktop
 .local/share/applications/margine-session-actions.desktop
@@ -113,9 +112,7 @@
 .local/bin/open-network-applet-menu
 .local/bin/open-network-settings
 .local/bin/open-network-tui
-.local/bin/open-papirus-folder-colors-menu
 .local/bin/open-power-settings
-.local/bin/papirus-folder-colors-menu
 .local/bin/open-vpn-menu
 .local/bin/polkit-agent-launch
 .local/bin/polkit-agent-restart

@@ -349,6 +349,7 @@ systemctl --user status elephant.service --no-pager
 elephant listproviders
 grep -n 'DuckDuckGo' ~/.config/elephant/websearch.toml
 grep -n '"Default": "DuckDuckGo"' /etc/firefox/policies/policies.json
+grep -n '"{2e380ea7-4031-40ba-99fe-4963cca08d0c}"' /etc/firefox/policies/policies.json
 xdg-mime query default image/png
 xdg-mime query default video/mp4
 xdg-mime query default audio/mpeg
@@ -362,6 +363,7 @@ Check:
 - provider list includes at least `desktopapplications`, `calc`, `websearch`, `windows`, and `runner`
 - `~/.config/elephant/websearch.toml` points to DuckDuckGo
 - Firefox policy forces DuckDuckGo as default search engine
+- Firefox policy auto-installs the managed `Adwaita (GTK 4)` theme
 - MIME defaults resolve to `org.gnome.Loupe.desktop`, `org.gnome.Showtime.desktop`, `org.gnome.Decibels.desktop`, and `org.gnome.TextEditor.desktop`
 - desktop files are actually present when debugging an empty Walker application list
 
@@ -370,6 +372,7 @@ Manual checks:
 - open Walker with empty query: desktop applications should appear
 - try `=1+1`: calculator result must appear
 - try `@firefox`: websearch result must appear with the DuckDuckGo icon
+- on a fresh Firefox profile, `about:addons` should show `Adwaita (GTK 4)` installed and selected as the active theme
 - try `$` window search only if windows are open; if it is empty with open windows, treat it as a regression
 
 ## 10. User config deployment
@@ -409,6 +412,7 @@ gdbus call --session \
 gsettings get org.gnome.TextEditor style-scheme
 gsettings get org.gnome.TextEditor style-variant
 gsettings get org.gnome.Loupe show-properties
+papirus-folders -l --theme Papirus-Dark
 sed -n '1,120p' ~/.config/easyeffects/db/easyeffectsrc
 sed -n '1,40p' ~/.config/easyeffects/db/graphrc
 ```
@@ -422,6 +426,7 @@ Check:
 - the Settings portal exposes `org.freedesktop.appearance accent-color`
 - GTK3 / legacy apps resolve to `adw-gtk3-dark`
 - icon theme resolves to `Papirus-Dark`
+- Papirus folder color baseline resolves to `paleorange`
 - GNOME Text Editor inherits the intended dark baseline via `gsettings`
 - Easy Effects UI defaults are present and sane, without dragging in hardware-specific runtime bindings
 - Koofr autostarts if expected, but does not steal focus as a normal foreground window
@@ -432,6 +437,7 @@ Manual checks:
 - GTK / GNOME apps such as Nautilus, Calendar, Calculator, Loupe, Text Editor, and Firefox use the dark theme
 - GTK3 / legacy apps visually match `adw-gtk3-dark`
 - app icons resolve through `Papirus-Dark` without obvious missing-icon regressions
+- Papirus folder icons appear with the intended `paleorange` tint in Nautilus and file pickers
 
 ## 12. Waybar, notifications, and maintenance UX
 

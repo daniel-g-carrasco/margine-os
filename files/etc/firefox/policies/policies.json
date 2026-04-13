@@ -10,6 +10,10 @@
       "uBlock0@raymondhill.net": {
         "install_url": "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi",
         "installation_mode": "force_installed"
+      },
+      "{2e380ea7-4031-40ba-99fe-4963cca08d0c}": {
+        "install_url": "https://addons.mozilla.org/firefox/downloads/latest/libadwaita/latest.xpi",
+        "installation_mode": "normal_installed"
       }
     },
     "DisableTelemetry": true,

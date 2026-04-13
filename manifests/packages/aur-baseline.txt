@@ -10,3 +10,4 @@ elephant-all
 ttf-ms-fonts
 walker
 wlogout
+papirus-folders-git
