@@ -26,6 +26,15 @@ have_cmd() {
   command -v "$1" >/dev/null 2>&1
 }
 
+notify_operator() {
+  local title="$1"
+  local body="$2"
+
+  if have_cmd notify-send; then
+    notify-send "$title" "$body" || true
+  fi
+}
+
 lock_screen() {
   if [[ -x "$HOME/.local/bin/margine-hyprlock" ]]; then
     exec "$HOME/.local/bin/margine-hyprlock"
@@ -83,7 +92,10 @@ open_menu() {
     exec hyprshutdown
   fi
 
-  exec "$0" logout
+  notify_operator \
+    "Power menu unavailable" \
+    "Neither wlogout nor hyprshutdown is installed. Use the direct power launchers or install a power-menu backend."
+  die "power-menu backend not found: install wlogout or hyprshutdown"
 }
 
 main() {
