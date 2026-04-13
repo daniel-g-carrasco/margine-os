@@ -2,6 +2,17 @@
 
 set -euo pipefail
 
+# Workspace placement helper for session start.
+#
+# Ownership split:
+# - `monitors.conf` decides monitor geometry and scale
+# - this script decides where the first workspaces should land after login
+#
+# Current policy:
+# - if both the internal panel and the expected external monitor are present,
+#   workspace 1 goes to the external display and workspace 2 stays on the laptop
+# - otherwise workspace 1 stays on the primary available monitor
+
 internal_monitor="eDP-1"
 external_monitor="${MARGINE_EXTERNAL_MONITOR:-DP-11}"
 
@@ -19,6 +30,8 @@ if [[ -z "$monitors" ]]; then
 fi
 
 if [[ -z "$external_monitor" ]]; then
+  # Fallback to the first non-internal monitor if the expected connector name
+  # was not provided.
   external_monitor="$(
     printf '%s\n' "$monitor_names" |
       grep -v "^${internal_monitor}$" |
@@ -26,12 +39,15 @@ if [[ -z "$external_monitor" ]]; then
   )"
 fi
 
+# Dual-monitor baseline: external gets workspace 1, laptop keeps workspace 2.
 if [[ "$monitor_count" -ge 2 ]] && grep -q "^Monitor ${internal_monitor} " <<<"$monitors" && [[ -n "$external_monitor" ]] && grep -q "^Monitor ${external_monitor} " <<<"$monitors"; then
   hyprctl dispatch moveworkspacetomonitor 1 "$external_monitor" >/dev/null 2>&1 || true
   hyprctl dispatch focusmonitor "$internal_monitor" >/dev/null 2>&1 || true
   hyprctl dispatch workspace 2 >/dev/null 2>&1 || true
   hyprctl dispatch moveworkspacetomonitor 2 "$internal_monitor" >/dev/null 2>&1 || true
 else
+  # Single-monitor or unknown-topology fallback: keep workspace 1 on the first
+  # sane monitor we can identify.
   primary_monitor="${internal_monitor}"
   if ! grep -q "^Monitor ${primary_monitor} " <<<"$monitors"; then
     primary_monitor="$(printf '%s\n' "$monitor_names" | head -n1)"

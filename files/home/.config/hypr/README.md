@@ -23,6 +23,12 @@ The goal is:
   Static wallpaper source of truth for the hyprpaper daemon.
 - `hyprlauncher.conf`
   Launcher UX defaults: focus, cache, finders, window size.
+- `~/.local/bin/margine-hyprlock`
+  Runtime generator that scales and renders the hyprlock template.
+- `~/.local/bin/launch-hyprpaper`
+  Startup wrapper for the hyprpaper daemon.
+- `~/.local/bin/hypr-workspace-layout`
+  Login-time workspace placement policy across monitors.
 - `conf.d/10-variables.conf`
   Modifier aliases and launcher variables like `$terminal` and `$browser`.
 - `conf.d/20-autostart.conf`
@@ -141,6 +147,30 @@ Edit:
 Edit:
 
 - `hyprlauncher.conf`
+
+### Change dynamic lockscreen scaling or monitor selection
+
+Edit:
+
+- `~/.local/bin/margine-hyprlock`
+
+Use the dry-run mode before testing visually:
+
+```bash
+~/.local/bin/margine-hyprlock --margine-hyprlock-dry-run
+```
+
+### Change startup wallpaper process behavior
+
+Edit:
+
+- `~/.local/bin/launch-hyprpaper`
+
+### Change which workspace lands on which monitor at login
+
+Edit:
+
+- `~/.local/bin/hypr-workspace-layout`
 
 ### Add a new screenshot, volume, or media shortcut
 

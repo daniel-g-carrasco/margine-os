@@ -1,6 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Runtime generator for the Margine hyprlock template.
+#
+# Ownership split:
+# - `~/.config/hypr/hyprlock.conf` owns static visual structure
+# - this wrapper owns monitor selection, scaling, clamping, and runtime render
+#
+# Runtime model:
+# 1. inspect Hyprland monitors
+# 2. choose the focused monitor, fallback to the first available
+# 3. derive logical width/height from raw size and scale
+# 4. compute clamped fonts, sizes, and vertical offsets
+# 5. rewrite the `@margine_*` markers into a generated runtime config
+# 6. launch `hyprlock -c <generated-config>`
+#
+# Useful operator commands:
+# - `~/.local/bin/margine-hyprlock --margine-hyprlock-dry-run`
+# - `MARGINE_HYPRLOCK_DEBUG=1 ~/.local/bin/margine-hyprlock --margine-hyprlock-dry-run`
+
 SCRIPT_NAME="margine-hyprlock"
 config_dir="${XDG_CONFIG_HOME:-$HOME/.config}"
 base_config="${config_dir}/hypr/hyprlock.conf"
@@ -160,6 +178,9 @@ replace_line_after_marker() {
 collect_monitor_metrics() {
   local monitor_json
 
+  # The lockscreen should size itself for the display that matters at lock
+  # time. Today that means the focused monitor; otherwise we fall back to the
+  # first monitor Hyprland reports.
   if ! command -v jq >/dev/null 2>&1; then
     log_debug "jq missing; falling back to defaults"
     monitor_name="unknown"
@@ -213,6 +234,8 @@ compute_clamped_y() {
 }
 
 render_runtime_config() {
+  # Keep the source template readable by rewriting only the lines directly below
+  # explicit `@margine_*` markers.
   cp -f "$base_config" "$runtime_config"
 
   replace_line_after_marker "margine_time_font" "font_size = ${time_font}"
@@ -256,6 +279,7 @@ trap 'rm -f "$runtime_config"' EXIT
 
 collect_monitor_metrics
 
+# Stage 1: scale fonts from logical monitor height, then clamp them.
 font_scale="$(clamp_value "$(awk -v h="$logical_height" -v ref="$REFERENCE_LOGICAL_HEIGHT" 'BEGIN { print h / ref }')" "$FONT_SCALE_MIN" "$FONT_SCALE_MAX")"
 time_font="$(round_nearest "$(awk -v base="$TIME_FONT_BASE" -v scale="$font_scale" 'BEGIN { print base * scale }')")"
 date_font="$(round_nearest "$(awk -v base="$DATE_FONT_BASE" -v scale="$font_scale" 'BEGIN { print base * scale }')")"
@@ -282,6 +306,7 @@ input_width="$(clamp_value "$input_width" "$INPUT_WIDTH_MIN" "$INPUT_WIDTH_MAX")
 input_height="$(clamp_value "$input_height" "$INPUT_HEIGHT_MIN" "$INPUT_HEIGHT_MAX")"
 line_width="$(clamp_value "$line_width" "$LINE_WIDTH_MIN" "$LINE_WIDTH_MAX")"
 
+# Stage 2: derive vertical layout.
 # The authentication block is the anchor. Other clusters derive from it or from
 # the safe top margin so the layout remains readable across monitors.
 safe_margin="$(round_nearest "$(awk -v h="$logical_height" -v ratio="$SAFE_MARGIN_RATIO" 'BEGIN { print h * ratio }')")"
@@ -327,6 +352,7 @@ line_y="$(compute_clamped_y "$line_y" "$safe_margin")"
 render_runtime_config
 
 if (( do_dry_run )); then
+  # Dry-run is the safe tuning path: inspect effective geometry without locking.
   printf '[%s] monitor=%s raw=%sx%s scale=%s logical=%sx%s font_scale=%s time_font=%s date_font=%s user_font=%s prompt_font=%s fail_font=%s input_width=%s input_height=%s line_width=%s input_y=%s user_y=%s date_y=%s time_y=%s prompt_y=%s fail_y=%s line_y=%s\n' \
     "$SCRIPT_NAME" "$monitor_name" "$monitor_width" "$monitor_height" "$monitor_scale" "$logical_width" "$logical_height" "$font_scale" "$time_font" "$date_font" "$user_font" "$prompt_font" "$fail_font" "$input_width" "$input_height" "$line_width" "$input_y" "$user_y" "$date_y" "$time_y" "$prompt_y" "$fail_y" "$line_y" \
     >&2
@@ -337,4 +363,5 @@ fi
 
 log_debug "using generated config: ${runtime_config} (monitor=${monitor_name} logical=${logical_width}x${logical_height} font_scale=${font_scale})"
 
+# Runtime ownership ends here. Hyprlock receives only the generated config.
 hyprlock -c "$runtime_config" "${lock_args[@]}"

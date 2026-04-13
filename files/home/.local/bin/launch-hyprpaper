@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Minimal launcher for hyprpaper.
+#
+# Ownership split:
+# - `~/.config/hypr/hyprpaper.conf` owns the static wallpaper declaration
+# - this script owns process restart policy and first-load fallback behavior
+
 command -v hyprpaper >/dev/null 2>&1 || exit 0
 command -v hyprctl >/dev/null 2>&1 || exit 0
 
 wallpaper_path="/usr/share/margine/wallpapers/default.jpg"
 
+# Restart instead of reconciling unknown daemon state from a prior session.
 pkill -x hyprpaper >/dev/null 2>&1 || true
 hyprpaper >/dev/null 2>&1 &
 
+# Give the daemon a short startup window before sending control commands.
 for _ in $(seq 1 50); do
   sleep 0.1
   if hyprctl hyprpaper listloaded >/dev/null 2>&1; then
@@ -17,6 +25,7 @@ for _ in $(seq 1 50); do
 done
 
 if [[ -f "$wallpaper_path" ]]; then
+  # Only force the default wallpaper when hyprpaper has not activated one yet.
   active="$(hyprctl hyprpaper listactive 2>/dev/null || true)"
   if [[ -z "$(printf '%s' "$active" | awk 'NF { print; exit }')" ]]; then
     hyprctl hyprpaper reload ",${wallpaper_path}" >/dev/null 2>&1 || true
