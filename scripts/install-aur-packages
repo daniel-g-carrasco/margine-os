@@ -135,6 +135,7 @@ ensure_prereqs() {
 migrate_elephant_all() {
   local requested_package=""
   local split_package=""
+  local debug_package=""
   local installed_package=""
   local installed=()
 
@@ -144,6 +145,11 @@ migrate_elephant_all() {
     for split_package in "${elephant_split_packages[@]}"; do
       if pacman -Q "$split_package" >/dev/null 2>&1; then
         installed+=("$split_package")
+      fi
+
+      debug_package="${split_package}-debug"
+      if pacman -Q "$debug_package" >/dev/null 2>&1; then
+        installed+=("$debug_package")
       fi
     done
 
