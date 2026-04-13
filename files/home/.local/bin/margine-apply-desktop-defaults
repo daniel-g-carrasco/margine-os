@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Session-level GTK / GNOME defaults for the Hyprland desktop.
+#
+# Policy:
+# - GTK4/libadwaita apps stay on Adwaita dark behavior
+# - GTK3/legacy apps use `adw-gtk3-dark` for closer visual parity
+# - the global icon theme is `Papirus-Dark`
+# - accent color is kept explicit in gsettings even if not every app surfaces it
+
 command -v gsettings >/dev/null 2>&1 || exit 0
 
 gsettings set org.gnome.desktop.interface color-scheme prefer-dark >/dev/null 2>&1 || true
-gsettings set org.gnome.desktop.interface gtk-theme Adwaita >/dev/null 2>&1 || true
-gsettings set org.gnome.desktop.interface icon-theme Adwaita >/dev/null 2>&1 || true
+gsettings set org.gnome.desktop.interface accent-color green >/dev/null 2>&1 || true
+gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-dark >/dev/null 2>&1 || true
+gsettings set org.gnome.desktop.interface icon-theme Papirus-Dark >/dev/null 2>&1 || true
 
 gsettings set org.gnome.TextEditor style-scheme Adwaita-dark >/dev/null 2>&1 || true
 gsettings set org.gnome.TextEditor style-variant follow >/dev/null 2>&1 || true

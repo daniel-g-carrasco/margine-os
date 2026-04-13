@@ -397,6 +397,7 @@ Check:
 ```bash
 ls -l /usr/share/margine/wallpapers/default.jpg
 pgrep -af 'hyprpaper|koofr'
+gsettings get org.gnome.desktop.interface accent-color
 gsettings get org.gnome.desktop.interface color-scheme
 gsettings get org.gnome.desktop.interface gtk-theme
 gsettings get org.gnome.desktop.interface icon-theme
@@ -412,6 +413,9 @@ Check:
 - the default wallpaper asset exists at `/usr/share/margine/wallpapers/default.jpg`
 - `hyprpaper` is running in the session
 - GTK applications are on the intended dark theme
+- `accent-color` is set to the intended GNOME baseline
+- GTK3 / legacy apps resolve to `adw-gtk3-dark`
+- icon theme resolves to `Papirus-Dark`
 - GNOME Text Editor inherits the intended dark baseline via `gsettings`
 - Easy Effects UI defaults are present and sane, without dragging in hardware-specific runtime bindings
 - Koofr autostarts if expected, but does not steal focus as a normal foreground window
@@ -420,6 +424,8 @@ Manual checks:
 
 - after login, the intended wallpaper is actually visible
 - GTK / GNOME apps such as Nautilus, Calendar, Calculator, Loupe, Text Editor, and Firefox use the dark theme
+- GTK3 / legacy apps visually match `adw-gtk3-dark`
+- app icons resolve through `Papirus-Dark` without obvious missing-icon regressions
 
 ## 12. Waybar, notifications, and maintenance UX
 
