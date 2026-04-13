@@ -4,6 +4,17 @@
 .config/easyeffects/db/easyeffectsrc
 .config/easyeffects/db/graphrc
 .local/share/icons/hicolor/256x256/apps/duckduckgo.png
+.local/share/icons/hicolor/scalable/apps/margine-display-off.svg
+.local/share/icons/hicolor/scalable/apps/margine-gaming-split-lock.svg
+.local/share/icons/hicolor/scalable/apps/margine-host-health.svg
+.local/share/icons/hicolor/scalable/apps/margine-lock-screen.svg
+.local/share/icons/hicolor/scalable/apps/margine-log-out.svg
+.local/share/icons/hicolor/scalable/apps/margine-power-menu.svg
+.local/share/icons/hicolor/scalable/apps/margine-power-off.svg
+.local/share/icons/hicolor/scalable/apps/margine-power-tools.svg
+.local/share/icons/hicolor/scalable/apps/margine-reboot.svg
+.local/share/icons/hicolor/scalable/apps/margine-suspend.svg
+.local/share/icons/hicolor/scalable/apps/margine-update-all.svg
 .config/gtk-3.0/settings.ini
 .config/gtk-4.0/settings.ini
 .config/hypr/hypridle.conf

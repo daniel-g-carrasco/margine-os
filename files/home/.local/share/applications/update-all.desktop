@@ -3,6 +3,6 @@ Type=Application
 Name=Update All
 Comment=Update pacman + AUR + Flatpak + firmware
 Exec=/home/daniel/.local/bin/update-all-launcher
-Icon=software-update-available
+Icon=margine-update-all
 Categories=System;
 Terminal=false
