@@ -88,6 +88,19 @@ manifest_contains_package() {
   read_manifest_lines "$manifest" | grep -Fxq "$package_name"
 }
 
+product_extra_manifest_contains_package() {
+  local package_name="$1"
+  local manifest=""
+
+  for manifest in "${product_extra_layer_manifests[@]}"; do
+    if manifest_contains_package "$manifest" "$package_name"; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 init_product_context() {
   local layer=""
   local manifest=""
@@ -521,6 +534,36 @@ power_section() {
   fi
 }
 
+process_priority_section() {
+  local enabled_state="unknown"
+  local active_state="unknown"
+  local gamemode_detected="no"
+
+  if ! product_extra_manifest_contains_package "ananicy-cpp"; then
+    return 0
+  fi
+
+  section "Process prioritization"
+  status_line "ananicy-cpp package: $(package_installed ananicy-cpp && echo installed || echo missing)"
+  status_line "cachyos-ananicy-rules package: $(package_installed cachyos-ananicy-rules && echo installed || echo missing)"
+
+  enabled_state="$(systemctl is-enabled ananicy-cpp.service 2>/dev/null || true)"
+  active_state="$(systemctl is-active ananicy-cpp.service 2>/dev/null || true)"
+  status_line "ananicy-cpp.service enablement: ${enabled_state:-unknown}"
+  status_line "ananicy-cpp.service state: ${active_state:-unknown}"
+
+  if command -v gamemoded >/dev/null 2>&1 || systemctl list-unit-files 2>/dev/null | grep -q '^gamemoded\.service'; then
+    gamemode_detected="yes"
+  fi
+  status_line "GameMode coexistence risk: ${gamemode_detected}"
+
+  package_installed ananicy-cpp || mark_issue
+  package_installed cachyos-ananicy-rules || mark_issue
+  [[ "$enabled_state" == "enabled" ]] || mark_issue
+  [[ "$active_state" == "active" ]] || mark_issue
+  [[ "$gamemode_detected" == "no" ]] || mark_issue
+}
+
 audio_section() {
   local default_sink=""
   local default_source=""
@@ -672,6 +715,7 @@ main() {
   launcher_section
   ownership_section
   power_section
+  process_priority_section
   audio_section
   photo_section
   productivity_section

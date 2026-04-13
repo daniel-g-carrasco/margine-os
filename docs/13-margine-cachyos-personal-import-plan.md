@@ -47,6 +47,8 @@ scaffold until the first curated behavior cherry-picks are ready.
 
 Validator coverage now also understands product-specific `extra_package_layers`
 and can fail when those packages drift from the installed personal product.
+It also checks that `ananicy-cpp.service` is enabled and active, and treats
+`GameMode + ananicy-cpp` coexistence as drift.
 
 ## Hard architectural rule
 
