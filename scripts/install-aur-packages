@@ -152,6 +152,12 @@ migrate_elephant_all() {
   for requested_package in "${packages[@]}"; do
     [[ "$requested_package" == "elephant-all" ]] || continue
 
+    if pacman -Q elephant-all >/dev/null 2>&1; then
+      log
+      log "==> Elephant-all already installed; skip split-provider migration"
+      return 0
+    fi
+
     for split_package in "${elephant_split_packages[@]}"; do
       candidates+=("$split_package" "${split_package}-debug")
     done
