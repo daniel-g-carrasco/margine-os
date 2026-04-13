@@ -9,7 +9,6 @@
 .local/share/icons/hicolor/scalable/apps/margine-host-health.svg
 .local/share/icons/hicolor/scalable/apps/margine-lock-screen.svg
 .local/share/icons/hicolor/scalable/apps/margine-log-out.svg
-.local/share/icons/hicolor/scalable/apps/margine-power-menu.svg
 .local/share/icons/hicolor/scalable/apps/margine-power-off.svg
 .local/share/icons/hicolor/scalable/apps/margine-power-tools.svg
 .local/share/icons/hicolor/scalable/apps/margine-reboot.svg
@@ -63,7 +62,6 @@
 .local/share/applications/margine-host-health.desktop
 .local/share/applications/margine-lock-screen.desktop
 .local/share/applications/margine-log-out.desktop
-.local/share/applications/margine-power-menu.desktop
 .local/share/applications/margine-power-off.desktop
 .local/share/applications/margine-power-settings.desktop
 .local/share/applications/margine-reboot.desktop
