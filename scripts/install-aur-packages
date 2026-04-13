@@ -132,27 +132,31 @@ ensure_prereqs() {
   done
 }
 
+collect_installed_packages() {
+  local package=""
+
+  for package in "$@"; do
+    if pacman -Q "$package" >/dev/null 2>&1; then
+      printf '%s\n' "$package"
+    fi
+  done
+}
+
 migrate_elephant_all() {
   local requested_package=""
   local split_package=""
-  local debug_package=""
   local installed_package=""
   local installed=()
+  local candidates=()
 
   for requested_package in "${packages[@]}"; do
     [[ "$requested_package" == "elephant-all" ]] || continue
 
     for split_package in "${elephant_split_packages[@]}"; do
-      if pacman -Q "$split_package" >/dev/null 2>&1; then
-        installed+=("$split_package")
-      fi
-
-      debug_package="${split_package}-debug"
-      if pacman -Q "$debug_package" >/dev/null 2>&1; then
-        installed+=("$debug_package")
-      fi
+      candidates+=("$split_package" "${split_package}-debug")
     done
 
+    mapfile -t installed < <(collect_installed_packages "${candidates[@]}")
     (( ${#installed[@]} == 0 )) && return 0
 
     log
@@ -167,7 +171,11 @@ migrate_elephant_all() {
       return 0
     fi
 
-    pacman -Rns --noconfirm "${installed[@]}"
+    if ! pacman -Rns --noconfirm "${installed[@]}"; then
+      mapfile -t installed < <(collect_installed_packages "${candidates[@]}")
+      (( ${#installed[@]} == 0 )) && return 0
+      pacman -Rns --noconfirm "${installed[@]}"
+    fi
     return 0
   done
 }
