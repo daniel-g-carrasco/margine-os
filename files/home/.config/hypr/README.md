@@ -15,6 +15,8 @@ The goal is:
   Entry point only. It defines include order through `source = ...`.
 - `monitors.conf`
   Monitor topology, scale, and placement.
+- `hypridle.conf`
+  Idle policy: dim, lock, DPMS-off, suspend.
 - `conf.d/10-variables.conf`
   Modifier aliases and launcher variables like `$terminal` and `$browser`.
 - `conf.d/20-autostart.conf`
@@ -88,6 +90,29 @@ changing the global `input` defaults.
 Edit:
 
 - `conf.d/63-binds-workspaces.conf`
+
+### Change monitor topology or scale
+
+Edit:
+
+- `monitors.conf`
+
+Useful live check:
+
+```bash
+hyprctl monitors all
+```
+
+Keep the explicit monitor rules above the fallback rule.
+
+### Change idle, lock, DPMS, or suspend timing
+
+Edit:
+
+- `hypridle.conf`
+
+Keep the stages ordered from least destructive to most destructive:
+dim, lock, displays off, suspend.
 
 ### Add a new screenshot, volume, or media shortcut
 
