@@ -158,6 +158,8 @@ To inspect the installable package blocks:
 ```
 
 This is the intended operator interface for selective expansion.
+It now shows both the default layers and any additional optional official
+layers exposed by the current repository/product.
 
 ## 6. Recommended safe workflow
 

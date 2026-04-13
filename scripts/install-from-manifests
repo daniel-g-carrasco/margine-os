@@ -70,6 +70,24 @@ append_unique_layer() {
   requested_layers+=("$candidate")
 }
 
+list_all_official_layers() {
+  local path=""
+  local layer=""
+  local -A seen=()
+
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    layer="${path##*/}"
+    layer="${layer%.txt}"
+    [[ -n "${seen[$layer]+x}" ]] && continue
+    seen["$layer"]=1
+    printf '%s\n' "$layer"
+  done < <(
+    find "${repo_root}/manifests/packages" -maxdepth 1 -type f -name '*.txt' -print 2>/dev/null
+    find "${repo_root}/manifests/flavors/${flavor}/packages" -maxdepth 1 -type f -name '*.txt' -print 2>/dev/null
+  )
+}
+
 warn() {
   printf 'warning: %s\n' "$*" >&2
 }
@@ -92,13 +110,27 @@ have_cmd() {
 }
 
 list_layers() {
+  local layer=""
+
   log "Product: ${product}"
   log "Flavor: ${flavor}"
   log
-  log "Available official layers:"
+  log "Default official layers:"
   for layer in "${default_layers[@]}"; do
     printf '  - %s\n' "$layer"
   done
+  log
+  log "Additional official layers:"
+  while IFS= read -r layer; do
+    [[ -n "$layer" ]] || continue
+    if printf '%s\n' "${default_layers[@]}" | grep -Fxq "$layer"; then
+      continue
+    fi
+    if [[ "$layer" == "aur-baseline" || "$layer" == "aur-exceptions" ]]; then
+      continue
+    fi
+    printf '  - %s\n' "$layer"
+  done < <(list_all_official_layers)
   log
   log "Layer AUR:"
   log "  - aur-baseline (automatic)"
