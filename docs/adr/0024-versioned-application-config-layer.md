@@ -33,6 +33,10 @@ For `Margine v1` the versioned application layer includes:
 
 `Firefox` is configured with `/etc/firefox/policies/policies.json`.
 
+That file is the single source of truth for browser policy.
+`Margine` does not maintain a second parallel policy under
+`/usr/lib/firefox/distribution/policies.json`.
+
 The baseline is deliberately moderate:
 
 - disabling telemetry;
