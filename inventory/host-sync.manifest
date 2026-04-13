@@ -20,6 +20,7 @@
 .config/hypr/hypridle.conf
 .config/hypr/hyprlauncher.conf
 .config/hypr/hyprlock.conf
+.config/hypr/README.md
 .config/hypr/conf.d/10-variables.conf
 .config/hypr/conf.d/20-autostart.conf
 .config/hypr/conf.d/30-environment.conf
