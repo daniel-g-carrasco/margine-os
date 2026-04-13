@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+declare -a disabled_pointer_devices=()
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -33,6 +35,32 @@ notify_operator() {
   if have_cmd notify-send; then
     notify-send "$title" "$body" || true
   fi
+}
+
+disable_pointer_devices() {
+  local name=""
+
+  disabled_pointer_devices=()
+  have_cmd hyprctl || return 0
+  have_cmd jq || return 0
+
+  mapfile -t disabled_pointer_devices < <(
+    hyprctl -j devices 2>/dev/null \
+      | jq -r '[(.mice // [])[]?.name, (.touch // [])[]?.name] | .[]' 2>/dev/null \
+      | sed '/^$/d'
+  )
+
+  for name in "${disabled_pointer_devices[@]}"; do
+    hyprctl -r -- keyword "device[$name]:enabled" false >/dev/null 2>&1 || true
+  done
+}
+
+restore_pointer_devices() {
+  local name=""
+
+  for name in "${disabled_pointer_devices[@]}"; do
+    hyprctl -r -- keyword "device[$name]:enabled" true >/dev/null 2>&1 || true
+  done
 }
 
 lock_screen() {
@@ -84,8 +112,20 @@ poweroff_system() {
 }
 
 open_menu() {
+  local -a wlogout_args=()
+  local exit_code=0
+
   if have_cmd wlogout; then
-    exec wlogout
+    [[ -f "$HOME/.config/wlogout/layout" ]] && wlogout_args+=(-l "$HOME/.config/wlogout/layout")
+    [[ -f "$HOME/.config/wlogout/style.css" ]] && wlogout_args+=(-C "$HOME/.config/wlogout/style.css")
+    wlogout_args+=(-s -n -p layer-shell)
+
+    disable_pointer_devices
+    trap 'restore_pointer_devices' EXIT INT TERM
+    wlogout "${wlogout_args[@]}" || exit_code=$?
+    restore_pointer_devices
+    trap - EXIT INT TERM
+    return "$exit_code"
   fi
 
   if have_cmd hyprshutdown; then

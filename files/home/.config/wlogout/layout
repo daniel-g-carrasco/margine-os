@@ -1,0 +1,30 @@
+{
+    "label" : "lock",
+    "action" : "/home/daniel/.local/bin/margine-session-control lock",
+    "text" : "Lock",
+    "keybind" : "l"
+}
+{
+    "label" : "suspend",
+    "action" : "/home/daniel/.local/bin/margine-session-control suspend",
+    "text" : "Suspend",
+    "keybind" : "u"
+}
+{
+    "label" : "logout",
+    "action" : "/home/daniel/.local/bin/margine-session-control logout",
+    "text" : "Log Out",
+    "keybind" : "e"
+}
+{
+    "label" : "reboot",
+    "action" : "/home/daniel/.local/bin/margine-session-control reboot",
+    "text" : "Restart",
+    "keybind" : "r"
+}
+{
+    "label" : "shutdown",
+    "action" : "/home/daniel/.local/bin/margine-session-control poweroff",
+    "text" : "Power Off",
+    "keybind" : "s"
+}
