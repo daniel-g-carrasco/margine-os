@@ -14,6 +14,65 @@ monitor_scale=""
 logical_width=""
 logical_height=""
 
+# Tuning knobs.
+# Keep these near the top so manual visual adjustments do not require touching
+# the layout math below. Values are still clamped later to avoid unusable
+# layouts on very small or very large displays.
+REFERENCE_LOGICAL_HEIGHT=1080
+FONT_SCALE_MIN=0.84
+FONT_SCALE_MAX=1.24
+
+TIME_FONT_BASE=118
+TIME_FONT_MIN=82
+TIME_FONT_MAX=168
+DATE_FONT_BASE=25
+DATE_FONT_MIN=18
+DATE_FONT_MAX=34
+USER_FONT_BASE=27
+USER_FONT_MIN=19
+USER_FONT_MAX=38
+PROMPT_FONT_BASE=22
+PROMPT_FONT_MIN=15
+PROMPT_FONT_MAX=30
+FAIL_FONT_BASE=20
+FAIL_FONT_MIN=14
+FAIL_FONT_MAX=28
+
+INPUT_WIDTH_RATIO=0.24
+INPUT_WIDTH_MIN=280
+INPUT_WIDTH_MAX=460
+INPUT_HEIGHT_BASE=92
+INPUT_HEIGHT_MIN=72
+INPUT_HEIGHT_MAX=126
+LINE_WIDTH_RATIO=0.40
+LINE_WIDTH_USER_MULTIPLIER=6.2
+LINE_WIDTH_MIN=96
+LINE_WIDTH_MAX=180
+
+SAFE_MARGIN_RATIO=0.08
+SAFE_MARGIN_MIN=56
+SAFE_MARGIN_MAX=120
+INPUT_Y_RATIO=-0.065
+USER_GAP_RATIO=0.10
+USER_GAP_MIN=64
+USER_GAP_MAX=112
+TIME_TOP_GAP_RATIO=0.033
+TIME_TOP_GAP_MIN=24
+TIME_TOP_GAP_MAX=56
+TIME_DATE_GAP_RATIO=0.098
+TIME_DATE_GAP_MIN=54
+TIME_DATE_GAP_MAX=102
+PROMPT_GAP_RATIO=0.125
+PROMPT_GAP_MIN=96
+PROMPT_GAP_MAX=140
+FAIL_SPACING_RATIO=0.038
+FAIL_SPACING_FONT_BIAS=12
+FAIL_SPACING_MIN=34
+FAIL_SPACING_MAX=56
+LINE_GAP_RATIO=0.026
+LINE_GAP_MIN=14
+LINE_GAP_MAX=28
+
 if [[ ! -d "$runtime_dir" ]]; then
   runtime_dir="/tmp"
 fi
@@ -197,51 +256,66 @@ trap 'rm -f "$runtime_config"' EXIT
 
 collect_monitor_metrics
 
-font_scale="$(clamp_value "$(awk -v h="$logical_height" 'BEGIN { print h / 1080 }')" 0.84 1.24)"
-time_font="$(round_nearest "$(awk -v base=112 -v scale="$font_scale" 'BEGIN { print base * scale }')")"
-date_font="$(round_nearest "$(awk -v base=23 -v scale="$font_scale" 'BEGIN { print base * scale }')")"
-user_font="$(round_nearest "$(awk -v base=25 -v scale="$font_scale" 'BEGIN { print base * scale }')")"
-prompt_font="$(round_nearest "$(awk -v base=20 -v scale="$font_scale" 'BEGIN { print base * scale }')")"
-fail_font="$(round_nearest "$(awk -v base=18 -v scale="$font_scale" 'BEGIN { print base * scale }')")"
+font_scale="$(clamp_value "$(awk -v h="$logical_height" -v ref="$REFERENCE_LOGICAL_HEIGHT" 'BEGIN { print h / ref }')" "$FONT_SCALE_MIN" "$FONT_SCALE_MAX")"
+time_font="$(round_nearest "$(awk -v base="$TIME_FONT_BASE" -v scale="$font_scale" 'BEGIN { print base * scale }')")"
+date_font="$(round_nearest "$(awk -v base="$DATE_FONT_BASE" -v scale="$font_scale" 'BEGIN { print base * scale }')")"
+user_font="$(round_nearest "$(awk -v base="$USER_FONT_BASE" -v scale="$font_scale" 'BEGIN { print base * scale }')")"
+prompt_font="$(round_nearest "$(awk -v base="$PROMPT_FONT_BASE" -v scale="$font_scale" 'BEGIN { print base * scale }')")"
+fail_font="$(round_nearest "$(awk -v base="$FAIL_FONT_BASE" -v scale="$font_scale" 'BEGIN { print base * scale }')")"
 
-time_font="$(clamp_value "$time_font" 82 168)"
-date_font="$(clamp_value "$date_font" 18 34)"
-user_font="$(clamp_value "$user_font" 19 38)"
-prompt_font="$(clamp_value "$prompt_font" 15 30)"
-fail_font="$(clamp_value "$fail_font" 14 28)"
+time_font="$(clamp_value "$time_font" "$TIME_FONT_MIN" "$TIME_FONT_MAX")"
+date_font="$(clamp_value "$date_font" "$DATE_FONT_MIN" "$DATE_FONT_MAX")"
+user_font="$(clamp_value "$user_font" "$USER_FONT_MIN" "$USER_FONT_MAX")"
+prompt_font="$(clamp_value "$prompt_font" "$PROMPT_FONT_MIN" "$PROMPT_FONT_MAX")"
+fail_font="$(clamp_value "$fail_font" "$FAIL_FONT_MIN" "$FAIL_FONT_MAX")"
 
-input_width="$(round_nearest "$(awk -v w="$logical_width" 'BEGIN { print w * 0.22 }')")"
-input_height="$(round_nearest "$(awk -v base=92 -v scale="$font_scale" 'BEGIN { print base * scale }')")"
-line_width="$(round_nearest "$(awk -v width="$input_width" 'BEGIN { print width * 0.4 }')")"
+input_width="$(round_nearest "$(awk -v w="$logical_width" -v ratio="$INPUT_WIDTH_RATIO" 'BEGIN { print w * ratio }')")"
+input_height="$(round_nearest "$(awk -v base="$INPUT_HEIGHT_BASE" -v scale="$font_scale" 'BEGIN { print base * scale }')")"
+line_width="$(round_nearest "$(awk -v width="$input_width" -v user="$user_font" 'BEGIN {
+  candidate = width * '"$LINE_WIDTH_RATIO"'
+  min_width = user * '"$LINE_WIDTH_USER_MULTIPLIER"'
+  if (candidate < min_width) candidate = min_width
+  print candidate
+}')")"
 
-input_width="$(clamp_value "$input_width" 280 460)"
-input_height="$(clamp_value "$input_height" 72 126)"
-line_width="$(clamp_value "$line_width" 96 180)"
+input_width="$(clamp_value "$input_width" "$INPUT_WIDTH_MIN" "$INPUT_WIDTH_MAX")"
+input_height="$(clamp_value "$input_height" "$INPUT_HEIGHT_MIN" "$INPUT_HEIGHT_MAX")"
+line_width="$(clamp_value "$line_width" "$LINE_WIDTH_MIN" "$LINE_WIDTH_MAX")"
 
-safe_margin="$(round_nearest "$(awk -v h="$logical_height" 'BEGIN { print h * 0.08 }')")"
-safe_margin="$(clamp_value "$safe_margin" 56 120)"
+# The authentication block is the anchor. Other clusters derive from it or from
+# the safe top margin so the layout remains readable across monitors.
+safe_margin="$(round_nearest "$(awk -v h="$logical_height" -v ratio="$SAFE_MARGIN_RATIO" 'BEGIN { print h * ratio }')")"
+safe_margin="$(clamp_value "$safe_margin" "$SAFE_MARGIN_MIN" "$SAFE_MARGIN_MAX")"
+top_safe_y="$(round_nearest "$(awk -v h="$logical_height" -v safe="$safe_margin" 'BEGIN { print (h / 2) - safe }')")"
 
-input_y="$(round_nearest "$(awk -v h="$logical_height" 'BEGIN { print -(h * 0.065) }')")"
+input_y="$(round_nearest "$(awk -v h="$logical_height" -v ratio="$INPUT_Y_RATIO" 'BEGIN { print h * ratio }')")"
 input_y="$(compute_clamped_y "$input_y" "$safe_margin")"
 
-user_gap="$(round_nearest "$(awk -v h="$logical_height" 'BEGIN { print h * 0.075 }')")"
-date_gap="$(round_nearest "$(awk -v h="$logical_height" 'BEGIN { print h * 0.215 }')")"
-time_gap="$(round_nearest "$(awk -v h="$logical_height" 'BEGIN { print h * 0.082 }')")"
-prompt_gap="$(round_nearest "$(awk -v h="$logical_height" 'BEGIN { print h * 0.095 }')")"
-fail_gap="$(round_nearest "$(awk -v h="$logical_height" 'BEGIN { print h * 0.072 }')")"
+user_gap="$(round_nearest "$(awk -v h="$logical_height" -v ratio="$USER_GAP_RATIO" 'BEGIN { print h * ratio }')")"
+time_top_gap="$(round_nearest "$(awk -v h="$logical_height" -v ratio="$TIME_TOP_GAP_RATIO" 'BEGIN { print h * ratio }')")"
+time_date_gap="$(round_nearest "$(awk -v h="$logical_height" -v ratio="$TIME_DATE_GAP_RATIO" 'BEGIN { print h * ratio }')")"
+prompt_gap="$(round_nearest "$(awk -v h="$logical_height" -v ratio="$PROMPT_GAP_RATIO" 'BEGIN { print h * ratio }')")"
+fail_spacing="$(round_nearest "$(awk -v h="$logical_height" -v prompt="$prompt_font" -v fail="$fail_font" 'BEGIN {
+  spacing = h * '"$FAIL_SPACING_RATIO"'
+  min_spacing = ((prompt + fail) / 2) + '"$FAIL_SPACING_FONT_BIAS"'
+  if (spacing < min_spacing) spacing = min_spacing
+  print spacing
+}')")"
+line_gap="$(round_nearest "$(awk -v h="$logical_height" -v ratio="$LINE_GAP_RATIO" 'BEGIN { print h * ratio }')")"
 
-user_gap="$(clamp_value "$user_gap" 44 92)"
-date_gap="$(clamp_value "$date_gap" 112 240)"
-time_gap="$(clamp_value "$time_gap" 38 92)"
-prompt_gap="$(clamp_value "$prompt_gap" 58 108)"
-fail_gap="$(clamp_value "$fail_gap" 42 88)"
+user_gap="$(clamp_value "$user_gap" "$USER_GAP_MIN" "$USER_GAP_MAX")"
+time_top_gap="$(clamp_value "$time_top_gap" "$TIME_TOP_GAP_MIN" "$TIME_TOP_GAP_MAX")"
+time_date_gap="$(clamp_value "$time_date_gap" "$TIME_DATE_GAP_MIN" "$TIME_DATE_GAP_MAX")"
+prompt_gap="$(clamp_value "$prompt_gap" "$PROMPT_GAP_MIN" "$PROMPT_GAP_MAX")"
+fail_spacing="$(clamp_value "$fail_spacing" "$FAIL_SPACING_MIN" "$FAIL_SPACING_MAX")"
+line_gap="$(clamp_value "$line_gap" "$LINE_GAP_MIN" "$LINE_GAP_MAX")"
 
 user_y="$(round_nearest "$(awk -v input="$input_y" -v gap="$user_gap" 'BEGIN { print input + gap }')")"
-date_y="$(round_nearest "$(awk -v user="$user_y" -v gap="$date_gap" 'BEGIN { print user + gap }')")"
-time_y="$(round_nearest "$(awk -v date="$date_y" -v gap="$time_gap" 'BEGIN { print date + gap }')")"
+time_y="$(round_nearest "$(awk -v top="$top_safe_y" -v gap="$time_top_gap" 'BEGIN { print top - gap }')")"
+date_y="$(round_nearest "$(awk -v time="$time_y" -v gap="$time_date_gap" 'BEGIN { print time - gap }')")"
 prompt_y="$(round_nearest "$(awk -v input="$input_y" -v gap="$prompt_gap" 'BEGIN { print input - gap }')")"
-fail_y="$(round_nearest "$(awk -v input="$input_y" -v gap="$fail_gap" 'BEGIN { print input - gap }')")"
-line_y="$(round_nearest "$(awk -v user="$user_y" -v date="$date_y" 'BEGIN { print user + ((date - user) * 0.38) }')")"
+fail_y="$(round_nearest "$(awk -v prompt="$prompt_y" -v gap="$fail_spacing" 'BEGIN { print prompt + gap }')")"
+line_y="$(round_nearest "$(awk -v user="$user_y" -v gap="$line_gap" 'BEGIN { print user - gap }')")"
 
 user_y="$(compute_clamped_y "$user_y" "$safe_margin")"
 date_y="$(compute_clamped_y "$date_y" "$safe_margin")"
