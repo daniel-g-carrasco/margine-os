@@ -39,16 +39,8 @@ The goal is:
   Gaps, borders, decoration, blur, animation, layout defaults.
 - `conf.d/50-input.conf`
   Keyboard, touchpad, gestures, and device overrides.
-- `conf.d/60-binds-apps.conf`
-  App launchers and operator helpers.
-- `conf.d/61-binds-session.conf`
-  Locking, logout, reboot, and session-level actions.
-- `conf.d/62-binds-windows.conf`
-  Focus, floating, fullscreen, grouping, resize, mouse actions.
-- `conf.d/63-binds-workspaces.conf`
-  Workspace switching, moving windows between workspaces, scratchpad.
-- `conf.d/64-binds-media.conf`
-  Screenshot, recording, audio, brightness, and media keys.
+- `conf.d/60-binds.conf`
+  All Hyprland binds in one file: apps, session, windows, workspaces, media.
 - `conf.d/70-rules.conf`
   `layerrule`, `windowrule`, and placement policy.
 
@@ -59,7 +51,7 @@ The goal is:
 Edit:
 
 - `conf.d/10-variables.conf` if you need a new `$variable`
-- `conf.d/60-binds-apps.conf` for the actual bind
+- `conf.d/60-binds.conf` for the actual bind
 
 Example:
 
@@ -101,7 +93,7 @@ changing the global `input` defaults.
 
 Edit:
 
-- `conf.d/63-binds-workspaces.conf`
+- `conf.d/60-binds.conf`
 
 ### Change monitor topology or scale
 
@@ -176,7 +168,7 @@ Edit:
 
 Edit:
 
-- `conf.d/64-binds-media.conf`
+- `conf.d/60-binds.conf`
 
 ### Add a window rule
 
