@@ -44,6 +44,7 @@ Planned topics:
 - TPM2 auto-unlock plus `autologin -> hyprlock` as a laptop trust model
 - what CachyOS adds beyond kernel and repositories
 - DaVinci Resolve on Linux: graphics, compute, and compatibility requirements
+- gaming stack layering and the `split_lock_mitigate` tradeoff
 
 Rule:
 - each note must explain the "what", the "why" and the "how to change it".
