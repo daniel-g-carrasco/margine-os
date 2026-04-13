@@ -401,6 +401,11 @@ gsettings get org.gnome.desktop.interface accent-color
 gsettings get org.gnome.desktop.interface color-scheme
 gsettings get org.gnome.desktop.interface gtk-theme
 gsettings get org.gnome.desktop.interface icon-theme
+gdbus call --session \
+  --dest org.freedesktop.portal.Desktop \
+  --object-path /org/freedesktop/portal/desktop \
+  --method org.freedesktop.portal.Settings.ReadOne \
+  org.freedesktop.appearance accent-color
 gsettings get org.gnome.TextEditor style-scheme
 gsettings get org.gnome.TextEditor style-variant
 gsettings get org.gnome.Loupe show-properties
@@ -414,6 +419,7 @@ Check:
 - `hyprpaper` is running in the session
 - GTK applications are on the intended dark theme
 - `accent-color` is set to the intended GNOME baseline
+- the Settings portal exposes `org.freedesktop.appearance accent-color`
 - GTK3 / legacy apps resolve to `adw-gtk3-dark`
 - icon theme resolves to `Papirus-Dark`
 - GNOME Text Editor inherits the intended dark baseline via `gsettings`

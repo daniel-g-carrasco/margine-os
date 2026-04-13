@@ -1,0 +1,9 @@
+[Unit]
+Description=Portal service (GNOME implementation for Hyprland)
+After=dbus.socket
+
+[Service]
+Type=dbus
+BusName=org.freedesktop.impl.portal.desktop.gnome
+ExecStart=/usr/lib/xdg-desktop-portal-gnome
+Slice=session.slice

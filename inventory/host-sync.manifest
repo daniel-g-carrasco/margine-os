@@ -17,6 +17,7 @@
 .local/share/icons/hicolor/scalable/apps/margine-update-all.svg
 .config/gtk-3.0/settings.ini
 .config/gtk-4.0/settings.ini
+.config/xdg-desktop-portal/hyprland-portals.conf
 .config/hypr/hypridle.conf
 .config/hypr/hyprlauncher.conf
 .config/hypr/hyprlock.conf
@@ -43,6 +44,7 @@
 .config/systemd/user/margine-maintenance-check.service
 .config/systemd/user/margine-maintenance-check.timer
 .config/systemd/user/margine-notification-action-router.service
+.config/systemd/user/xdg-desktop-portal-gnome.service
 .config/walker/config.toml
 .config/walker/themes/default/item.xml
 .config/walker/themes/default/item_archlinuxpkgs.xml

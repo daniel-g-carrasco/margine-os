@@ -15,4 +15,5 @@ qt6ct
 qt6-multimedia-ffmpeg
 xdg-desktop-portal
 xdg-desktop-portal-gtk
+xdg-desktop-portal-gnome
 xdg-desktop-portal-hyprland
