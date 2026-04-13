@@ -36,6 +36,7 @@
 .config/swaync/launch.sh
 .config/swaync/style.css
 .config/swayosd/style.css
+.config/waybar/README.md
 .config/systemd/user/elephant.service
 .config/systemd/user/hypr-refresh-rate.service
 .config/systemd/user/keep-awake.service

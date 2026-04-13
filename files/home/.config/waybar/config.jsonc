@@ -1,12 +1,28 @@
 {
-  // Derived from j5onrf/dots:
-  // Adwaita-CT-Iosevka-Pro-Thin
+  // Margine Waybar baseline
+  //
+  // Keep this file focused on:
+  // - bar-level geometry
+  // - left / center / right module order
+  // - module configuration blocks
+  //
+  // Ownership split:
+  // - this file owns module order and Waybar options
+  // - custom scripts in `~/.local/bin` own the JSON payload for `custom/*`
+  // - `style.css` owns visual presentation only
+  //
+  // Safe workflow after editing:
+  //   ~/.config/waybar/launch.sh
+  //   tail -n 50 ~/.cache/waybar.log
+
+  // Bar shell
   "layer": "top",
   "position": "top",
   "height": 36,
   "spacing": 5,
   "margin": "0 0 0 0",
 
+  // Module order
   "modules-left": [
     "hyprland/workspaces",
     "hyprland/window"
@@ -29,6 +45,7 @@
     "custom/notification"
   ],
 
+  // Left: workspace state
   "hyprland/workspaces": {
     "all-outputs": true,
     "disable-scroll": true,
@@ -50,6 +67,7 @@
     }
   },
 
+  // Left: active window title
   "hyprland/window": {
     "format": "{title}",
     "max-length": 70,
@@ -63,6 +81,7 @@
     }
   },
 
+  // Center: date and time
   "clock": {
     "format": "{:%a %d %b  %H:%M}",
     "tooltip-format": "<big>{:%A %d %B %Y}</big>\n<tt>{calendar}</tt>",
@@ -74,6 +93,7 @@
     "on-click": "gnome-calendar"
   },
 
+  // Right: network summary
   "custom/network": {
     "format": "{}",
     "return-type": "json",
@@ -83,6 +103,7 @@
     "escape": true
   },
 
+  // Right: VPN state and controls
   "custom/vpn": {
     "format": "{}",
     "return-type": "json",
@@ -93,6 +114,7 @@
     "escape": true
   },
 
+  // Right: critical kernel split-lock indicator
   "custom/gaming-split-lock": {
     "format": "{}",
     "return-type": "json",
@@ -104,6 +126,7 @@
     "escape": true
   },
 
+  // Right: recording indicator
   "custom/recording": {
     "format": "{}",
     "return-type": "json",
@@ -115,6 +138,7 @@
     "escape": true
   },
 
+  // Right: bluetooth state
   "bluetooth": {
     "format": "󰂯",
     "format-disabled": "󰂲",
@@ -124,8 +148,9 @@
     "format-connected-battery": "󰂯 {device_battery_percentage}%",
     "tooltip-format": "{controller_alias}\n{controller_address}",
     "on-click": "~/.local/bin/open-bluetooth-tui"
-    },
+  },
 
+  // Right: EasyEffects state
   "custom/easyeffects": {
     "format": "{}",
     "return-type": "json",
@@ -135,6 +160,7 @@
     "escape": true
   },
 
+  // Right: inhibit sleep / keep-awake state
   "custom/keepawake": {
     "format": "{}",
     "return-type": "json",
@@ -144,6 +170,7 @@
     "escape": true
   },
 
+  // Right: output volume
   "pulseaudio": {
     "scroll-step": 5,
     "format": "{icon}  {volume}%",
@@ -163,6 +190,7 @@
     "on-scroll-down": "~/.local/bin/volume-osd down"
   },
 
+  // Right: battery and power profile state
   "custom/battery": {
     "format": "{}",
     "return-type": "json",
@@ -173,6 +201,7 @@
     "escape": true
   },
 
+  // Right: unread notification count companion to the bell icon
   "custom/notification-count": {
     "tooltip": false,
     "format": "{}",
@@ -182,6 +211,7 @@
     "escape": true
   },
 
+  // Right: notification bell and DND state
   "custom/notification": {
     "tooltip": false,
     "format": "{icon}",
@@ -203,6 +233,7 @@
     "escape": true
   },
 
+  // Right: XEmbed / status icon tray
   "tray": {
     "icon-size": 16,
     "spacing": 6

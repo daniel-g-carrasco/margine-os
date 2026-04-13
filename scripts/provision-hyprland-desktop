@@ -28,6 +28,7 @@ declare -a home_payload=(
   ".config/swaync/launch.sh"
   ".config/swaync/style.css"
   ".config/swayosd/style.css"
+  ".config/waybar/README.md"
   ".config/walker/config.toml"
   ".config/walker/themes/default/style.css"
   ".config/waybar/config.jsonc"
