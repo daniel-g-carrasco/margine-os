@@ -45,6 +45,9 @@ What it does **not** yet adopt in a structured way:
 The current `extra_provisioners` hook exists and is versioned, but remains a
 scaffold until the first curated behavior cherry-picks are ready.
 
+Validator coverage now also understands product-specific `extra_package_layers`
+and can fail when those packages drift from the installed personal product.
+
 ## Hard architectural rule
 
 `Margine` must keep a single owner for each of these domains:

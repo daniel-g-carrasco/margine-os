@@ -24,6 +24,8 @@ kernel_package=""
 kernel_headers_package=""
 aur_baseline_manifest=""
 base_system_manifest=""
+declare -a product_extra_layers=()
+declare -a product_extra_layer_manifests=()
 issue_count=0
 
 have_cmd() {
@@ -67,6 +69,18 @@ package_installed() {
   pacman -Q "$1" >/dev/null 2>&1
 }
 
+append_unique_item() {
+  local var_name="$1"
+  local candidate="$2"
+  local existing=""
+
+  [[ -n "$candidate" ]] || return 0
+  eval "for existing in \"\${${var_name}[@]}\"; do
+    [[ \"\$existing\" == \"\$candidate\" ]] && return 0
+  done"
+  eval "${var_name}+=(\"\$candidate\")"
+}
+
 manifest_contains_package() {
   local manifest="$1"
   local package_name="$2"
@@ -75,6 +89,7 @@ manifest_contains_package() {
 }
 
 init_product_context() {
+  local layer=""
   local manifest=""
 
   product="${MARGINE_VALIDATION_PRODUCT:-$(margine_detect_runtime_product "$repo_root")}"
@@ -87,6 +102,13 @@ init_product_context() {
   kernel_headers_package="$(margine_product_field "$product_manifest" "kernel_headers_package" "")"
   aur_baseline_manifest="$(margine_resolve_aur_baseline_manifest "$repo_root" "$flavor" 2>/dev/null || true)"
   base_system_manifest="$(margine_resolve_package_layer "$repo_root" "$flavor" "base-system" 2>/dev/null || true)"
+
+  while IFS= read -r layer; do
+    [[ -n "$layer" ]] || continue
+    append_unique_item product_extra_layers "$layer"
+    manifest="$(margine_resolve_package_layer "$repo_root" "$flavor" "$layer" 2>/dev/null || true)"
+    [[ -n "$manifest" ]] && append_unique_item product_extra_layer_manifests "$manifest"
+  done < <(margine_product_extra_package_layers "$repo_root" "$product")
 }
 
 product_context_section() {
@@ -136,6 +158,37 @@ product_context_section() {
       mark_issue
     fi
     status_line "CachyOS repositories configured: ${repos_present}"
+  fi
+
+  if (( ${#product_extra_layers[@]} > 0 )); then
+    section "Product-specific extra packages"
+    local layer=""
+    local manifest=""
+    local extra_pkg=""
+    local -a expected_extra_packages=()
+
+    for layer in "${product_extra_layers[@]}"; do
+      manifest="$(margine_resolve_package_layer "$repo_root" "$flavor" "$layer" 2>/dev/null || true)"
+      if [[ -n "$manifest" ]]; then
+        status_line "extra layer ${layer}: ${manifest}"
+        while IFS= read -r extra_pkg; do
+          [[ -n "$extra_pkg" ]] || continue
+          append_unique_item expected_extra_packages "$extra_pkg"
+        done < <(read_manifest_lines "$manifest")
+      else
+        status_line "extra layer ${layer}: missing"
+        mark_issue
+      fi
+    done
+
+    for extra_pkg in "${expected_extra_packages[@]}"; do
+      if package_installed "$extra_pkg"; then
+        status_line "product extra package ${extra_pkg}: installed"
+      else
+        status_line "product extra package ${extra_pkg}: missing"
+        mark_issue
+      fi
+    done
   fi
 }
 
