@@ -9,3 +9,4 @@ yay
 elephant-all
 ttf-ms-fonts
 walker
+wlogout

@@ -154,7 +154,8 @@ recognition matters more than generic DE consistency.
 - `Restart` -> `~/.local/bin/margine-session-control reboot`
 - `Power Off` -> `~/.local/bin/margine-session-control poweroff`
 - `Power Menu` -> `~/.local/bin/margine-session-control menu`
-  - baseline implementation uses `wlogout`; `hyprshutdown` is an optional fallback
+  - baseline implementation uses `wlogout` from the automatic AUR baseline
+  - `hyprshutdown` is an optional fallback
   - if no backend is available, the launcher must fail safe and notify instead of logging out
 
 ### Other critical controls

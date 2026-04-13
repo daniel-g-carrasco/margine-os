@@ -39,4 +39,3 @@ waybar
 wf-recorder
 wireplumber
 wl-clipboard
-wlogout
