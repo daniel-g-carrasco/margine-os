@@ -41,6 +41,8 @@ phase2_layers=(
   apps-photo-audio-video
   fonts
 )
+declare -a product_extra_layers=()
+declare -a product_extra_provisioners=()
 
 usage() {
   cat <<'EOF'
@@ -72,6 +74,33 @@ EOF
 
 log() {
   printf '%s\n' "$*"
+}
+
+append_unique_bootstrap_layer() {
+  local candidate="$1"
+  local existing=""
+
+  [[ -n "$candidate" ]] || return 0
+  for existing in "${phase2_layers[@]}"; do
+    [[ "$existing" == "$candidate" ]] && return 0
+  done
+
+  phase2_layers+=("$candidate")
+}
+
+load_product_bootstrap_extensions() {
+  local item=""
+
+  while IFS= read -r item; do
+    [[ -n "$item" ]] || continue
+    product_extra_layers+=("$item")
+    append_unique_bootstrap_layer "$item"
+  done < <(margine_product_extra_package_layers "$repo_root" "$product")
+
+  while IFS= read -r item; do
+    [[ -n "$item" ]] || continue
+    product_extra_provisioners+=("$item")
+  done < <(margine_product_extra_provisioners "$repo_root" "$product")
 }
 
 warn() {
@@ -183,6 +212,7 @@ parse_args() {
 
   eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
     || die "unsupported product/flavor combination"
+  load_product_bootstrap_extensions
 }
 
 require_root() {
@@ -518,6 +548,29 @@ run_virtualization_container_provisioner() {
   run_cmd "$provisioner" "${args[@]}"
 }
 
+run_product_extra_provisioners() {
+  local provisioner_name=""
+  local provisioner=""
+  local -a args=()
+
+  (( ${#product_extra_provisioners[@]} > 0 )) || return 0
+
+  log
+  log "==> Provision product-specific baseline"
+  for provisioner_name in "${product_extra_provisioners[@]}"; do
+    provisioner="${repo_root}/scripts/${provisioner_name}"
+    [[ -x "$provisioner" ]] || die "product-specific provisioner not executable: $provisioner"
+    args=(
+      --product "$product"
+      --flavor "$flavor"
+      --username "$username"
+    )
+    (( dry_run )) && args+=(--dry-run)
+    printf '  -> %s\n' "$provisioner_name"
+    run_cmd "$provisioner" "${args[@]}"
+  done
+}
+
 enable_base_services() {
   local -a services=(
     NetworkManager.service
@@ -546,6 +599,12 @@ main() {
   log "=== Bootstrap in chroot Margine ==="
   log "Product: ${product} (${product_name})"
   log "Flavor: ${flavor}"
+  if (( ${#product_extra_layers[@]} > 0 )); then
+    log "Product extra layers: ${product_extra_layers[*]}"
+  fi
+  if (( ${#product_extra_provisioners[@]} > 0 )); then
+    log "Product extra provisioners: ${product_extra_provisioners[*]}"
+  fi
   (( dry_run )) && log "Mode: dry-run"
 
   configure_timezone
@@ -570,6 +629,7 @@ main() {
   run_snapper_provisioner
   run_timeshift_provisioner
   enable_base_services
+  run_product_extra_provisioners
 
   log
   log "=== DONE ==="

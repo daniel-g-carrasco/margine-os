@@ -19,6 +19,7 @@ product_redistributable=""
 flavor=""
 aur_installer="${repo_root}/scripts/install-aur-packages"
 declare -a requested_layers=()
+declare -a product_extra_layers=()
 
 default_layers=(
   base-system
@@ -57,6 +58,18 @@ log() {
   printf '%s\n' "$*"
 }
 
+append_unique_layer() {
+  local candidate="$1"
+  local existing=""
+
+  [[ -n "$candidate" ]] || return 0
+  for existing in "${requested_layers[@]}"; do
+    [[ "$existing" == "$candidate" ]] && return 0
+  done
+
+  requested_layers+=("$candidate")
+}
+
 warn() {
   printf 'warning: %s\n' "$*" >&2
 }
@@ -90,9 +103,25 @@ list_layers() {
   log "Layer AUR:"
   log "  - aur-baseline (automatic)"
   log "  - aur-exceptions (via --include-aur)"
+  if (( ${#product_extra_layers[@]} > 0 )); then
+    log
+    log "Product-specific extra layers:"
+    for layer in "${product_extra_layers[@]}"; do
+      printf '  - %s\n' "$layer"
+    done
+  fi
   log
   log "Optional layers:"
   log "  - flatpaks/apps.txt (via --include-flatpak)"
+}
+
+load_product_extra_layers() {
+  local layer=""
+
+  while IFS= read -r layer; do
+    [[ -n "$layer" ]] || continue
+    product_extra_layers+=("$layer")
+  done < <(margine_product_extra_package_layers "$repo_root" "$product")
 }
 
 parse_args() {
@@ -141,6 +170,7 @@ parse_args() {
 
   eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
     || die "unsupported product/flavor combination"
+  load_product_extra_layers
 
   if (( list_layers_only )); then
     list_layers
@@ -162,6 +192,9 @@ read_manifest_lines() {
 resolve_layers() {
   if (( ${#requested_layers[@]} == 0 )); then
     requested_layers=("${default_layers[@]}")
+    for layer in "${product_extra_layers[@]}"; do
+      append_unique_layer "$layer"
+    done
   fi
 
   for layer in "${requested_layers[@]}"; do
@@ -262,6 +295,9 @@ main() {
   log "Product: ${product} (${product_name})"
   log "Flavor: ${flavor}"
   log "Base distribution: ${product_base_distribution}"
+  if (( ${#product_extra_layers[@]} > 0 )); then
+    log "Product extra layers: ${product_extra_layers[*]}"
+  fi
   (( dry_run )) && log "Mode: dry-run"
 
   install_official_layers

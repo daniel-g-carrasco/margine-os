@@ -9,4 +9,10 @@ kernel_package = "linux-cachyos"
 kernel_headers_package = "linux-cachyos-headers"
 bootloader = "limine"
 
+# Optional product-specific extension points.
+# These are resolved only when the corresponding files/scripts exist in the
+# private repository.
+extra_package_layers = []
+extra_provisioners = []
+
 description = "Private personal Margine product built directly on top of CachyOS."

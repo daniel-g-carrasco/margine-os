@@ -45,3 +45,13 @@ Typical product fields:
 - `kernel_headers_package`
 - `bootloader`
 - `description`
+- `extra_package_layers` (optional)
+- `extra_provisioners` (optional)
+
+`extra_package_layers` lets a product append additional manifest layers to the
+default installation path without hardcoding product names into generic
+scripts.
+
+`extra_provisioners` lets a product request a tail step during
+`bootstrap-in-chroot` for product-specific behavior, while keeping the shared
+baseline scripts generic.

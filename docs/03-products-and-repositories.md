@@ -39,6 +39,8 @@ A product manifest sits in `products/*.toml` and describes:
 - which base distribution it targets;
 - which flavor overlay resolves manifests;
 - which kernel / bootloader policy it expects.
+- which product-specific extra layers should be added by default;
+- which product-specific provisioners should run as a bootstrap tail step.
 
 Operational scripts should accept `--product` and derive `flavor` from the
 product unless the caller explicitly overrides it.

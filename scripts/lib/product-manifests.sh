@@ -70,6 +70,37 @@ else:
 PY
 }
 
+margine_product_list_field() {
+  local manifest="$1"
+  local field="$2"
+
+  python3 - "$manifest" "$field" <<'PY'
+import pathlib
+import sys
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib
+
+manifest_path = pathlib.Path(sys.argv[1])
+field = sys.argv[2]
+
+data = {}
+if manifest_path.is_file():
+    with manifest_path.open("rb") as handle:
+        data = tomllib.load(handle)
+
+value = data.get(field, [])
+
+if isinstance(value, list):
+    for item in value:
+        print(item)
+elif value not in (None, ""):
+    print(value)
+PY
+}
+
 margine_detect_runtime_product() {
   local repo_root="$1"
   local product="${MARGINE_PRODUCT:-}"
@@ -105,6 +136,24 @@ margine_product_flavor() {
   fi
 
   printf '%s\n' "$flavor"
+}
+
+margine_product_extra_package_layers() {
+  local repo_root="$1"
+  local product="$2"
+  local manifest=""
+
+  manifest="$(margine_resolve_product_manifest "$repo_root" "$product")" || return 1
+  margine_product_list_field "$manifest" "extra_package_layers"
+}
+
+margine_product_extra_provisioners() {
+  local repo_root="$1"
+  local product="$2"
+  local manifest=""
+
+  manifest="$(margine_resolve_product_manifest "$repo_root" "$product")" || return 1
+  margine_product_list_field "$manifest" "extra_provisioners"
 }
 
 margine_detect_runtime_flavor() {
