@@ -315,6 +315,30 @@ The debug output should show:
 - computed positions for the centered auth layout
 - the selected temp config path
 
+Operational notes:
+
+- the runtime config is regenerated on every lock invocation
+- connecting or disconnecting a monitor does not change the current lockscreen
+  instantly; the new geometry is picked up at the next lock
+- the current policy uses the focused monitor at lock time, then falls back to
+  the first available monitor
+- the source of truth is split on purpose:
+  - `~/.config/hypr/hyprlock.conf` owns the visual template and wrapper markers
+  - `~/.local/bin/margine-hyprlock` owns the monitor-aware layout math
+
+The top-of-file tuning knobs in `margine-hyprlock` are intentionally exposed so
+that visual tuning can happen without rewriting the calculation flow. Those
+knobs are still clamped by the script to prevent unusable layouts on tiny or
+very large displays.
+
+Key invariants to preserve when editing the wrapper:
+
+- the password field stays the geometric anchor of the auth cluster
+- username and accent line remain derived from the auth cluster
+- time/date remain derived from the top safe margin
+- fingerprint prompt and failure label keep a minimum spacing from the password
+  field and from each other
+
 Failure fallback path is expected when no monitor JSON is available: lock still
 starts via plain `hyprlock` without crash.
 
