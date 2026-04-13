@@ -66,6 +66,17 @@ For binds that should be self-documenting in `hyprctl binds`, prefer:
 bindd = $mainMod, E, Open editor, exec, $editor
 ```
 
+`conf.d/60-binds.conf` is intentionally ordered for human scanning:
+
+1. daily use: launchers and helpers
+2. workspaces
+3. window/layout actions
+4. screenshots and media
+5. session/destructive actions
+
+When adding a new bind, place it in the nearest existing section instead of
+creating micro-sections.
+
 ### Add a new startup daemon
 
 Edit:
