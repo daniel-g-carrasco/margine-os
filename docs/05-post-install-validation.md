@@ -418,7 +418,7 @@ Check:
 - the default wallpaper asset exists at `/usr/share/margine/wallpapers/default.jpg`
 - `hyprpaper` is running in the session
 - GTK applications are on the intended dark theme
-- `accent-color` is set to the intended GNOME baseline
+- `accent-color` is set to the intended GNOME baseline (`slate`)
 - the Settings portal exposes `org.freedesktop.appearance accent-color`
 - GTK3 / legacy apps resolve to `adw-gtk3-dark`
 - icon theme resolves to `Papirus-Dark`

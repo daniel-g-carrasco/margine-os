@@ -12,7 +12,7 @@ set -euo pipefail
 command -v gsettings >/dev/null 2>&1 || exit 0
 
 gsettings set org.gnome.desktop.interface color-scheme prefer-dark >/dev/null 2>&1 || true
-gsettings set org.gnome.desktop.interface accent-color green >/dev/null 2>&1 || true
+gsettings set org.gnome.desktop.interface accent-color slate >/dev/null 2>&1 || true
 gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-dark >/dev/null 2>&1 || true
 gsettings set org.gnome.desktop.interface icon-theme Papirus-Dark >/dev/null 2>&1 || true
 

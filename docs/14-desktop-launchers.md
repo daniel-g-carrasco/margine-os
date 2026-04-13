@@ -79,6 +79,7 @@ The current baseline is grouped intentionally.
 
 - `Power Tools`
 - `Gaming Split-Lock Control`
+- `Papirus Folder Colors`
 - `Bluetooth Manager`
 - `NetworkManager Applet`
 
@@ -160,6 +161,13 @@ recognition matters more than generic DE consistency.
 - `Session Actions` -> `~/.local/bin/open-session-actions-menu`
 - `Power Tools` -> `~/.local/bin/open-power-settings`
 - `Gaming Split-Lock Control` -> `~/.local/bin/open-gaming-split-lock-menu`
+- `Papirus Folder Colors` -> `~/.local/bin/open-papirus-folder-colors-menu`
+
+`Papirus Folder Colors` is a terminal tool on purpose:
+
+- it requires context before acting
+- it may require `sudo`
+- it depends on the optional AUR layer `papirus-folder-colors`
 
 ## How to modify launchers safely
 

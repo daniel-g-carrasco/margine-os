@@ -13,6 +13,7 @@ Rules:
 The shared baseline lives in:
 
 - `packages/*.txt`
+- `aur/*.txt`
 - `flatpaks/apps.txt`
 
 Those files describe the common `Margine` system.
@@ -22,6 +23,7 @@ Those files describe the common `Margine` system.
 Flavor overlays can selectively replace individual manifests:
 
 - `flavors/<name>/packages/<layer>.txt`
+- `flavors/<name>/aur/<layer>.txt`
 - `flavors/<name>/flatpaks/apps.txt`
 
 If a flavor-specific file does not exist, the shared baseline is used.

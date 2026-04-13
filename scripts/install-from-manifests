@@ -88,6 +88,24 @@ list_all_official_layers() {
   )
 }
 
+list_all_aur_layers() {
+  local path=""
+  local layer=""
+  local -A seen=()
+
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    layer="${path##*/}"
+    layer="${layer%.txt}"
+    [[ -n "${seen[$layer]+x}" ]] && continue
+    seen["$layer"]=1
+    printf '%s\n' "$layer"
+  done < <(
+    find "${repo_root}/manifests/aur" -maxdepth 1 -type f -name '*.txt' -print 2>/dev/null
+    find "${repo_root}/manifests/flavors/${flavor}/aur" -maxdepth 1 -type f -name '*.txt' -print 2>/dev/null
+  )
+}
+
 warn() {
   printf 'warning: %s\n' "$*" >&2
 }
@@ -107,6 +125,11 @@ run_cmd() {
 
 have_cmd() {
   command -v "$1" >/dev/null 2>&1
+}
+
+is_aur_layer() {
+  local layer="$1"
+  margine_resolve_aur_layer "$repo_root" "$flavor" "$layer" >/dev/null 2>&1
 }
 
 list_layers() {
@@ -135,6 +158,13 @@ list_layers() {
   log "Layer AUR:"
   log "  - aur-baseline (automatic)"
   log "  - aur-exceptions (via --include-aur)"
+  while IFS= read -r layer; do
+    [[ -n "$layer" ]] || continue
+    if [[ "$layer" == "aur-baseline" || "$layer" == "aur-exceptions" ]]; then
+      continue
+    fi
+    printf '  - %s\n' "$layer"
+  done < <(list_all_aur_layers)
   if (( ${#product_extra_layers[@]} > 0 )); then
     log
     log "Product-specific extra layers:"
@@ -212,7 +242,8 @@ parse_args() {
 
 ensure_layer_exists() {
   local layer="$1"
-  margine_resolve_package_layer "$repo_root" "$flavor" "$layer" >/dev/null \
+  margine_resolve_package_layer "$repo_root" "$flavor" "$layer" >/dev/null 2>&1 \
+    || margine_resolve_aur_layer "$repo_root" "$flavor" "$layer" >/dev/null 2>&1 \
     || die "layer not found for flavor ${flavor}: ${layer}"
 }
 
@@ -255,6 +286,9 @@ install_official_layers() {
 
   log "Selected official layers:"
   for layer in "${requested_layers[@]}"; do
+    if is_aur_layer "$layer"; then
+      continue
+    fi
     printf '  - %s\n' "$layer"
     while IFS= read -r package; do
       [[ -n "$package" ]] || continue
@@ -265,7 +299,11 @@ install_official_layers() {
     done < <(read_manifest_lines "$(margine_resolve_package_layer "$repo_root" "$flavor" "$layer")")
   done
 
-  (( ${#packages[@]} > 0 )) || die "no official packages resolved from selected layers"
+  if (( ${#packages[@]} == 0 )); then
+    log
+    log "Resolved official packages: 0"
+    return 0
+  fi
 
   log
   log "Resolved official packages: ${#packages[@]}"
@@ -285,14 +323,42 @@ install_aur_manifest() {
 }
 
 install_aur_layers() {
+  local layer=""
+  local installed_exceptions=0
+
   install_aur_manifest \
     "$(margine_resolve_aur_baseline_manifest "$repo_root" "$flavor")" \
     "Manifest AUR baseline"
 
-  (( include_aur )) || return 0
-  install_aur_manifest \
-    "$(margine_resolve_aur_exceptions_manifest "$repo_root" "$flavor")" \
-    "Optional AUR manifest"
+  if (( include_aur )); then
+    install_aur_manifest \
+      "$(margine_resolve_aur_exceptions_manifest "$repo_root" "$flavor")" \
+      "Optional AUR manifest"
+    installed_exceptions=1
+  fi
+
+  for layer in "${requested_layers[@]}"; do
+    is_aur_layer "$layer" || continue
+
+    case "$layer" in
+      aur-baseline)
+        continue
+        ;;
+      aur-exceptions)
+        if (( installed_exceptions == 0 )); then
+          install_aur_manifest \
+            "$(margine_resolve_aur_exceptions_manifest "$repo_root" "$flavor")" \
+            "Optional AUR manifest"
+          installed_exceptions=1
+        fi
+        ;;
+      *)
+        install_aur_manifest \
+          "$(margine_resolve_aur_layer "$repo_root" "$flavor" "$layer")" \
+          "Optional AUR layer: ${layer}"
+        ;;
+    esac
+  done
 }
 
 install_flatpak_layer() {

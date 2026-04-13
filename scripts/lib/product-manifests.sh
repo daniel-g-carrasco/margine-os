@@ -241,6 +241,33 @@ margine_resolve_package_layer() {
   return 1
 }
 
+margine_resolve_aur_layer() {
+  local repo_root="$1"
+  local flavor="$2"
+  local layer="$3"
+  local override="${repo_root}/manifests/flavors/${flavor}/aur/${layer}.txt"
+  local common="${repo_root}/manifests/aur/${layer}.txt"
+
+  if [[ -f "$override" ]]; then
+    printf '%s\n' "$override"
+    return 0
+  fi
+
+  if [[ -f "$common" ]]; then
+    printf '%s\n' "$common"
+    return 0
+  fi
+
+  case "$layer" in
+    aur-baseline|aur-exceptions)
+      margine_resolve_package_layer "$repo_root" "$flavor" "$layer"
+      return $?
+      ;;
+  esac
+
+  return 1
+}
+
 margine_resolve_flatpaks_manifest() {
   local repo_root="$1"
   local flavor="$2"
@@ -264,12 +291,12 @@ margine_resolve_aur_baseline_manifest() {
   local repo_root="$1"
   local flavor="$2"
 
-  margine_resolve_package_layer "$repo_root" "$flavor" "aur-baseline"
+  margine_resolve_aur_layer "$repo_root" "$flavor" "aur-baseline"
 }
 
 margine_resolve_aur_exceptions_manifest() {
   local repo_root="$1"
   local flavor="$2"
 
-  margine_resolve_package_layer "$repo_root" "$flavor" "aur-exceptions"
+  margine_resolve_aur_layer "$repo_root" "$flavor" "aur-exceptions"
 }

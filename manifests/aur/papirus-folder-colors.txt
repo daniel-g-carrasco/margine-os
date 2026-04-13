@@ -1,0 +1,2 @@
+# Optional Papirus folder recoloring helper.
+papirus-folders-git
