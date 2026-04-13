@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+target="/etc/sysctl.d/99-margine-gaming-split-lock.conf"
+mode=""
+persist=1
+dry_run=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-gaming-split-lock [options]
+
+Options:
+  --status        Show runtime and persistent split-lock state
+  --enable        Enable the gaming override (kernel.split_lock_mitigate=0)
+  --disable       Disable the gaming override (kernel.split_lock_mitigate=1)
+  --no-persist    Apply only at runtime, do not write the sysctl drop-in
+  --dry-run       Show the plan without applying changes
+  --help          Show this help
+
+Notes:
+  - This matches the CachyOS gaming-meta tweak, but keeps it operator-controlled.
+  - The setting is runtime-togglable through sysctl and is not immutable.
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --status)
+        mode="status"
+        shift
+        ;;
+      --enable)
+        mode="enable"
+        shift
+        ;;
+      --disable)
+        mode="disable"
+        shift
+        ;;
+      --no-persist)
+        persist=0
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+
+  [[ -n "$mode" ]] || die "choose one of: --status, --enable, --disable"
+}
+
+require_root_if_mutating() {
+  if [[ "$mode" == "status" || $dry_run -eq 1 ]]; then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-gaming-split-lock must run as root"
+}
+
+ensure_supported() {
+  [[ -w /proc/sys/kernel/split_lock_mitigate || -r /proc/sys/kernel/split_lock_mitigate ]] \
+    || die "kernel.split_lock_mitigate not exposed on this system"
+}
+
+show_status() {
+  local runtime_value="unknown"
+  local persisted_value="not-set"
+  local runtime_mode="unknown"
+  local persisted_mode="not-set"
+
+  runtime_value="$(cat /proc/sys/kernel/split_lock_mitigate 2>/dev/null || true)"
+  if [[ -f "$target" ]]; then
+    persisted_value="$(sed -n 's/^kernel\.split_lock_mitigate=//p' "$target" | tail -n1 || true)"
+    [[ -n "$persisted_value" ]] || persisted_value="invalid"
+  fi
+
+  case "$runtime_value" in
+    0) runtime_mode="gaming-override-active" ;;
+    1) runtime_mode="mitigation-active" ;;
+  esac
+
+  case "$persisted_value" in
+    0) persisted_mode="gaming-override-active" ;;
+    1) persisted_mode="mitigation-active" ;;
+    invalid) persisted_mode="invalid" ;;
+    not-set) persisted_mode="not-set" ;;
+  esac
+
+  log "=== Gaming split-lock status ==="
+  log "runtime kernel.split_lock_mitigate: ${runtime_value:-unknown}"
+  log "runtime mode: ${runtime_mode}"
+  log "persistent drop-in: ${target}"
+  log "persistent value: ${persisted_value}"
+  log "persistent mode: ${persisted_mode}"
+}
+
+apply_value() {
+  local value="$1"
+
+  run_cmd sysctl -w "kernel.split_lock_mitigate=${value}"
+
+  if (( persist )); then
+    if (( dry_run )); then
+      printf '[dry-run] install -Dm644 split-lock sysctl -> %s\n' "$target"
+    else
+      install -Dm644 /dev/stdin "$target" <<EOF
+# Operator-controlled gaming override for split lock mitigation.
+# 0 matches the CachyOS gaming-meta tweak.
+kernel.split_lock_mitigate=${value}
+EOF
+    fi
+  fi
+}
+
+main() {
+  parse_args "$@"
+  require_root_if_mutating
+  ensure_supported
+
+  case "$mode" in
+    status)
+      show_status
+      ;;
+    enable)
+      log "=== Enable gaming split-lock override ==="
+      apply_value 0
+      ;;
+    disable)
+      log "=== Disable gaming split-lock override ==="
+      apply_value 1
+      ;;
+  esac
+}
+
+main "$@"

@@ -172,6 +172,21 @@ The tooltip reports:
 This gives operators a lightweight but explicit signal when the gaming override
 is active or when the next reboot will not match the current runtime state.
 
+For terminal-side management, the desktop also exposes:
+
+- `~/.local/bin/gaming-split-lock-menu`
+- `~/.local/bin/open-gaming-split-lock-menu`
+
+The menu is intentionally simple:
+
+- show status
+- enable the gaming override
+- disable the gaming override
+- require explicit terminal-side confirmation through `sudo`
+
+So the operator gets a controllable TTY workflow without turning Waybar itself
+into a one-click kernel-policy toggle.
+
 ## Why this model is preferable for `Margine`
 
 The project benefits are concrete:

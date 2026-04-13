@@ -97,3 +97,7 @@ Operational scripts:
 - `provision-host-greetd-baseline`: switches an already-installed host from
   `gdm` to `greetd + tuigreet`, reapplies fingerprint PAM baseline (including
   `greetd` and `hyprlock`), and keeps rollback commands explicit.
+- `provision-gaming-split-lock`: optional operator-controlled toggle for the
+  `kernel.split_lock_mitigate` gaming tweak; it is intentionally separate from
+  the gaming package layers so the performance/security tradeoff remains
+  explicit.
