@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+exec kitty \
+  --class session-actions-menu \
+  --title "Session actions" \
+  --override font_family="IBM Plex Mono" \
+  --override font_size=12.0 \
+  --override window_padding_width=14 \
+  --override background="#121212" \
+  --override foreground="#e6e6e6" \
+  "$HOME/.local/bin/margine-session-actions-menu"

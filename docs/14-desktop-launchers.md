@@ -73,6 +73,7 @@ The current baseline is grouped intentionally.
 - `Log Out`
 - `Restart`
 - `Power Off`
+- `Session Actions`
 
 ### Settings and operational controls
 
@@ -115,6 +116,7 @@ This is why:
 
 - `Gaming Split-Lock Control` opens a terminal tool
 - `Host Health Check` opens a terminal tool
+- `Session Actions` opens a terminal tool
 
 while direct session actions remain direct launchers.
 
@@ -131,6 +133,7 @@ The current versioned icon set covers:
 - `Log Out`
 - `Restart`
 - `Power Off`
+- `Session Actions`
 - `Power Tools`
 
 These icons are intentionally reserved for operational launchers where immediate
@@ -154,6 +157,7 @@ recognition matters more than generic DE consistency.
 
 ### Other critical controls
 
+- `Session Actions` -> `~/.local/bin/open-session-actions-menu`
 - `Power Tools` -> `~/.local/bin/open-power-settings`
 - `Gaming Split-Lock Control` -> `~/.local/bin/open-gaming-split-lock-menu`
 

@@ -12,6 +12,7 @@
 .local/share/icons/hicolor/scalable/apps/margine-power-off.svg
 .local/share/icons/hicolor/scalable/apps/margine-power-tools.svg
 .local/share/icons/hicolor/scalable/apps/margine-reboot.svg
+.local/share/icons/hicolor/scalable/apps/margine-session-actions.svg
 .local/share/icons/hicolor/scalable/apps/margine-suspend.svg
 .local/share/icons/hicolor/scalable/apps/margine-update-all.svg
 .config/gtk-3.0/settings.ini
@@ -65,6 +66,7 @@
 .local/share/applications/margine-power-off.desktop
 .local/share/applications/margine-power-settings.desktop
 .local/share/applications/margine-reboot.desktop
+.local/share/applications/margine-session-actions.desktop
 .local/share/applications/margine-suspend.desktop
 .local/share/applications/nm-applet.desktop
 .local/bin/battery-status
@@ -82,6 +84,7 @@
 .local/bin/keep-awake-toggle
 .local/bin/margine-apply-desktop-defaults
 .local/bin/margine-host-health-menu
+.local/bin/margine-session-actions-menu
 .local/bin/margine-import-session-environment
 .local/bin/margine-launcher
 .local/bin/margine-launcher-service
@@ -92,6 +95,7 @@
 .local/bin/notification-status
 .local/bin/open-gaming-split-lock-menu
 .local/bin/open-host-health-menu
+.local/bin/open-session-actions-menu
 .local/bin/open-bluetooth-settings
 .local/bin/open-bluetooth-tui
 .local/bin/open-network-applet-menu

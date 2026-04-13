@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+session_ctl="${HOME}/.local/bin/margine-session-control"
+
+pause_close() {
+  printf '\nPress Enter to close...'
+  read -r _
+}
+
+confirm_action() {
+  local prompt="$1"
+  local answer=""
+
+  printf '%s [y/N]: ' "$prompt"
+  read -r answer
+  [[ "$answer" == "y" || "$answer" == "Y" ]]
+}
+
+run_action() {
+  local action="$1"
+  exec "$session_ctl" "$action"
+}
+
+show_menu() {
+  clear
+  printf 'Margine Session Actions\n'
+  printf '=======================\n\n'
+  printf '1) Lock Screen\n'
+  printf '2) Turn Off Displays\n'
+  printf '3) Suspend\n'
+  printf '4) Log Out\n'
+  printf '5) Restart\n'
+  printf '6) Power Off\n'
+  printf 'q) Close\n\n'
+  printf '> '
+}
+
+main() {
+  local choice=""
+
+  [[ -x "$session_ctl" ]] || {
+    printf 'error: session control backend not found: %s\n' "$session_ctl" >&2
+    pause_close
+    exit 1
+  }
+
+  while true; do
+    show_menu
+    read -r choice
+
+    case "$choice" in
+      1) run_action lock ;;
+      2) run_action display-off ;;
+      3) run_action suspend ;;
+      4)
+        confirm_action "Log out from the current session?" && run_action logout
+        ;;
+      5)
+        confirm_action "Restart the system?" && run_action reboot
+        ;;
+      6)
+        confirm_action "Power off the system?" && run_action poweroff
+        ;;
+      q|Q) exit 0 ;;
+      *)
+        printf '\nUnknown selection.\n'
+        pause_close
+        ;;
+    esac
+  done
+}
+
+main "$@"
