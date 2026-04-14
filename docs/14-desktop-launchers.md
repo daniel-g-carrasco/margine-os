@@ -69,6 +69,7 @@ The current baseline is grouped intentionally.
 
 - `Power Tools`
 - `Gaming Split-Lock Control`
+- `Advanced Network Configuration`
 - `Bluetooth Manager`
 - `NetworkManager Applet`
 
@@ -130,6 +131,7 @@ while direct session actions remain direct launchers.
 - `Session Actions` -> `~/.local/bin/open-session-actions-menu`
 - `Power Tools` -> `~/.local/bin/open-power-settings`
 - `Gaming Split-Lock Control` -> `~/.local/bin/open-gaming-split-lock-menu`
+- `Advanced Network Configuration` -> `gtk-dark-exec nm-connection-editor`
 
 ## How to modify launchers safely
 

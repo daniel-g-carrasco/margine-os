@@ -63,6 +63,7 @@
 .local/share/applications/margine-host-health.desktop
 .local/share/applications/margine-lock-screen.desktop
 .local/share/applications/margine-log-out.desktop
+.local/share/applications/nm-connection-editor.desktop
 .local/share/applications/margine-power-off.desktop
 .local/share/applications/margine-power-settings.desktop
 .local/share/applications/margine-reboot.desktop
