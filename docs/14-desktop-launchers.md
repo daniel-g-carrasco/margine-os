@@ -46,16 +46,6 @@ This includes:
 
 Launchers should prefer stable icon-theme names when possible.
 
-Margine now ships a small custom icon set for its operational launchers under:
-
-- `files/home/.local/share/icons/hicolor/scalable/apps`
-
-Use a versioned custom icon when:
-
-- the launcher is genuinely Margine-specific
-- the action is safety-critical or operationally important
-- the themed fallback is too generic to be immediately recognizable
-
 ## Baseline launcher groups
 
 The current baseline is grouped intentionally.
@@ -99,10 +89,9 @@ The current baseline is grouped intentionally.
 ### Icons
 
 - prefer readable themed icons over novelty
-- use a dedicated icon when it improves meaning materially
 - avoid icon names that are too DE-specific unless the fallback story is acceptable
-- keep Margine operational icons in one coherent visual family
-- refresh the icon cache after changing versioned SVG assets
+- prefer stable icon-theme names from the active icon set first
+- introduce versioned custom icons only when a themed icon is genuinely missing
 
 ### Terminal policy
 
@@ -119,25 +108,6 @@ This is why:
 - `Session Actions` opens a terminal tool
 
 while direct session actions remain direct launchers.
-
-## Versioned Margine icon set
-
-The current versioned icon set covers:
-
-- `Update All`
-- `Host Health Check`
-- `Gaming Split-Lock Control`
-- `Lock Screen`
-- `Turn Off Displays`
-- `Suspend`
-- `Log Out`
-- `Restart`
-- `Power Off`
-- `Session Actions`
-- `Power Tools`
-
-These icons are intentionally reserved for operational launchers where immediate
-recognition matters more than generic DE consistency.
 
 ## Current core launchers
 
@@ -193,19 +163,10 @@ update-desktop-database ~/.local/share/applications 2>/dev/null || true
 hyprctl reload
 ```
 
-### If the icons changed
-
-Refresh the user icon cache after updating the versioned SVG assets:
-
-```bash
-gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor
-update-desktop-database ~/.local/share/applications 2>/dev/null || true
-```
-
 ## Suggested future improvements
 
-- extend the Margine icon set only when a launcher is operationally important
-  enough to justify long-term maintenance
+- add custom icons only for launchers where Papirus or the active icon theme
+  has no acceptable match
 - decide whether `Power Tools` should stay terminal-based or move to a richer
   GTK control UI
 - consider a dedicated `Maintenance` category if the launcher starts feeling too
