@@ -4,6 +4,13 @@ set -euo pipefail
 
 rfkill unblock wifi >/dev/null 2>&1 || true
 
+force_tui=0
+
+if [[ "${1:-}" == "--force-tui" ]]; then
+  force_tui=1
+  shift
+fi
+
 connected_ethernet_device() {
   command -v nmcli >/dev/null 2>&1 || return 1
   nmcli -t -f DEVICE,TYPE,STATE device status 2>/dev/null | awk -F: '$2 == "ethernet" && $3 == "connected" {print $1; exit}'
@@ -45,7 +52,7 @@ kitty_network_window=(
   --override color14="#b3a08d"
 )
 
-if [[ -n "$(connected_ethernet_device || true)" ]]; then
+if (( ! force_tui )) && [[ -n "$(connected_ethernet_device || true)" ]]; then
   if command -v nm-connection-editor >/dev/null 2>&1; then
     exec "$HOME/.local/bin/gtk-dark-exec" nm-connection-editor
   fi
@@ -55,7 +62,7 @@ if command -v impala >/dev/null 2>&1 && have_wifi_device; then
   exec "${kitty_network_window[@]}" -e impala
 fi
 
-if command -v nm-connection-editor >/dev/null 2>&1; then
+if (( ! force_tui )) && command -v nm-connection-editor >/dev/null 2>&1; then
   exec "$HOME/.local/bin/gtk-dark-exec" nm-connection-editor
 fi
 

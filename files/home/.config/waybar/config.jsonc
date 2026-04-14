@@ -100,6 +100,7 @@
     "exec": "~/.local/bin/network-status",
     "interval": 5,
     "on-click": "~/.local/bin/open-network-settings",
+    "on-click-middle": "~/.local/bin/open-network-tui --force-tui",
     "escape": true
   },
 

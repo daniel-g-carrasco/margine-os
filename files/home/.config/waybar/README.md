@@ -64,6 +64,17 @@ Edit:
 
 Keep the left / center / right arrays easy to scan. Prefer one item per line.
 
+### Network module actions
+
+The `custom/network` module deliberately exposes two different entry points:
+
+- left click: `~/.local/bin/open-network-settings`
+- middle click: `~/.local/bin/open-network-tui --force-tui`
+
+`--force-tui` matters because the network wrapper can otherwise choose
+`nm-connection-editor` for some wired-session cases. The middle click path is
+reserved for operators who explicitly want a terminal UI.
+
 ### Change colors, spacing, or typography
 
 Edit:
