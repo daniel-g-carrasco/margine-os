@@ -70,6 +70,7 @@ The current baseline is grouped intentionally.
 - `Power Tools`
 - `Gaming Split-Lock Control`
 - `Advanced Network Configuration`
+- `Plasma Network Management (Test)`
 - `Bluetooth Manager`
 
 ## Launcher design rules
@@ -131,6 +132,7 @@ while direct session actions remain direct launchers.
 - `Power Tools` -> `~/.local/bin/open-power-settings`
 - `Gaming Split-Lock Control` -> `~/.local/bin/open-gaming-split-lock-menu`
 - `Advanced Network Configuration` -> `gtk-dark-exec nm-connection-editor`
+- `Plasma Network Management (Test)` -> `~/.local/bin/open-plasma-network-management`
 
 ## How to modify launchers safely
 

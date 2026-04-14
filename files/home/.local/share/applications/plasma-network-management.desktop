@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Plasma Network Management (Test)
+Comment=Test the KDE Plasma network management panel
+Exec=/home/daniel/.local/bin/open-plasma-network-management
+Icon=preferences-system-network
+Categories=Settings;Network;
+Keywords=plasma;network;networkmanagement;kde;plasma-nm;test;
+Terminal=false
+NoDisplay=false

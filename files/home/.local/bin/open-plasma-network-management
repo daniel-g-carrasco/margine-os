@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+notify_missing() {
+  local body="$1"
+
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send "Plasma Network Management" "$body" || true
+  else
+    printf '%s\n' "$body" >&2
+  fi
+}
+
+if ! command -v kcmshell6 >/dev/null 2>&1; then
+  notify_missing "kcmshell6 is not installed."
+  exit 1
+fi
+
+if [[ ! -e /usr/share/applications/kcm_networkmanagement.desktop ]] \
+  && [[ ! -e /usr/lib/qt6/plugins/plasma/kcms/systemsettings_qwidgets/kcm_networkmanagement.so ]]
+then
+  notify_missing "plasma-nm is not installed. Test it with: sudo pacman -S plasma-nm"
+  exit 1
+fi
+
+exec kcmshell6 kcm_networkmanagement

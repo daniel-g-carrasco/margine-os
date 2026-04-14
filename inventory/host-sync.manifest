@@ -64,6 +64,7 @@
 .local/share/applications/margine-lock-screen.desktop
 .local/share/applications/margine-log-out.desktop
 .local/share/applications/nm-connection-editor.desktop
+.local/share/applications/plasma-network-management.desktop
 .local/share/applications/margine-power-off.desktop
 .local/share/applications/margine-power-settings.desktop
 .local/share/applications/margine-reboot.desktop
@@ -101,6 +102,7 @@
 .local/bin/open-network-applet-menu
 .local/bin/open-network-settings
 .local/bin/open-network-tui
+.local/bin/open-plasma-network-management
 .local/bin/open-power-settings
 .local/bin/open-vpn-menu
 .local/bin/polkit-agent-launch
