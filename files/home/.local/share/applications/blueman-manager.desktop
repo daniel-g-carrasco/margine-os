@@ -2,7 +2,7 @@
 Name=Bluetooth Manager
 Comment=Blueman Bluetooth Manager
 Icon=blueman
-Exec=gtk-dark-exec blueman-manager
+Exec=/home/daniel/.local/bin/gtk-dark-exec blueman-manager
 Terminal=false
 Type=Application
 Categories=Settings;HardwareSettings;
