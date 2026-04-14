@@ -7,12 +7,14 @@ set -euo pipefail
 # - GTK4/libadwaita apps stay on Adwaita dark behavior
 # - GTK3/legacy apps use `adw-gtk3-dark` for closer visual parity
 # - the global icon theme is `Papirus-Dark`
+# - the default UI font is `IBM Plex Sans 10`
 # - accent color is kept explicit in gsettings even if not every app surfaces it
 
 command -v gsettings >/dev/null 2>&1 || exit 0
 
 gsettings set org.gnome.desktop.interface color-scheme prefer-dark >/dev/null 2>&1 || true
 gsettings set org.gnome.desktop.interface accent-color slate >/dev/null 2>&1 || true
+gsettings set org.gnome.desktop.interface font-name 'IBM Plex Sans 10' >/dev/null 2>&1 || true
 gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-dark >/dev/null 2>&1 || true
 gsettings set org.gnome.desktop.interface icon-theme Papirus-Dark >/dev/null 2>&1 || true
 

@@ -402,6 +402,7 @@ ls -l /usr/share/margine/wallpapers/default.jpg
 pgrep -af 'hyprpaper|koofr'
 gsettings get org.gnome.desktop.interface accent-color
 gsettings get org.gnome.desktop.interface color-scheme
+gsettings get org.gnome.desktop.interface font-name
 gsettings get org.gnome.desktop.interface gtk-theme
 gsettings get org.gnome.desktop.interface icon-theme
 gdbus call --session \
@@ -423,6 +424,7 @@ Check:
 - `hyprpaper` is running in the session
 - GTK applications are on the intended dark theme
 - `accent-color` is set to the intended GNOME baseline (`slate`)
+- `font-name` is set to the intended GNOME baseline (`IBM Plex Sans 10`)
 - the Settings portal exposes `org.freedesktop.appearance accent-color`
 - GTK3 / legacy apps resolve to `adw-gtk3-dark`
 - icon theme resolves to `Papirus-Dark`
