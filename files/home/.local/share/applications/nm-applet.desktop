@@ -1,8 +1,8 @@
 [Desktop Entry]
-Name=NetworkManager Applet
-Comment=Manage your network connections
+Name=Network Tray Menu
+Comment=Open the NetworkManager tray menu
 Icon=nm-device-wireless
-Exec=gtk-dark-x11-exec nm-applet
+Exec=/home/daniel/.local/bin/open-network-applet-menu
 Terminal=false
 Type=Application
 Categories=Settings;Network;

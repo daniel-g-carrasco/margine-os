@@ -71,7 +71,7 @@ The current baseline is grouped intentionally.
 - `Gaming Split-Lock Control`
 - `Advanced Network Configuration`
 - `Bluetooth Manager`
-- `NetworkManager Applet`
+- `Network Tray Menu`
 
 ## Launcher design rules
 
