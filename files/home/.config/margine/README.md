@@ -71,11 +71,12 @@ Preset rule:
 What `margine-apply-theme` does:
 
 - optionally rewrites the active `theme.env` from a named preset
-- mirrors `~/.config/margine/theme.env` into the public and personal repos
-- regenerates derived theme artifacts in the repos
+- mirrors `~/.config/margine/theme.env` into the public repo first
+- regenerates derived theme artifacts needed by the live session
 - copies generated runtime files back onto the host
 - reapplies GTK / GNOME session defaults
-- reloads Hyprland, Waybar, SwayNC and SwayOSD
+- reloads Hyprland, Waybar, SwayNC and SwayOSD before non-critical mirror work
+- mirrors the same theme into the personal repo after the visible refresh
 - refreshes generated Fuzzel theme colors for launcher and picker menus
 - refreshes the generated `nmtui` palette file
 - updates the lockscreen theme source indirectly, so the next `hyprlock`

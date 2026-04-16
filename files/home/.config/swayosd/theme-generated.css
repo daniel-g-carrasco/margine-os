@@ -2,8 +2,8 @@
 window#osd {
   padding: 5px 5px;
   border-radius: 0px;
-  background: rgba(26, 26, 26, 0.80);
-  border: 1px solid rgba(230, 217, 196, 0.20);
+  background: rgba(29, 23, 26, 0.80);
+  border: 1px solid rgba(240, 214, 223, 0.20);
 }
 
 progressbar {
@@ -12,19 +12,19 @@ progressbar {
 }
 
 progressbar trough {
-  background: rgba(232, 230, 227, 0.10);
+  background: rgba(238, 229, 233, 0.10);
   border-radius: 0px;
 }
 
 progressbar progress {
-  background: rgba(230, 217, 196, 0.90);
+  background: rgba(240, 214, 223, 0.90);
   border-radius: 0px;
 }
 
 image {
-  color: #e6d9c4;
+  color: #f0d6df;
 }
 
 label {
-  color: #e6d9c4;
+  color: #f0d6df;
 }

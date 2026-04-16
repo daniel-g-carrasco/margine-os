@@ -1,10 +1,10 @@
 /* Generated from ~/.config/margine/theme.env */
-@define-color fg #e8e6e3;
-@define-color muted #b9b5af;
-@define-color panel #1a1a1a;
-@define-color border #303030;
-@define-color hover #1e1e1e;
-@define-color accent #c39b72;
-@define-color accent_secondary #e6d9c4;
-@define-color accent_tertiary #cba6f7;
+@define-color fg #eee5e9;
+@define-color muted #bdaab1;
+@define-color panel #1d171a;
+@define-color border #403238;
+@define-color hover #221b1f;
+@define-color accent #c08aa1;
+@define-color accent_secondary #f0d6df;
+@define-color accent_tertiary #f5c2e7;
 @define-color critical #f38ba8;

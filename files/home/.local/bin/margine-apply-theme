@@ -295,6 +295,7 @@ print_follow_up_notes() {
 Theme apply complete.
 
 Notes:
+- local visible refresh now happens before non-critical repo mirroring
 - repo copies of theme.env and generated artifacts are now updated
 - GTK / Hyprland / Waybar / SwayNC / Kitty live artifacts were refreshed
 - if you changed Papirus folder tint or Firefox managed theme policy, use:
@@ -324,15 +325,18 @@ main() {
 
   sync_theme_to_repo "$public_repo" && source_repo="$public_repo"
 
-  if [[ -d "$personal_repo" ]]; then
-    sync_theme_to_repo "$personal_repo"
-  fi
-
   [[ -n "$source_repo" ]] || die "public repo not found at ${public_repo}"
 
   copy_generated_files_to_host "$source_repo"
-  apply_papirus_folder_defaults
   reload_session_theme
+
+  if [[ -d "$personal_repo" ]]; then
+    log
+    log "==> Sync non-critical repo mirror"
+    sync_theme_to_repo "$personal_repo"
+  fi
+
+  apply_papirus_folder_defaults
   print_follow_up_notes
 }
 
