@@ -9,6 +9,7 @@ username=""
 home_dir=""
 
 declare -a home_payload=(
+  ".config/Code/User/settings.json"
   ".config/autostart/koofr.desktop"
   ".config/elephant/websearch.toml"
   ".config/darktable/darktablerc-common"
