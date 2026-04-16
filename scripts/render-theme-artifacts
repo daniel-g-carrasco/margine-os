@@ -148,6 +148,8 @@ hover = env("MARGINE_THEME_HOVER")
 warning = env("MARGINE_THEME_WARNING")
 critical = env("MARGINE_THEME_CRITICAL")
 hypr_inactive = env("MARGINE_THEME_HYPR_INACTIVE_BORDER")
+hypr_active_primary = os.environ.get("MARGINE_THEME_HYPR_ACTIVE_BORDER_PRIMARY", primary)
+hypr_active_secondary = os.environ.get("MARGINE_THEME_HYPR_ACTIVE_BORDER_SECONDARY", secondary)
 hypr_border_size = int(env("MARGINE_THEME_HYPR_BORDER_SIZE"))
 hypr_rounding = int(env("MARGINE_THEME_HYPR_WINDOW_ROUNDING"))
 hypr_active_primary_alpha = float(env("MARGINE_THEME_HYPR_ACTIVE_BORDER_PRIMARY_ALPHA"))
@@ -165,7 +167,7 @@ hypr_theme.write_text(
             "# Generated from ~/.config/margine/theme.env",
             "general {",
             f"    border_size = {hypr_border_size}",
-            f"    col.active_border = {rgba_hex(secondary, hypr_active_secondary_alpha)} {rgba_hex(primary, hypr_active_primary_alpha)} 45deg",
+            f"    col.active_border = {rgba_hex(hypr_active_secondary, hypr_active_secondary_alpha)} {rgba_hex(hypr_active_primary, hypr_active_primary_alpha)} 45deg",
             f"    col.inactive_border = {rgba_hex(hypr_inactive, hypr_inactive_alpha)}",
             "}",
             "",

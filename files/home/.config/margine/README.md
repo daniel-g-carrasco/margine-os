@@ -18,6 +18,13 @@ It currently drives:
 - SwayNC palette import
 - Kitty color include
 
+Hyprland-specific note:
+
+- `MARGINE_THEME_HYPR_ACTIVE_BORDER_PRIMARY` and `...SECONDARY` let you keep
+  Hyprland borders independent from the desktop accent palette
+- set both to the same value for a solid border instead of a gradient
+- `MARGINE_THEME_HYPR_WINDOW_ROUNDING='0'` gives square window corners
+
 Operational rule:
 
 - edit `theme.env`
