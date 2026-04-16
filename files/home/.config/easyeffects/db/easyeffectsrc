@@ -1,8 +1,15 @@
 [Presets]
 lastLoadedOutputPreset=fw13-easy-effects
 
+[StreamInputs]
+inputDevice=alsa_input.pci-0000_c1_00.6.analog-stereo
+
 [StreamOutputs]
+mostUsedPresets=fw13-easy-effects
+outputDevice=alsa_output.pci-0000_c1_00.6.analog-stereo
+plugins=filter#0,bass_enhancer#0,convolver#0,multiband_compressor#0,stereo_tools#0,limiter#0
 showBlocklistedApps=true
+usedPresets=fw13-easy-effects:2
 visiblePlugin=filter#0
 
 [Style]
@@ -10,7 +17,7 @@ forceBreezeTheme=false
 
 [Window]
 autostartOnLogin=true
-height=908
+height=906
 visiblePipeWirePage=modulesPage
 visiblePresetSheetPage=autoloadingPage
-width=707
+width=705
