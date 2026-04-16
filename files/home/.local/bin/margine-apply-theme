@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+home_theme_file="${HOME}/.config/margine/theme.env"
+public_repo="${HOME}/dev/margine-os"
+personal_repo="${HOME}/dev/margine-os-personal"
+dry_run=0
+
+declare -a generated_files=(
+  ".config/gtk-3.0/settings.ini"
+  ".config/gtk-4.0/settings.ini"
+  ".config/hypr/conf.d/45-theme-generated.conf"
+  ".config/hypr/hyprtoolkit.conf"
+  ".config/kitty/theme-generated.conf"
+  ".config/swaync/theme-generated.css"
+  ".config/waybar/theme-generated.css"
+)
+
+usage() {
+  cat <<'EOF'
+Usage:
+  margine-apply-theme [--dry-run]
+
+Reads ~/.config/margine/theme.env, mirrors it into the local Margine repos,
+regenerates derived theme artifacts, copies the generated runtime files back
+onto the host, reapplies session defaults and reloads the desktop components
+that honor live theme updates.
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %q' "$1"
+    shift || true
+    for arg in "$@"; do
+      printf ' %q' "$arg"
+    done
+    printf '\n'
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+ensure_prereqs() {
+  [[ -f "$home_theme_file" ]] || die "theme file not found: $home_theme_file"
+}
+
+sync_theme_to_repo() {
+  local repo_root="$1"
+  local repo_theme="${repo_root}/files/home/.config/margine/theme.env"
+  local renderer="${repo_root}/scripts/render-theme-artifacts"
+
+  [[ -d "$repo_root" ]] || return 1
+  [[ -x "$renderer" ]] || die "theme renderer missing or not executable: $renderer"
+
+  log
+  log "==> Sync theme into ${repo_root}"
+  run_cmd install -Dm644 "$home_theme_file" "$repo_theme"
+
+  log
+  log "==> Regenerate derived artifacts in ${repo_root}"
+  run_cmd "$renderer"
+}
+
+copy_generated_files_to_host() {
+  local repo_root="$1"
+  local relative=""
+  local source=""
+  local target=""
+
+  log
+  log "==> Install generated runtime theme files"
+
+  for relative in "${generated_files[@]}"; do
+    source="${repo_root}/files/home/${relative}"
+    target="${HOME}/${relative}"
+    [[ -f "$source" ]] || die "generated artifact missing: $source"
+    run_cmd install -Dm644 "$source" "$target"
+  done
+}
+
+apply_papirus_folder_defaults() {
+  log
+  log "==> Apply Papirus folder color"
+
+  if ! command -v papirus-folders >/dev/null 2>&1; then
+    warn "papirus-folders not installed; skipping folder tint refresh"
+    return 0
+  fi
+
+  # shellcheck disable=SC1090
+  source "$home_theme_file"
+
+  if (( dry_run )); then
+    run_cmd papirus-folders \
+      --theme "${MARGINE_THEME_PAPIRUS_FOLDER_THEME}" \
+      --color "${MARGINE_THEME_PAPIRUS_FOLDER_COLOR}" \
+      --update-caches
+    return 0
+  fi
+
+  if ! papirus-folders \
+    --theme "${MARGINE_THEME_PAPIRUS_FOLDER_THEME}" \
+    --color "${MARGINE_THEME_PAPIRUS_FOLDER_COLOR}" \
+    --update-caches; then
+    warn "Papirus folder tint not applied in-place; re-run root provisioning if you changed folder color"
+  fi
+}
+
+reload_session_theme() {
+  log
+  log "==> Reapply session defaults"
+  if [[ -x "${HOME}/.local/bin/margine-apply-desktop-defaults" ]]; then
+    run_cmd "${HOME}/.local/bin/margine-apply-desktop-defaults"
+  else
+    warn "margine-apply-desktop-defaults not found; skipping gsettings refresh"
+  fi
+
+  log
+  log "==> Reload Hyprland"
+  if command -v hyprctl >/dev/null 2>&1; then
+    run_cmd hyprctl reload
+  else
+    warn "hyprctl not found; skipping Hyprland reload"
+  fi
+
+  log
+  log "==> Restart Waybar"
+  if [[ -x "${HOME}/.config/waybar/launch.sh" ]]; then
+    run_cmd "${HOME}/.config/waybar/launch.sh"
+  else
+    warn "Waybar launch helper not found; skipping Waybar restart"
+  fi
+
+  log
+  log "==> Restart SwayNC"
+  if [[ -x "${HOME}/.config/swaync/launch.sh" ]]; then
+    run_cmd "${HOME}/.config/swaync/launch.sh"
+  else
+    warn "SwayNC launch helper not found; skipping SwayNC restart"
+  fi
+}
+
+print_follow_up_notes() {
+  cat <<'EOF'
+
+Theme apply complete.
+
+Notes:
+- repo copies of theme.env and generated artifacts are now updated
+- GTK / Hyprland / Waybar / SwayNC / Kitty live artifacts were refreshed
+- if you changed Papirus folder tint or Firefox managed theme policy, use:
+  sudo /home/daniel/dev/margine-os/scripts/provision-user-app-config --username "$USER"
+- already-open GTK apps may still need a restart to pick up all visual changes
+EOF
+}
+
+main() {
+  local source_repo=""
+
+  parse_args "$@"
+  ensure_prereqs
+
+  sync_theme_to_repo "$public_repo" && source_repo="$public_repo"
+
+  if [[ -d "$personal_repo" ]]; then
+    sync_theme_to_repo "$personal_repo"
+  fi
+
+  [[ -n "$source_repo" ]] || die "public repo not found at ${public_repo}"
+
+  copy_generated_files_to_host "$source_repo"
+  apply_papirus_folder_defaults
+  reload_session_theme
+  print_follow_up_notes
+}
+
+main "$@"

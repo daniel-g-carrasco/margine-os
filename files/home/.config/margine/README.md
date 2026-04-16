@@ -28,8 +28,21 @@ Hyprland-specific note:
 Operational rule:
 
 - edit `theme.env`
-- regenerate derived repo artifacts
-- re-apply provisioning on the host
+- run `~/.local/bin/margine-apply-theme`
+
+What `margine-apply-theme` does:
+
+- mirrors `~/.config/margine/theme.env` into the public and personal repos
+- regenerates derived theme artifacts in the repos
+- copies generated runtime files back onto the host
+- reapplies GTK / GNOME session defaults
+- reloads Hyprland, Waybar and SwayNC
+
+What it does not do:
+
+- it does not touch root-managed files under `/etc`
+- if you changed Papirus folder tint or Firefox managed theme policy, re-run:
+  `sudo /home/daniel/dev/margine-os/scripts/provision-user-app-config --username $USER`
 
 Current generator:
 

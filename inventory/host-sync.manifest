@@ -90,6 +90,7 @@
 .local/bin/keep-awake-status
 .local/bin/keep-awake-toggle
 .local/bin/margine-apply-desktop-defaults
+.local/bin/margine-apply-theme
 .local/bin/margine-host-health-menu
 .local/bin/margine-session-actions-menu
 .local/bin/margine-import-session-environment
