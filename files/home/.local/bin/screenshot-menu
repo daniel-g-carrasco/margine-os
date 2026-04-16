@@ -122,22 +122,26 @@ capture_geometry() {
 resolve_selection() {
   case "${1:-menu}" in
     menu|"")
-      choice="$(choose_from_menu "Screenshot" $'󰍹  Active monitor\n󰍺  Select monitor\n󰖲  Active window\n󰖯  Select window\n󰹑  Region' || true)"
-      [[ -n "$choice" ]] && settle_after_menu
+      choice="$(choose_from_menu "Screenshot" $'󰍹    Active monitor\n󰍺    Select monitor\n󰖲    Active window\n󰖯    Select window\n󰹑    Region' || true)"
+      if [[ -z "$choice" ]]; then
+        printf '%s\n' '__cancel__'
+        return 0
+      fi
+      settle_after_menu
       case "$choice" in
-        '󰍹  Active monitor')
+        '󰍹    Active monitor')
           printf '%s\n' 'monitor:active'
           ;;
-        '󰍺  Select monitor')
+        '󰍺    Select monitor')
           printf '%s\n' 'monitor'
           ;;
-        '󰖲  Active window')
+        '󰖲    Active window')
           printf '%s\n' 'window:active'
           ;;
-        '󰖯  Select window')
+        '󰖯    Select window')
           printf '%s\n' 'window'
           ;;
-        '󰹑  Region')
+        '󰹑    Region')
           printf '%s\n' 'region'
           ;;
       esac
@@ -161,7 +165,8 @@ capture_selection() {
       ;;
     monitor)
       choice="$(choose_from_menu "Monitor" "$(monitor_choices)" || true)"
-      [[ -n "$choice" ]] && settle_after_menu
+      [[ -n "$choice" ]] || return 2
+      settle_after_menu
       monitor_name="${choice%%$'\t'*}"
       capture_monitor "$monitor_name"
       ;;
@@ -171,12 +176,14 @@ capture_selection() {
       ;;
     window)
       choice="$(choose_from_menu "Window" "$(window_choices)" || true)"
-      [[ -n "$choice" ]] && settle_after_menu
+      [[ -n "$choice" ]] || return 2
+      settle_after_menu
       geometry="${choice##*$'\t'}"
       capture_geometry "$geometry"
       ;;
     region)
       geometry="$(slurp || true)"
+      [[ -n "$geometry" ]] || return 2
       capture_geometry "$geometry"
       ;;
     *)
@@ -192,14 +199,20 @@ fi
 
 selection="$(resolve_selection "${1:-menu}")"
 
-if [[ -z "$selection" ]]; then
-  selection="monitor:active"
+if [[ "$selection" == "__cancel__" || -z "$selection" ]]; then
+  exit 0
 fi
 
 filename="$(date '+%Y-%m-%d_%H-%M-%S').png"
 filepath="${output_dir}/${filename}"
 
-if ! capture_selection "$selection"; then
+if capture_selection "$selection"; then
+  :
+else
+  status=$?
+  if [[ "$status" -eq 2 ]]; then
+    exit 0
+  fi
   notify-send -u normal "Screenshot" "Capture failed"
   exit 0
 fi

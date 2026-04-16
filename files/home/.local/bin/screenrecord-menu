@@ -22,10 +22,10 @@ choose_from_menu() {
 
   choice="$(
     printf '%s\n' \
-      '󰑋  Focused monitor' \
-      '󰹑  Region' \
-      '󰛑  Stop recording' \
-      '󰉍  Open recordings folder' |
+      '󰑋    Focused monitor' \
+      '󰹑    Region' \
+      '󰛑    Stop recording' \
+      '󰉍    Open recordings folder' |
       "${HOME}/.local/bin/margine-dmenu" \
         --prompt 'Record> ' \
         --placeholder 'Choose a recording action' \
@@ -41,16 +41,16 @@ choose_from_menu() {
 choice="$(choose_from_menu || true)"
 
 case "$choice" in
-  '󰑋  Focused monitor')
+  '󰑋    Focused monitor')
     exec "${HOME}/.local/bin/screenrecord-toggle" --start
     ;;
-  '󰹑  Region')
+  '󰹑    Region')
     exec "${HOME}/.local/bin/screenrecord-region-toggle" --start
     ;;
-  '󰛑  Stop recording')
+  '󰛑    Stop recording')
     exec "${HOME}/.local/bin/screenrecord-stop"
     ;;
-  '󰉍  Open recordings folder')
+  '󰉍    Open recordings folder')
     launch_detached nautilus "$output_dir" || launch_detached xdg-open "$output_dir"
     ;;
 esac
