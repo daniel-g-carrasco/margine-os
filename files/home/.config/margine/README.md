@@ -22,6 +22,7 @@ It currently drives:
 - SwayNC palette import
 - SwayOSD palette and rounding
 - Kitty color include
+- versioned theme presets under `~/.config/margine/themes`
 
 Hyprland-specific note:
 
@@ -60,8 +61,16 @@ Operational rule:
 - edit `theme.env`
 - run `~/.local/bin/margine-apply-theme`
 
+Preset rule:
+
+- the active file remains `~/.config/margine/theme.env`
+- reusable snapshots live under `~/.config/margine/themes/*.env`
+- use `margine-apply-theme --preset NAME` or the `Themes` launcher when you
+  want to switch the full palette quickly
+
 What `margine-apply-theme` does:
 
+- optionally rewrites the active `theme.env` from a named preset
 - mirrors `~/.config/margine/theme.env` into the public and personal repos
 - regenerates derived theme artifacts in the repos
 - copies generated runtime files back onto the host
@@ -81,3 +90,8 @@ What it does not do:
 Current generator:
 
 - `/home/daniel/dev/margine-os/scripts/render-theme-artifacts`
+
+Preset launcher:
+
+- `/home/daniel/.local/bin/margine-theme-menu`
+- desktop entry: `Themes`

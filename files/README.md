@@ -17,6 +17,7 @@ Examples already present:
 - `home/.local/share/easyeffects/output/fw13-easy-effects.json`
 - `home/.config/systemd/user/margine-framework-audio.service`
 - `home/.config/margine/theme.env`
+- `home/.config/margine/themes/*.env`
 
 Note:
 
@@ -34,6 +35,9 @@ Theme note:
 
 - `home/.config/margine/theme.env` is the canonical source of truth for the
   shared desktop theme baseline
+- `home/.config/margine/themes/*.env` stores reusable palette presets that can
+  be applied through `margine-apply-theme --preset ...` without losing the
+  commented structure of the active `theme.env`
 - derived files such as GTK settings, Walker/Fuzzel launcher theme artifacts,
   generated `nmtui` colors, the hyprlock presentation layer consumed by
   `margine-hyprlock`, and the managed Firefox theme policy should be rendered

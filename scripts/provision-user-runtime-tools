@@ -30,6 +30,7 @@ declare -a home_payload=(
   ".local/bin/keep-awake-toggle"
   ".local/bin/margine-apply-desktop-defaults"
   ".local/bin/margine-apply-theme"
+  ".local/bin/margine-theme-menu"
   ".local/bin/margine-validate-host-health"
   ".local/bin/open-vpn-menu"
   ".local/bin/vpn-menu"

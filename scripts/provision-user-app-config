@@ -12,6 +12,7 @@ declare -a home_payload=(
   ".config/Code/User/settings.json"
   ".config/margine/README.md"
   ".config/margine/theme.env"
+  ".config/margine/themes"
   ".config/autostart/koofr.desktop"
   ".config/elephant/websearch.toml"
   ".config/darktable/darktablerc-common"

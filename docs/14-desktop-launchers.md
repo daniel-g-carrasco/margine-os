@@ -68,6 +68,7 @@ The current baseline is grouped intentionally.
 ### Settings and operational controls
 
 - `Power Tools`
+- `Themes`
 - `Gaming Split-Lock Control`
 - `Advanced Network Configuration`
 - `Plasma Network Management (Test)`
@@ -130,6 +131,7 @@ while direct session actions remain direct launchers.
 
 - `Session Actions` -> `~/.local/bin/open-session-actions-menu`
 - `Power Tools` -> `~/.local/bin/open-power-settings`
+- `Themes` -> `~/.local/bin/margine-theme-menu`
 - `Gaming Split-Lock Control` -> `~/.local/bin/open-gaming-split-lock-menu`
 - `Advanced Network Configuration` -> `gtk-dark-exec nm-connection-editor`
 - `Plasma Network Management (Test)` -> `~/.local/bin/open-plasma-network-management`

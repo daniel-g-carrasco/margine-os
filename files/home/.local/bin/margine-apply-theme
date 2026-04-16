@@ -2,9 +2,13 @@
 set -euo pipefail
 
 home_theme_file="${HOME}/.config/margine/theme.env"
+theme_presets_dir="${HOME}/.config/margine/themes"
+active_theme_file="${home_theme_file}"
 public_repo="${HOME}/dev/margine-os"
 personal_repo="${HOME}/dev/margine-os-personal"
 dry_run=0
+preset_name=""
+list_presets=0
 
 declare -a generated_files=(
   ".config/fuzzel/theme-generated.ini"
@@ -23,12 +27,16 @@ declare -a generated_files=(
 usage() {
   cat <<'EOF'
 Usage:
-  margine-apply-theme [--dry-run]
+  margine-apply-theme [--preset NAME] [--list-presets] [--dry-run]
 
 Reads ~/.config/margine/theme.env, mirrors it into the local Margine repos,
 regenerates derived theme artifacts, copies the generated runtime files back
 onto the host, reapplies session defaults and reloads the desktop components
 that honor live theme updates.
+
+Options:
+  --preset NAME    Apply a preset from ~/.config/margine/themes before syncing
+  --list-presets   Print available presets as TSV: id, name, description
 EOF
 }
 
@@ -61,6 +69,15 @@ run_cmd() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --preset)
+        [[ $# -ge 2 ]] || die "missing value for --preset"
+        preset_name="$2"
+        shift 2
+        ;;
+      --list-presets)
+        list_presets=1
+        shift
+        ;;
       --dry-run)
         dry_run=1
         shift
@@ -74,6 +91,88 @@ parse_args() {
         ;;
     esac
   done
+}
+
+list_available_presets() {
+  local preset_file=""
+  local preset_id=""
+  local preset_name_local=""
+  local preset_description=""
+
+  [[ -d "$theme_presets_dir" ]] || return 0
+
+  while IFS= read -r -d '' preset_file; do
+    preset_id=""
+    preset_name_local=""
+    preset_description=""
+
+    # shellcheck disable=SC1090
+    source "$preset_file"
+
+    preset_id="${MARGINE_THEME_PRESET_ID:-${preset_file##*/}}"
+    preset_id="${preset_id%.env}"
+    preset_name_local="${MARGINE_THEME_PRESET_NAME:-$preset_id}"
+    preset_description="${MARGINE_THEME_PRESET_DESCRIPTION:-}"
+
+    printf '%s\t%s\t%s\n' \
+      "$preset_id" \
+      "$preset_name_local" \
+      "$preset_description"
+  done < <(find "$theme_presets_dir" -maxdepth 1 -type f -name '*.env' -print0 | sort -z)
+}
+
+resolve_preset_file() {
+  local candidate="$1"
+
+  [[ -n "$candidate" ]] || return 1
+
+  if [[ -f "$theme_presets_dir/$candidate" ]]; then
+    printf '%s\n' "$theme_presets_dir/$candidate"
+    return 0
+  fi
+
+  if [[ -f "$theme_presets_dir/${candidate}.env" ]]; then
+    printf '%s\n' "$theme_presets_dir/${candidate}.env"
+    return 0
+  fi
+
+  return 1
+}
+
+apply_preset_to_theme_file() {
+  local preset_file="$1"
+  local tmp_file=""
+  local assignment=""
+  local key=""
+  local escaped_assignment=""
+
+  [[ -f "$preset_file" ]] || die "preset file not found: $preset_file"
+
+  tmp_file="$(mktemp)"
+  cp "$home_theme_file" "$tmp_file"
+
+  while IFS= read -r assignment; do
+    [[ "$assignment" == MARGINE_THEME_*'='* ]] || continue
+    key="${assignment%%=*}"
+    escaped_assignment="${assignment//&/\\&}"
+
+    if grep -q "^${key}=" "$tmp_file"; then
+      sed -i "s|^${key}=.*$|${escaped_assignment}|" "$tmp_file"
+    else
+      printf '%s\n' "$assignment" >> "$tmp_file"
+    fi
+  done < "$preset_file"
+
+  if (( dry_run )); then
+    printf '[dry-run] install preset %s -> %s\n' "$preset_file" "$home_theme_file"
+    active_theme_file="$preset_file"
+    rm -f "$tmp_file"
+    return 0
+  fi
+
+  install -Dm644 "$tmp_file" "$home_theme_file"
+  active_theme_file="$home_theme_file"
+  rm -f "$tmp_file"
 }
 
 ensure_prereqs() {
@@ -90,7 +189,7 @@ sync_theme_to_repo() {
 
   log
   log "==> Sync theme into ${repo_root}"
-  run_cmd install -Dm644 "$home_theme_file" "$repo_theme"
+  run_cmd install -Dm644 "$active_theme_file" "$repo_theme"
 
   log
   log "==> Regenerate derived artifacts in ${repo_root}"
@@ -124,7 +223,7 @@ apply_papirus_folder_defaults() {
   fi
 
   # shellcheck disable=SC1090
-  source "$home_theme_file"
+  source "$active_theme_file"
 
   if (( dry_run )); then
     run_cmd papirus-folders \
@@ -206,9 +305,22 @@ EOF
 
 main() {
   local source_repo=""
+  local preset_file=""
 
   parse_args "$@"
+  if (( list_presets )); then
+    list_available_presets
+    exit 0
+  fi
+
   ensure_prereqs
+
+  if [[ -n "$preset_name" ]]; then
+    preset_file="$(resolve_preset_file "$preset_name")" || die "unknown preset: $preset_name"
+    log
+    log "==> Apply theme preset ${preset_name}"
+    apply_preset_to_theme_file "$preset_file"
+  fi
 
   sync_theme_to_repo "$public_repo" && source_repo="$public_repo"
 

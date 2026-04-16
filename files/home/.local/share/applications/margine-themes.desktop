@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Themes
+Comment=Switch Margine theme presets with the Fuzzel theme menu
+Exec=/home/daniel/.local/bin/margine-theme-menu
+Icon=preferences-desktop-theme-global
+Categories=Settings;DesktopSettings;
+Keywords=theme;themes;color;palette;appearance;style;
+Terminal=false
+NoDisplay=false

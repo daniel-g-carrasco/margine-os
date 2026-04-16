@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+apply_cmd="${HOME}/.local/bin/margine-apply-theme"
+theme_file="${HOME}/.config/margine/theme.env"
+fuzzel_config="${HOME}/.config/fuzzel/fuzzel.ini"
+log_file="${XDG_RUNTIME_DIR:-/tmp}/margine-apply-theme.log"
+
+declare -A selection_to_id=()
+declare -a entries=()
+
+current_id=""
+current_name=""
+
+if [[ ! -x "$apply_cmd" ]]; then
+  printf 'error: margine-apply-theme not found: %s\n' "$apply_cmd" >&2
+  exit 1
+fi
+
+if ! command -v fuzzel >/dev/null 2>&1; then
+  printf 'error: fuzzel not found\n' >&2
+  exit 1
+fi
+
+if [[ -f "$theme_file" ]]; then
+  # shellcheck disable=SC1090
+  source "$theme_file"
+  current_id="${MARGINE_THEME_PRESET_ID:-}"
+  current_name="${MARGINE_THEME_PRESET_NAME:-$current_id}"
+fi
+
+while IFS=$'\t' read -r preset_id preset_name preset_description; do
+  [[ -n "$preset_id" ]] || continue
+
+  if [[ "$preset_id" == "$current_id" ]]; then
+    preset_description="${preset_description} [active]"
+  fi
+
+  selection_to_id["${preset_name}"$'\t'"${preset_description}"]="$preset_id"
+  entries+=("${preset_name}"$'\t'"${preset_description}")
+done < <("$apply_cmd" --list-presets)
+
+(( ${#entries[@]} > 0 )) || {
+  printf 'error: no theme presets found\n' >&2
+  exit 1
+}
+
+selection="$(
+  printf '%s\n' "${entries[@]}" | \
+    fuzzel \
+      --config "$fuzzel_config" \
+      --dmenu \
+      --prompt 'Themes: ' \
+      --placeholder 'Select theme preset' \
+      --lines 8 \
+      --width 64
+)"
+
+[[ -n "$selection" ]] || exit 0
+
+preset_id="${selection_to_id[$selection]:-}"
+[[ -n "$preset_id" ]] || exit 1
+
+if [[ "$preset_id" == "$current_id" ]]; then
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send -a Margine -i preferences-desktop-theme-global \
+      'Theme unchanged' "${current_name:-$preset_id} is already active."
+  fi
+  exit 0
+fi
+
+if "$apply_cmd" --preset "$preset_id" >"$log_file" 2>&1; then
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send -a Margine -i preferences-desktop-theme-global \
+      'Theme applied' "Preset: $preset_id"
+  fi
+  exit 0
+fi
+
+if command -v notify-send >/dev/null 2>&1; then
+  notify-send -a Margine -u critical -i preferences-desktop-theme-global \
+    'Theme apply failed' "See ${log_file}"
+fi
+
+exit 1

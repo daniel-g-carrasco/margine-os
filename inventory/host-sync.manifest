@@ -8,6 +8,10 @@
 .config/gtk-4.0/settings.ini
 .config/margine/README.md
 .config/margine/theme.env
+.config/margine/themes/default.env
+.config/margine/themes/forest-night.env
+.config/margine/themes/rose-noir.env
+.config/margine/themes/slate-graphite.env
 .config/xdg-desktop-portal/hyprland-portals.conf
 .config/fuzzel/fuzzel.ini
 .config/fuzzel/theme-generated.ini
@@ -79,6 +83,7 @@
 .local/share/applications/margine-reboot.desktop
 .local/share/applications/margine-session-actions.desktop
 .local/share/applications/margine-suspend.desktop
+.local/share/applications/margine-themes.desktop
 .local/bin/battery-status
 .local/bin/brightness-osd
 .local/bin/easyeffects-status
@@ -95,6 +100,7 @@
 .local/bin/margine-dmenu
 .local/bin/margine-apply-desktop-defaults
 .local/bin/margine-apply-theme
+.local/bin/margine-theme-menu
 .local/bin/margine-host-health-menu
 .local/bin/margine-session-actions-menu
 .local/bin/margine-import-session-environment
