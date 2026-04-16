@@ -16,7 +16,7 @@ It currently drives:
 - Hyprlock palette and input rounding
 - HyprToolkit palette
 - Waybar palette import
-- Walker palette
+- Walker palette and launcher font
 - Fuzzel fallback launcher and dmenu picker theme
 - SwayNC palette import
 - SwayOSD palette and rounding
@@ -28,6 +28,13 @@ Hyprland-specific note:
   Hyprland borders independent from the desktop accent palette
 - set both to the same value for a solid border instead of a gradient
 - `MARGINE_THEME_HYPR_WINDOW_ROUNDING='0'` gives square window corners
+
+Launcher-specific note:
+
+- `MARGINE_THEME_LAUNCHER_FONT_NAME` feeds both the Walker theme import and the
+  generated Fuzzel font stack
+- the launcher sizing knobs feed Fuzzel directly and let you keep screenshot /
+  recording pickers compact without editing scripts
 
 Operational rule:
 

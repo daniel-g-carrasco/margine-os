@@ -34,6 +34,6 @@ Theme note:
 
 - `home/.config/margine/theme.env` is the canonical source of truth for the
   shared desktop theme baseline
-- derived files such as GTK settings, Fuzzel theme config, and the managed
-  Firefox theme policy should be rendered from there instead of edited
-  independently
+- derived files such as GTK settings, Walker/Fuzzel launcher theme artifacts,
+  and the managed Firefox theme policy should be rendered from there instead of
+  edited independently
