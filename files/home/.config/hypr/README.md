@@ -37,6 +37,8 @@ The goal is:
   Environment variables and XWayland behavior.
 - `conf.d/40-look-and-feel.conf`
   Gaps, borders, decoration, blur, animation, layout defaults.
+- `conf.d/45-theme-generated.conf`
+  Generated window-border and rounding overrides rendered from `~/.config/margine/theme.env`.
 - `conf.d/50-input.conf`
   Keyboard, touchpad, gestures, and device overrides.
 - `conf.d/60-binds.conf`
@@ -90,6 +92,11 @@ Use `exec-once` when the process should start exactly once per login.
 Edit:
 
 - `conf.d/40-look-and-feel.conf`
+- `~/.config/margine/theme.env` if the change is really part of the shared visual baseline
+
+If the goal is to change the active/inactive border palette, border thickness,
+or global window rounding, start from `~/.config/margine/theme.env` and
+re-render the generated theme artifacts.
 
 ### Change keyboard or touchpad behavior
 

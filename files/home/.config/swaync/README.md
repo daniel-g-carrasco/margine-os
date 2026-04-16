@@ -39,6 +39,9 @@ Use this file as the annotation layer for the keys that matter most.
 
 Almost all visual adjustments belong in `style.css`, not here.
 
+The shared palette lives in `theme-generated.css`, rendered from
+`~/.config/margine/theme.env`.
+
 Start from these knobs in `style.css`:
 
 - `--panel-padding`

@@ -1,12 +1,6 @@
 /* SwayNC theme */
 
-@define-color fg #e8e6e3;
-@define-color muted #b9b5af;
-@define-color panel #1a1a1a;
-@define-color border #303030;
-@define-color hover #232323;
-@define-color accent #c39b72;
-@define-color critical #f38ba8;
+@import url("theme-generated.css");
 
 :root {
   --panel-padding: 20px;

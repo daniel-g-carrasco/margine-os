@@ -16,11 +16,13 @@ declare -a home_payload=(
   ".config/hypr/hyprlauncher.conf"
   ".config/hypr/hyprlock.conf"
   ".config/hypr/hyprpaper.conf"
+  ".config/hypr/hyprtoolkit.conf"
   ".config/hypr/monitors.conf"
   ".config/hypr/conf.d/10-variables.conf"
   ".config/hypr/conf.d/20-autostart.conf"
   ".config/hypr/conf.d/30-environment.conf"
   ".config/hypr/conf.d/40-look-and-feel.conf"
+  ".config/hypr/conf.d/45-theme-generated.conf"
   ".config/hypr/conf.d/50-input.conf"
   ".config/hypr/conf.d/60-binds.conf"
   ".config/hypr/conf.d/70-rules.conf"
@@ -28,15 +30,18 @@ declare -a home_payload=(
   ".config/swaync/config.json"
   ".config/swaync/launch.sh"
   ".config/swaync/style.css"
+  ".config/swaync/theme-generated.css"
   ".config/swayosd/style.css"
   ".config/waybar/README.md"
   ".config/walker/config.toml"
   ".config/walker/themes/default/style.css"
   ".config/waybar/config.jsonc"
   ".config/waybar/style.css"
+  ".config/waybar/theme-generated.css"
   ".config/waybar/launch.sh"
   ".config/waybar/restart-swaync.sh"
   ".config/waybar/toggle.sh"
+  ".config/kitty/theme-generated.conf"
   ".local/bin/annotate-screenshot"
   ".local/bin/battery-status"
   ".local/bin/brightness-osd"
@@ -72,6 +77,7 @@ declare -a home_payload=(
 )
 
 wallpaper_source="${repo_root}/files/usr/share/margine/wallpapers/default.jpg"
+theme_renderer_source="${repo_root}/scripts/render-theme-artifacts"
 
 usage() {
   cat <<'EOF'
@@ -136,6 +142,14 @@ require_root() {
 resolve_home_dir() {
   home_dir="$(getent passwd "$username" | cut -d: -f6)"
   [[ -n "$home_dir" ]] || die "could not resolve home for user: $username"
+}
+
+render_theme_artifacts() {
+  log
+  log "==> Render centralized theme artifacts"
+
+  [[ -x "$theme_renderer_source" ]] || die "required source file not found: $theme_renderer_source"
+  run_cmd "$theme_renderer_source"
 }
 
 ensure_sources() {
@@ -203,6 +217,7 @@ main() {
   [[ -n "$username" ]] || die "--username is required"
 
   resolve_home_dir
+  render_theme_artifacts
   ensure_sources
   install_home_payload
   install_system_wallpaper

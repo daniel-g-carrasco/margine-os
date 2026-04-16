@@ -1,0 +1,10 @@
+/* Generated from ~/.config/margine/theme.env */
+@define-color fg #e8e6e3;
+@define-color muted #b9b5af;
+@define-color panel #1a1a1a;
+@define-color border #303030;
+@define-color hover #1e1e1e;
+@define-color accent #c39b72;
+@define-color accent_secondary #e6d9c4;
+@define-color accent_tertiary #cba6f7;
+@define-color critical #f38ba8;

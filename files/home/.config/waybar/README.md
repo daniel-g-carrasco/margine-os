@@ -8,6 +8,8 @@ This directory owns the top bar for the Hyprland desktop.
   Module order, Waybar options, and module configuration blocks.
 - `style.css`
   Visual presentation only.
+- `theme-generated.css`
+  Generated core palette rendered from `~/.config/margine/theme.env`.
 - `launch.sh`
   Restart Waybar with the versioned config and write logs to `~/.cache/waybar.log`.
 - `toggle.sh`
@@ -19,6 +21,7 @@ This directory owns the top bar for the Hyprland desktop.
 
 - `config.jsonc` decides what appears on the bar and in what order.
 - `style.css` decides how those modules look.
+- `theme-generated.css` owns the shared palette tokens consumed by `style.css`.
 - `~/.local/bin/*status` scripts decide the JSON payload for `custom/*` modules.
 
 ## Module map
@@ -80,7 +83,8 @@ UI.
 
 Edit:
 
-- `style.css`
+- `~/.config/margine/theme.env` for shared palette changes
+- `style.css` for module-local layout and spacing
 
 Touch the palette tokens first, then module-specific rules.
 

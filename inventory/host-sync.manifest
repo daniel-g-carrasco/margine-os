@@ -6,6 +6,8 @@
 .local/share/icons/hicolor/256x256/apps/duckduckgo.png
 .config/gtk-3.0/settings.ini
 .config/gtk-4.0/settings.ini
+.config/margine/README.md
+.config/margine/theme.env
 .config/xdg-desktop-portal/hyprland-portals.conf
 .config/hypr/hypridle.conf
 .config/hypr/hyprlauncher.conf
@@ -15,16 +17,19 @@
 .config/hypr/conf.d/20-autostart.conf
 .config/hypr/conf.d/30-environment.conf
 .config/hypr/conf.d/40-look-and-feel.conf
+.config/hypr/conf.d/45-theme-generated.conf
 .config/hypr/conf.d/50-input.conf
 .config/hypr/conf.d/60-binds.conf
 .config/hypr/conf.d/70-rules.conf
 .config/hypr/hyprtoolkit.conf
 .config/kitty/kitty.conf
+.config/kitty/theme-generated.conf
 .config/nmtui/colors.conf
 .config/satty/config.toml
 .config/swaync/config.json
 .config/swaync/launch.sh
 .config/swaync/style.css
+.config/swaync/theme-generated.css
 .config/swayosd/style.css
 .config/waybar/README.md
 .config/systemd/user/elephant.service
@@ -55,6 +60,7 @@
 .config/waybar/launch.sh
 .config/waybar/restart-swaync.sh
 .config/waybar/style.css
+.config/waybar/theme-generated.css
 .config/waybar/toggle.sh
 .local/share/applications/bitwarden.desktop
 .local/share/applications/blueman-manager.desktop

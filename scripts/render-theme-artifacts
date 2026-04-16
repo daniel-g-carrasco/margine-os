@@ -14,8 +14,10 @@ die() {
 }
 
 [[ -f "$theme_file" ]] || die "theme baseline not found: $theme_file"
-# shellcheck source=../files/home/.config/margine/theme.env
+set -a
+# shellcheck disable=SC1090
 source "$theme_file"
+set +a
 
 : "${MARGINE_THEME_FONT_NAME:?missing theme font}"
 : "${MARGINE_THEME_GTK3_THEME:?missing GTK3 theme}"
@@ -40,14 +42,39 @@ gtk-icon-theme-name=${MARGINE_THEME_ICON_THEME}
 gtk-font-name=${MARGINE_THEME_FONT_NAME}
 EOF
 
-python3 - "$firefox_policy_output" "$MARGINE_THEME_FIREFOX_THEME_ID" "$MARGINE_THEME_FIREFOX_THEME_INSTALL_URL" <<'PY'
+python3 - "$repo_root" "$firefox_policy_output" "$MARGINE_THEME_FIREFOX_THEME_ID" "$MARGINE_THEME_FIREFOX_THEME_INSTALL_URL" <<'PY'
 import json
+import math
+import os
 import pathlib
 import sys
 
-output = pathlib.Path(sys.argv[1])
-theme_id = sys.argv[2]
-theme_url = sys.argv[3]
+repo_root = pathlib.Path(sys.argv[1])
+output = pathlib.Path(sys.argv[2])
+theme_id = sys.argv[3]
+theme_url = sys.argv[4]
+
+def env(name: str) -> str:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        raise SystemExit(f"missing required theme variable: {name}")
+    return value
+
+def hex_triplet(value: str) -> str:
+    return value.lstrip("#")
+
+def rgba_hex(value: str, alpha: float) -> str:
+    rgb = hex_triplet(value)
+    a = max(0, min(255, round(alpha * 255)))
+    return f"rgba({rgb}{a:02x})"
+
+def qt_argb(value: str, alpha: float = 1.0) -> str:
+    rgb = hex_triplet(value)
+    a = max(0, min(255, round(alpha * 255)))
+    return f"0x{a:02X}{rgb.upper()}"
+
+def rounding_small(value: int) -> int:
+    return max(0, value - 2)
 
 payload = {
     "policies": {
@@ -101,6 +128,145 @@ payload = {
 
 output.parent.mkdir(parents=True, exist_ok=True)
 output.write_text(json.dumps(payload, indent=2) + "\n")
+
+hypr_theme = repo_root / "files/home/.config/hypr/conf.d/45-theme-generated.conf"
+waybar_theme = repo_root / "files/home/.config/waybar/theme-generated.css"
+swaync_theme = repo_root / "files/home/.config/swaync/theme-generated.css"
+kitty_theme = repo_root / "files/home/.config/kitty/theme-generated.conf"
+hyprtoolkit_theme = repo_root / "files/home/.config/hypr/hyprtoolkit.conf"
+
+primary = env("MARGINE_THEME_PRIMARY")
+secondary = env("MARGINE_THEME_SECONDARY")
+tertiary = env("MARGINE_THEME_TERTIARY")
+text = env("MARGINE_THEME_TEXT")
+muted = env("MARGINE_THEME_MUTED")
+bg = env("MARGINE_THEME_BG")
+surface = env("MARGINE_THEME_SURFACE")
+surface_alt = env("MARGINE_THEME_SURFACE_ALT")
+border = env("MARGINE_THEME_BORDER")
+hover = env("MARGINE_THEME_HOVER")
+warning = env("MARGINE_THEME_WARNING")
+critical = env("MARGINE_THEME_CRITICAL")
+hypr_inactive = env("MARGINE_THEME_HYPR_INACTIVE_BORDER")
+hypr_border_size = int(env("MARGINE_THEME_HYPR_BORDER_SIZE"))
+hypr_rounding = int(env("MARGINE_THEME_HYPR_WINDOW_ROUNDING"))
+hypr_active_primary_alpha = float(env("MARGINE_THEME_HYPR_ACTIVE_BORDER_PRIMARY_ALPHA"))
+hypr_active_secondary_alpha = float(env("MARGINE_THEME_HYPR_ACTIVE_BORDER_SECONDARY_ALPHA"))
+hypr_inactive_alpha = float(env("MARGINE_THEME_HYPR_INACTIVE_BORDER_ALPHA"))
+hypr_shadow = env("MARGINE_THEME_HYPR_SHADOW")
+hypr_shadow_alpha = float(env("MARGINE_THEME_HYPR_SHADOW_ALPHA"))
+kitty_bg_opacity = env("MARGINE_THEME_KITTY_BACKGROUND_OPACITY")
+icon_theme = env("MARGINE_THEME_ICON_THEME")
+
+hypr_theme.parent.mkdir(parents=True, exist_ok=True)
+hypr_theme.write_text(
+    "\n".join(
+        [
+            "# Generated from ~/.config/margine/theme.env",
+            "general {",
+            f"    border_size = {hypr_border_size}",
+            f"    col.active_border = {rgba_hex(secondary, hypr_active_secondary_alpha)} {rgba_hex(primary, hypr_active_primary_alpha)} 45deg",
+            f"    col.inactive_border = {rgba_hex(hypr_inactive, hypr_inactive_alpha)}",
+            "}",
+            "",
+            "decoration {",
+            f"    rounding = {hypr_rounding}",
+            f"    shadow {{" ,
+            f"        color = {rgba_hex(hypr_shadow, hypr_shadow_alpha)}",
+            "    }",
+            "}",
+            "",
+        ]
+    )
+)
+
+waybar_theme.parent.mkdir(parents=True, exist_ok=True)
+waybar_theme.write_text(
+    "\n".join(
+        [
+            "/* Generated from ~/.config/margine/theme.env */",
+            f"@define-color fg {text};",
+            f"@define-color muted {muted};",
+            f"@define-color bg {bg};",
+            f"@define-color border {border};",
+            f"@define-color hover {hover};",
+            f"@define-color accent {primary};",
+            f"@define-color accent_secondary {secondary};",
+            f"@define-color accent_tertiary {tertiary};",
+            f"@define-color warning {warning};",
+            f"@define-color critical {critical};",
+            "",
+        ]
+    )
+)
+
+swaync_theme.parent.mkdir(parents=True, exist_ok=True)
+swaync_theme.write_text(
+    "\n".join(
+        [
+            "/* Generated from ~/.config/margine/theme.env */",
+            f"@define-color fg {text};",
+            f"@define-color muted {muted};",
+            f"@define-color panel {surface};",
+            f"@define-color border {border};",
+            f"@define-color hover {hover};",
+            f"@define-color accent {primary};",
+            f"@define-color accent_secondary {secondary};",
+            f"@define-color accent_tertiary {tertiary};",
+            f"@define-color critical {critical};",
+            "",
+        ]
+    )
+)
+
+kitty_theme.parent.mkdir(parents=True, exist_ok=True)
+kitty_theme.write_text(
+    "\n".join(
+        [
+            "# Generated from ~/.config/margine/theme.env",
+            f"foreground {text}",
+            f"background {bg}",
+            f"selection_foreground {bg}",
+            f"selection_background {secondary}",
+            f"cursor {primary}",
+            f"cursor_text_color {bg}",
+            f"active_border_color {primary}",
+            f"inactive_border_color {hypr_inactive}",
+            f"background_opacity {kitty_bg_opacity}",
+            "",
+        ]
+    )
+)
+
+hyprtoolkit_theme.parent.mkdir(parents=True, exist_ok=True)
+hyprtoolkit_theme.write_text(
+    "\n".join(
+        [
+            "# Generated from ~/.config/margine/theme.env",
+            f"background = {qt_argb(bg, 0.96)}",
+            f"base = {qt_argb(surface, 0.98)}",
+            f"alternate_base = {qt_argb(surface_alt, 1.0)}",
+            f"text = {qt_argb(text, 1.0)}",
+            f"bright_text = {qt_argb(secondary, 1.0)}",
+            f"accent = {qt_argb(primary, 1.0)}",
+            f"accent_secondary = {qt_argb(secondary, 1.0)}",
+            "",
+            "font_family = Atkinson Hyperlegible Next",
+            "font_family_monospace = IBM Plex Mono",
+            "font_size = 12",
+            "small_font_size = 10",
+            "h1_size = 18",
+            "h2_size = 15",
+            "h3_size = 13",
+            "",
+            f"rounding_large = {hypr_rounding}",
+            f"rounding_small = {rounding_small(hypr_rounding)}",
+            "",
+            f"icon_theme = {icon_theme}",
+            "",
+        ]
+    )
+)
 PY
 
 printf 'Rendered theme artifacts from %s\n' "$theme_file"

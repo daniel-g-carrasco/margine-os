@@ -12,6 +12,11 @@ It currently drives:
 - accent color
 - Papirus folder tint
 - managed Firefox theme install
+- Hyprland window border colors and rounding
+- HyprToolkit palette
+- Waybar palette import
+- SwayNC palette import
+- Kitty color include
 
 Operational rule:
 
