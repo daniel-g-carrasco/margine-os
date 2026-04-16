@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+theme_file="${repo_root}/files/home/.config/margine/theme.env"
+gtk3_output="${repo_root}/files/home/.config/gtk-3.0/settings.ini"
+gtk4_output="${repo_root}/files/home/.config/gtk-4.0/settings.ini"
+firefox_policy_output="${repo_root}/files/etc/firefox/policies/policies.json"
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+[[ -f "$theme_file" ]] || die "theme baseline not found: $theme_file"
+# shellcheck source=../files/home/.config/margine/theme.env
+source "$theme_file"
+
+: "${MARGINE_THEME_FONT_NAME:?missing theme font}"
+: "${MARGINE_THEME_GTK3_THEME:?missing GTK3 theme}"
+: "${MARGINE_THEME_GTK4_THEME:?missing GTK4 theme}"
+: "${MARGINE_THEME_ICON_THEME:?missing icon theme}"
+: "${MARGINE_THEME_FIREFOX_THEME_ID:?missing Firefox theme id}"
+: "${MARGINE_THEME_FIREFOX_THEME_INSTALL_URL:?missing Firefox theme URL}"
+
+cat >"$gtk3_output" <<EOF
+[Settings]
+gtk-theme-name=${MARGINE_THEME_GTK3_THEME}
+gtk-application-prefer-dark-theme=1
+gtk-icon-theme-name=${MARGINE_THEME_ICON_THEME}
+gtk-font-name=${MARGINE_THEME_FONT_NAME}
+EOF
+
+cat >"$gtk4_output" <<EOF
+[Settings]
+gtk-theme-name=${MARGINE_THEME_GTK4_THEME}
+gtk-application-prefer-dark-theme=1
+gtk-icon-theme-name=${MARGINE_THEME_ICON_THEME}
+gtk-font-name=${MARGINE_THEME_FONT_NAME}
+EOF
+
+python3 - "$firefox_policy_output" "$MARGINE_THEME_FIREFOX_THEME_ID" "$MARGINE_THEME_FIREFOX_THEME_INSTALL_URL" <<'PY'
+import json
+import pathlib
+import sys
+
+output = pathlib.Path(sys.argv[1])
+theme_id = sys.argv[2]
+theme_url = sys.argv[3]
+
+payload = {
+    "policies": {
+        "SearchEngines": {
+            "Default": "DuckDuckGo",
+        },
+        "ExtensionSettings": {
+            "*": {
+                "blocked_install_message": "This extension is managed by Margine.",
+            },
+            "uBlock0@raymondhill.net": {
+                "install_url": "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi",
+                "installation_mode": "force_installed",
+            },
+            theme_id: {
+                "install_url": theme_url,
+                "installation_mode": "normal_installed",
+            },
+        },
+        "DisableTelemetry": True,
+        "DisableFirefoxStudies": True,
+        "DisablePocket": True,
+        "DontCheckDefaultBrowser": True,
+        "NoDefaultBookmarks": True,
+        "UserMessaging": {
+            "ExtensionRecommendations": False,
+            "FeatureRecommendations": False,
+            "FirefoxLabs": False,
+            "Locked": True,
+            "MoreFromMozilla": False,
+            "SkipOnboarding": True,
+            "UrlbarInterventions": False,
+        },
+        "FirefoxSuggest": {
+            "ImproveSuggest": False,
+            "Locked": True,
+            "SponsoredSuggestions": False,
+            "WebSuggestions": False,
+        },
+        "FirefoxHome": {
+            "Pocket": False,
+            "Stories": False,
+            "SponsoredStories": False,
+            "SponsoredPocket": False,
+            "SponsoredTopSites": False,
+            "Snippets": False,
+            "Locked": True,
+        },
+    }
+}
+
+output.parent.mkdir(parents=True, exist_ok=True)
+output.write_text(json.dumps(payload, indent=2) + "\n")
+PY
+
+printf 'Rendered theme artifacts from %s\n' "$theme_file"

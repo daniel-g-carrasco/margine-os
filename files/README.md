@@ -16,6 +16,7 @@ Examples already present:
 - `etc/sudoers.d/10-margine-wheel`
 - `home/.local/share/easyeffects/output/fw13-easy-effects.json`
 - `home/.config/systemd/user/margine-framework-audio.service`
+- `home/.config/margine/theme.env`
 
 Note:
 
@@ -28,3 +29,10 @@ Rule:
 - no file here should be "mysterious";
 - every important file should be explained by an ADR, a learning note, or clear
   local comments.
+
+Theme note:
+
+- `home/.config/margine/theme.env` is the canonical source of truth for the
+  shared desktop theme baseline
+- derived files such as GTK settings and the managed Firefox theme policy
+  should be rendered from there instead of edited independently

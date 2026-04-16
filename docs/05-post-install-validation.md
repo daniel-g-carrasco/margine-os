@@ -413,6 +413,7 @@ gsettings get org.gnome.desktop.interface color-scheme
 gsettings get org.gnome.desktop.interface font-name
 gsettings get org.gnome.desktop.interface gtk-theme
 gsettings get org.gnome.desktop.interface icon-theme
+sed -n '1,120p' ~/.config/margine/theme.env
 gdbus call --session \
   --dest org.freedesktop.portal.Desktop \
   --object-path /org/freedesktop/portal/desktop \
@@ -430,6 +431,7 @@ Check:
 
 - the default wallpaper asset exists at `/usr/share/margine/wallpapers/default.jpg`
 - `hyprpaper` is running in the session
+- `~/.config/margine/theme.env` reflects the intended single source of truth for the visual baseline
 - GTK applications are on the intended dark theme
 - `accent-color` is set to the intended GNOME baseline (`slate`)
 - `font-name` is set to the intended GNOME baseline (`IBM Plex Sans 10`)

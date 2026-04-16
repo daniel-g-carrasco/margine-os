@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+theme_file="${HOME}/.config/margine/theme.env"
+
 # Session-level GTK / GNOME defaults for the Hyprland desktop.
 #
 # Policy:
@@ -11,12 +13,16 @@ set -euo pipefail
 # - accent color is kept explicit in gsettings even if not every app surfaces it
 
 command -v gsettings >/dev/null 2>&1 || exit 0
+[[ -f "$theme_file" ]] || exit 0
 
-gsettings set org.gnome.desktop.interface color-scheme prefer-dark >/dev/null 2>&1 || true
-gsettings set org.gnome.desktop.interface accent-color slate >/dev/null 2>&1 || true
-gsettings set org.gnome.desktop.interface font-name 'IBM Plex Sans 10' >/dev/null 2>&1 || true
-gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-dark >/dev/null 2>&1 || true
-gsettings set org.gnome.desktop.interface icon-theme Papirus-Dark >/dev/null 2>&1 || true
+# shellcheck source=/dev/null
+source "$theme_file"
+
+gsettings set org.gnome.desktop.interface color-scheme "${MARGINE_THEME_COLOR_SCHEME}" >/dev/null 2>&1 || true
+gsettings set org.gnome.desktop.interface accent-color "${MARGINE_THEME_ACCENT_COLOR}" >/dev/null 2>&1 || true
+gsettings set org.gnome.desktop.interface font-name "${MARGINE_THEME_FONT_NAME}" >/dev/null 2>&1 || true
+gsettings set org.gnome.desktop.interface gtk-theme "${MARGINE_THEME_GSETTINGS_GTK_THEME}" >/dev/null 2>&1 || true
+gsettings set org.gnome.desktop.interface icon-theme "${MARGINE_THEME_ICON_THEME}" >/dev/null 2>&1 || true
 
 gsettings set org.gnome.TextEditor style-scheme Adwaita-dark >/dev/null 2>&1 || true
 gsettings set org.gnome.TextEditor style-variant follow >/dev/null 2>&1 || true

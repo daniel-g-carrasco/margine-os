@@ -10,6 +10,8 @@ home_dir=""
 
 declare -a home_payload=(
   ".config/Code/User/settings.json"
+  ".config/margine/README.md"
+  ".config/margine/theme.env"
   ".config/autostart/koofr.desktop"
   ".config/elephant/websearch.toml"
   ".config/darktable/darktablerc-common"
@@ -33,6 +35,7 @@ global_update_source="${repo_root}/scripts/update-all"
 host_health_wrapper_source="${repo_root}/files/usr/local/bin/margine-validate-host-health"
 darktable_baseline_source="${repo_root}/files/home/.config/darktable/darktablerc"
 libreoffice_baseline_source="${repo_root}/files/home/.config/libreoffice/4/user/registrymodifications.xcu"
+theme_renderer_source="${repo_root}/scripts/render-theme-artifacts"
 
 usage() {
   cat <<'EOF'
@@ -101,6 +104,14 @@ require_root() {
 resolve_home_dir() {
   home_dir="$(getent passwd "$username" | cut -d: -f6)"
   [[ -n "$home_dir" ]] || die "could not resolve home for user: $username"
+}
+
+render_theme_artifacts() {
+  log
+  log "==> Render centralized theme artifacts"
+
+  [[ -x "$theme_renderer_source" ]] || die "required source not found: $theme_renderer_source"
+  run_cmd "$theme_renderer_source"
 }
 
 install_tree() {
@@ -273,6 +284,7 @@ main() {
   [[ -n "$username" ]] || die "--username is required"
 
   resolve_home_dir
+  render_theme_artifacts
   copy_home_payload
   install_darktable_baseline
   install_libreoffice_baseline
