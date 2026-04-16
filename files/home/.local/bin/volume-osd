@@ -7,16 +7,24 @@ action="${1:-}"
 if command -v swayosd-client >/dev/null 2>&1; then
   case "$action" in
     up)
-      exec swayosd-client --output-volume raise
+      if swayosd-client --output-volume raise >/dev/null 2>&1; then
+        exit 0
+      fi
       ;;
     down)
-      exec swayosd-client --output-volume lower
+      if swayosd-client --output-volume lower >/dev/null 2>&1; then
+        exit 0
+      fi
       ;;
     mute)
-      exec swayosd-client --output-volume mute-toggle
+      if swayosd-client --output-volume mute-toggle >/dev/null 2>&1; then
+        exit 0
+      fi
       ;;
     mic-mute)
-      exec swayosd-client --input-volume mute-toggle
+      if swayosd-client --input-volume mute-toggle >/dev/null 2>&1; then
+        exit 0
+      fi
       ;;
   esac
 fi

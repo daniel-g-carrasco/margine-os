@@ -7,10 +7,14 @@ action="${1:-}"
 if command -v swayosd-client >/dev/null 2>&1; then
   case "$action" in
     up)
-      exec swayosd-client --brightness raise
+      if swayosd-client --brightness raise >/dev/null 2>&1; then
+        exit 0
+      fi
       ;;
     down)
-      exec swayosd-client --brightness lower
+      if swayosd-client --brightness lower >/dev/null 2>&1; then
+        exit 0
+      fi
       ;;
   esac
 fi

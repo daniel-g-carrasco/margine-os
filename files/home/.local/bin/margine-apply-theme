@@ -178,10 +178,10 @@ reload_session_theme() {
   if command -v swayosd-server >/dev/null 2>&1; then
     if (( dry_run )); then
       printf '[dry-run] pkill -x swayosd-server\n'
-      printf '[dry-run] swayosd-server -s %q &\n' "${HOME}/.config/swayosd/style.css"
+      printf '[dry-run] sh -lc %q\n' "pgrep -x swayosd-server >/dev/null || setsid swayosd-server -s \"${HOME}/.config/swayosd/style.css\" </dev/null >/dev/null 2>&1 &"
     else
       pkill -x swayosd-server >/dev/null 2>&1 || true
-      nohup swayosd-server -s "${HOME}/.config/swayosd/style.css" >/dev/null 2>&1 &
+      setsid swayosd-server -s "${HOME}/.config/swayosd/style.css" </dev/null >/dev/null 2>&1 &
     fi
   else
     warn "swayosd-server not found; skipping SwayOSD restart"
