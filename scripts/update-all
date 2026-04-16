@@ -308,6 +308,7 @@ refresh_limine_config_hash() {
   local effective_limine_tool=""
   local config_hash=""
   local config_path=""
+  local memtest_efi=""
   local limine_binary_source="/usr/share/limine/BOOTX64.EFI"
   local -a sbctl_sign_args=()
 
@@ -351,6 +352,13 @@ refresh_limine_config_hash() {
     fi
     run_optional "sbctl sign limine binary" sudo sbctl sign "${sbctl_sign_args[@]}"
   fi
+
+  if [[ -n "$esp_path" ]]; then
+    memtest_efi="${esp_path}/memtest86+/memtest.efi"
+  elif [[ -f /boot/memtest86+/memtest.efi ]]; then
+    memtest_efi="/boot/memtest86+/memtest.efi"
+  fi
+  sign_efi_if_present "sbctl sign Memtest86+ EFI" "$memtest_efi"
 }
 
 sbctl_bootstrap_ready() {
@@ -378,6 +386,24 @@ except Exception:
 
 raise SystemExit(0 if target in payload else 1)
 PY
+}
+
+sign_efi_if_present() {
+  local label="$1"
+  local path="$2"
+  local -a sbctl_sign_args=()
+
+  [[ -n "$path" ]] || return 0
+  [[ -f "$path" ]] || return 0
+  sbctl_bootstrap_ready || return 0
+
+  if sbctl_file_is_enrolled "$path"; then
+    sbctl_sign_args=("$path")
+  else
+    sbctl_sign_args=(--save "$path")
+  fi
+
+  run_optional "$label" sudo sbctl sign "${sbctl_sign_args[@]}"
 }
 
 parse_args() {

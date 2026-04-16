@@ -81,6 +81,7 @@ It currently targets:
 The public baseline already includes:
 
 - `Limine + UKI + Btrfs + Snapper`
+- offline `Memtest86+` diagnostics wired into `Limine`
 - staged recovery paths and boot artifact deployment
 - reproducible install/bootstrap scripts
 - versioned Hyprland desktop behavior

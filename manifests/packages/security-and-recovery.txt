@@ -7,6 +7,7 @@ cryptsetup
 fprintd
 libfprint
 limine
+memtest86+-efi
 mkinitcpio
 plymouth
 sbctl

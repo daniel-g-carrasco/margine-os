@@ -52,6 +52,7 @@ What is already validated on the real installed host path:
 - reinstalls the unsigned `Limine` EFI binary before `enroll-config`
 - reenrolls the config digest into the active loader
 - re-signs the active loader
+- re-signs the `Memtest86+` EFI payload when it is installed
 - reaches a clean `sbctl verify`
 
 ## 3. Why Secure Boot must happen before TPM2 enrollment
@@ -134,6 +135,7 @@ Current default safety behavior:
 - keeps Microsoft certificates
 - keeps firmware builtin `db/KEK` certificates
 - refreshes `limine.conf` enrollment and EFI signing after key enrollment
+- signs `Memtest86+` too when the diagnostics payload is present on the ESP
 
 That is deliberate. It reduces the risk of breaking:
 

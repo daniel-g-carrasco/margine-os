@@ -22,6 +22,7 @@ flavor=""
 kernel_package=""
 kernel_headers_package=""
 base_system_manifest=""
+security_recovery_manifest=""
 issue_count=0
 
 have_cmd() {
@@ -86,6 +87,48 @@ init_product_context() {
   kernel_package="$(margine_product_field "$product_manifest" "kernel_package" "")"
   kernel_headers_package="$(margine_product_field "$product_manifest" "kernel_headers_package" "")"
   base_system_manifest="$(margine_resolve_package_layer "$repo_root" "$flavor" "base-system" 2>/dev/null || true)"
+  security_recovery_manifest="$(margine_resolve_package_layer "$repo_root" "$flavor" "security-and-recovery" 2>/dev/null || true)"
+}
+
+sbctl_bootstrap_ready() {
+  [[ -f /var/lib/sbctl/keys/db/db.key ]] || [[ -f /var/lib/sbctl/keys/db/db.pem ]]
+}
+
+sbctl_file_is_enrolled() {
+  local target="$1"
+
+  python3 - "$target" <<'PY'
+import json
+import pathlib
+import sys
+
+db_path = pathlib.Path("/var/lib/sbctl/files.json")
+target = sys.argv[1]
+
+if not db_path.exists():
+    raise SystemExit(1)
+
+try:
+    payload = json.loads(db_path.read_text())
+except Exception:
+    raise SystemExit(1)
+
+raise SystemExit(0 if target in payload else 1)
+PY
+}
+
+resolve_limine_config_path() {
+  if [[ -f /boot/limine.conf ]]; then
+    printf '%s\n' /boot/limine.conf
+    return 0
+  fi
+
+  if [[ -f /boot/EFI/BOOT/limine.conf ]]; then
+    printf '%s\n' /boot/EFI/BOOT/limine.conf
+    return 0
+  fi
+
+  return 1
 }
 
 product_context_section() {
@@ -173,6 +216,58 @@ uki_section() {
   fi
 }
 
+diagnostics_section() {
+  local memtest_expected="no"
+  local limine_config=""
+  local memtest_efi="/boot/memtest86+/memtest.efi"
+
+  section "Offline diagnostics"
+
+  if [[ -n "$security_recovery_manifest" ]] && manifest_contains_package "$security_recovery_manifest" "memtest86+-efi"; then
+    memtest_expected="yes"
+  fi
+
+  status_line "Memtest86+ expected by baseline: ${memtest_expected}"
+  [[ "$memtest_expected" == "yes" ]] || return 0
+
+  if package_installed "memtest86+-efi"; then
+    status_line "memtest86+-efi package: installed"
+  else
+    status_line "memtest86+-efi package: missing"
+    mark_issue
+  fi
+
+  if [[ -f "$memtest_efi" ]]; then
+    status_line "Memtest86+ EFI: ${memtest_efi}"
+  else
+    status_line "Memtest86+ EFI: missing (${memtest_efi})"
+    mark_issue
+  fi
+
+  limine_config="$(resolve_limine_config_path 2>/dev/null || true)"
+  if [[ -n "$limine_config" ]]; then
+    status_line "active limine.conf: ${limine_config}"
+    if rg -Fq 'path: boot():/memtest86+/memtest.efi' "$limine_config"; then
+      status_line "Memtest86+ entry in limine.conf: yes"
+    else
+      status_line "Memtest86+ entry in limine.conf: no"
+      mark_issue
+    fi
+  else
+    status_line "active limine.conf: missing"
+    mark_issue
+  fi
+
+  if sbctl_bootstrap_ready; then
+    if [[ -f "$memtest_efi" ]] && sbctl_file_is_enrolled "$memtest_efi"; then
+      status_line "Memtest86+ EFI saved in sbctl database: yes"
+    else
+      status_line "Memtest86+ EFI saved in sbctl database: no"
+      mark_issue
+    fi
+  fi
+}
+
 boot_visuals_section() {
   local mkinitcpio_hooks=""
   local plymouth_theme="missing"
@@ -244,6 +339,7 @@ main() {
   product_context_section
   boot_section
   uki_section
+  diagnostics_section
   boot_visuals_section
   snapper_section
 

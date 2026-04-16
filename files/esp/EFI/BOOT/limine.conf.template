@@ -42,3 +42,10 @@ cmdline: root=UUID=@ROOT_UUID@ rd.luks.name=@LUKS_UUID@=cryptroot rootfstype=btr
 
 # BEGIN MARGINE GENERATED RECOVERY ENTRIES
 # END MARGINE GENERATED RECOVERY ENTRIES
+
+/Diagnostics
+comment: Offline diagnostics and maintenance tools.
+
+//Memtest86+
+protocol: efi
+path: boot():/memtest86+/memtest.efi

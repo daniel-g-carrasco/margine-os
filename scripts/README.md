@@ -35,13 +35,16 @@ Operational scripts:
   distinction between core and optional layers. On installed systems it now
   also keeps the active Limine trust chain aligned by reinstalling the unsigned
   loader, reenrolling `limine.conf`, and re-signing the loader before final
-  verification.
+  verification. When `memtest86+-efi` is installed, it also re-signs the
+  `Memtest86+` EFI binary so the diagnostics entry keeps working under Secure
+  Boot.
 - `deploy-boot-artifacts`: installs generated artifacts to the `ESP`, with
   preventive backups of overwritten files.
 - `refresh-efi-trust`: computes the `limine.conf` hash, runs
   `limine enroll-config`, and signs the EFI chain with `sbctl`. It first
   reinstalls the unsigned Limine EFI binary on the active target path so the
-  trust refresh starts from a clean loader state.
+  trust refresh starts from a clean loader state. When present, it also signs
+  the `Memtest86+` EFI payload installed on the ESP.
 - `provision-secure-boot-preflight`: exports the currently enrolled public
   Secure Boot keys, lists EFI binaries on the ESP, and prepares the operator
   for the firmware-side Setup Mode step.

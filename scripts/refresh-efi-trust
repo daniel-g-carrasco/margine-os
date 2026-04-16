@@ -10,6 +10,7 @@ limine_config=""
 main_uki=""
 fallback_uki=""
 recovery_uki=""
+memtest_efi=""
 sbctl_keys_dir="${SBCTL_KEYS_DIR:-/var/lib/sbctl/keys}"
 
 usage() {
@@ -28,6 +29,7 @@ Options:
   --main-uki PATH        UKI principale gia' deployata
   --fallback-uki PATH    UKI fallback gia' deployata
   --recovery-uki PATH    UKI recovery gia' deployata
+  --memtest-efi PATH     Memtest86+ EFI gia' deployato e da firmare
   --help                 Show this help
 EOF
 }
@@ -98,6 +100,11 @@ parse_args() {
       --recovery-uki)
         [[ $# -ge 2 ]] || die "missing value for --recovery-uki"
         recovery_uki="$2"
+        shift 2
+        ;;
+      --memtest-efi)
+        [[ $# -ge 2 ]] || die "missing value for --memtest-efi"
+        memtest_efi="$2"
         shift 2
         ;;
       --help|-h)
@@ -220,6 +227,9 @@ main() {
   if [[ -z "$recovery_uki" ]]; then
     recovery_uki="${esp_path}/EFI/Linux/margine-recovery.efi"
   fi
+  if [[ -z "$memtest_efi" ]]; then
+    memtest_efi="${esp_path}/memtest86+/memtest.efi"
+  fi
 
   resolve_tool_path
   ensure_command b2sum
@@ -256,6 +266,7 @@ main() {
   sign_if_present "Sign main UKI" "$main_uki"
   sign_if_present "Sign fallback UKI" "$fallback_uki"
   sign_if_present "Sign recovery UKI" "$recovery_uki"
+  sign_if_present "Sign Memtest86+ EFI" "$memtest_efi"
 
   log
   log "==> Verify Secure Boot files"

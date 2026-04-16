@@ -91,9 +91,13 @@ Check:
 ## 2. Boot artifacts and recovery
 
 ```bash
+limine_conf=/boot/limine.conf
+[[ -f "$limine_conf" ]] || limine_conf=/boot/EFI/BOOT/limine.conf
 ls -l /boot/EFI/BOOT
 ls -l /boot/EFI/Linux
-cat /boot/EFI/BOOT/limine.conf
+ls -l /boot/memtest86+
+cat "$limine_conf"
+grep -n '^/Diagnostics\|^//Memtest86+' "$limine_conf"
 sbctl status
 ```
 
@@ -102,6 +106,8 @@ Check:
 - `BOOTX64.EFI` exists
 - `limine.conf` exists and points to the expected entries
 - the main, fallback, and recovery UKIs exist
+- `/boot/memtest86+/memtest.efi` exists when `memtest86+-efi` is in the baseline
+- the `Memtest86+` entry exists under `/Diagnostics`
 - Secure Boot state is coherent
 
 Also verify that the installed update path can materialize snapshot recovery
@@ -109,7 +115,7 @@ entries in `Limine` after a maintenance run:
 
 ```bash
 sudo snapper --no-dbus -c root list | tail -n 10
-grep -n '^/Recovery\\|^//Snapshot' /boot/EFI/BOOT/limine.conf
+grep -n '^/Recovery\\|^//Snapshot' "$limine_conf"
 ```
 
 Check:
@@ -131,6 +137,7 @@ Check:
 - the dry-run shows `install -Dm755 /usr/share/limine/BOOTX64.EFI` on the
   active loader path before `limine enroll-config`
 - the dry-run shows a subsequent `sbctl sign` on the same active loader path
+- when `memtest86+-efi` is installed, the dry-run also signs `Memtest86+`
 - `sbctl verify` is clean after a real `update-all` run
 
 ## 3. Package presence
@@ -140,18 +147,19 @@ Adjust package names to the product under test.
 Public product example:
 
 ```bash
-pacman -Q linux linux-headers hyprland waybar swaync hyprlock walker elephant kitty firefox chromium loupe gnome-text-editor showtime decibels
+pacman -Q linux linux-headers memtest86+-efi hyprland waybar swaync hyprlock walker elephant kitty firefox chromium loupe gnome-text-editor showtime decibels
 ```
 
 Private Cachy product example:
 
 ```bash
-pacman -Q linux-cachyos linux-cachyos-headers cachyos-keyring cachyos-mirrorlist hyprland waybar swaync hyprlock walker elephant kitty firefox chromium loupe gnome-text-editor showtime decibels
+pacman -Q linux-cachyos linux-cachyos-headers memtest86+-efi cachyos-keyring cachyos-mirrorlist hyprland waybar swaync hyprlock walker elephant kitty firefox chromium loupe gnome-text-editor showtime decibels
 ```
 
 Check:
 
 - kernel package is the expected one
+- `memtest86+-efi` is installed as part of the boot/recovery baseline
 - desktop packages are installed
 - media players and launcher stack are installed
 - the GNOME audio player may appear under different branding in the UI, but the package baseline is `decibels`
