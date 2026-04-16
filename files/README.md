@@ -35,5 +35,6 @@ Theme note:
 - `home/.config/margine/theme.env` is the canonical source of truth for the
   shared desktop theme baseline
 - derived files such as GTK settings, Walker/Fuzzel launcher theme artifacts,
-  generated `nmtui` colors, and the managed Firefox theme policy should be
-  rendered from there instead of edited independently
+  generated `nmtui` colors, the hyprlock presentation layer consumed by
+  `margine-hyprlock`, and the managed Firefox theme policy should be rendered
+  from there instead of edited independently

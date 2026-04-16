@@ -13,7 +13,7 @@ It currently drives:
 - Papirus folder tint
 - managed Firefox theme install
 - Hyprland window border colors and rounding
-- Hyprlock palette and input rounding
+- Hyprlock palette, blur treatment, fonts, and input rounding
 - HyprToolkit palette
 - Waybar palette import
 - Walker palette and launcher font
@@ -29,6 +29,17 @@ Hyprland-specific note:
   Hyprland borders independent from the desktop accent palette
 - set both to the same value for a solid border instead of a gradient
 - `MARGINE_THEME_HYPR_WINDOW_ROUNDING='0'` gives square window corners
+
+Hyprlock-specific note:
+
+- the `MARGINE_THEME_HYPRLOCK_*` block controls the lockscreen layer that is
+  intentionally separate from the normal Hyprland window border logic
+- use `..._FONT_UI` and `..._FONT_MONO` to keep the lockscreen typography in
+  sync with the rest of the desktop without editing `hyprlock.conf`
+- use the `..._ALPHA` values when the lockscreen should feel softer or more
+  contrasted without changing the shared base colors in the main palette
+- use the blur/noise/contrast/brightness knobs when the screenshot background
+  feels too busy, too muddy, or too bright
 
 Launcher-specific note:
 
@@ -58,6 +69,8 @@ What `margine-apply-theme` does:
 - reloads Hyprland, Waybar, SwayNC and SwayOSD
 - refreshes generated Fuzzel theme colors for launcher and picker menus
 - refreshes the generated `nmtui` palette file
+- updates the lockscreen theme source indirectly, so the next `hyprlock`
+  invocation picks up the new palette, fonts, and blur tuning
 
 What it does not do:
 

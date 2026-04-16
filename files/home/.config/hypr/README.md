@@ -142,11 +142,19 @@ dim, lock, displays off, suspend.
 
 Edit:
 
-- `~/.config/margine/theme.env` for centralized palette and shared squareness
+- `~/.config/margine/theme.env` for centralized palette, font, opacity, blur,
+  and shared squareness
 - `hyprlock.conf` for static visuals and widget ordering
 - `~/.local/bin/margine-hyprlock` for dynamic scaling and placement logic
 
 Do not edit `@margine_*` markers casually. They are owned by the wrapper.
+
+Practical rule:
+
+- if the change is "this should look darker / softer / squarer / more muted",
+  start in `theme.env`
+- if the change is "this widget should move, resize, or change order", start in
+  `hyprlock.conf` or `margine-hyprlock`
 
 ### Change wallpaper behavior
 
