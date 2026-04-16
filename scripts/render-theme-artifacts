@@ -164,6 +164,7 @@ walker_theme = repo_root / "files/home/.config/walker/themes/default/theme-gener
 kitty_theme = repo_root / "files/home/.config/kitty/theme-generated.conf"
 hyprtoolkit_theme = repo_root / "files/home/.config/hypr/hyprtoolkit.conf"
 fuzzel_theme = repo_root / "files/home/.config/fuzzel/theme-generated.ini"
+nmtui_theme = repo_root / "files/home/.config/nmtui/colors.conf"
 
 primary = env("MARGINE_THEME_PRIMARY")
 secondary = env("MARGINE_THEME_SECONDARY")
@@ -198,6 +199,10 @@ launcher_vertical_pad = env("MARGINE_THEME_LAUNCHER_VERTICAL_PAD")
 launcher_inner_pad = env("MARGINE_THEME_LAUNCHER_INNER_PAD")
 launcher_line_height = env("MARGINE_THEME_LAUNCHER_LINE_HEIGHT")
 launcher_image_ratio = env("MARGINE_THEME_LAUNCHER_IMAGE_SIZE_RATIO")
+nmtui_background = env("MARGINE_THEME_NMTUI_BACKGROUND")
+nmtui_text = env("MARGINE_THEME_NMTUI_TEXT")
+nmtui_border = env("MARGINE_THEME_NMTUI_BORDER")
+nmtui_accent = env("MARGINE_THEME_NMTUI_ACCENT")
 ui_radius = hypr_rounding
 launcher_font_family = font_family(launcher_font_name)
 fuzzel_font = fontconfig_font(launcher_font_name)
@@ -381,6 +386,36 @@ fuzzel_theme.write_text(
             f"width={hypr_border_size}",
             f"radius={ui_radius}",
             f"selection-radius={rounding_small(ui_radius)}",
+            "",
+        ]
+    )
+)
+
+nmtui_theme.parent.mkdir(parents=True, exist_ok=True)
+nmtui_theme.write_text(
+    "\n".join(
+        [
+            f"root=,{nmtui_background}",
+            f"roottext={nmtui_text},{nmtui_background}",
+            f"border={nmtui_border},{nmtui_background}",
+            f"window={nmtui_text},{nmtui_background}",
+            f"shadow={nmtui_background},{nmtui_background}",
+            f"title={nmtui_accent},{nmtui_background}",
+            f"textbox={nmtui_text},{nmtui_background}",
+            f"entry={nmtui_text},{nmtui_background}",
+            f"label={nmtui_text},{nmtui_background}",
+            f"button={nmtui_background},{nmtui_text}",
+            f"actbutton={nmtui_accent},{nmtui_border}",
+            f"compactbutton={nmtui_text},{nmtui_background}",
+            f"listbox={nmtui_text},{nmtui_background}",
+            f"actlistbox={nmtui_background},{nmtui_text}",
+            f"actsellistbox={nmtui_background},{nmtui_border}",
+            f"checkbox={nmtui_text},{nmtui_background}",
+            f"actcheckbox={nmtui_background},{nmtui_text}",
+            f"emptyscale={nmtui_border},{nmtui_background}",
+            f"fullscale={nmtui_background},{nmtui_text}",
+            f"disabledentry={nmtui_border},{nmtui_background}",
+            f"helpline={nmtui_border},{nmtui_background}",
             "",
         ]
     )

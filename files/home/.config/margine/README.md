@@ -18,6 +18,7 @@ It currently drives:
 - Waybar palette import
 - Walker palette and launcher font
 - Fuzzel fallback launcher and dmenu picker theme
+- NMTUI terminal color map
 - SwayNC palette import
 - SwayOSD palette and rounding
 - Kitty color include
@@ -36,6 +37,13 @@ Launcher-specific note:
 - the launcher sizing knobs feed Fuzzel directly and let you keep screenshot /
   recording pickers compact without editing scripts
 
+NMTUI-specific note:
+
+- `nmtui` cannot use the desktop hex palette directly; it only accepts named
+  terminal colors
+- the `MARGINE_THEME_NMTUI_*` block exists to keep it aligned with the desktop
+  while making that limitation explicit
+
 Operational rule:
 
 - edit `theme.env`
@@ -49,6 +57,7 @@ What `margine-apply-theme` does:
 - reapplies GTK / GNOME session defaults
 - reloads Hyprland, Waybar, SwayNC and SwayOSD
 - refreshes generated Fuzzel theme colors for launcher and picker menus
+- refreshes the generated `nmtui` palette file
 
 What it does not do:
 

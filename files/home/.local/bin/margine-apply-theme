@@ -13,6 +13,7 @@ declare -a generated_files=(
   ".config/hypr/conf.d/45-theme-generated.conf"
   ".config/hypr/hyprtoolkit.conf"
   ".config/kitty/theme-generated.conf"
+  ".config/nmtui/colors.conf"
   ".config/swaync/theme-generated.css"
   ".config/swayosd/theme-generated.css"
   ".config/waybar/theme-generated.css"

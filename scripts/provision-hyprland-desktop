@@ -27,6 +27,7 @@ declare -a home_payload=(
   ".config/hypr/conf.d/50-input.conf"
   ".config/hypr/conf.d/60-binds.conf"
   ".config/hypr/conf.d/70-rules.conf"
+  ".config/nmtui/colors.conf"
   ".config/satty/config.toml"
   ".config/swaync/config.json"
   ".config/swaync/launch.sh"
