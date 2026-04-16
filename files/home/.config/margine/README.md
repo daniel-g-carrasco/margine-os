@@ -13,9 +13,12 @@ It currently drives:
 - Papirus folder tint
 - managed Firefox theme install
 - Hyprland window border colors and rounding
+- Hyprlock palette and input rounding
 - HyprToolkit palette
 - Waybar palette import
+- Walker palette
 - SwayNC palette import
+- SwayOSD palette and rounding
 - Kitty color include
 
 Hyprland-specific note:

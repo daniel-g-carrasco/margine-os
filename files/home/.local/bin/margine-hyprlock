@@ -22,6 +22,7 @@ set -euo pipefail
 SCRIPT_NAME="margine-hyprlock"
 config_dir="${XDG_CONFIG_HOME:-$HOME/.config}"
 base_config="${config_dir}/hypr/hyprlock.conf"
+theme_file="${config_dir}/margine/theme.env"
 dry_run_flag="--margine-hyprlock-dry-run"
 runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
 runtime_config="/tmp/margine-hyprlock.generated.conf"
@@ -31,6 +32,18 @@ monitor_height=""
 monitor_scale=""
 logical_width=""
 logical_height=""
+
+# Theme defaults. These are overridden from ~/.config/margine/theme.env when
+# present so the lockscreen follows the centralized desktop palette.
+theme_primary="#c39b72"
+theme_border="#303030"
+theme_surface="#1a1a1a"
+theme_bg="#121212"
+theme_text="#e8e6e3"
+theme_muted="#b9b5af"
+theme_critical="#be534c"
+theme_shadow="#000000"
+theme_rounding="0"
 
 # Tuning knobs.
 # Keep these near the top so manual visual adjustments do not require touching
@@ -134,6 +147,21 @@ log_debug() {
   printf '[%s] %s\n' "$SCRIPT_NAME" "$*" >&2
 }
 
+rgba_hex() {
+  local value="$1"
+  local alpha="$2"
+  local rgb="${value#\#}"
+  local a=""
+
+  a="$(awk -v alpha="$alpha" 'BEGIN {
+    if (alpha < 0) alpha = 0
+    if (alpha > 1) alpha = 1
+    printf "%02x", int((alpha * 255) + 0.5)
+  }')"
+
+  printf 'rgba(%s%s)\n' "$rgb" "$a"
+}
+
 round_nearest() {
   local value="$1"
   awk -v value="$value" 'BEGIN {
@@ -173,6 +201,22 @@ replace_line_after_marker() {
     n
     s|^[[:space:]]*.*$|    ${replacement}|
   }" "$runtime_config"
+}
+
+load_theme_defaults() {
+  [[ -f "$theme_file" ]] || return 0
+  # shellcheck disable=SC1090
+  source "$theme_file"
+
+  theme_primary="${MARGINE_THEME_PRIMARY:-$theme_primary}"
+  theme_border="${MARGINE_THEME_BORDER:-$theme_border}"
+  theme_surface="${MARGINE_THEME_SURFACE:-$theme_surface}"
+  theme_bg="${MARGINE_THEME_BG:-$theme_bg}"
+  theme_text="${MARGINE_THEME_TEXT:-$theme_text}"
+  theme_muted="${MARGINE_THEME_MUTED:-$theme_muted}"
+  theme_critical="${MARGINE_THEME_CRITICAL:-$theme_critical}"
+  theme_shadow="${MARGINE_THEME_HYPR_SHADOW:-$theme_shadow}"
+  theme_rounding="${MARGINE_THEME_HYPR_WINDOW_ROUNDING:-$theme_rounding}"
 }
 
 collect_monitor_metrics() {
@@ -254,6 +298,18 @@ render_runtime_config() {
   replace_line_after_marker "margine_prompt_position" "position = 0, ${prompt_y}"
   replace_line_after_marker "margine_fail_position" "position = 0, ${fail_y}"
   replace_line_after_marker "margine_accent_line_position" "position = 0, ${line_y}"
+
+  replace_line_after_marker "margine_hyprlock_accent" "\$accent = $(rgba_hex "$theme_primary" 0.90)"
+  replace_line_after_marker "margine_hyprlock_border" "\$border = $(rgba_hex "$theme_border" 0.88)"
+  replace_line_after_marker "margine_hyprlock_surface" "\$surface = $(rgba_hex "$theme_surface" 0.78)"
+  replace_line_after_marker "margine_hyprlock_surface_strong" "\$surface_strong = $(rgba_hex "$theme_bg" 0.84)"
+  replace_line_after_marker "margine_hyprlock_text" "\$text = $(rgba_hex "$theme_text" 0.96)"
+  replace_line_after_marker "margine_hyprlock_text_dim" "\$text_dim = $(rgba_hex "$theme_muted" 0.90)"
+  replace_line_after_marker "margine_hyprlock_danger" "\$danger = $(rgba_hex "$theme_critical" 0.94)"
+  replace_line_after_marker "margine_hyprlock_shadow" "\$shadow = $(rgba_hex "$theme_shadow" 0.80)"
+  replace_line_after_marker "margine_hyprlock_overlay" "\$overlay = $(rgba_hex "$theme_bg" 0.34)"
+  replace_line_after_marker "margine_hyprlock_shape_rounding" "rounding = ${theme_rounding}"
+  replace_line_after_marker "margine_hyprlock_input_rounding" "rounding = ${theme_rounding}"
 }
 
 parse_args "$@"
@@ -278,6 +334,7 @@ fi
 trap 'rm -f "$runtime_config"' EXIT
 
 collect_monitor_metrics
+load_theme_defaults
 
 # Stage 1: scale fonts from logical monitor height, then clamp them.
 font_scale="$(clamp_value "$(awk -v h="$logical_height" -v ref="$REFERENCE_LOGICAL_HEIGHT" 'BEGIN { print h / ref }')" "$FONT_SCALE_MIN" "$FONT_SCALE_MAX")"

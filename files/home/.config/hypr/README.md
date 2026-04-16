@@ -140,6 +140,7 @@ dim, lock, displays off, suspend.
 
 Edit:
 
+- `~/.config/margine/theme.env` for centralized palette and shared squareness
 - `hyprlock.conf` for static visuals and widget ordering
 - `~/.local/bin/margine-hyprlock` for dynamic scaling and placement logic
 

@@ -13,7 +13,9 @@ declare -a generated_files=(
   ".config/hypr/hyprtoolkit.conf"
   ".config/kitty/theme-generated.conf"
   ".config/swaync/theme-generated.css"
+  ".config/swayosd/theme-generated.css"
   ".config/waybar/theme-generated.css"
+  ".config/walker/themes/default/theme-generated.css"
 )
 
 usage() {
@@ -169,6 +171,20 @@ reload_session_theme() {
     run_cmd "${HOME}/.config/swaync/launch.sh"
   else
     warn "SwayNC launch helper not found; skipping SwayNC restart"
+  fi
+
+  log
+  log "==> Restart SwayOSD"
+  if command -v swayosd-server >/dev/null 2>&1; then
+    if (( dry_run )); then
+      printf '[dry-run] pkill -x swayosd-server\n'
+      printf '[dry-run] swayosd-server -s %q &\n' "${HOME}/.config/swayosd/style.css"
+    else
+      pkill -x swayosd-server >/dev/null 2>&1 || true
+      nohup swayosd-server -s "${HOME}/.config/swayosd/style.css" >/dev/null 2>&1 &
+    fi
+  else
+    warn "swayosd-server not found; skipping SwayOSD restart"
   fi
 }
 

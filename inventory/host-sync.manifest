@@ -31,6 +31,7 @@
 .config/swaync/style.css
 .config/swaync/theme-generated.css
 .config/swayosd/style.css
+.config/swayosd/theme-generated.css
 .config/waybar/README.md
 .config/systemd/user/elephant.service
 .config/systemd/user/hypr-refresh-rate.service
@@ -56,6 +57,7 @@
 .config/walker/themes/default/layout.xml
 .config/walker/themes/default/preview.xml
 .config/walker/themes/default/style.css
+.config/walker/themes/default/theme-generated.css
 .config/waybar/config.jsonc
 .config/waybar/launch.sh
 .config/waybar/restart-swaync.sh

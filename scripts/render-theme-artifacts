@@ -68,6 +68,13 @@ def rgba_hex(value: str, alpha: float) -> str:
     a = max(0, min(255, round(alpha * 255)))
     return f"rgba({rgb}{a:02x})"
 
+def rgba_css(value: str, alpha: float) -> str:
+    rgb = hex_triplet(value)
+    red = int(rgb[0:2], 16)
+    green = int(rgb[2:4], 16)
+    blue = int(rgb[4:6], 16)
+    return f"rgba({red}, {green}, {blue}, {alpha:.2f})"
+
 def qt_argb(value: str, alpha: float = 1.0) -> str:
     rgb = hex_triplet(value)
     a = max(0, min(255, round(alpha * 255)))
@@ -132,6 +139,8 @@ output.write_text(json.dumps(payload, indent=2) + "\n")
 hypr_theme = repo_root / "files/home/.config/hypr/conf.d/45-theme-generated.conf"
 waybar_theme = repo_root / "files/home/.config/waybar/theme-generated.css"
 swaync_theme = repo_root / "files/home/.config/swaync/theme-generated.css"
+swayosd_theme = repo_root / "files/home/.config/swayosd/theme-generated.css"
+walker_theme = repo_root / "files/home/.config/walker/themes/default/theme-generated.css"
 kitty_theme = repo_root / "files/home/.config/kitty/theme-generated.conf"
 hyprtoolkit_theme = repo_root / "files/home/.config/hypr/hyprtoolkit.conf"
 
@@ -159,6 +168,7 @@ hypr_shadow = env("MARGINE_THEME_HYPR_SHADOW")
 hypr_shadow_alpha = float(env("MARGINE_THEME_HYPR_SHADOW_ALPHA"))
 kitty_bg_opacity = env("MARGINE_THEME_KITTY_BACKGROUND_OPACITY")
 icon_theme = env("MARGINE_THEME_ICON_THEME")
+ui_radius = hypr_rounding
 
 hypr_theme.parent.mkdir(parents=True, exist_ok=True)
 hypr_theme.write_text(
@@ -216,6 +226,78 @@ swaync_theme.write_text(
             f"@define-color accent_secondary {secondary};",
             f"@define-color accent_tertiary {tertiary};",
             f"@define-color critical {critical};",
+            "",
+        ]
+    )
+)
+
+swayosd_theme.parent.mkdir(parents=True, exist_ok=True)
+swayosd_theme.write_text(
+    "\n".join(
+        [
+            "/* Generated from ~/.config/margine/theme.env */",
+            "window#osd {",
+            "  padding: 5px 5px;",
+            f"  border-radius: {ui_radius}px;",
+            f"  background: {rgba_css(surface, 0.80)};",
+            f"  border: 1px solid {rgba_css(secondary, 0.20)};",
+            "}",
+            "",
+            "progressbar {",
+            "  min-height: 8px;",
+            f"  border-radius: {ui_radius}px;",
+            "}",
+            "",
+            "progressbar trough {",
+            f"  background: {rgba_css(text, 0.10)};",
+            f"  border-radius: {ui_radius}px;",
+            "}",
+            "",
+            "progressbar progress {",
+            f"  background: {rgba_css(secondary, 0.90)};",
+            f"  border-radius: {ui_radius}px;",
+            "}",
+            "",
+            "image {",
+            f"  color: {secondary};",
+            "}",
+            "",
+            "label {",
+            f"  color: {secondary};",
+            "}",
+            "",
+        ]
+    )
+)
+
+walker_theme.parent.mkdir(parents=True, exist_ok=True)
+walker_theme.write_text(
+    "\n".join(
+        [
+            "/* Generated from ~/.config/margine/theme.env */",
+            f"@define-color window_bg_color {rgba_css(bg, 0.995)};",
+            f"@define-color surface_bg_color {rgba_css(surface, 0.995)};",
+            f"@define-color accent_bg_color {secondary};",
+            f"@define-color border_color {rgba_css(secondary, 0.58)};",
+            f"@define-color theme_fg_color {text};",
+            f"@define-color theme_fg_dim_color {rgba_css(muted, 0.92)};",
+            f"@define-color error_bg_color {critical};",
+            f"@define-color error_fg_color {text};",
+            "",
+            "popover,",
+            ".box-wrapper,",
+            ".search-container,",
+            ".item-box,",
+            ".item-quick-activation,",
+            ".preview,",
+            ".keybind-label,",
+            ".error {",
+            f"  border-radius: {ui_radius}px;",
+            "}",
+            "",
+            ".box-wrapper {",
+            f"  box-shadow: 0 18px 34px {rgba_css(hypr_shadow, 0.30)}, 0 10px 18px {rgba_css(hypr_shadow, 0.22)};",
+            "}",
             "",
         ]
     )
