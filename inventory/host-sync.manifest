@@ -9,8 +9,9 @@
 .config/margine/README.md
 .config/margine/theme.env
 .config/xdg-desktop-portal/hyprland-portals.conf
+.config/fuzzel/fuzzel.ini
+.config/fuzzel/theme-generated.ini
 .config/hypr/hypridle.conf
-.config/hypr/hyprlauncher.conf
 .config/hypr/hyprlock.conf
 .config/hypr/README.md
 .config/hypr/conf.d/10-variables.conf
@@ -91,6 +92,7 @@
 .local/bin/keep-awake-daemon
 .local/bin/keep-awake-status
 .local/bin/keep-awake-toggle
+.local/bin/margine-dmenu
 .local/bin/margine-apply-desktop-defaults
 .local/bin/margine-apply-theme
 .local/bin/margine-host-health-menu
@@ -118,6 +120,7 @@
 .local/bin/polkit-agent-restart
 .local/bin/reset-fingerprint-daemon
 .local/bin/screenrecord-region-toggle
+.local/bin/screenrecord-menu
 .local/bin/screenrecord-status
 .local/bin/screenrecord-stop
 .local/bin/screenrecord-toggle

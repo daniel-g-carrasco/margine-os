@@ -59,16 +59,16 @@ choose_from_menu() {
   local menu_input="$2"
   local choice=""
 
-  if have_cmd hyprlauncher; then
-    choice="$(printf '%s\n' "$menu_input" | hyprlauncher --dmenu 2>/dev/null || true)"
-    if [[ -n "$choice" ]]; then
-      printf '%s\n' "$choice"
-      return 0
-    fi
-  fi
-
-  if have_cmd walker; then
-    choice="$(printf '%s\n' "$menu_input" | walker -d -e -p "$prompt" 2>/dev/null || true)"
+  if [[ -x "${HOME}/.local/bin/margine-dmenu" ]]; then
+    choice="$(
+      printf '%s\n' "$menu_input" |
+        "${HOME}/.local/bin/margine-dmenu" \
+          --prompt "${prompt}> " \
+          --placeholder "Choose a target" \
+          --width 40 \
+          --lines 6 \
+          2>/dev/null || true
+    )"
     if [[ -n "$choice" ]]; then
       printf '%s\n' "$choice"
       return 0
@@ -79,7 +79,7 @@ choose_from_menu() {
 }
 
 settle_after_menu() {
-  # Hyprlauncher can return the selection one frame before its layer is gone.
+  # Some pickers can return one frame before their layer is fully gone.
   # Give the compositor a brief moment so grim does not capture the menu itself.
   sleep 0.15
 }

@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+videos_dir="${XDG_VIDEOS_DIR:-$HOME/Video}"
+output_dir="${videos_dir}/00. Screen"
+
+mkdir -p "$output_dir"
+
+launch_detached() {
+  if command -v systemd-run >/dev/null 2>&1; then
+    systemd-run --user --quiet --collect --same-dir --service-type=exec "$@" >/dev/null 2>&1 && return 0
+  fi
+
+  setsid -f "$@" >/dev/null 2>&1 || true
+}
+
+choose_from_menu() {
+  local choice=""
+
+  [[ -x "${HOME}/.local/bin/margine-dmenu" ]] || return 1
+
+  choice="$(
+    printf '%s\n' \
+      '󰑋  Focused monitor' \
+      '󰹑  Region' \
+      '󰛑  Stop recording' \
+      '󰉍  Open recordings folder' |
+      "${HOME}/.local/bin/margine-dmenu" \
+        --prompt 'Record> ' \
+        --placeholder 'Choose a recording action' \
+        --width 38 \
+        --lines 4 \
+        2>/dev/null || true
+  )"
+
+  [[ -n "$choice" ]] || return 1
+  printf '%s\n' "$choice"
+}
+
+choice="$(choose_from_menu || true)"
+
+case "$choice" in
+  '󰑋  Focused monitor')
+    exec "${HOME}/.local/bin/screenrecord-toggle" --start
+    ;;
+  '󰹑  Region')
+    exec "${HOME}/.local/bin/screenrecord-region-toggle" --start
+    ;;
+  '󰛑  Stop recording')
+    exec "${HOME}/.local/bin/screenrecord-stop"
+    ;;
+  '󰉍  Open recordings folder')
+    launch_detached nautilus "$output_dir" || launch_detached xdg-open "$output_dir"
+    ;;
+esac

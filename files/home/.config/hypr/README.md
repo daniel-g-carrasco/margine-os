@@ -21,14 +21,16 @@ The goal is:
   Lockscreen template consumed by the `margine-hyprlock` wrapper.
 - `hyprpaper.conf`
   Static wallpaper source of truth for the hyprpaper daemon.
-- `hyprlauncher.conf`
-  Launcher UX defaults: focus, cache, finders, window size.
+- `~/.config/fuzzel/fuzzel.ini`
+  Official fallback launcher and shared dmenu picker configuration.
 - `~/.local/bin/margine-hyprlock`
   Runtime generator that scales and renders the hyprlock template.
 - `~/.local/bin/launch-hyprpaper`
   Startup wrapper for the hyprpaper daemon.
 - `~/.local/bin/hypr-workspace-layout`
   Login-time workspace placement policy across monitors.
+- `~/.local/bin/margine-dmenu`
+  Shared dmenu-style picker used by screenshot and recording helpers.
 - `conf.d/10-variables.conf`
   Modifier aliases and launcher variables like `$terminal` and `$browser`.
 - `conf.d/20-autostart.conf`
@@ -157,7 +159,8 @@ Edit:
 
 Edit:
 
-- `hyprlauncher.conf`
+- `~/.config/walker/config.toml` for the primary launcher
+- `~/.config/fuzzel/fuzzel.ini` for the fallback launcher and shared picker
 
 ### Change dynamic lockscreen scaling or monitor selection
 

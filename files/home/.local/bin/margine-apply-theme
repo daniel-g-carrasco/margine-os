@@ -7,6 +7,7 @@ personal_repo="${HOME}/dev/margine-os-personal"
 dry_run=0
 
 declare -a generated_files=(
+  ".config/fuzzel/theme-generated.ini"
   ".config/gtk-3.0/settings.ini"
   ".config/gtk-4.0/settings.ini"
   ".config/hypr/conf.d/45-theme-generated.conf"

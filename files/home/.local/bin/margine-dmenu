@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+prompt="> "
+placeholder=""
+lines=""
+width=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  margine-dmenu [--prompt TEXT] [--placeholder TEXT] [--lines N] [--width N]
+
+Reads entries from stdin and opens the Margine dmenu-style picker.
+Fuzzel is preferred; Walker remains the fallback if fuzzel is unavailable.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --prompt)
+      [[ $# -ge 2 ]] || {
+        printf 'error: missing value for --prompt\n' >&2
+        exit 1
+      }
+      prompt="$2"
+      shift 2
+      ;;
+    --placeholder)
+      [[ $# -ge 2 ]] || {
+        printf 'error: missing value for --placeholder\n' >&2
+        exit 1
+      }
+      placeholder="$2"
+      shift 2
+      ;;
+    --lines)
+      [[ $# -ge 2 ]] || {
+        printf 'error: missing value for --lines\n' >&2
+        exit 1
+      }
+      lines="$2"
+      shift 2
+      ;;
+    --width)
+      [[ $# -ge 2 ]] || {
+        printf 'error: missing value for --width\n' >&2
+        exit 1
+      }
+      width="$2"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'error: unknown argument: %s\n' "$1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if command -v fuzzel >/dev/null 2>&1; then
+  args=(
+    --config "${HOME}/.config/fuzzel/fuzzel.ini"
+    --dmenu
+    --prompt "$prompt"
+  )
+
+  [[ -n "$placeholder" ]] && args+=(--placeholder "$placeholder")
+  [[ -n "$lines" ]] && args+=(--lines "$lines")
+  [[ -n "$width" ]] && args+=(--width "$width")
+
+  exec fuzzel "${args[@]}"
+fi
+
+if command -v walker >/dev/null 2>&1; then
+  exec walker -d -e -p "$prompt"
+fi
+
+printf 'No picker available: fuzzel or walker is required.\n' >&2
+exit 1

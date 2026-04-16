@@ -17,6 +17,7 @@ It currently drives:
 - HyprToolkit palette
 - Waybar palette import
 - Walker palette
+- Fuzzel fallback launcher and dmenu picker theme
 - SwayNC palette import
 - SwayOSD palette and rounding
 - Kitty color include
@@ -39,7 +40,8 @@ What `margine-apply-theme` does:
 - regenerates derived theme artifacts in the repos
 - copies generated runtime files back onto the host
 - reapplies GTK / GNOME session defaults
-- reloads Hyprland, Waybar and SwayNC
+- reloads Hyprland, Waybar, SwayNC and SwayOSD
+- refreshes generated Fuzzel theme colors for launcher and picker menus
 
 What it does not do:
 

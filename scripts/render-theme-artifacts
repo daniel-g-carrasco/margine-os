@@ -47,6 +47,7 @@ import json
 import math
 import os
 import pathlib
+import re
 import sys
 
 repo_root = pathlib.Path(sys.argv[1])
@@ -75,6 +76,11 @@ def rgba_css(value: str, alpha: float) -> str:
     blue = int(rgb[4:6], 16)
     return f"rgba({red}, {green}, {blue}, {alpha:.2f})"
 
+def plain_rgba_hex(value: str, alpha: float = 1.0) -> str:
+    rgb = hex_triplet(value)
+    a = max(0, min(255, round(alpha * 255)))
+    return f"{rgb}{a:02x}"
+
 def qt_argb(value: str, alpha: float = 1.0) -> str:
     rgb = hex_triplet(value)
     a = max(0, min(255, round(alpha * 255)))
@@ -82,6 +88,13 @@ def qt_argb(value: str, alpha: float = 1.0) -> str:
 
 def rounding_small(value: int) -> int:
     return max(0, value - 2)
+
+def fontconfig_font(value: str) -> str:
+    match = re.match(r"^(.*)\s+([0-9]+(?:\.[0-9]+)?)$", value.strip())
+    if not match:
+        return value.strip()
+    family, size = match.groups()
+    return f"{family}:size={size}"
 
 payload = {
     "policies": {
@@ -143,6 +156,7 @@ swayosd_theme = repo_root / "files/home/.config/swayosd/theme-generated.css"
 walker_theme = repo_root / "files/home/.config/walker/themes/default/theme-generated.css"
 kitty_theme = repo_root / "files/home/.config/kitty/theme-generated.conf"
 hyprtoolkit_theme = repo_root / "files/home/.config/hypr/hyprtoolkit.conf"
+fuzzel_theme = repo_root / "files/home/.config/fuzzel/theme-generated.ini"
 
 primary = env("MARGINE_THEME_PRIMARY")
 secondary = env("MARGINE_THEME_SECONDARY")
@@ -168,7 +182,18 @@ hypr_shadow = env("MARGINE_THEME_HYPR_SHADOW")
 hypr_shadow_alpha = float(env("MARGINE_THEME_HYPR_SHADOW_ALPHA"))
 kitty_bg_opacity = env("MARGINE_THEME_KITTY_BACKGROUND_OPACITY")
 icon_theme = env("MARGINE_THEME_ICON_THEME")
+font_name = env("MARGINE_THEME_FONT_NAME")
 ui_radius = hypr_rounding
+fuzzel_font = fontconfig_font(font_name)
+font_size_match = re.match(r"^.*\s+([0-9]+(?:\.[0-9]+)?)$", font_name.strip())
+fuzzel_font_size = font_size_match.group(1) if font_size_match else "10"
+fuzzel_font_fallbacks = ",".join(
+    [
+        fuzzel_font,
+        f"JetBrainsMono Nerd Font:size={fuzzel_font_size}",
+        f"Font Awesome 7 Free Solid:size={fuzzel_font_size}",
+    ]
+)
 
 hypr_theme.parent.mkdir(parents=True, exist_ok=True)
 hypr_theme.write_text(
@@ -298,6 +323,40 @@ walker_theme.write_text(
             ".box-wrapper {",
             f"  box-shadow: 0 18px 34px {rgba_css(hypr_shadow, 0.30)}, 0 10px 18px {rgba_css(hypr_shadow, 0.22)};",
             "}",
+            "",
+        ]
+    )
+)
+
+fuzzel_theme.parent.mkdir(parents=True, exist_ok=True)
+fuzzel_theme.write_text(
+    "\n".join(
+        [
+            "# Generated from ~/.config/margine/theme.env",
+            "[main]",
+            f"font={fuzzel_font_fallbacks}",
+            f"icon-theme={icon_theme}",
+            "dpi-aware=auto",
+            "use-bold=yes",
+            "",
+            "[colors]",
+            f"background={plain_rgba_hex(bg, 0.99)}",
+            f"text={plain_rgba_hex(text)}",
+            f"message={plain_rgba_hex(muted, 0.92)}",
+            f"prompt={plain_rgba_hex(secondary)}",
+            f"placeholder={plain_rgba_hex(muted, 0.78)}",
+            f"input={plain_rgba_hex(text)}",
+            f"match={plain_rgba_hex(secondary)}",
+            f"selection={plain_rgba_hex(surface_alt, 1.0)}",
+            f"selection-text={plain_rgba_hex(text)}",
+            f"selection-match={plain_rgba_hex(secondary)}",
+            f"counter={plain_rgba_hex(muted, 0.92)}",
+            f"border={plain_rgba_hex(secondary, 0.58)}",
+            "",
+            "[border]",
+            f"width={hypr_border_size}",
+            f"radius={ui_radius}",
+            f"selection-radius={rounding_small(ui_radius)}",
             "",
         ]
     )

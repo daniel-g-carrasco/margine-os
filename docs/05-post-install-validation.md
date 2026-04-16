@@ -147,13 +147,13 @@ Adjust package names to the product under test.
 Public product example:
 
 ```bash
-pacman -Q linux linux-headers memtest86+-efi hyprland waybar swaync hyprlock walker elephant kitty firefox chromium loupe gnome-text-editor showtime decibels
+pacman -Q linux linux-headers memtest86+-efi hyprland waybar swaync hyprlock walker fuzzel elephant kitty firefox chromium loupe gnome-text-editor showtime decibels
 ```
 
 Private Cachy product example:
 
 ```bash
-pacman -Q linux-cachyos linux-cachyos-headers memtest86+-efi cachyos-keyring cachyos-mirrorlist hyprland waybar swaync hyprlock walker elephant kitty firefox chromium loupe gnome-text-editor showtime decibels
+pacman -Q linux-cachyos linux-cachyos-headers memtest86+-efi cachyos-keyring cachyos-mirrorlist hyprland waybar swaync hyprlock walker fuzzel elephant kitty firefox chromium loupe gnome-text-editor showtime decibels
 ```
 
 Check:
@@ -271,7 +271,7 @@ Check:
 ## 8. Desktop stack
 
 ```bash
-which walker elephant hyprlauncher grim slurp wl-copy waybar swaync-client hyprlock hyprpaper
+which walker elephant fuzzel grim slurp wl-copy waybar swaync-client hyprlock hyprpaper
 ls ~/.local/bin/{battery-status,network-status,notification-status,keep-awake-daemon,keep-awake-status,keep-awake-toggle,easyeffects-status,screenshot-menu,open-network-tui,open-network-settings,open-bluetooth-tui}
 hyprctl version
 hyprctl monitors

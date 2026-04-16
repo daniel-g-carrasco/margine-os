@@ -18,7 +18,7 @@
 - l'utente principale entra con autologin iniziale via `greetd`, poi viene
   accolto da `hyprlock`.
 - `walker` diventa il launcher preferito.
-- `hyprlauncher` resta il fallback ufficiale se `walker` non e' presente.
+- `fuzzel` resta il fallback ufficiale se `walker` non e' presente.
 - `kitty` resta il terminale baseline.
 - `Ghostty` esce dal perimetro della `v1`.
 - nasce un layer dedicato al tooling da coding e amministrazione, con:
@@ -74,7 +74,7 @@
 - `Margine` non deve copiarli: deve selezionarli.
 - `walker` oggi risulta AUR;
 - `elephant` oggi risulta AUR;
-- `hyprlauncher` invece e' disponibile nei repo ufficiali Arch.
+- `fuzzel` invece e' disponibile nei repo ufficiali Arch.
 - `openssh` oggi e' gia' nel progetto anche come stack server/client;
 - `ufw` viene scelto come firewall baseline della `v1`.
 - la baseline stampa/scanner `v1` e' `driverless-first`.

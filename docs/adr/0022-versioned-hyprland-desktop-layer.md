@@ -62,7 +62,7 @@ Explicitly not included:
 The chosen baseline is:
 
 - `walker` as the preferred launcher
-- `hyprlauncher` as the official fallback
+- `fuzzel` as the official fallback
 - `margine-launcher` as the single invocation point
 
 This keeps the desktop coherent even when `walker` is unavailable or disabled.

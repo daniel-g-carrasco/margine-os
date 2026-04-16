@@ -324,7 +324,7 @@ maintenance_section() {
 launcher_section() {
   local walker_path=""
   local elephant_path=""
-  local hyprlauncher_path=""
+  local fuzzel_path=""
   local pkg=""
   local providers=""
   local -a expected_providers=(
@@ -345,7 +345,7 @@ launcher_section() {
 
   walker_path="$(command -v walker 2>/dev/null || true)"
   elephant_path="$(command -v elephant 2>/dev/null || true)"
-  hyprlauncher_path="$(command -v hyprlauncher 2>/dev/null || true)"
+  fuzzel_path="$(command -v fuzzel 2>/dev/null || true)"
 
   if [[ -n "$aur_baseline_manifest" ]]; then
     while IFS= read -r pkg; do
@@ -359,7 +359,13 @@ launcher_section() {
 
   status_line "walker: ${walker_path:-missing}"
   status_line "elephant: ${elephant_path:-missing}"
-  status_line "hyprlauncher: ${hyprlauncher_path:-missing}"
+  status_line "fuzzel: ${fuzzel_path:-missing}"
+  if package_installed fuzzel; then
+    status_line "package fuzzel: installed"
+  else
+    status_line "package fuzzel: missing"
+    mark_issue
+  fi
 
   if [[ -n "$elephant_path" ]]; then
     providers="$(elephant listproviders 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]]\\+/ /g; s/[[:space:]]$//')"
@@ -386,8 +392,8 @@ launcher_section() {
 
   if [[ -n "$walker_path" && -n "$elephant_path" ]]; then
     status_line "launcher baseline: walker+elephant"
-  elif [[ -n "$hyprlauncher_path" ]]; then
-    status_line "launcher baseline: hyprlauncher fallback only"
+  elif [[ -n "$fuzzel_path" ]]; then
+    status_line "launcher baseline: fuzzel fallback only"
   else
     status_line "launcher baseline: missing"
     mark_issue

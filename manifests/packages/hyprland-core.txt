@@ -3,7 +3,7 @@
 # - screenshot e recording usano direttamente `grim + slurp + satty + wf-recorder`;
 # - login path baseline: `greetd + tuigreet`;
 # - launcher preferito: `walker` se installato;
-# - fallback ufficiale: `hyprlauncher`.
+# - fallback ufficiale: `fuzzel`.
 
 brightnessctl
 cliphist
@@ -17,7 +17,6 @@ greetd-tuigreet
 grim
 hypridle
 hyprland
-hyprlauncher
 hyprlock
 hyprpaper
 kitty
@@ -35,6 +34,7 @@ satty
 slurp
 swaync
 swayosd
+fuzzel
 waybar
 wf-recorder
 wireplumber

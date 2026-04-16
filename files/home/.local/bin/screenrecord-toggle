@@ -18,6 +18,10 @@ focused_monitor_name() {
 }
 
 if pgrep -x wf-recorder >/dev/null 2>&1; then
+    if [[ "${1:-}" == "--start" ]]; then
+        notify-send -a "Screen Recorder" "Recording" "A recording is already in progress"
+        exit 0
+    fi
     exec "$HOME/.local/bin/screenrecord-stop"
 fi
 

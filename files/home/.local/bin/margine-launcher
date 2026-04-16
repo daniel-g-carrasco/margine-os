@@ -21,9 +21,9 @@ if (( ! force_fallback )) && command -v walker >/dev/null 2>&1 && command -v ele
   exec walker "$@"
 fi
 
-if command -v hyprlauncher >/dev/null 2>&1; then
-  exec hyprlauncher "$@"
+if command -v fuzzel >/dev/null 2>&1; then
+  exec fuzzel "$@"
 fi
 
-printf 'No launcher available: walker or hyprlauncher is required.\n' >&2
+printf 'No launcher available: walker or fuzzel is required.\n' >&2
 exit 1

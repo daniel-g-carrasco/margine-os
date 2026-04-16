@@ -22,7 +22,7 @@ Only what is included in the project:
 - `hyprpaper`
 - `mako`
 - `walker`
-- `hyprlauncher` as the official launcher fallback
+- `fuzzel` as the official launcher fallback
 - stack screenshot / screen recording
 - `EasyEffects`
 - `update-all` as operational entrypoint
