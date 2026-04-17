@@ -45,6 +45,7 @@ Planned topics:
 - what CachyOS adds beyond kernel and repositories
 - DaVinci Resolve on Linux: graphics, compute, and compatibility requirements
 - gaming stack layering and the `split_lock_mitigate` tradeoff
+- ZFS migration strategy: why data-layer adoption and root-on-ZFS must be split
 
 Rule:
 - each note must explain the "what", the "why" and the "how to change it".
