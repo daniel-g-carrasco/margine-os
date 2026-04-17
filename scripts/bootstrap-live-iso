@@ -210,6 +210,13 @@ ensure_layer_exists() {
     || die "missing manifest layer for flavor ${flavor}: ${layer}"
 }
 
+ensure_extra_layer_exists() {
+  local layer="$1"
+  margine_resolve_package_layer "$repo_root" "$flavor" "$layer" >/dev/null 2>&1 \
+    || margine_resolve_aur_layer "$repo_root" "$flavor" "$layer" >/dev/null 2>&1 \
+    || die "missing manifest layer for flavor ${flavor}: ${layer}"
+}
+
 read_manifest_lines() {
   local file="$1"
   grep -hvE '^[[:space:]]*(#|$)' "$file"
@@ -266,6 +273,13 @@ ensure_repo_paths() {
 
 validate_inputs() {
   [[ -n "$username" ]] || die "--username is required"
+
+  if (( ${#extra_layers[@]} > 0 )); then
+    local layer=""
+    for layer in "${extra_layers[@]}"; do
+      ensure_extra_layer_exists "$layer"
+    done
+  fi
 }
 
 run_flavor_repo_bootstrap() {

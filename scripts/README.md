@@ -79,7 +79,9 @@ Operational scripts:
   forwards optional `--extra-layer` requests to the chroot phase. For flavors
   such as `cachyos`, it must first bootstrap the flavor repositories in the
   live environment before the first `pacstrap`, otherwise the stage-1 package
-  set cannot resolve flavor-specific packages.
+  set cannot resolve flavor-specific packages. It also validates repeatable
+  `--extra-layer` names up front, so a typo fails immediately instead of only
+  after the stage-1 install has already spent time on `pacstrap`.
 - `bootstrap-in-chroot`: bootstrap phase 2, intended for the target system.
   It can install extra manifest layers requested from the live-ISO side and now
   auto-runs the `ZFS` non-root provisioner when `zfs-non-root-stack` is part of
