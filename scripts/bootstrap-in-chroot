@@ -25,6 +25,7 @@ username=""
 real_name=""
 user_shell="/bin/bash"
 extra_groups=""
+declare -a requested_extra_layers=()
 user_password_hash=""
 wifi_regdom="IT"
 greetd_login_mode="autologin-lock"
@@ -67,6 +68,7 @@ Options:
                         Modalita' greetd: autologin-lock | tuigreet-only
   --include-aur          Include il manifest AUR
   --include-flatpak      Include il manifest Flatpak
+  --extra-layer NAME     Extra manifest layer to install in phase 2; repeatable
   --dry-run              Mostra il piano senza eseguirlo
   --help                 Show this help
 EOF
@@ -86,6 +88,25 @@ append_unique_bootstrap_layer() {
   done
 
   phase2_layers+=("$candidate")
+}
+
+bootstrap_layer_selected() {
+  local candidate="$1"
+  local layer=""
+
+  for layer in "${phase2_layers[@]}"; do
+    [[ "$layer" == "$candidate" ]] && return 0
+  done
+
+  return 1
+}
+
+ensure_bootstrap_layer_exists() {
+  local layer="$1"
+
+  margine_resolve_package_layer "$repo_root" "$flavor" "$layer" >/dev/null 2>&1 \
+    || margine_resolve_aur_layer "$repo_root" "$flavor" "$layer" >/dev/null 2>&1 \
+    || die "missing manifest layer for flavor ${flavor}: ${layer}"
 }
 
 load_product_bootstrap_extensions() {
@@ -196,6 +217,11 @@ parse_args() {
         include_flatpak=1
         shift
         ;;
+      --extra-layer)
+        [[ $# -ge 2 ]] || die "missing value for --extra-layer"
+        requested_extra_layers+=("$2")
+        shift 2
+        ;;
       --dry-run)
         dry_run=1
         shift
@@ -213,6 +239,13 @@ parse_args() {
   eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
     || die "unsupported product/flavor combination"
   load_product_bootstrap_extensions
+  if (( ${#requested_extra_layers[@]} > 0 )); then
+    local layer=""
+    for layer in "${requested_extra_layers[@]}"; do
+      ensure_bootstrap_layer_exists "$layer"
+      append_unique_bootstrap_layer "$layer"
+    done
+  fi
 }
 
 require_root() {
@@ -436,6 +469,20 @@ run_timeshift_provisioner() {
   run_cmd "$provisioner" "${args[@]}"
 }
 
+run_zfs_non_root_provisioner() {
+  local provisioner="${repo_root}/scripts/provision-zfs-non-root-baseline"
+  local -a args=()
+
+  bootstrap_layer_selected "zfs-non-root-stack" || return 0
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$provisioner" ]] || die "ZFS non-root provisioner not executable: $provisioner"
+
+  log
+  log "==> Provision ZFS non-root baseline"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
 run_user_runtime_provisioner() {
   local provisioner="${repo_root}/scripts/provision-user-runtime-tools"
   local -a args=(
@@ -628,6 +675,7 @@ main() {
   run_photo_color_provisioner
   run_snapper_provisioner
   run_timeshift_provisioner
+  run_zfs_non_root_provisioner
   enable_base_services
   run_product_extra_provisioners
 

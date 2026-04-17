@@ -63,13 +63,24 @@ Operational scripts:
   snapshots of configured non-root `ZFS` datasets. It is intentionally kept
   separate from the current `Snapper` root flow until the `ZFS` non-root layer
   is validated in practice.
+- `provision-zfs-non-root-baseline`: installs the versioned `sanoid` config,
+  the configured dataset list for pre-update snapshots, and the local systemd
+  units for the optional `ZFS` non-root experiment. This is still separate from
+  any `root-on-ZFS` path.
 - `provision-storage`: prepares disk, `LUKS2`, `Btrfs`, and subvolumes from the live ISO.
 - `install-live-iso`: orchestrates `provision-storage` and `bootstrap-live-iso`
-  in a single live-ISO pipeline.
+  in a single live-ISO pipeline. It now also accepts repeatable
+  `--extra-layer` flags so exploratory layers can be installed during the same
+  bootstrap instead of being added manually later.
 - `install-live-iso-guided`: step-by-step interactive wrapper around
-  `install-live-iso` and `bootstrap-live-iso`.
-- `bootstrap-live-iso`: bootstrap phase 1, intended for the Arch live ISO.
+  `install-live-iso` and `bootstrap-live-iso`, including the same optional
+  `--extra-layer` pass-through.
+- `bootstrap-live-iso`: bootstrap phase 1, intended for the Arch live ISO. It
+  forwards optional `--extra-layer` requests to the chroot phase.
 - `bootstrap-in-chroot`: bootstrap phase 2, intended for the target system.
+  It can install extra manifest layers requested from the live-ISO side and now
+  auto-runs the `ZFS` non-root provisioner when `zfs-non-root-stack` is part of
+  the selected layer set.
 - `provision-initial-boot-chain`: closes the bootstrap by installing the
   initial `mkinitcpio + UKI + Limine` boot chain on the target system.
 - `provision-boot-baseline`: installs the local boot baseline files
@@ -101,7 +112,10 @@ Operational scripts:
   packages, and the real `libvirt` and `podman` state.
 - `prepare-qemu-archiso-validation`: prepares a QEMU/OVMF VM with the official
   Arch ISO and a guide to validate `Margine` through a real install flow, with
-  optional vTPM wiring when `swtpm` is available on the host.
+  optional vTPM wiring when `swtpm` is available on the host. It now also
+  supports repeatable `--extra-layer` flags and, when `zfs-non-root-stack` is
+  requested, automatically attaches a second qcow2 disk for the non-root ZFS
+  lab inside the guest.
 - `provision-host-root-baseline`: reapplies the root-owned host baseline for
   fingerprint auth, Framework power/lid policy, Snapper recovery, and Limine
   recovery entries on an already-installed machine.

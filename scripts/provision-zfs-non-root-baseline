@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+
+zfs_datasets_source="${repo_root}/files/etc/margine/zfs-pre-update-datasets.conf"
+sanoid_conf_source="${repo_root}/files/etc/sanoid/sanoid.conf"
+margine_sanoid_service_source="${repo_root}/files/etc/systemd/system/margine-sanoid.service"
+margine_sanoid_timer_source="${repo_root}/files/etc/systemd/system/margine-sanoid.timer"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-zfs-non-root-baseline [options]
+
+Options:
+  --dry-run               Show the plan without executing it
+  --help                  Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-zfs-non-root-baseline must run as root"
+}
+
+ensure_sources() {
+  [[ -f "$zfs_datasets_source" ]] || die "missing required source: $zfs_datasets_source"
+  [[ -f "$sanoid_conf_source" ]] || die "missing required source: $sanoid_conf_source"
+  [[ -f "$margine_sanoid_service_source" ]] || die "missing required source: $margine_sanoid_service_source"
+  [[ -f "$margine_sanoid_timer_source" ]] || die "missing required source: $margine_sanoid_timer_source"
+}
+
+install_baseline_files() {
+  log
+  log "==> Install ZFS non-root baseline files"
+
+  run_cmd install -Dm644 "$zfs_datasets_source" /etc/margine/zfs-pre-update-datasets.conf
+  run_cmd install -Dm644 "$sanoid_conf_source" /etc/sanoid/sanoid.conf
+  run_cmd install -Dm644 "$margine_sanoid_service_source" /etc/systemd/system/margine-sanoid.service
+  run_cmd install -Dm644 "$margine_sanoid_timer_source" /etc/systemd/system/margine-sanoid.timer
+}
+
+enable_if_present() {
+  local unit="$1"
+
+  if (( dry_run )); then
+    printf '[dry-run] if systemctl cat %q succeeds -> systemctl enable %q\n' "$unit" "$unit"
+    return 0
+  fi
+
+  if systemctl cat "$unit" >/dev/null 2>&1; then
+    systemctl enable "$unit"
+  fi
+}
+
+enable_services() {
+  log
+  log "==> Enable ZFS-related services when available"
+
+  enable_if_present zfs-import-cache.service
+  enable_if_present zfs-mount.service
+  enable_if_present zfs-zed.service
+  enable_if_present margine-sanoid.timer
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  ensure_sources
+
+  log "=== Provision ZFS non-root baseline ==="
+  (( dry_run )) && log "Mode: dry-run"
+
+  install_baseline_files
+  enable_services
+
+  log
+  log "=== DONE ==="
+}
+
+main "$@"

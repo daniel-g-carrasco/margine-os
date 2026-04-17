@@ -27,6 +27,7 @@ user_password_hash=""
 wifi_regdom="IT"
 greetd_login_mode="autologin-lock"
 run_chroot=0
+declare -a extra_layers=()
 confirm_destroy=0
 crypt_name="cryptroot"
 esp_size_mib=4096
@@ -54,6 +55,7 @@ Options:
   --user-password-hash HASH      Password hash for the administrative user
   --wifi-regdom CODE             Regulatory domain Wi-Fi (default: IT)
   --greetd-login-mode MODE       greetd mode: autologin-lock | tuigreet-only
+  --extra-layer NAME             Extra manifest layer to install in phase 2; repeatable
   --run-chroot                   Immediately start phase 2 via arch-chroot
   --crypt-name NAME              Nome mapper LUKS (default: cryptroot)
   --esp-size-mib NUM             ESP size in MiB (default: 4096)
@@ -146,6 +148,11 @@ parse_args() {
       --greetd-login-mode)
         [[ $# -ge 2 ]] || die "missing value for --greetd-login-mode"
         greetd_login_mode="$2"
+        shift 2
+        ;;
+      --extra-layer)
+        [[ $# -ge 2 ]] || die "missing value for --extra-layer"
+        extra_layers+=("$2")
         shift 2
         ;;
       --run-chroot)
@@ -260,6 +267,12 @@ run_bootstrap_phase() {
   [[ -n "$user_password_hash" ]] && args+=(--user-password-hash "$user_password_hash")
   [[ -n "$wifi_regdom" ]] && args+=(--wifi-regdom "$wifi_regdom")
   [[ -n "$greetd_login_mode" ]] && args+=(--greetd-login-mode "$greetd_login_mode")
+  if (( ${#extra_layers[@]} > 0 )); then
+    local layer=""
+    for layer in "${extra_layers[@]}"; do
+      args+=(--extra-layer "$layer")
+    done
+  fi
   (( run_chroot )) && args+=(--run-chroot)
   (( dry_run )) && args+=(--dry-run)
 
@@ -276,6 +289,9 @@ main() {
   log "=== Install live ISO Margine ==="
   log "Product: ${product} (${product_name})"
   log "Flavor: ${flavor}"
+  if (( ${#extra_layers[@]} > 0 )); then
+    log "Extra layers: ${extra_layers[*]}"
+  fi
   (( dry_run )) && log "Mode: dry-run"
 
   run_storage_phase

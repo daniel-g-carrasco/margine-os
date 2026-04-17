@@ -28,6 +28,7 @@ user_password_hash=""
 wifi_regdom="IT"
 greetd_login_mode="autologin-lock"
 run_chroot="y"
+declare -a extra_layers=()
 prompt_result=""
 interactive_input_fd=0
 interactive_output_fd=1
@@ -53,6 +54,7 @@ Options:
   --extra-groups CSV        Extra groups, comma-separated
   --wifi-regdom CODE        Wi-Fi regulatory domain (default: IT)
   --greetd-login-mode MODE  greetd mode: autologin-lock | tuigreet-only
+  --extra-layer NAME        Extra manifest layer to install in phase 2; repeatable
   --run-chroot              Run the chroot phase after bootstrap
   --no-run-chroot           Stop before the chroot phase
   --dry-run                 Show the final commands without executing them
@@ -157,6 +159,11 @@ parse_args() {
       --greetd-login-mode)
         [[ $# -ge 2 ]] || die "missing value for --greetd-login-mode"
         greetd_login_mode="$2"
+        shift 2
+        ;;
+      --extra-layer)
+        [[ $# -ge 2 ]] || die "missing value for --extra-layer"
+        extra_layers+=("$2")
         shift 2
         ;;
       --run-chroot)
@@ -448,6 +455,11 @@ print_summary() {
     log "  Extra groups: none"
   fi
   log "  Wi-Fi regulatory domain: ${wifi_regdom}"
+  if (( ${#extra_layers[@]} > 0 )); then
+    log "  Extra layers: ${extra_layers[*]}"
+  else
+    log "  Extra layers: none"
+  fi
   log "  Default groups added by bootstrap: wheel, video, render, kvm, libvirt, colord"
   log "  greetd login mode: ${greetd_login_mode}"
   if [[ "$run_chroot" = "y" ]]; then
@@ -498,6 +510,12 @@ run_erase_disk_mode() {
   [[ -n "$extra_groups" ]] && args+=(--extra-groups "$extra_groups")
   [[ -n "$user_password_hash" ]] && args+=(--user-password-hash "$user_password_hash")
   [[ -n "$wifi_regdom" ]] && args+=(--wifi-regdom "$wifi_regdom")
+  if (( ${#extra_layers[@]} > 0 )); then
+    local layer=""
+    for layer in "${extra_layers[@]}"; do
+      args+=(--extra-layer "$layer")
+    done
+  fi
   [[ "$run_chroot" = "y" ]] && args+=(--run-chroot)
   (( dry_run )) && args+=(--dry-run)
 
@@ -523,6 +541,12 @@ run_mounted_target_mode() {
   [[ -n "$extra_groups" ]] && args+=(--extra-groups "$extra_groups")
   [[ -n "$user_password_hash" ]] && args+=(--user-password-hash "$user_password_hash")
   [[ -n "$wifi_regdom" ]] && args+=(--wifi-regdom "$wifi_regdom")
+  if (( ${#extra_layers[@]} > 0 )); then
+    local layer=""
+    for layer in "${extra_layers[@]}"; do
+      args+=(--extra-layer "$layer")
+    done
+  fi
   [[ "$run_chroot" = "y" ]] && args+=(--run-chroot)
   (( dry_run )) && args+=(--dry-run)
 

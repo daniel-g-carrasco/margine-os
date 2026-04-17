@@ -26,6 +26,7 @@ user_password_hash=""
 wifi_regdom="IT"
 greetd_login_mode="autologin-lock"
 run_chroot=0
+declare -a extra_layers=()
 
 stage1_layers=(
   base-system
@@ -56,6 +57,7 @@ Options:
   --wifi-regdom CODE      Regulatory domain Wi-Fi to pass to the chroot phase
   --greetd-login-mode MODE
                          greetd mode: autologin-lock | tuigreet-only
+  --extra-layer NAME      Extra manifest layer to install in phase 2; repeatable
   --run-chroot            Immediately start phase 2 via arch-chroot
   --dry-run               Show the plan without executing it
   --help                  Show this help
@@ -153,6 +155,11 @@ parse_args() {
       --greetd-login-mode)
         [[ $# -ge 2 ]] || die "missing value for --greetd-login-mode"
         greetd_login_mode="$2"
+        shift 2
+        ;;
+      --extra-layer)
+        [[ $# -ge 2 ]] || die "missing value for --extra-layer"
+        extra_layers+=("$2")
         shift 2
         ;;
       --run-chroot)
@@ -351,6 +358,12 @@ run_chroot_handoff() {
   [[ -n "$extra_groups" ]] && args+=(--extra-groups "$extra_groups")
   [[ -n "$user_password_hash" ]] && args+=(--user-password-hash "$user_password_hash")
   [[ -n "$wifi_regdom" ]] && args+=(--wifi-regdom "$wifi_regdom")
+  if (( ${#extra_layers[@]} > 0 )); then
+    local layer=""
+    for layer in "${extra_layers[@]}"; do
+      args+=(--extra-layer "$layer")
+    done
+  fi
 
   log
   log "==> Run chroot handoff"
@@ -375,6 +388,12 @@ print_next_step() {
   if [[ -n "$wifi_regdom" ]]; then
     command+=" --wifi-regdom ${wifi_regdom}"
   fi
+  if (( ${#extra_layers[@]} > 0 )); then
+    local layer=""
+    for layer in "${extra_layers[@]}"; do
+      command+=" --extra-layer ${layer}"
+    done
+  fi
   if [[ -n "$greetd_login_mode" ]]; then
     command+=" --greetd-login-mode ${greetd_login_mode}"
   fi
@@ -395,6 +414,9 @@ main() {
   log "=== Bootstrap live ISO Margine ==="
   log "Product: ${product} (${product_name})"
   log "Flavor: ${flavor}"
+  if (( ${#extra_layers[@]} > 0 )); then
+    log "Extra layers: ${extra_layers[*]}"
+  fi
   (( dry_run )) && log "Mode: dry-run"
 
   install_pre_pacstrap_baselines

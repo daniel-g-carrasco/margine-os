@@ -26,6 +26,10 @@ download_iso=0
 run_vm=0
 headless=0
 dry_run=0
+declare -a extra_layers=()
+zfs_lab_disk_size="120G"
+zfs_lab_disk_path=""
+enable_zfs_lab_disk=0
 
 arch_iso_url="https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso"
 arch_sig_url="https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso.sig"
@@ -58,6 +62,9 @@ Options:
   --ssh-forward-port N    Host port forwarded to guest:22 (default: 2222)
   --with-vtpm             Require a virtual TPM through swtpm
   --no-vtpm               Disable the virtual TPM even if swtpm is installed
+  --extra-layer NAME      Extra manifest layer to install in the guest; repeatable
+  --zfs-lab-disk-size N   Size of the extra qcow2 disk used for ZFS non-root validation
+                          when zfs-non-root-stack is requested (default: 120G)
   --download-iso          Download the official Arch ISO and verification files
   --run                   Start QEMU immediately after preparation
   --headless              Start QEMU without a graphical window
@@ -89,6 +96,36 @@ run_cmd() {
 
 have_cmd() {
   command -v "$1" >/dev/null 2>&1
+}
+
+append_unique_extra_layer() {
+  local candidate="$1"
+  local existing=""
+
+  [[ -n "$candidate" ]] || return 0
+  for existing in "${extra_layers[@]}"; do
+    [[ "$existing" == "$candidate" ]] && return 0
+  done
+  extra_layers+=("$candidate")
+}
+
+extra_layer_selected() {
+  local candidate="$1"
+  local existing=""
+
+  for existing in "${extra_layers[@]}"; do
+    [[ "$existing" == "$candidate" ]] && return 0
+  done
+
+  return 1
+}
+
+ensure_extra_layer_exists() {
+  local layer="$1"
+
+  margine_resolve_package_layer "$repo_root" "$flavor" "$layer" >/dev/null 2>&1 \
+    || margine_resolve_aur_layer "$repo_root" "$flavor" "$layer" >/dev/null 2>&1 \
+    || die "layer not found for flavor ${flavor}: ${layer}"
 }
 
 parse_args() {
@@ -147,6 +184,16 @@ parse_args() {
         vtpm_mode="off"
         shift
         ;;
+      --extra-layer)
+        [[ $# -ge 2 ]] || die "missing value for --extra-layer"
+        append_unique_extra_layer "$2"
+        shift 2
+        ;;
+      --zfs-lab-disk-size)
+        [[ $# -ge 2 ]] || die "missing value for --zfs-lab-disk-size"
+        zfs_lab_disk_size="$2"
+        shift 2
+        ;;
       --download-iso)
         download_iso=1
         shift
@@ -175,6 +222,17 @@ parse_args() {
 
   eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
     || die "unsupported product/flavor combination"
+
+  if (( ${#extra_layers[@]} > 0 )); then
+    local layer=""
+    for layer in "${extra_layers[@]}"; do
+      ensure_extra_layer_exists "$layer"
+    done
+  fi
+
+  if extra_layer_selected "zfs-non-root-stack"; then
+    enable_zfs_lab_disk=1
+  fi
 }
 
 ensure_prereqs() {
@@ -242,6 +300,7 @@ init_paths() {
   run_script_path="${workdir}/run-qemu.sh"
   run_installed_script_path="${workdir}/run-qemu-installed.sh"
   guide_path="${workdir}/inside-live-iso.md"
+  zfs_lab_disk_path="${workdir}/margine-zfs-lab.qcow2"
   vtpm_state_dir="${workdir}/swtpm-state"
   vtpm_socket="${workdir}/swtpm.sock"
   vtpm_log="${workdir}/swtpm.log"
@@ -301,6 +360,21 @@ prepare_disk() {
   run_cmd qemu-img create -f qcow2 "$disk_path" "$disk_size"
 }
 
+prepare_zfs_lab_disk() {
+  (( enable_zfs_lab_disk )) || return 0
+
+  log
+  log "==> Prepare ZFS lab qcow2 disk"
+
+  if [[ -f "$zfs_lab_disk_path" ]]; then
+    log "ZFS lab disk already exists: ${zfs_lab_disk_path}"
+    return 0
+  fi
+
+  run_cmd install -d "$(dirname "$zfs_lab_disk_path")"
+  run_cmd qemu-img create -f qcow2 "$zfs_lab_disk_path" "$zfs_lab_disk_size"
+}
+
 prepare_ovmf_vars() {
   log
   log "==> Prepare OVMF vars"
@@ -322,6 +396,7 @@ build_qemu_command() {
   local cdrom_args=""
   local boot_args=""
   local vtpm_args=""
+  local zfs_disk_args=""
 
   if (( headless )); then
     display_args="-display none -serial mon:stdio"
@@ -345,6 +420,10 @@ build_qemu_command() {
     vtpm_args="-chardev socket,id=chrtpm,path=${vtpm_socket} -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
   fi
 
+  if (( enable_zfs_lab_disk )); then
+    zfs_disk_args="-drive if=virtio,format=qcow2,file=${zfs_lab_disk_path}"
+  fi
+
   cat <<EOF
 qemu-system-x86_64 \\
   -machine q35,${accel} \\
@@ -354,6 +433,7 @@ qemu-system-x86_64 \\
   -drive if=pflash,format=raw,readonly=on,file=${ovmf_code} \\
   -drive if=pflash,format=raw,file=${ovmf_vars_copy} \\
   -drive if=virtio,format=qcow2,file=${disk_path} \\
+  ${zfs_disk_args} \\
   ${cdrom_args} \\
   ${boot_args} \\
   -netdev user,id=net0,hostfwd=tcp::${ssh_forward_port}-:22 \\
@@ -445,6 +525,9 @@ EOF
 write_guest_guide() {
   local guided_flavor_flag=""
   local noninteractive_flavor_flag=""
+  local guided_extra_layer_flags=""
+  local noninteractive_extra_layer_flags=""
+  local layer=""
 
   log
   log "==> Write guest guide"
@@ -456,6 +539,10 @@ write_guest_guide() {
 
   guided_flavor_flag=" --product ${product} --flavor ${flavor}"
   noninteractive_flavor_flag="  --product ${product} --flavor ${flavor} \\"
+  for layer in "${extra_layers[@]}"; do
+    guided_extra_layer_flags+=" --extra-layer ${layer}"
+    noninteractive_extra_layer_flags+=$'  --extra-layer '"${layer}"$' \\\n'
+  done
 
   cat >"$guide_path" <<'EOF'
 # Margine validation in QEMU with the Arch live ISO
@@ -476,6 +563,11 @@ Goal:
 If `swtpm` is installed on the host, the generated QEMU launchers also attach a
 virtual TPM automatically. This allows real TPM2 validation instead of only
 documenting it.
+
+If you prepared this VM with extra layers, the generated commands below already
+include them:
+
+`__EXTRA_LAYER_SUMMARY__`
 
 ## 0. On the host system
 
@@ -499,7 +591,7 @@ Correct flow:
 Dal sistema host:
 
 ```bash
-~/dev/margine-os/build/qemu-archiso-validation/run-qemu.sh
+__HOST_RUN_SCRIPT__
 ```
 
 When the Arch menu appears:
@@ -525,6 +617,8 @@ What you should expect to see:
 - working network
 - the main virtual disk as `/dev/vda`
 - no system installed on that disk yet
+- if you enabled the optional `zfs-non-root-stack`, an extra lab disk as
+  `/dev/vdb`
 
 ## 3. Mounting the Margine repository inside the live environment
 
@@ -551,7 +645,7 @@ mount is correct.
 Start the guided wrapper:
 
 ```bash
-/root/margine-repo/scripts/install-live-iso-guided__GUIDED_FLAVOR_FLAG__
+/root/margine-repo/scripts/install-live-iso-guided__GUIDED_FLAVOR_FLAG____GUIDED_EXTRA_LAYER_FLAGS__
 ```
 
 When it asks questions, use these recommended answers in the VM:
@@ -703,7 +797,7 @@ poweroff
 Then, from the host system:
 
 ```bash
-~/dev/margine-os/build/qemu-archiso-validation/run-qemu-installed.sh
+__HOST_RUN_INSTALLED_SCRIPT__
 ```
 
 This step is important:
@@ -739,6 +833,47 @@ For the `Walker/Elephant` regression, the important check here is:
 - `snapper` must actually show the `root` config, not just the package installed
 - the screenshot/recording stack must have the official binaries available even
   if `hyprcap` is missing
+
+Optional checks if you installed `zfs-non-root-stack`:
+
+```bash
+pacman -Q zfs-dkms zfs-utils sanoid
+which zpool zfs sanoid
+systemctl status margine-sanoid.timer --no-pager
+cat /etc/sanoid/sanoid.conf
+cat /etc/margine/zfs-pre-update-datasets.conf
+```
+
+Optional checks if you also installed the gaming stack:
+
+```bash
+pacman -Q steam gamescope mangohud umu-launcher
+which steam gamescope mangohud
+```
+
+If you prepared the VM with `zfs-non-root-stack`, a realistic first lab after
+the system boots is to dedicate `/dev/vdb` to the non-root pool:
+
+```bash
+sudo wipefs -a /dev/vdb
+sudo cryptsetup luksFormat /dev/vdb
+sudo cryptsetup open /dev/vdb zfslab
+sudo zpool create -f \\
+  -o ashift=12 \\
+  -O compression=lz4 \\
+  -O atime=off \\
+  -O acltype=posixacl \\
+  -O xattr=sa \\
+  -O mountpoint=none \\
+  tank /dev/mapper/zfslab
+sudo zfs create -o mountpoint=/data tank/data
+sudo zfs create -o mountpoint=/srv tank/srv
+sudo zfs create -o mountpoint=/archive tank/archive
+zpool status
+zfs list
+sudo sanoid --take-snapshots
+zfs list -t snapshot
+```
 
 ## 9. If something goes wrong
 
@@ -797,6 +932,7 @@ If you want to avoid the wizard and repeat the same test every time:
   --username daniel \
   --real-name "Daniel Carrasco" \
 __NONINTERACTIVE_FLAVOR_FLAG__
+__NONINTERACTIVE_EXTRA_LAYER_FLAGS__\
   --greetd-login-mode tuigreet-only \
   --run-chroot
 ```
@@ -804,15 +940,20 @@ __NONINTERACTIVE_FLAVOR_FLAG__
 This is the form best suited to repeatable tests.
 EOF
 
-  python - "$guide_path" "$flavor" "$guided_flavor_flag" "$noninteractive_flavor_flag" <<'PY'
+  python - "$guide_path" "$flavor" "$guided_flavor_flag" "$noninteractive_flavor_flag" "$guided_extra_layer_flags" "$noninteractive_extra_layer_flags" "$(printf '%s' "${extra_layers[*]:-none}")" "$run_script_path" "$run_installed_script_path" <<'PY'
 from pathlib import Path
 import sys
 
-guide_path, flavor, guided_flag, noninteractive_flag = sys.argv[1:]
+guide_path, flavor, guided_flag, noninteractive_flag, guided_extra_layers, noninteractive_extra_layers, extra_layer_summary, host_run_script, host_run_installed_script = sys.argv[1:]
 text = Path(guide_path).read_text()
 text = text.replace("__TARGET_FLAVOR__", flavor)
 text = text.replace("__GUIDED_FLAVOR_FLAG__", guided_flag)
 text = text.replace("__NONINTERACTIVE_FLAVOR_FLAG__", noninteractive_flag)
+text = text.replace("__GUIDED_EXTRA_LAYER_FLAGS__", guided_extra_layers)
+text = text.replace("__NONINTERACTIVE_EXTRA_LAYER_FLAGS__", noninteractive_extra_layers)
+text = text.replace("__EXTRA_LAYER_SUMMARY__", extra_layer_summary)
+text = text.replace("__HOST_RUN_SCRIPT__", host_run_script)
+text = text.replace("__HOST_RUN_INSTALLED_SCRIPT__", host_run_installed_script)
 Path(guide_path).write_text(text)
 PY
 }
@@ -840,11 +981,18 @@ main() {
   log "=== Prepare QEMU Arch ISO validation ==="
   log "Product: ${product} (${product_name})"
   log "Flavor: ${flavor}"
+  if (( ${#extra_layers[@]} > 0 )); then
+    log "Extra layers: ${extra_layers[*]}"
+  fi
+  if (( enable_zfs_lab_disk )); then
+    log "ZFS lab disk: ${zfs_lab_disk_path} (${zfs_lab_disk_size})"
+  fi
   (( dry_run )) && log "Mode: dry-run"
 
   download_iso_assets
   verify_iso_assets
   prepare_disk
+  prepare_zfs_lab_disk
   prepare_ovmf_vars
   write_run_script
   write_guest_guide
@@ -855,6 +1003,9 @@ main() {
   log "Guida in-guest: ${guide_path}"
   log "ISO: ${iso_path}"
   log "Disco VM: ${disk_path}"
+  if (( enable_zfs_lab_disk )); then
+    log "Disco ZFS lab: ${zfs_lab_disk_path}"
+  fi
 
   maybe_run_vm
 }
