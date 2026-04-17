@@ -131,6 +131,15 @@ resolve_limine_config_path() {
   return 1
 }
 
+resolve_limine_binary_paths() {
+  local -a paths=()
+
+  [[ -f /boot/EFI/Margine/BOOTX64.EFI ]] && paths+=(/boot/EFI/Margine/BOOTX64.EFI)
+  [[ -f /boot/EFI/BOOT/BOOTX64.EFI ]] && paths+=(/boot/EFI/BOOT/BOOTX64.EFI)
+
+  printf '%s\n' "${paths[@]}"
+}
+
 product_context_section() {
   local pkg=""
   local repos_present="unknown"
@@ -183,6 +192,10 @@ product_context_section() {
 
 boot_section() {
   local product="unknown"
+  local -a limine_binaries=()
+  local first_hash=""
+  local current_hash=""
+  local binary=""
 
   section "Secure Boot and Bootloader"
 
@@ -199,6 +212,25 @@ boot_section() {
       status_line "Limine-first target: not yet aligned"
       mark_issue
     fi
+  fi
+
+  while IFS= read -r binary; do
+    [[ -n "$binary" ]] || continue
+    limine_binaries+=("$binary")
+    status_line "limine EFI present: ${binary}"
+  done < <(resolve_limine_binary_paths)
+
+  if (( ${#limine_binaries[@]} > 1 )); then
+    first_hash="$(sha256sum "${limine_binaries[0]}" | awk '{print $1}')"
+    for binary in "${limine_binaries[@]:1}"; do
+      current_hash="$(sha256sum "$binary" | awk '{print $1}')"
+      if [[ "$current_hash" != "$first_hash" ]]; then
+        status_line "Limine EFI copies aligned: no"
+        mark_issue
+        return 0
+      fi
+    done
+    status_line "Limine EFI copies aligned: yes"
   fi
 }
 

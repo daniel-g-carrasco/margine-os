@@ -105,6 +105,8 @@ Check:
 
 - `BOOTX64.EFI` exists
 - `limine.conf` exists and points to the expected entries
+- if both `/boot/EFI/Margine/BOOTX64.EFI` and `/boot/EFI/BOOT/BOOTX64.EFI`
+  exist, they are aligned and not diverging copies of Limine
 - the main, fallback, and recovery UKIs exist
 - `/boot/memtest86+/memtest.efi` exists when `memtest86+-efi` is in the baseline
 - the `Memtest86+` entry exists under `/Diagnostics`
@@ -130,13 +132,15 @@ For the installed trust-refresh path, also verify:
 ```bash
 update-all --dry-run --no-aur --no-flatpak --no-fwupd
 sudo sbctl verify
+sha256sum /boot/EFI/Margine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI 2>/dev/null || true
 ```
 
 Check:
 
 - the dry-run shows `install -Dm755 /usr/share/limine/BOOTX64.EFI` on the
-  active loader path before `limine enroll-config`
-- the dry-run shows a subsequent `sbctl sign` on the same active loader path
+  active Limine target path before `limine enroll-config`
+- if multiple Limine EFI copies exist, the dry-run shows `enroll-config` and
+  `sbctl sign` for each copy, not only one path
 - when `memtest86+-efi` is installed, the dry-run also signs `Memtest86+`
 - `sbctl verify` is clean after a real `update-all` run
 

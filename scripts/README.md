@@ -42,9 +42,10 @@ Operational scripts:
   preventive backups of overwritten files.
 - `refresh-efi-trust`: computes the `limine.conf` hash, runs
   `limine enroll-config`, and signs the EFI chain with `sbctl`. It first
-  reinstalls the unsigned Limine EFI binary on the active target path so the
-  trust refresh starts from a clean loader state. When present, it also signs
-  the `Memtest86+` EFI payload installed on the ESP.
+  reinstalls the unsigned Limine EFI binary on every detected Limine target
+  path so the trust refresh starts from a clean loader state and duplicate
+  Limine copies cannot silently diverge. When present, it also signs the
+  `Memtest86+` EFI payload installed on the ESP.
 - `provision-secure-boot-preflight`: exports the currently enrolled public
   Secure Boot keys, lists EFI binaries on the ESP, and prepares the operator
   for the firmware-side Setup Mode step.
