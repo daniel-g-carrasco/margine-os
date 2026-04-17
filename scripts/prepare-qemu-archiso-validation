@@ -354,7 +354,7 @@ verify_iso_assets() {
   if (( dry_run )); then
     printf '[dry-run] bsdtar -tf %s | rg %s\n' \
       "$iso_path" \
-      "'^EFI/BOOT/BOOTX64.EFI$|^loader/entries$|^arch/boot/x86_64/vmlinuz-linux$'"
+      "'(?i)^EFI/BOOT/BOOTX64.EFI$|^loader/entries$|^arch/boot/x86_64/vmlinuz-linux$'"
     return 0
   fi
 
@@ -368,7 +368,7 @@ verify_iso_assets() {
     die "ISO appears truncated or unreadable: ${iso_path}"
   fi
 
-  if ! rg -qx 'EFI/BOOT/BOOTX64.EFI' "$iso_listing"; then
+  if ! rg -qix 'EFI/BOOT/BOOTX64.EFI' "$iso_listing"; then
     rm -f "$iso_listing"
     die "ISO missing EFI boot entry EFI/BOOT/BOOTX64.EFI: ${iso_path}"
   fi
