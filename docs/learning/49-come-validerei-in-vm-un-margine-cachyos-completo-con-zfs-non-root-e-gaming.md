@@ -141,6 +141,17 @@ Quindi il minimo serio da verificare e`:
 - `umu-launcher`
 - `vulkaninfo`
 
+Su `margine-cachyos` c'e` anche un vincolo packaging da fissare esplicitamente:
+
+- non mischiare il pacchetto Arch standalone `vulkan-mesa-layers` con il lato
+  `lib32-mesa-git` che il game stack CachyOS puo` risolvere come provider
+  Vulkan a 32 bit
+
+In pratica il flavor `cachyos` deve avere un override del baseline AMD che
+evita proprio quella combinazione, altrimenti il test VM puo` fermarsi su
+conflitti file di `mesa-overlay-control.py` prima ancora di validare il game
+stack vero e proprio.
+
 ## Sequenza di validazione che sceglierei
 
 ### Fase 1: installazione dalla live ISO
