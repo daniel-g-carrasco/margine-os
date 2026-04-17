@@ -46,6 +46,7 @@ Planned topics:
 - DaVinci Resolve on Linux: graphics, compute, and compatibility requirements
 - gaming stack layering and the `split_lock_mitigate` tradeoff
 - ZFS migration strategy: why data-layer adoption and root-on-ZFS must be split
+- ZFS non-root dataset layout and local snapshot policy
 
 Rule:
 - each note must explain the "what", the "why" and the "how to change it".
