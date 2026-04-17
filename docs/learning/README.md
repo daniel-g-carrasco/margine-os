@@ -48,6 +48,7 @@ Planned topics:
 - ZFS migration strategy: why data-layer adoption and root-on-ZFS must be split
 - ZFS non-root dataset layout and local snapshot policy
 - ZFS tooling choice on Arch for Margine
+- full VM validation of `Margine CachyOS` with `ZFS` non-root and gaming stack
 
 Rule:
 - each note must explain the "what", the "why" and the "how to change it".

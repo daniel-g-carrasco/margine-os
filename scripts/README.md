@@ -115,7 +115,9 @@ Operational scripts:
   optional vTPM wiring when `swtpm` is available on the host. It now also
   supports repeatable `--extra-layer` flags and, when `zfs-non-root-stack` is
   requested, automatically attaches a second qcow2 disk for the non-root ZFS
-  lab inside the guest.
+  lab inside the guest. It emits both a live-ISO guide and a second
+  installed-system checklist so the full `CachyOS + ZFS non-root + gaming`
+  guest can be validated with a repeatable runbook instead of ad-hoc notes.
 - `provision-host-root-baseline`: reapplies the root-owned host baseline for
   fingerprint auth, Framework power/lid policy, Snapper recovery, and Limine
   recovery entries on an already-installed machine.

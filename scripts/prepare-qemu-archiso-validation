@@ -41,6 +41,7 @@ ovmf_vars_copy=""
 run_script_path=""
 run_installed_script_path=""
 guide_path=""
+installed_checklist_path=""
 vtpm_state_dir=""
 vtpm_socket=""
 vtpm_log=""
@@ -300,6 +301,7 @@ init_paths() {
   run_script_path="${workdir}/run-qemu.sh"
   run_installed_script_path="${workdir}/run-qemu-installed.sh"
   guide_path="${workdir}/inside-live-iso.md"
+  installed_checklist_path="${workdir}/inside-installed-system.md"
   zfs_lab_disk_path="${workdir}/margine-zfs-lab.qcow2"
   vtpm_state_dir="${workdir}/swtpm-state"
   vtpm_socket="${workdir}/swtpm.sock"
@@ -568,6 +570,10 @@ If you prepared this VM with extra layers, the generated commands below already
 include them:
 
 `__EXTRA_LAYER_SUMMARY__`
+
+For the installed guest, keep this second checklist open on the host:
+
+`__HOST_INSTALLED_CHECKLIST__`
 
 ## 0. On the host system
 
@@ -875,6 +881,10 @@ sudo sanoid --take-snapshots
 zfs list -t snapshot
 ```
 
+For the full post-install validation, continue with:
+
+`__HOST_INSTALLED_CHECKLIST__`
+
 ## 9. If something goes wrong
 
 The most likely problems are:
@@ -940,11 +950,11 @@ __NONINTERACTIVE_EXTRA_LAYER_FLAGS__\
 This is the form best suited to repeatable tests.
 EOF
 
-  python - "$guide_path" "$flavor" "$guided_flavor_flag" "$noninteractive_flavor_flag" "$guided_extra_layer_flags" "$noninteractive_extra_layer_flags" "$(printf '%s' "${extra_layers[*]:-none}")" "$run_script_path" "$run_installed_script_path" <<'PY'
+  python - "$guide_path" "$flavor" "$guided_flavor_flag" "$noninteractive_flavor_flag" "$guided_extra_layer_flags" "$noninteractive_extra_layer_flags" "$(printf '%s' "${extra_layers[*]:-none}")" "$run_script_path" "$run_installed_script_path" "$installed_checklist_path" <<'PY'
 from pathlib import Path
 import sys
 
-guide_path, flavor, guided_flag, noninteractive_flag, guided_extra_layers, noninteractive_extra_layers, extra_layer_summary, host_run_script, host_run_installed_script = sys.argv[1:]
+guide_path, flavor, guided_flag, noninteractive_flag, guided_extra_layers, noninteractive_extra_layers, extra_layer_summary, host_run_script, host_run_installed_script, host_installed_checklist = sys.argv[1:]
 text = Path(guide_path).read_text()
 text = text.replace("__TARGET_FLAVOR__", flavor)
 text = text.replace("__GUIDED_FLAVOR_FLAG__", guided_flag)
@@ -954,7 +964,241 @@ text = text.replace("__NONINTERACTIVE_EXTRA_LAYER_FLAGS__", noninteractive_extra
 text = text.replace("__EXTRA_LAYER_SUMMARY__", extra_layer_summary)
 text = text.replace("__HOST_RUN_SCRIPT__", host_run_script)
 text = text.replace("__HOST_RUN_INSTALLED_SCRIPT__", host_run_installed_script)
+text = text.replace("__HOST_INSTALLED_CHECKLIST__", host_installed_checklist)
 Path(guide_path).write_text(text)
+PY
+}
+
+write_installed_checklist() {
+  log
+  log "==> Write installed-system checklist"
+
+  if (( dry_run )); then
+    printf '[dry-run] write %s\n' "$installed_checklist_path"
+    return 0
+  fi
+
+  cat >"$installed_checklist_path" <<'EOF'
+# Installed-system validation checklist for Margine in QEMU
+
+This checklist starts **after**:
+
+1. the guest has already been installed;
+2. you have powered off the live ISO session;
+3. you have booted the guest from `run-qemu-installed.sh`.
+
+Target flavor: `__TARGET_FLAVOR__`
+Extra layers requested: `__EXTRA_LAYER_SUMMARY__`
+
+Scope:
+
+- prove that the installed guest really boots as the intended product/flavor;
+- validate the desktop/login/runtime baseline;
+- validate the optional `ZFS` non-root stack end-to-end on the extra lab disk;
+- validate the optional gaming stack at package, command, and launcher level.
+
+Non-goals:
+
+- this does **not** prove real gaming performance in QEMU;
+- this does **not** replace bare-metal graphics, VRR, latency, or anti-cheat tests;
+- this does **not** validate `root-on-ZFS`.
+
+## 1. Identity and boot baseline
+
+Run:
+
+```bash
+uname -a
+cat /etc/os-release
+cat /proc/cmdline
+findmnt /
+ls -l /boot/EFI/BOOT
+ls -l /boot/EFI/Linux
+```
+
+Expected result:
+
+- the guest is clearly the installed target, not the Arch live ISO;
+- `/` is mounted from the installed disk;
+- `Limine` artifacts and UKIs exist on the guest ESP.
+
+## 2. Login and desktop runtime baseline
+
+Run:
+
+```bash
+systemctl status greetd --no-pager
+systemctl --user show-environment | rg '^(DISPLAY|WAYLAND_DISPLAY|XDG_CURRENT_DESKTOP|XDG_SESSION_TYPE|XDG_SESSION_DESKTOP|DESKTOP_SESSION|GDK_BACKEND|MOZ_ENABLE_WAYLAND|_JAVA_AWT_WM_NONREPARENTING|HYPRLAND_INSTANCE_SIGNATURE|XDG_RUNTIME_DIR)='
+systemctl --user status elephant.service --no-pager
+which walker elephant fuzzel
+which grim slurp satty wf-recorder
+```
+
+Expected result:
+
+- `greetd` is active;
+- the graphical environment is imported into `systemd --user`;
+- `elephant.service` is active;
+- `walker` exists and `fuzzel` exists as the fallback launcher;
+- the screenshot and recording stack is present.
+
+## 3. Root filesystem snapshot baseline
+
+Run:
+
+```bash
+sudo snapper --no-dbus list-configs
+sudo snapper --no-dbus -c root list
+```
+
+Expected result:
+
+- the `root` config exists;
+- snapshots are listed for the installed system, not just the package.
+
+## 4. Optional ZFS non-root stack presence
+
+Run this block only if you installed `zfs-non-root-stack`:
+
+```bash
+pacman -Q zfs-dkms zfs-utils sanoid
+which zpool zfs sanoid
+sudo modprobe zfs
+lsmod | rg '^zfs'
+systemctl status zfs-import-cache.service zfs-mount.service zfs-zed.service margine-sanoid.timer --no-pager
+cat /etc/sanoid/sanoid.conf
+cat /etc/margine/zfs-pre-update-datasets.conf
+```
+
+Expected result:
+
+- packages are installed;
+- userland tools exist;
+- the `zfs` module loads successfully;
+- baseline configs exist;
+- the local `sanoid` timer is enabled.
+
+## 5. ZFS lab exercise on the extra disk
+
+Run this block only if the VM was prepared with the extra lab disk and you can
+see `/dev/vdb`.
+
+### 5.1 Create the encrypted lab pool
+
+```bash
+sudo wipefs -a /dev/vdb
+sudo cryptsetup luksFormat /dev/vdb
+sudo cryptsetup open /dev/vdb zfslab
+sudo zpool create -f \
+  -o ashift=12 \
+  -O compression=lz4 \
+  -O atime=off \
+  -O acltype=posixacl \
+  -O xattr=sa \
+  -O mountpoint=none \
+  tank /dev/mapper/zfslab
+sudo zfs create -o mountpoint=/data tank/data
+sudo zfs create -o mountpoint=/srv tank/srv
+sudo zfs create -o mountpoint=/archive tank/archive
+zpool status
+zfs list
+```
+
+Expected result:
+
+- the pool imports cleanly;
+- `/data`, `/srv`, and `/archive` are mounted from `tank/*`.
+
+### 5.2 Prove manual snapshot and rollback
+
+```bash
+echo before | sudo tee /data/zfs-probe.txt
+sudo zfs snapshot tank/data@manual-baseline
+echo after | sudo tee /data/zfs-probe.txt
+cat /data/zfs-probe.txt
+sudo zfs rollback tank/data@manual-baseline
+cat /data/zfs-probe.txt
+```
+
+Expected result:
+
+- before rollback: the file contains `after`;
+- after rollback: the file contains `before`.
+
+### 5.3 Prove automatic snapshot tooling
+
+```bash
+sudo sanoid --take-snapshots
+zfs list -t snapshot
+```
+
+Expected result:
+
+- at least one automatic snapshot appears for the configured datasets.
+
+### 5.4 Optional cleanup
+
+```bash
+sudo zpool export tank
+sudo cryptsetup close zfslab
+```
+
+Use this only if you want to leave the guest in a clean post-test state.
+
+## 6. Optional gaming stack presence
+
+Run this block only if you installed both `gaming-runtime-compat` and
+`gaming-apps-launchers`.
+
+```bash
+pacman -Q steam gamescope mangohud umu-launcher vulkan-tools
+command -v steam
+command -v gamescope
+command -v mangohud
+command -v umu-run || command -v umu-launcher || true
+steam --help >/tmp/steam-help.txt 2>&1 || true
+head -n 20 /tmp/steam-help.txt
+gamescope --help | sed -n '1,20p'
+mangohud --help | sed -n '1,20p' || true
+vulkaninfo --summary | sed -n '1,40p'
+```
+
+Expected result:
+
+- the user-facing packages are installed;
+- the main commands resolve correctly;
+- basic CLI help works without obvious linker/runtime failures;
+- `vulkaninfo` runs, even if the renderer is virtualized.
+
+Important note:
+
+- in QEMU this validates packaging, runtime linkage, and launcher presence;
+- it does **not** prove that real games, anti-cheat, HDR, or performance are
+  acceptable on bare metal.
+
+## 7. Pass criteria
+
+Treat the VM as a successful first validation only if all of these are true:
+
+- installed guest boots from the installed disk, not from the live ISO;
+- login and desktop baseline are coherent;
+- `walker`, `fuzzel`, `elephant`, and the screenshot stack are present;
+- `snapper` works for the root baseline;
+- if `ZFS` is enabled, the module loads, the pool can be created on `/dev/vdb`,
+  manual rollback works, and `sanoid` creates snapshots;
+- if gaming layers are enabled, the package set and core commands are present
+  and do not fail immediately on launch/help.
+EOF
+
+  python - "$installed_checklist_path" "$flavor" "$(printf '%s' "${extra_layers[*]:-none}")" <<'PY'
+from pathlib import Path
+import sys
+
+checklist_path, flavor, extra_layer_summary = sys.argv[1:]
+text = Path(checklist_path).read_text()
+text = text.replace("__TARGET_FLAVOR__", flavor)
+text = text.replace("__EXTRA_LAYER_SUMMARY__", extra_layer_summary)
+Path(checklist_path).write_text(text)
 PY
 }
 
@@ -996,11 +1240,13 @@ main() {
   prepare_ovmf_vars
   write_run_script
   write_guest_guide
+  write_installed_checklist
 
   log
   log "Ready."
   log "Launcher VM: ${run_script_path}"
   log "Guida in-guest: ${guide_path}"
+  log "Checklist guest installato: ${installed_checklist_path}"
   log "ISO: ${iso_path}"
   log "Disco VM: ${disk_path}"
   if (( enable_zfs_lab_disk )); then
