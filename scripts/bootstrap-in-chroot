@@ -260,6 +260,19 @@ validate_inputs() {
   [[ -n "$username" ]] || die "--username is required"
 }
 
+run_flavor_repo_bootstrap() {
+  local provisioner="${repo_root}/scripts/provision-cachyos-repositories"
+  local -a args=()
+
+  [[ "$flavor" == "cachyos" ]] || return 0
+  [[ -x "$provisioner" ]] || die "CachyOS repo provisioner not executable in this repo: ${provisioner}"
+  (( dry_run )) && args+=(--dry-run)
+
+  log
+  log "==> Bootstrap flavor repositories"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
 enable_locale_line() {
   local file="/etc/locale.gen"
   local escaped_line=""
@@ -654,6 +667,7 @@ main() {
   fi
   (( dry_run )) && log "Mode: dry-run"
 
+  run_flavor_repo_bootstrap
   configure_timezone
   enable_locale_line
   configure_hostname

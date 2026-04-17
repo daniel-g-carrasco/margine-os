@@ -268,6 +268,19 @@ validate_inputs() {
   [[ -n "$username" ]] || die "--username is required"
 }
 
+run_flavor_repo_bootstrap() {
+  local provisioner="${repo_root}/scripts/provision-cachyos-repositories"
+  local -a args=()
+
+  [[ "$flavor" == "cachyos" ]] || return 0
+  [[ -x "$provisioner" ]] || die "CachyOS repo provisioner not executable in this repo: ${provisioner}"
+  (( dry_run )) && args+=(--dry-run)
+
+  log
+  log "==> Bootstrap flavor repositories"
+  run_cmd "$provisioner" "${args[@]}"
+}
+
 install_pre_pacstrap_baselines() {
   log
   log "==> Install pre-pacstrap baselines"
@@ -419,6 +432,7 @@ main() {
   fi
   (( dry_run )) && log "Mode: dry-run"
 
+  run_flavor_repo_bootstrap
   install_pre_pacstrap_baselines
   run_pacstrap_phase
   generate_fstab

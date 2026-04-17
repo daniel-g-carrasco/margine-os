@@ -76,11 +76,16 @@ Operational scripts:
   `install-live-iso` and `bootstrap-live-iso`, including the same optional
   `--extra-layer` pass-through.
 - `bootstrap-live-iso`: bootstrap phase 1, intended for the Arch live ISO. It
-  forwards optional `--extra-layer` requests to the chroot phase.
+  forwards optional `--extra-layer` requests to the chroot phase. For flavors
+  such as `cachyos`, it must first bootstrap the flavor repositories in the
+  live environment before the first `pacstrap`, otherwise the stage-1 package
+  set cannot resolve flavor-specific packages.
 - `bootstrap-in-chroot`: bootstrap phase 2, intended for the target system.
   It can install extra manifest layers requested from the live-ISO side and now
   auto-runs the `ZFS` non-root provisioner when `zfs-non-root-stack` is part of
-  the selected layer set.
+  the selected layer set. For flavors such as `cachyos`, it also bootstraps the
+  flavor repositories inside the target root before the phase-2 manifest
+  install.
 - `provision-initial-boot-chain`: closes the bootstrap by installing the
   initial `mkinitcpio + UKI + Limine` boot chain on the target system.
 - `provision-boot-baseline`: installs the local boot baseline files
