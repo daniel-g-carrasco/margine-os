@@ -540,6 +540,9 @@ Manual checks:
 - if Secure Boot has just been bootstraped, reboot once before starting TPM2 staging
 - if TPM2 has just been staged, reboot once and unlock manually before the final TPM2 enrollment run
 - after final TPM2 enrollment, production boot should stop asking for the LUKS password
+- if the TPM2 policy includes `PCR 7` and Secure Boot is later disabled, the
+  manual `LUKS` password prompt is expected again; that does not mean TPM2 or
+  Limine are broken
 - recovery boot may still ask for manual credentials; this is acceptable
 
 ## 17. Graphics, acceleration, and application exposure

@@ -10,6 +10,7 @@ luks_uuid=""
 crypttab_entry=""
 crypttab_uuid=""
 crypttab_options=""
+crypttab_pcrs=""
 
 usage() {
   cat <<'EOF'
@@ -88,6 +89,24 @@ detect_luks_uuid() {
   [[ -n "$luks_uuid" ]] || die "unable to detect LUKS UUID for ${luks_device}"
 }
 
+sbctl_status_json() {
+  sbctl status --json 2>/dev/null || true
+}
+
+status_field_is_true() {
+  local field="$1"
+  local json="$2"
+
+  grep -q "\"${field}\":[[:space:]]*true" <<<"$json"
+}
+
+pcr_policy_includes() {
+  local wanted="$1"
+  local policy="$2"
+
+  [[ "$policy" =~ (^|[+:])${wanted}($|[+:=]) ]]
+}
+
 print_tpm2_presence() {
   local has_tpm2=""
 
@@ -115,14 +134,39 @@ inspect_crypttab() {
 
   crypttab_uuid="$(awk -v name="$crypt_name" '$1 == name { sub(/^UUID=/, "", $2); print $2; exit }' "$crypttab_initramfs")"
   crypttab_options="$(awk -v name="$crypt_name" '$1 == name { print $4; exit }' "$crypttab_initramfs")"
+  crypttab_pcrs="$(sed -n 's/.*tpm2-pcrs=\([^,[:space:]]*\).*/\1/p' <<<"$crypttab_options" | head -n 1)"
 
   status_line "crypttab mapper entry" "$crypt_name"
   status_line "crypttab UUID" "${crypttab_uuid:-missing}"
   status_line "crypttab options" "${crypttab_options:-missing}"
+  status_line "crypttab PCR policy" "${crypttab_pcrs:-missing}"
 
   [[ "$crypttab_uuid" == "$luks_uuid" ]] || note_issue "crypttab UUID (${crypttab_uuid:-missing}) does not match LUKS UUID (${luks_uuid})"
   [[ "$crypttab_options" == *tpm2-device=* ]] || note_issue "crypttab entry does not include tpm2-device="
   [[ "$crypttab_options" == *tpm2-pcrs=* ]] || note_issue "crypttab entry does not include tpm2-pcrs="
+}
+
+inspect_secure_boot_dependency() {
+  local json=""
+  local secure_boot_state="unknown"
+
+  json="$(sbctl_status_json)"
+  if [[ -n "$json" ]]; then
+    if status_field_is_true "secure_boot" "$json"; then
+      secure_boot_state="enabled"
+    else
+      secure_boot_state="disabled"
+    fi
+  fi
+
+  status_line "sbctl secure_boot" "$secure_boot_state"
+
+  [[ -n "$crypttab_pcrs" ]] || return 0
+
+  if pcr_policy_includes 7 "$crypttab_pcrs"; then
+    status_line "PCR 7 dependency" "tracks Secure Boot state and enrolled keys"
+    [[ "$secure_boot_state" == "enabled" ]] || note_issue "TPM2 policy includes PCR 7 while Secure Boot is disabled; TPM2 auto-unlock will fall back to a manual LUKS password prompt until Secure Boot is re-enabled or the TPM2 policy is re-enrolled without PCR 7"
+  fi
 }
 
 inspect_enrollments() {
@@ -173,6 +217,7 @@ main() {
 
   print_tpm2_presence
   inspect_crypttab
+  inspect_secure_boot_dependency
   inspect_enrollments
   print_sbctl_status
   print_pcr_state

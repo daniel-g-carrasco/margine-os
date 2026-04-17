@@ -74,6 +74,10 @@ Practical consequence:
   Secure Boot state or keys changes `PCR 7`
 - if you enroll TPM2 **before** rebuilding/signing the final production UKI,
   then changing the UKI changes `PCR 11`
+- if TPM2 is already enrolled against a `PCR 7` policy and you later disable
+  Secure Boot in firmware, the normal production boot is expected to ask for
+  the manual `LUKS` password again until Secure Boot is re-enabled or TPM2 is
+  re-enrolled against a different PCR policy
 
 So the safe order is:
 
@@ -218,6 +222,14 @@ Expected behavior on the normal production path:
 
 - `Limine` entry selected
 - no manual `LUKS` password prompt
+
+Important caveat:
+
+- if your TPM2 policy includes `PCR 7`, this expectation depends on Secure Boot
+  staying enabled
+- disabling Secure Boot later does not mean TPM2 enrollment is lost, but it
+  does intentionally invalidate the measured boot state and falls back to the
+  manual `LUKS` password prompt
 - system reaches the desktop directly
 
 Expected behavior on recovery paths:
