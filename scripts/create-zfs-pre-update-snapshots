@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dry_run=0
+datasets_file="/etc/margine/zfs-pre-update-datasets.conf"
+description_prefix="margine-pre-update"
+declare -a datasets=()
+
+usage() {
+  cat <<'EOF'
+Usage:
+  create-zfs-pre-update-snapshots [options]
+
+Options:
+  --dry-run                Show the plan without executing snapshots
+  --dataset NAME           ZFS dataset to snapshot; repeatable
+  --datasets-file PATH     File with one dataset per line
+  --description PREFIX     Snapshot prefix (default: margine-pre-update)
+  --help                   Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+run_as_root() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+    return 0
+  fi
+
+  if [[ "$(id -u)" -eq 0 ]]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+append_dataset() {
+  local candidate="$1"
+  local existing=""
+
+  [[ -n "$candidate" ]] || return 0
+  for existing in "${datasets[@]}"; do
+    [[ "$existing" == "$candidate" ]] && return 0
+  done
+  datasets+=("$candidate")
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --dataset)
+        [[ $# -ge 2 ]] || die "missing value for --dataset"
+        append_dataset "$2"
+        shift 2
+        ;;
+      --datasets-file)
+        [[ $# -ge 2 ]] || die "missing value for --datasets-file"
+        datasets_file="$2"
+        shift 2
+        ;;
+      --description)
+        [[ $# -ge 2 ]] || die "missing value for --description"
+        description_prefix="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+load_datasets_file() {
+  local line=""
+
+  [[ -f "$datasets_file" ]] || return 0
+  while IFS= read -r line; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -n "$line" ]] || continue
+    [[ "$line" == \#* ]] && continue
+    append_dataset "$line"
+  done <"$datasets_file"
+}
+
+dataset_exists() {
+  zfs list -H -o name "$1" >/dev/null 2>&1
+}
+
+snapshot_one() {
+  local dataset="$1"
+  local snapname="$2"
+
+  log "==> ZFS pre-update snapshot: ${dataset}@${snapname}"
+  run_as_root zfs snapshot "${dataset}@${snapname}"
+}
+
+main() {
+  local timestamp=""
+  local snapname=""
+  local dataset=""
+
+  parse_args "$@"
+
+  if ! command -v zfs >/dev/null 2>&1; then
+    warn "zfs command not found, ZFS pre-update snapshots skipped"
+    exit 0
+  fi
+
+  load_datasets_file
+
+  if (( ${#datasets[@]} == 0 )); then
+    warn "no ZFS datasets configured for pre-update snapshots"
+    exit 0
+  fi
+
+  timestamp="$(date +%Y%m%d-%H%M%S)"
+  snapname="${description_prefix}-${timestamp}"
+
+  for dataset in "${datasets[@]}"; do
+    if ! dataset_exists "$dataset"; then
+      warn "dataset not found, skipping: ${dataset}"
+      continue
+    fi
+    snapshot_one "$dataset" "$snapname"
+  done
+}
+
+main "$@"

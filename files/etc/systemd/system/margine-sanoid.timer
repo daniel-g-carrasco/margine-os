@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Margine sanoid snapshot cycle regularly
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+AccuracySec=1min
+Persistent=true
+Unit=margine-sanoid.service
+
+[Install]
+WantedBy=timers.target

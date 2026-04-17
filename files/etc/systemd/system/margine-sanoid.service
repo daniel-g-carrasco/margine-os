@@ -1,0 +1,9 @@
+[Unit]
+Description=Margine ZFS snapshot cycle via sanoid
+Documentation=https://github.com/jimsalterjrs/sanoid
+After=zfs.target
+Wants=zfs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/sanoid --cron

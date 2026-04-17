@@ -1,0 +1,15 @@
+# Optional exploratory stack for a non-root ZFS data layer on Arch.
+# This is intentionally NOT part of the default Margine baseline.
+#
+# Scope:
+# - non-root ZFS pools and datasets
+# - local automatic snapshots with sanoid
+#
+# Explicit non-goals:
+# - root-on-ZFS
+# - ZFSBootMenu
+# - changing the default boot path
+
+zfs-dkms
+zfs-utils
+sanoid

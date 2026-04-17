@@ -33,6 +33,22 @@ Current flavor overlays:
 - `arch`
 - `cachyos`
 
+## Exploratory layers
+
+Some layers are intentionally exploratory and must not be mistaken for part of
+the default `Margine` baseline.
+
+Today this includes:
+
+- `aur/zfs-non-root-stack.txt`
+
+That layer is meant for:
+
+- non-root `ZFS` datasets
+- local snapshot management with `sanoid`
+
+It is explicitly **not** a `root-on-ZFS` install path.
+
 ## Product relationship
 
 Products live one level above manifests, under `products/*.toml`.

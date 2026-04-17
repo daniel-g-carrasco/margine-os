@@ -1,0 +1,11 @@
+# Target ZFS datasets for the first non-root adoption cycle in Margine.
+# Format:
+#   dataset | mountpoint | role | autosnapshot_policy | first_cycle
+
+tank/data | /data | user-datasets | production | yes
+tank/archive | /archive | archival-datasets | archive | yes
+tank/srv | /srv | service-data | production | yes
+tank/vm | /var/lib/libvirt | virtualization-rootful | pre-mutation-only | yes
+tank/machines | /var/lib/machines | nspawn-rootful | pre-mutation-only | yes
+tank/containers | /var/lib/containers | containers-rootful | pre-mutation-only | yes
+tank/home | /home | user-home | review-later | no

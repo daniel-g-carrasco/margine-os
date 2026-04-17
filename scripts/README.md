@@ -59,6 +59,10 @@ Operational scripts:
 - `install-from-manifests`: installs manifest-defined layers, separating
   official repos, AUR, and Flatpak through explicit flags, with per-flavor
   manifest overrides.
+- `create-zfs-pre-update-snapshots`: optional helper for explicit pre-update
+  snapshots of configured non-root `ZFS` datasets. It is intentionally kept
+  separate from the current `Snapper` root flow until the `ZFS` non-root layer
+  is validated in practice.
 - `provision-storage`: prepares disk, `LUKS2`, `Btrfs`, and subvolumes from the live ISO.
 - `install-live-iso`: orchestrates `provision-storage` and `bootstrap-live-iso`
   in a single live-ISO pipeline.
