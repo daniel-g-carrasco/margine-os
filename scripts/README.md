@@ -118,6 +118,9 @@ Operational scripts:
   lab inside the guest. It emits both a live-ISO guide and a second
   installed-system checklist so the full `CachyOS + ZFS non-root + gaming`
   guest can be validated with a repeatable runbook instead of ad-hoc notes.
+  Before launching QEMU it now also inspects the ISO contents directly and
+  fails fast on truncated/corrupt images instead of silently dropping into an
+  unbootable UEFI PXE path.
 - `provision-host-root-baseline`: reapplies the root-owned host baseline for
   fingerprint auth, Framework power/lid policy, Snapper recovery, and Limine
   recovery entries on an already-installed machine.

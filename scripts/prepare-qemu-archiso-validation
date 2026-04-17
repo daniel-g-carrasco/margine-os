@@ -347,6 +347,41 @@ verify_iso_assets() {
   else
     warn "b2sums.txt not present; skipping checksum verification"
   fi
+
+  log
+  log "==> Verify ISO boot structure"
+
+  if (( dry_run )); then
+    printf '[dry-run] bsdtar -tf %s | rg %s\n' \
+      "$iso_path" \
+      "'^EFI/BOOT/BOOTX64.EFI$|^loader/entries$|^arch/boot/x86_64/vmlinuz-linux$'"
+    return 0
+  fi
+
+  have_cmd bsdtar || die "required command not found for ISO structure validation: bsdtar"
+
+  local iso_listing=""
+  iso_listing="$(mktemp)"
+
+  if ! bsdtar -tf "$iso_path" >"$iso_listing"; then
+    rm -f "$iso_listing"
+    die "ISO appears truncated or unreadable: ${iso_path}"
+  fi
+
+  if ! rg -qx 'EFI/BOOT/BOOTX64.EFI' "$iso_listing"; then
+    rm -f "$iso_listing"
+    die "ISO missing EFI boot entry EFI/BOOT/BOOTX64.EFI: ${iso_path}"
+  fi
+  if ! rg -qx 'loader/entries' "$iso_listing"; then
+    rm -f "$iso_listing"
+    die "ISO missing loader/entries directory: ${iso_path}"
+  fi
+  if ! rg -qx 'arch/boot/x86_64/vmlinuz-linux' "$iso_listing"; then
+    rm -f "$iso_listing"
+    die "ISO missing arch kernel payload: ${iso_path}"
+  fi
+
+  rm -f "$iso_listing"
 }
 
 prepare_disk() {
