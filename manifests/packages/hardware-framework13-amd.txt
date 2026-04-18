@@ -1,7 +1,6 @@
 # Framework 13 AMD: stack grafico, video, OpenCL/ROCm, power e diagnostica.
 
 clinfo
-lact
 libva-utils
 mesa
 mesa-utils

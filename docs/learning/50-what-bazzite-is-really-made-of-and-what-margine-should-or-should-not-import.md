@@ -180,10 +180,10 @@ management rather than from blindly forcing global startup behavior.
 
 That is the right baseline.
 
-### Creator and gaming helper defaults
+### Creator and gaming helper additions inside `gaming-runtime-compat`
 
-After review, the current project direction is to preinstall these helpers as
-part of the baseline rather than leaving them only as future candidates:
+After review, the current project direction is to place these helpers inside the
+existing `gaming-runtime-compat` layer rather than in the generic baseline:
 
 - `obs-studio`
 - `vkBasalt`
@@ -192,11 +192,13 @@ part of the baseline rather than leaving them only as future candidates:
 
 The reasoning is explicit:
 
-- `obs-studio` belongs naturally to the creator/media workflow
+- `obs-studio` belongs naturally to the creator/media workflow, but it is still
+  most coherent when grouped under the optional gaming/runtime story chosen by
+  the operator
 - `vkBasalt` and `obs-vkcapture` add concrete gaming/recording value without
   changing the operating model of the system
 - `LACT` is a real AMD-side GPU control and diagnostics tool, which fits the
-  current Framework 13 AMD baseline better than a generic "future maybe"
+  current AMD/gaming runtime story better than a generic "future maybe"
 
 This is still different from copying Bazzite wholesale: the project is adopting
 selected tools, not inheriting Bazzite's full software-delivery or handheld

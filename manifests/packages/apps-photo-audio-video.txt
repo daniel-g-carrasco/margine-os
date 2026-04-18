@@ -33,7 +33,6 @@ libmad
 libmpeg2
 lsp-plugins-lv2
 mesa-utils
-obs-studio
 openh264
 opus-tools
 vulkan-tools

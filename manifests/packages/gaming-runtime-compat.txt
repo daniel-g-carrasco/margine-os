@@ -5,6 +5,8 @@ gamemode
 giflib
 glfw
 gst-plugins-base-libs
+obs-studio
+lact
 lib32-alsa-plugins
 lib32-gamemode
 lib32-giflib
