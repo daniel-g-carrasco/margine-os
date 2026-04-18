@@ -8,7 +8,7 @@
   --section-inline-gap: 2px;
   --panel-card-gap: 5px;
   --popup-card-gap: 5px;
-  --popup-edge-gap: 10px;
+  --popup-edge-gap: 5px;
   --card-padding-x: 12px;
   --card-padding-y: 12px;
   --notification-icon-size: 48px;
@@ -50,7 +50,7 @@ blankwindow {
 /* Control center */
 
 .control-center {
-  background: rgba(18, 18, 18, 0.995);
+  background: alpha(@panel, 0.995);
   color: @fg;
   border: 2px solid @border;
   padding: var(--panel-padding);
@@ -386,7 +386,7 @@ widget-notifications row > box {
 /* Notification card */
 
 .notification {
-  background: rgba(26, 26, 26, 0.995);
+  background: alpha(@panel, 0.995);
   color: @fg;
   border: 1px solid @border;
   margin: 0;
@@ -547,7 +547,7 @@ widget-notifications row > box {
 /* Widget MPRIS */
 
 .widget-mpris {
-  background: rgba(26, 26, 26, 0.995);
+  background: alpha(@panel, 0.995);
   border: 1px solid @border;
   margin: 2px var(--section-inline-gap) var(--section-gap);
   min-width: 0;
@@ -555,7 +555,7 @@ widget-notifications row > box {
 }
 
 .widget-mpris > box {
-  background: rgba(18, 18, 18, 0.86);
+  background: alpha(@panel, 0.86);
 }
 
 .widget-mpris-player {
@@ -567,7 +567,7 @@ widget-notifications row > box {
 }
 
 .mpris-overlay {
-  background: rgba(18, 18, 18, 0.8);
+  background: alpha(@panel, 0.8);
   padding: var(--mpris-overlay-padding-y) var(--mpris-overlay-padding-x) 14px;
 }
 
@@ -590,7 +590,7 @@ widget-notifications row > box {
 }
 
 .mpris-overlay > box > button {
-  background: rgba(18, 18, 18, 0.62);
+  background: alpha(@panel, 0.62);
   border: 1px solid @border;
   color: @fg;
   margin-top: 14px;
@@ -609,7 +609,7 @@ widget-notifications row > box {
 }
 
 .widget-mpris > box > button {
-  background: rgba(18, 18, 18, 0.72);
+  background: alpha(@panel, 0.72);
   border: none;
   color: @fg;
   margin: 0;

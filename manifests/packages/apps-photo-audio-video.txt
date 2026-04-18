@@ -15,6 +15,7 @@ flac
 fluidsynth
 gimp
 libva-utils
+snapshot
 gst-libav
 gst-plugin-pipewire
 gst-plugin-va

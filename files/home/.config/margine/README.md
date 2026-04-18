@@ -15,6 +15,7 @@ It currently drives:
 - Hyprland window border colors and rounding
 - Hyprlock palette, blur treatment, fonts, and input rounding
 - HyprToolkit palette
+- qt5ct and qt6ct color schemes for Qt / KDE apps outside Plasma
 - Waybar palette import
 - Walker palette and launcher font
 - Fuzzel fallback launcher and dmenu picker theme
@@ -79,6 +80,7 @@ What `margine-apply-theme` does:
 - mirrors the same theme into the personal repo after the visible refresh
 - refreshes generated Fuzzel theme colors for launcher and picker menus
 - refreshes the generated `nmtui` palette file
+- refreshes generated qt5ct / qt6ct palette files for Qt apps
 - updates the lockscreen theme source indirectly, so the next `hyprlock`
   invocation picks up the new palette, fonts, and blur tuning
 

@@ -18,6 +18,10 @@ declare -a generated_files=(
   ".config/hypr/hyprtoolkit.conf"
   ".config/kitty/theme-generated.conf"
   ".config/nmtui/colors.conf"
+  ".config/qt5ct/colors/margine.conf"
+  ".config/qt5ct/qt5ct.conf"
+  ".config/qt6ct/colors/margine.conf"
+  ".config/qt6ct/qt6ct.conf"
   ".config/swaync/theme-generated.css"
   ".config/swayosd/theme-generated.css"
   ".config/waybar/theme-generated.css"
@@ -298,8 +302,9 @@ Notes:
 - local visible refresh now happens before non-critical repo mirroring
 - repo copies of theme.env and generated artifacts are now updated
 - GTK / Hyprland / Waybar / SwayNC / Kitty live artifacts were refreshed
-- if you changed Papirus folder tint or Firefox managed theme policy, use:
+- if you changed the Firefox managed theme policy, use:
   sudo /home/daniel/dev/margine-os/scripts/provision-user-app-config --username "$USER"
+- Papirus folder tint is refreshed live when `papirus-folders` is installed
 - already-open GTK apps may still need a restart to pick up all visual changes
 EOF
 }

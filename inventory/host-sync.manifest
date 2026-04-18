@@ -30,6 +30,10 @@
 .config/kitty/kitty.conf
 .config/kitty/theme-generated.conf
 .config/nmtui/colors.conf
+.config/qt5ct/colors/margine.conf
+.config/qt5ct/qt5ct.conf
+.config/qt6ct/colors/margine.conf
+.config/qt6ct/qt6ct.conf
 .config/satty/config.toml
 .config/swaync/config.json
 .config/swaync/launch.sh

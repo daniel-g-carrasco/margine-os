@@ -23,6 +23,8 @@ declare -a home_payload=(
   ".config/kitty/kitty.conf"
   ".config/mimeapps.list"
   ".config/nvim"
+  ".config/qt5ct"
+  ".config/qt6ct"
   ".config/user-dirs.dirs"
   ".config/user-dirs.locale"
   ".local/bin/update-all"
@@ -37,6 +39,7 @@ host_health_wrapper_source="${repo_root}/files/usr/local/bin/margine-validate-ho
 darktable_baseline_source="${repo_root}/files/home/.config/darktable/darktablerc"
 libreoffice_baseline_source="${repo_root}/files/home/.config/libreoffice/4/user/registrymodifications.xcu"
 theme_renderer_source="${repo_root}/scripts/render-theme-artifacts"
+theme_file_source="${repo_root}/files/home/.config/margine/theme.env"
 
 usage() {
   cat <<'EOF'
@@ -215,7 +218,19 @@ apply_papirus_folder_defaults() {
     return 0
   fi
 
-  run_cmd papirus-folders --theme Papirus-Dark --color paleorange --update-caches
+  [[ -f "$theme_file_source" ]] || die "required source not found: $theme_file_source"
+  set -a
+  # shellcheck disable=SC1090
+  source "$theme_file_source"
+  set +a
+
+  : "${MARGINE_THEME_PAPIRUS_FOLDER_THEME:?missing Papirus folder theme in theme.env}"
+  : "${MARGINE_THEME_PAPIRUS_FOLDER_COLOR:?missing Papirus folder color in theme.env}"
+
+  run_cmd papirus-folders \
+    --theme "$MARGINE_THEME_PAPIRUS_FOLDER_THEME" \
+    --color "$MARGINE_THEME_PAPIRUS_FOLDER_COLOR" \
+    --update-caches
 }
 
 install_global_update_all() {

@@ -15,18 +15,6 @@
 
 @import url("theme-generated.css");
 
-/* Local workspace shades */
-@define-color ws1 #efe3cf;
-@define-color ws2 #e3d0b3;
-@define-color ws3 #d8bd97;
-@define-color ws4 #cfaf86;
-@define-color ws5 #c39b72;
-@define-color ws6 #b48760;
-@define-color ws7 #a77655;
-@define-color ws8 #c9ab7f;
-@define-color ws9 #d5ba92;
-@define-color ws10 #e6cfaa;
-
 /* Global defaults */
 
 * {
@@ -286,7 +274,7 @@ window#waybar {
 
 #custom-notification-count {
   background: transparent;
-  color: @ws5;
+  color: @accent;
   margin: 0 0 0 10px;
   min-width: 20px;
   padding: 0 0 0 5px;
@@ -326,7 +314,7 @@ window#waybar {
 
 #custom-notification.notification,
 #custom-notification.inhibited-notification {
-  color: @ws5;
+  color: @accent;
 }
 
 #custom-notification.dnd-notification,
@@ -370,8 +358,8 @@ menuitem {
 
 menuitem:hover {
   background: alpha(@hover, 1);
-  border-left: 2px solid @ws2;
-  color: @ws2;
+  border-left: 2px solid @accent_secondary;
+  color: @accent_secondary;
   padding-left: 10px;
 }
 

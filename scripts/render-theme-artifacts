@@ -86,6 +86,11 @@ def qt_argb(value: str, alpha: float = 1.0) -> str:
     a = max(0, min(255, round(alpha * 255)))
     return f"0x{a:02X}{rgb.upper()}"
 
+def qtct_hex(value: str, alpha: float = 1.0) -> str:
+    rgb = hex_triplet(value)
+    a = max(0, min(255, round(alpha * 255)))
+    return f"#{a:02x}{rgb}"
+
 def rounding_small(value: int) -> int:
     return max(0, value - 2)
 
@@ -165,6 +170,10 @@ kitty_theme = repo_root / "files/home/.config/kitty/theme-generated.conf"
 hyprtoolkit_theme = repo_root / "files/home/.config/hypr/hyprtoolkit.conf"
 fuzzel_theme = repo_root / "files/home/.config/fuzzel/theme-generated.ini"
 nmtui_theme = repo_root / "files/home/.config/nmtui/colors.conf"
+qt5ct_config = repo_root / "files/home/.config/qt5ct/qt5ct.conf"
+qt5ct_colors = repo_root / "files/home/.config/qt5ct/colors/margine.conf"
+qt6ct_config = repo_root / "files/home/.config/qt6ct/qt6ct.conf"
+qt6ct_colors = repo_root / "files/home/.config/qt6ct/colors/margine.conf"
 
 primary = env("MARGINE_THEME_PRIMARY")
 secondary = env("MARGINE_THEME_SECONDARY")
@@ -263,6 +272,7 @@ swaync_theme.write_text(
     "\n".join(
         [
             "/* Generated from ~/.config/margine/theme.env */",
+            f"@define-color bg {bg};",
             f"@define-color fg {text};",
             f"@define-color muted {muted};",
             f"@define-color panel {surface};",
@@ -469,6 +479,110 @@ hyprtoolkit_theme.write_text(
         ]
     )
 )
+
+qt_active_colors = [
+    qtct_hex(text),
+    qtct_hex(surface),
+    qtct_hex(secondary),
+    qtct_hex(border),
+    qtct_hex(bg),
+    qtct_hex(surface_alt),
+    qtct_hex(text),
+    qtct_hex(secondary),
+    qtct_hex(text),
+    qtct_hex(surface_alt),
+    qtct_hex(bg),
+    qtct_hex(hypr_shadow, 0.85),
+    qtct_hex(primary),
+    qtct_hex(bg),
+    qtct_hex(secondary),
+    qtct_hex(tertiary),
+    qtct_hex(surface),
+    qtct_hex(text),
+    qtct_hex(surface_alt),
+    qtct_hex(text),
+    qtct_hex(muted, 0.80),
+]
+
+qt_disabled_colors = [
+    qtct_hex(muted),
+    qtct_hex(surface),
+    qtct_hex(secondary, 0.70),
+    qtct_hex(border),
+    qtct_hex(bg),
+    qtct_hex(surface_alt),
+    qtct_hex(muted),
+    qtct_hex(secondary, 0.85),
+    qtct_hex(muted),
+    qtct_hex(surface_alt),
+    qtct_hex(bg),
+    qtct_hex(hypr_shadow, 0.70),
+    qtct_hex(primary, 0.75),
+    qtct_hex(bg),
+    qtct_hex(secondary, 0.75),
+    qtct_hex(tertiary, 0.75),
+    qtct_hex(surface),
+    qtct_hex(muted),
+    qtct_hex(surface_alt),
+    qtct_hex(muted),
+    qtct_hex(muted, 0.65),
+]
+
+qt_inactive_colors = [
+    qtct_hex(text),
+    qtct_hex(surface),
+    qtct_hex(secondary, 0.92),
+    qtct_hex(border),
+    qtct_hex(bg),
+    qtct_hex(surface_alt),
+    qtct_hex(text),
+    qtct_hex(secondary),
+    qtct_hex(text),
+    qtct_hex(surface_alt),
+    qtct_hex(bg),
+    qtct_hex(hypr_shadow, 0.82),
+    qtct_hex(primary, 0.92),
+    qtct_hex(bg),
+    qtct_hex(secondary),
+    qtct_hex(tertiary),
+    qtct_hex(surface),
+    qtct_hex(text),
+    qtct_hex(surface_alt),
+    qtct_hex(text),
+    qtct_hex(muted, 0.76),
+]
+
+for config_path, colors_path, home_path in [
+    (qt5ct_config, qt5ct_colors, "$HOME/.config/qt5ct/colors/margine.conf"),
+    (qt6ct_config, qt6ct_colors, "$HOME/.config/qt6ct/colors/margine.conf"),
+]:
+    colors_path.parent.mkdir(parents=True, exist_ok=True)
+    colors_path.write_text(
+        "\n".join(
+            [
+                "[ColorScheme]",
+                f"active_colors={', '.join(qt_active_colors)}",
+                f"disabled_colors={', '.join(qt_disabled_colors)}",
+                f"inactive_colors={', '.join(qt_inactive_colors)}",
+                "",
+            ]
+        )
+    )
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        "\n".join(
+            [
+                "[Appearance]",
+                f"color_scheme_path={home_path}",
+                "custom_palette=true",
+                f"icon_theme={icon_theme}",
+                "standard_dialogs=default",
+                "style=Fusion",
+                "",
+            ]
+        )
+    )
 PY
 
 printf 'Rendered theme artifacts from %s\n' "$theme_file"

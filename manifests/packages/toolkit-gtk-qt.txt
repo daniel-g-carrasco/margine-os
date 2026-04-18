@@ -8,6 +8,7 @@ adw-gtk-theme
 hyprland-qt-support
 nwg-look
 papirus-icon-theme
+qqc2-desktop-style
 qt5-wayland
 qt5ct
 qt6-wayland
