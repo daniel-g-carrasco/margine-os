@@ -30,8 +30,6 @@ declare -a extra_layers=()
 
 stage1_layers=(
   base-system
-  hardware-framework13-amd
-  security-and-recovery
 )
 
 vconsole_source="${repo_root}/files/etc/vconsole.conf"

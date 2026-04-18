@@ -32,9 +32,9 @@ If we treat them as a single context, we end up mixing:
 For `Margine v1`, the installation bootstrap is divided into two phases:
 
 1. ISO live phase
-2. fase in chroot
+2. chroot phase
 
-## Fase 1 - Live ISO
+## Phase 1 - Live ISO
 
 The live ISO phase only deals with:
 
@@ -44,7 +44,7 @@ The live ISO phase only deals with:
 - copy the `margine-os` repo into the target;
 - optionally enter the chroot and pass the baton to phase 2.
 
-## Fase 2 - Chroot
+## Phase 2 - Chroot
 
 The chroot phase deals with:
 
@@ -57,14 +57,19 @@ The chroot phase deals with:
 
 In `v1`, `pacstrap` will not install all layers.
 
-It will install only the minimum layers to bring the system into a useful state
-chroot:
+It will install only the minimum layer required to enter a useful `chroot`:
 
 1. `base-system`
-2. `hardware-framework13-amd`
-3. `security-and-recovery`
 
-The desktop and application layers will remain in phase 2.
+Hardware, security, desktop, and application layers remain in phase 2.
+
+Reason:
+
+- stage 1 should produce a valid target root, not a partially configured final system;
+- hook-heavy packages such as `snap-pac` do not belong in `pacstrap`, where they
+  can emit misleading errors inside the bootstrap context;
+- graphics and gaming packages in stage 1 can leave stale state behind and make
+  reruns harder to reason about.
 
 ## Handoff rule
 
