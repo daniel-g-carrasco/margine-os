@@ -45,6 +45,7 @@ Planned topics:
 - what CachyOS adds beyond kernel and repositories
 - DaVinci Resolve on Linux: graphics, compute, and compatibility requirements
 - gaming stack layering and the `split_lock_mitigate` tradeoff
+- what really makes Bazzite "Bazzite", and what Margine should or should not import
 - ZFS migration strategy: why data-layer adoption and root-on-ZFS must be split
 - ZFS non-root dataset layout and local snapshot policy
 - ZFS tooling choice on Arch for Margine
