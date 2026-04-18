@@ -615,6 +615,15 @@ run_flavor_repo_provisioner() {
   run_cmd sudo "$provisioner" "${args[@]}"
 }
 
+run_pacman_preflight_migrations() {
+  if pacman -Q geocode-glib-common >/dev/null 2>&1 && pacman -Si geocode-glib >/dev/null 2>&1; then
+    log
+    log "==> 0c) Pacman preflight"
+    log "Remove legacy geocode-glib-common before sysupgrade"
+    run_cmd sudo pacman -Rdd --noconfirm geocode-glib-common
+  fi
+}
+
 run_pacman_update() {
   log
   log "==> 1) Pacman"
@@ -916,6 +925,7 @@ main() {
 
   run_pre_update_snapshot
   run_flavor_repo_provisioner
+  run_pacman_preflight_migrations
   run_pacman_update
   run_aur_update
   run_flatpak_update
