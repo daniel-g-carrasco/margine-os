@@ -639,7 +639,7 @@ Correct flow:
 
 ## 1. Booting the live ISO
 
-Dal sistema host:
+From the host system:
 
 ```bash
 __HOST_RUN_SCRIPT__
@@ -680,7 +680,7 @@ Important:
 - `/mnt` is the installation `target_root`
 - the storage phase unmounts it and the repo would disappear
 
-Esegui:
+Run:
 
 ```bash
 mkdir -p /root/margine-repo
@@ -732,7 +732,7 @@ Leave:
 
 ### Hostname
 
-Puoi usare:
+You can use:
 
 ```text
 margine-vm
@@ -768,7 +768,7 @@ For the VM you can leave this empty.
 
 ### Regulatory domain Wi-Fi
 
-Lascia:
+Leave:
 
 ```text
 IT
