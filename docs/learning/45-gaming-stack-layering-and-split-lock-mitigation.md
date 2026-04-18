@@ -8,7 +8,9 @@ This note explains three related decisions:
    `cachyos-gaming-applications` as opaque metapackages
 2. why the gaming stack is split into runtime compatibility versus user-facing
    applications
-3. why the `split_lock_mitigate=0` tweak is kept operator-controlled instead of
+3. why `gamescope` is installed as an optional tool rather than autostarted
+   from `Hyprland`
+4. why the `split_lock_mitigate=0` tweak is kept operator-controlled instead of
    being silently enabled
 
 ## What CachyOS ships
@@ -57,7 +59,7 @@ opaque package boundary.
 
 ## The `Margine` model
 
-`Margine-CachyOS` uses two optional layers:
+`Margine` uses two optional layers:
 
 - `gaming-runtime-compat`
 - `gaming-apps-launchers`
@@ -77,6 +79,45 @@ This gives operators three deployment shapes:
 
 The important consequence is that gaming compatibility can be installed without
 automatically forcing launchers or changing kernel mitigation policy.
+
+The product-specific detail is in the package choice:
+
+- `Margine Personal / CachyOS` uses the same layer names, but with
+  Cachy-oriented packages such as `proton-cachyos-slr`, `wine-cachyos-opt`,
+  and `heroic-games-launcher`
+- `Margine Public / Arch` exposes the same two optional layers with
+  Arch-native packages from the official repositories, such as `wine`,
+  `winetricks`, `steam`, `lutris`, `gamescope`, and `mangohud`
+
+This keeps the operator model stable across products even when the package
+composition differs underneath.
+
+## Why `gamescope` is optional rather than autostarted
+
+`gamescope` is useful, but it is not a desktop-wide requirement.
+
+It helps most when an operator needs one of these:
+
+- per-game display scaling
+- a more controlled fullscreen path
+- an isolated compositor wrapper around a specific title
+- workaround space for problematic XWayland or Proton cases
+
+That does **not** mean it should be launched globally from `hyprland.conf`.
+
+`Margine` therefore treats `gamescope` as:
+
+- an installable gaming tool
+- available through the optional gaming layers
+- usable per game, per launcher, or per troubleshooting case
+- not part of the default compositor startup path
+
+The correct baseline is:
+
+- install it when the operator wants the gaming stack
+- leave Hyprland startup untouched
+- decide per title whether normal execution or `gamescope` gives the better
+  result
 
 ## What `split_lock_mitigate` means
 
@@ -125,7 +166,7 @@ package. It does not, by itself, provide a special graphical toggle.
 
 ## How `Margine` handles the toggle
 
-`Margine-CachyOS` keeps the toggle explicit through:
+`Margine` keeps the toggle explicit through:
 
 - `scripts/provision-gaming-split-lock`
 
@@ -206,8 +247,8 @@ and other high-impact settings: explicit, versioned, and reversible.
 
 ```bash
 sudo /root/margine-os/scripts/install-from-manifests \
-  --product margine-cachyos \
-  --flavor cachyos \
+  --product <product> \
+  --flavor <flavor> \
   --layer gaming-runtime-compat
 ```
 
@@ -215,8 +256,8 @@ sudo /root/margine-os/scripts/install-from-manifests \
 
 ```bash
 sudo /root/margine-os/scripts/install-from-manifests \
-  --product margine-cachyos \
-  --flavor cachyos \
+  --product <product> \
+  --flavor <flavor> \
   --layer gaming-runtime-compat \
   --layer gaming-apps-launchers
 ```
@@ -245,6 +286,7 @@ The correct `Margine` position is:
 
 - adopt the gaming stack as optional layers
 - separate runtime compatibility from apps and launchers
+- keep `gamescope` out of global `Hyprland` startup
 - keep `split_lock_mitigate=0` out of the default path
 - expose it as a deliberate operator toggle
 

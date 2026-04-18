@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dry_run=0
+pacman_conf="/etc/pacman.conf"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-arch-repositories [options]
+
+Options:
+  --dry-run  Show the plan without making changes
+  --help     Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-arch-repositories must run as root"
+}
+
+patch_pacman_conf() {
+  local temp_file=""
+  local multilib_header="[multilib]"
+  local multilib_include="Include = /etc/pacman.d/mirrorlist"
+
+  log
+  log "==> Ensure Arch multilib is active"
+
+  if (( dry_run )); then
+    printf '[dry-run] ensure %q and %q are active in %s\n' "$multilib_header" "$multilib_include" "$pacman_conf"
+    return 0
+  fi
+
+  [[ -f "$pacman_conf" ]] || die "pacman config not found: $pacman_conf"
+
+  temp_file="$(mktemp)"
+  awk -v multilib_header="$multilib_header" \
+      -v multilib_include="$multilib_include" '
+    BEGIN {
+      multilib_header_done = 0
+      multilib_include_done = 0
+      in_multilib = 0
+    }
+    $0 ~ /^#?[[:space:]]*\[multilib\][[:space:]]*$/ {
+      multilib_header_done = 1
+      in_multilib = 1
+      print multilib_header
+      next
+    }
+    $0 ~ /^#?[[:space:]]*Include[[:space:]]*=[[:space:]]*\/etc\/pacman\.d\/mirrorlist[[:space:]]*$/ {
+      if (in_multilib) {
+        multilib_include_done = 1
+        print multilib_include
+        next
+      }
+    }
+    /^[[:space:]]*\[/ {
+      if (in_multilib && !multilib_include_done) {
+        print multilib_include
+        multilib_include_done = 1
+      }
+      in_multilib = 0
+    }
+    { print }
+    END {
+      if (!multilib_header_done) {
+        print ""
+        print multilib_header
+        print multilib_include
+      } else if (in_multilib && !multilib_include_done) {
+        print multilib_include
+      }
+    }
+  ' "$pacman_conf" >"$temp_file"
+
+  install -m644 "$temp_file" "$pacman_conf"
+  rm -f "$temp_file"
+}
+
+refresh_databases() {
+  log
+  log "==> Refresh pacman databases"
+  if (( dry_run )); then
+    printf '[dry-run] pacman -Syy\n'
+  else
+    pacman -Syy
+  fi
+}
+
+main() {
+  parse_args "$@"
+  require_root
+
+  log "=== Provision Arch repositories ==="
+  (( dry_run )) && log "Mode: dry-run"
+
+  patch_pacman_conf
+  refresh_databases
+
+  log
+  log "=== DONE ==="
+}
+
+main "$@"

@@ -261,11 +261,22 @@ validate_inputs() {
 }
 
 run_flavor_repo_bootstrap() {
-  local provisioner="${repo_root}/scripts/provision-cachyos-repositories"
+  local provisioner=""
   local -a args=()
 
-  [[ "$flavor" == "cachyos" ]] || return 0
-  [[ -x "$provisioner" ]] || die "CachyOS repo provisioner not executable in this repo: ${provisioner}"
+  case "$flavor" in
+    arch)
+      provisioner="${repo_root}/scripts/provision-arch-repositories"
+      [[ -x "$provisioner" ]] || die "Arch repo provisioner not executable in this repo: ${provisioner}"
+      ;;
+    cachyos)
+      provisioner="${repo_root}/scripts/provision-cachyos-repositories"
+      [[ -x "$provisioner" ]] || die "CachyOS repo provisioner not executable in this repo: ${provisioner}"
+      ;;
+    *)
+      return 0
+      ;;
+  esac
   (( dry_run )) && args+=(--dry-run)
 
   log

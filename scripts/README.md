@@ -77,9 +77,10 @@ Operational scripts:
   `--extra-layer` pass-through.
 - `bootstrap-live-iso`: bootstrap phase 1, intended for the Arch live ISO. It
   forwards optional `--extra-layer` requests to the chroot phase. For flavors
-  such as `cachyos`, it must first bootstrap the flavor repositories in the
-  live environment before the first `pacstrap`, otherwise the stage-1 package
-  set cannot resolve flavor-specific packages. Stage 1 intentionally stays
+  such as `arch` and `cachyos`, it must first bootstrap the flavor repository
+  policy in the live environment before the first `pacstrap`; for `arch` this
+  currently means ensuring `multilib`, while `cachyos` also needs the external
+  keyring and mirrorlists. Stage 1 intentionally stays
   minimal and currently installs only `base-system`; hardware, security, and
   hook-heavy layers are deferred to phase 2 so `pacstrap` cannot leave stale
   package state behind or trigger misleading snapshot-hook errors during the
@@ -132,6 +133,9 @@ Operational scripts:
   Before launching QEMU it now also inspects the ISO contents directly and
   fails fast on truncated/corrupt images instead of silently dropping into an
   unbootable UEFI PXE path.
+- `provision-arch-repositories`: keeps the Arch flavor simple but still
+  bootstrap-aware by ensuring that `multilib` is active before optional gaming
+  layers are installed in either the live-ISO or chroot phase.
 - `provision-host-root-baseline`: reapplies the root-owned host baseline for
   fingerprint auth, Framework power/lid policy, Snapper recovery, and Limine
   recovery entries on an already-installed machine.

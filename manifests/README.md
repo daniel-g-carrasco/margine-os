@@ -49,6 +49,18 @@ That layer is meant for:
 
 It is explicitly **not** a `root-on-ZFS` install path.
 
+## Optional gaming layers
+
+The public Arch product now also exposes optional gaming layers under
+`packages/*.txt`:
+
+- `gaming-runtime-compat`
+- `gaming-apps-launchers`
+
+These are optional install targets, not part of the default baseline, and they
+are intentionally split so compatibility packages do not automatically force
+launchers, overlays, or `gamescope`.
+
 ## Product relationship
 
 Products live one level above manifests, under `products/*.toml`.

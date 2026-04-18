@@ -1,0 +1,27 @@
+# Optional gaming runtime compatibility stack for the public Arch product.
+# This stays focused on official-repo compatibility packages, not launchers.
+alsa-plugins
+gamemode
+giflib
+glfw
+gst-plugins-base-libs
+lib32-alsa-plugins
+lib32-gamemode
+lib32-giflib
+lib32-gtk3
+lib32-libjpeg-turbo
+lib32-libva
+lib32-mpg123
+lib32-openal
+lib32-vulkan-icd-loader
+lib32-vulkan-radeon
+libjpeg-turbo
+libva
+libxslt
+mpg123
+openal
+protontricks
+ttf-liberation
+vulkan-tools
+wine
+winetricks

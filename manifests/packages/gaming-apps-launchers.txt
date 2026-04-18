@@ -1,0 +1,8 @@
+# Optional gaming user-facing stack for the public Arch product.
+# `gamescope` is provided as a per-game tool, not as a compositor autostart.
+gamescope
+goverlay
+lib32-mangohud
+lutris
+mangohud
+steam
