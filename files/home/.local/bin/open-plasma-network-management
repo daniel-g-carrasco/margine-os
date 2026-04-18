@@ -24,4 +24,8 @@ then
   exit 1
 fi
 
+if command -v hyprqt6engine >/dev/null 2>&1; then
+  export QT_QPA_PLATFORMTHEME=hyprqt6engine
+fi
+
 exec kcmshell6 kcm_networkmanagement

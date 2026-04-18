@@ -15,6 +15,7 @@ declare -a generated_files=(
   ".config/gtk-3.0/settings.ini"
   ".config/gtk-4.0/settings.ini"
   ".config/hypr/conf.d/45-theme-generated.conf"
+  ".config/hypr/hyprqt6engine.conf"
   ".config/hypr/hyprtoolkit.conf"
   ".config/kitty/theme-generated.conf"
   ".config/nmtui/colors.conf"
@@ -217,32 +218,36 @@ copy_generated_files_to_host() {
   done
 }
 
-apply_papirus_folder_defaults() {
-  log
-  log "==> Apply Papirus folder color"
-
-  if ! command -v papirus-folders >/dev/null 2>&1; then
-    warn "papirus-folders not installed; skipping folder tint refresh"
-    return 0
-  fi
-
+apply_legacy_icon_overrides() {
   # shellcheck disable=SC1090
   source "$active_theme_file"
 
-  if (( dry_run )); then
-    run_cmd papirus-folders \
-      --theme "${MARGINE_THEME_PAPIRUS_FOLDER_THEME}" \
-      --color "${MARGINE_THEME_PAPIRUS_FOLDER_COLOR}" \
-      --update-caches
-    return 0
-  fi
+  case "${MARGINE_THEME_ICON_THEME}" in
+    Papirus*)
+      log
+      log "==> Apply legacy Papirus folder color"
 
-  if ! papirus-folders \
-    --theme "${MARGINE_THEME_PAPIRUS_FOLDER_THEME}" \
-    --color "${MARGINE_THEME_PAPIRUS_FOLDER_COLOR}" \
-    --update-caches; then
-    warn "Papirus folder tint not applied in-place; re-run root provisioning if you changed folder color"
-  fi
+      if ! command -v papirus-folders >/dev/null 2>&1; then
+        warn "papirus-folders not installed; skipping legacy Papirus folder tint refresh"
+        return 0
+      fi
+
+      if (( dry_run )); then
+        run_cmd papirus-folders \
+          --theme "${MARGINE_THEME_PAPIRUS_FOLDER_THEME}" \
+          --color "${MARGINE_THEME_PAPIRUS_FOLDER_COLOR}" \
+          --update-caches
+        return 0
+      fi
+
+      if ! papirus-folders \
+        --theme "${MARGINE_THEME_PAPIRUS_FOLDER_THEME}" \
+        --color "${MARGINE_THEME_PAPIRUS_FOLDER_COLOR}" \
+        --update-caches; then
+        warn "Papirus folder tint not applied in-place; re-run root provisioning if you changed folder color"
+      fi
+      ;;
+  esac
 }
 
 reload_session_theme() {
@@ -304,7 +309,7 @@ Notes:
 - GTK / Hyprland / Waybar / SwayNC / Kitty live artifacts were refreshed
 - if you changed the Firefox managed theme policy, use:
   sudo /home/daniel/dev/margine-os/scripts/provision-user-app-config --username "$USER"
-- Papirus folder tint is refreshed live when `papirus-folders` is installed
+- legacy Papirus folder tint is refreshed live only when a Papirus theme is active
 - already-open GTK apps may still need a restart to pick up all visual changes
 EOF
 }
@@ -341,7 +346,7 @@ main() {
     sync_theme_to_repo "$personal_repo"
   fi
 
-  apply_papirus_folder_defaults
+  apply_legacy_icon_overrides
   print_follow_up_notes
 }
 

@@ -23,6 +23,7 @@
 .config/hypr/conf.d/30-environment.conf
 .config/hypr/conf.d/40-look-and-feel.conf
 .config/hypr/conf.d/45-theme-generated.conf
+.config/hypr/hyprqt6engine.conf
 .config/hypr/conf.d/50-input.conf
 .config/hypr/conf.d/60-binds.conf
 .config/hypr/conf.d/70-rules.conf

@@ -426,7 +426,6 @@ gdbus call --session \
 gsettings get org.gnome.TextEditor style-scheme
 gsettings get org.gnome.TextEditor style-variant
 gsettings get org.gnome.Loupe show-properties
-papirus-folders -l --theme Papirus-Dark
 sed -n '1,120p' ~/.config/easyeffects/db/easyeffectsrc
 sed -n '1,40p' ~/.config/easyeffects/db/graphrc
 ```
@@ -437,12 +436,13 @@ Check:
 - `hyprpaper` is running in the session
 - `~/.config/margine/theme.env` reflects the intended single source of truth for the visual baseline
 - GTK applications are on the intended dark theme
-- `accent-color` is set to the intended GNOME baseline (`slate`)
+- `accent-color` is set to the intended GNOME baseline (`yellow`)
 - `font-name` is set to the intended GNOME baseline (`IBM Plex Sans 10`)
 - the Settings portal exposes `org.freedesktop.appearance accent-color`
 - GTK3 / legacy apps resolve to `adw-gtk3-dark`
-- icon theme resolves to `Papirus-Dark`
-- Papirus folder color baseline resolves to `paleorange`
+- icon theme resolves to `Adwaita-yellow` on the default preset
+- `MoreWaita` and `Adwaita Colors` are installed so third-party app icons and
+  folder accents inherit the intended Adwaita-styled baseline
 - GNOME Text Editor inherits the intended dark baseline via `gsettings`
 - Easy Effects UI defaults are present and sane, without dragging in hardware-specific runtime bindings
 - Koofr autostarts if expected, but does not steal focus as a normal foreground window
@@ -452,8 +452,10 @@ Manual checks:
 - after login, the intended wallpaper is actually visible
 - GTK / GNOME apps such as Nautilus, Calendar, Calculator, Loupe, Text Editor, and Firefox use the dark theme
 - GTK3 / legacy apps visually match `adw-gtk3-dark`
-- app icons resolve through `Papirus-Dark` without obvious missing-icon regressions
-- Papirus folder icons appear with the intended `paleorange` tint in Nautilus and file pickers
+- app icons resolve through the intended Adwaita-styled theme without obvious
+  missing-icon regressions
+- folder icons reflect the selected `Adwaita-*` icon variant in Nautilus and
+  file pickers
 
 ## 12. Waybar, notifications, and maintenance UX
 

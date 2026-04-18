@@ -10,12 +10,13 @@ It currently drives:
 - icon theme
 - UI font
 - accent color
-- Papirus folder tint
+- Adwaita Colors / MoreWaita icon variant
 - managed Firefox theme install
 - Hyprland window border colors and rounding
 - Hyprlock palette, blur treatment, fonts, and input rounding
 - HyprToolkit palette
-- qt5ct and qt6ct color schemes for Qt / KDE apps outside Plasma
+- qt5ct color schemes for Qt5 apps
+- hyprqt6engine + qt6ct color data for Qt6 / KDE apps outside Plasma
 - Waybar palette import
 - Walker palette and launcher font
 - Fuzzel fallback launcher and dmenu picker theme
@@ -81,13 +82,14 @@ What `margine-apply-theme` does:
 - refreshes generated Fuzzel theme colors for launcher and picker menus
 - refreshes the generated `nmtui` palette file
 - refreshes generated qt5ct / qt6ct palette files for Qt apps
+- refreshes generated hyprqt6engine theme data for Qt6 / KDE apps
 - updates the lockscreen theme source indirectly, so the next `hyprlock`
   invocation picks up the new palette, fonts, and blur tuning
 
 What it does not do:
 
 - it does not touch root-managed files under `/etc`
-- if you changed Papirus folder tint or Firefox managed theme policy, re-run:
+- if you changed the Firefox managed theme policy, re-run:
   `sudo /home/daniel/dev/margine-os/scripts/provision-user-app-config --username $USER`
 
 Current generator:

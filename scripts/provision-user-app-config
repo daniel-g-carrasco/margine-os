@@ -209,28 +209,32 @@ install_firefox_policy() {
     /etc/firefox/policies/policies.json
 }
 
-apply_papirus_folder_defaults() {
-  log
-  log "==> Apply Papirus folder baseline"
-
-  if ! command -v papirus-folders >/dev/null 2>&1; then
-    warn "papirus-folders not found; skipping folder color baseline"
-    return 0
-  fi
-
+apply_legacy_icon_overrides() {
   [[ -f "$theme_file_source" ]] || die "required source not found: $theme_file_source"
   set -a
   # shellcheck disable=SC1090
   source "$theme_file_source"
   set +a
 
-  : "${MARGINE_THEME_PAPIRUS_FOLDER_THEME:?missing Papirus folder theme in theme.env}"
-  : "${MARGINE_THEME_PAPIRUS_FOLDER_COLOR:?missing Papirus folder color in theme.env}"
+  case "${MARGINE_THEME_ICON_THEME}" in
+    Papirus*)
+      log
+      log "==> Apply legacy Papirus folder baseline"
 
-  run_cmd papirus-folders \
-    --theme "$MARGINE_THEME_PAPIRUS_FOLDER_THEME" \
-    --color "$MARGINE_THEME_PAPIRUS_FOLDER_COLOR" \
-    --update-caches
+      if ! command -v papirus-folders >/dev/null 2>&1; then
+        warn "papirus-folders not found; skipping legacy Papirus folder baseline"
+        return 0
+      fi
+
+      : "${MARGINE_THEME_PAPIRUS_FOLDER_THEME:?missing Papirus folder theme in theme.env}"
+      : "${MARGINE_THEME_PAPIRUS_FOLDER_COLOR:?missing Papirus folder color in theme.env}"
+
+      run_cmd papirus-folders \
+        --theme "$MARGINE_THEME_PAPIRUS_FOLDER_THEME" \
+        --color "$MARGINE_THEME_PAPIRUS_FOLDER_COLOR" \
+        --update-caches
+      ;;
+  esac
 }
 
 install_global_update_all() {
@@ -305,7 +309,7 @@ main() {
   install_darktable_baseline
   install_libreoffice_baseline
   install_firefox_policy
-  apply_papirus_folder_defaults
+  apply_legacy_icon_overrides
   install_global_update_all
   cleanup_legacy_desktop_entries
   fix_ownership

@@ -162,6 +162,7 @@ output.parent.mkdir(parents=True, exist_ok=True)
 output.write_text(json.dumps(payload, indent=2) + "\n")
 
 hypr_theme = repo_root / "files/home/.config/hypr/conf.d/45-theme-generated.conf"
+hyprqt6engine_theme = repo_root / "files/home/.config/hypr/hyprqt6engine.conf"
 waybar_theme = repo_root / "files/home/.config/waybar/theme-generated.css"
 swaync_theme = repo_root / "files/home/.config/swaync/theme-generated.css"
 swayosd_theme = repo_root / "files/home/.config/swayosd/theme-generated.css"
@@ -200,6 +201,15 @@ hypr_shadow_alpha = float(env("MARGINE_THEME_HYPR_SHADOW_ALPHA"))
 kitty_bg_opacity = env("MARGINE_THEME_KITTY_BACKGROUND_OPACITY")
 icon_theme = env("MARGINE_THEME_ICON_THEME")
 font_name = env("MARGINE_THEME_FONT_NAME")
+font_family_name = font_family(font_name)
+font_size_match = re.match(r"^.*\s+([0-9]+(?:\.[0-9]+)?)$", font_name.strip())
+font_size_value = font_size_match.group(1) if font_size_match else "10"
+font_size_int = str(round(float(font_size_value)))
+font_fixed_name = os.environ.get("MARGINE_THEME_HYPRLOCK_FONT_MONO", "monospace")
+font_fixed_family_name = font_family(font_fixed_name)
+font_fixed_size_match = re.match(r"^.*\s+([0-9]+(?:\.[0-9]+)?)$", font_fixed_name.strip())
+font_fixed_size_value = font_fixed_size_match.group(1) if font_fixed_size_match else font_size_int
+font_fixed_size_int = str(round(float(font_fixed_size_value)))
 launcher_font_name = env("MARGINE_THEME_LAUNCHER_FONT_NAME")
 launcher_width = env("MARGINE_THEME_LAUNCHER_WIDTH")
 launcher_lines = env("MARGINE_THEME_LAUNCHER_LINES")
@@ -215,8 +225,8 @@ nmtui_accent = env("MARGINE_THEME_NMTUI_ACCENT")
 ui_radius = hypr_rounding
 launcher_font_family = font_family(launcher_font_name)
 fuzzel_font = fontconfig_font(launcher_font_name)
-font_size_match = re.match(r"^.*\s+([0-9]+(?:\.[0-9]+)?)$", launcher_font_name.strip())
-fuzzel_font_size = font_size_match.group(1) if font_size_match else "10"
+launcher_font_size_match = re.match(r"^.*\s+([0-9]+(?:\.[0-9]+)?)$", launcher_font_name.strip())
+fuzzel_font_size = launcher_font_size_match.group(1) if launcher_font_size_match else "10"
 fuzzel_font_fallbacks = ",".join(
     [
         fuzzel_font,
@@ -242,6 +252,29 @@ hypr_theme.write_text(
             f"        color = {rgba_hex(hypr_shadow, hypr_shadow_alpha)}",
             "    }",
             "}",
+            "",
+        ]
+    )
+)
+
+hyprqt6engine_theme.parent.mkdir(parents=True, exist_ok=True)
+hyprqt6engine_theme.write_text(
+    "\n".join(
+        [
+            "# Generated from ~/.config/margine/theme.env",
+            "[theme]",
+            "color_scheme=$HOME/.config/qt6ct/colors/margine.conf",
+            f"icon_theme={icon_theme}",
+            "style=Fusion",
+            f"font={font_family_name}",
+            f"font_size={font_size_int}",
+            f"font_fixed={font_fixed_family_name}",
+            f"font_fixed_size={font_fixed_size_int}",
+            "",
+            "[misc]",
+            "single_click_activate=true",
+            "menus_have_icons=true",
+            "shortcuts_for_context_menus=true",
             "",
         ]
     )
