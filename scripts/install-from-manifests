@@ -123,6 +123,14 @@ run_cmd() {
   fi
 }
 
+run_privileged_cmd() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    run_cmd "$@"
+  else
+    run_cmd sudo "$@"
+  fi
+}
+
 have_cmd() {
   command -v "$1" >/dev/null 2>&1
 }
@@ -307,7 +315,7 @@ install_official_layers() {
 
   log
   log "Resolved official packages: ${#packages[@]}"
-  run_cmd sudo pacman -S --needed --asexplicit --noconfirm "${packages[@]}"
+  run_privileged_cmd pacman -S --needed --asexplicit --noconfirm "${packages[@]}"
 }
 
 install_aur_manifest() {
@@ -319,7 +327,7 @@ install_aur_manifest() {
 
   log
   log "${label}"
-  run_cmd sudo "$aur_installer" --manifest "$manifest"
+  run_privileged_cmd "$aur_installer" --manifest "$manifest"
 }
 
 install_aur_layers() {

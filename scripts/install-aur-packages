@@ -51,6 +51,27 @@ run_cmd() {
   fi
 }
 
+run_as_build_user() {
+  if (( dry_run )); then
+    printf '[dry-run] sudo -u %q' "$build_user"
+    if [[ -n "${SNAP_PAC_SKIP:-}" ]]; then
+      printf ' env SNAP_PAC_SKIP=%q' "${SNAP_PAC_SKIP}"
+    fi
+    local arg=""
+    for arg in "$@"; do
+      printf ' %q' "$arg"
+    done
+    printf '\n'
+    return 0
+  fi
+
+  if [[ -n "${SNAP_PAC_SKIP:-}" ]]; then
+    sudo -u "$build_user" env "SNAP_PAC_SKIP=${SNAP_PAC_SKIP}" "$@"
+  else
+    sudo -u "$build_user" "$@"
+  fi
+}
+
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -205,6 +226,7 @@ ensure_build_user() {
 
   install -Dm440 /dev/stdin "$sudoers_path" <<EOF
 Defaults:${build_user} !authenticate
+Defaults:${build_user} env_keep += "SNAP_PAC_SKIP"
 ${build_user} ALL=(root) NOPASSWD: /usr/bin/pacman
 EOF
 }
@@ -219,21 +241,21 @@ refresh_repo() {
 
   if (( dry_run )); then
     if [[ -d "$repo_dir/.git" ]]; then
-      printf '[dry-run] sudo -u %s git -C %s fetch --all --prune\n' "$build_user" "$repo_dir"
-      printf '[dry-run] sudo -u %s git -C %s reset --hard origin/master\n' "$build_user" "$repo_dir"
+      run_as_build_user git -C "$repo_dir" fetch --all --prune
+      run_as_build_user git -C "$repo_dir" reset --hard origin/master
     else
-      printf '[dry-run] sudo -u %s git clone https://aur.archlinux.org/%s.git %s\n' "$build_user" "$package" "$repo_dir"
+      run_as_build_user git clone "https://aur.archlinux.org/${package}.git" "$repo_dir"
     fi
     return 0
   fi
 
   if [[ -d "$repo_dir/.git" ]]; then
-    sudo -u "$build_user" git -C "$repo_dir" fetch --all --prune
-    sudo -u "$build_user" git -C "$repo_dir" reset --hard origin/master
+    run_as_build_user git -C "$repo_dir" fetch --all --prune
+    run_as_build_user git -C "$repo_dir" reset --hard origin/master
     return 0
   fi
 
-  sudo -u "$build_user" git clone "https://aur.archlinux.org/${package}.git" "$repo_dir"
+  run_as_build_user git clone "https://aur.archlinux.org/${package}.git" "$repo_dir"
 }
 
 build_package() {
@@ -241,12 +263,7 @@ build_package() {
   local repo_dir="${build_root}/src/${package}"
   local cmd="cd '$repo_dir' && git clean -fdx >/dev/null 2>&1 || true && makepkg --syncdeps --install --cleanbuild --clean --force --noconfirm"
 
-  if (( dry_run )); then
-    printf '[dry-run] sudo -u %s bash -lc %q\n' "$build_user" "$cmd"
-    return 0
-  fi
-
-  sudo -u "$build_user" bash -lc "$cmd"
+  run_as_build_user bash -lc "$cmd"
 }
 
 bootstrap_yay() {
@@ -264,17 +281,7 @@ install_with_yay() {
   local package="$1"
   local -a cmd=(yay -S --needed "${yay_flags[@]}" "$package")
 
-  if (( dry_run )); then
-    printf '[dry-run] sudo -u %s %q' "$build_user" "${cmd[0]}"
-    local arg=""
-    for arg in "${cmd[@]:1}"; do
-      printf ' %q' "$arg"
-    done
-    printf '\n'
-    return 0
-  fi
-
-  sudo -u "$build_user" "${cmd[@]}"
+  run_as_build_user "${cmd[@]}"
 }
 
 install_packages() {
