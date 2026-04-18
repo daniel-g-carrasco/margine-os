@@ -1,4 +1,5 @@
-# Baseline AUR packages required to keep the Margine desktop coherent.
+# Baseline AUR packages required to keep the Margine desktop coherent and to
+# deliver the curated creator/gaming defaults not available in official repos.
 #
 # Important order:
 # - `yay` first, because the AUR is managed through it after bootstrap;
@@ -11,3 +12,5 @@ ttf-ms-fonts
 walker
 wlogout
 papirus-folders-git
+vkbasalt
+obs-vkcapture

@@ -180,6 +180,28 @@ management rather than from blindly forcing global startup behavior.
 
 That is the right baseline.
 
+### Creator and gaming helper defaults
+
+After review, the current project direction is to preinstall these helpers as
+part of the baseline rather than leaving them only as future candidates:
+
+- `obs-studio`
+- `vkBasalt`
+- `obs-vkcapture`
+- `LACT`
+
+The reasoning is explicit:
+
+- `obs-studio` belongs naturally to the creator/media workflow
+- `vkBasalt` and `obs-vkcapture` add concrete gaming/recording value without
+  changing the operating model of the system
+- `LACT` is a real AMD-side GPU control and diagnostics tool, which fits the
+  current Framework 13 AMD baseline better than a generic "future maybe"
+
+This is still different from copying Bazzite wholesale: the project is adopting
+selected tools, not inheriting Bazzite's full software-delivery or handheld
+stack.
+
 ## Evaluate next
 
 These ideas are promising, but should be brought in as explicit optional layers
@@ -199,38 +221,10 @@ What makes it valuable is not "Bazzite branding", but the actual behavior:
 For `Margine`, a project-owned equivalent would fit well because it extends our
 current per-title `gamescope` policy instead of replacing it.
 
-### `Distrobox`
+### Future optional helpers still worth evaluating
 
-On Bazzite, `Distrobox` has first-class value because it is a safe way to obtain
-traditional packages without mutating the host.
+The current shortlist that still makes sense as optional future work is:
 
-On `Margine`, the value is lower because the host is already mutable. But it can
-still be useful for:
-
-- isolated toolchains
-- development environments
-- one-off package ecosystems
-
-So it belongs in the "optional layer" bucket, not in the core identity.
-
-### `Waydroid`
-
-This is also an optional-layer candidate.
-
-Bazzite treats it as a real part of the gaming / app story. For `Margine`, it
-would only make sense as:
-
-- opt-in
-- documented
-- clearly outside the baseline desktop contract
-
-### Extra gaming / creator helpers
-
-These are reasonable future optional layers:
-
-- `vkBasalt`
-- `obs-vkcapture`
-- `LACT`
 - `OpenRGB`
 - `OpenRazer`
 - `OpenTabletDriver`
@@ -284,6 +278,23 @@ On `Margine`, it would mostly create:
 - one more source of drift
 
 It is not worth promoting into the system model.
+
+### `Distrobox`
+
+On Bazzite, `Distrobox` has first-class value because it is a safe way to obtain
+traditional packages without mutating the host.
+
+On `Margine`, the value is lower because the host is already mutable, and the
+project decision is to keep it out for now rather than turn it into a second
+software-distribution path.
+
+### `Waydroid`
+
+The same applies to `Waydroid`.
+
+It may be useful in isolated scenarios, but the current project decision is not
+to import it into the baseline or even elevate it as an immediate optional
+target.
 
 ### Handheld-specific stack (`HHD`, `inputplumber`, SteamOS-like overlays)
 
