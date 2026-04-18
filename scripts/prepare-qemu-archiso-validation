@@ -298,6 +298,7 @@ init_paths() {
   disk_path="${disk_path:-${workdir}/margine-test.qcow2}"
   iso_path="${iso_path:-${workdir}/archlinux-x86_64.iso}"
   ovmf_vars_copy="${workdir}/OVMF_VARS.fd"
+  ovmf_live_vars_copy="${workdir}/OVMF_VARS.live.fd"
   run_script_path="${workdir}/run-qemu.sh"
   run_installed_script_path="${workdir}/run-qemu-installed.sh"
   guide_path="${workdir}/inside-live-iso.md"
@@ -419,10 +420,15 @@ prepare_ovmf_vars() {
   run_cmd install -d "$workdir"
   if [[ -f "$ovmf_vars_copy" ]]; then
     log "OVMF vars already exists: ${ovmf_vars_copy}"
-    return 0
+  else
+    run_cmd cp "$ovmf_vars_template" "$ovmf_vars_copy"
   fi
 
-  run_cmd cp "$ovmf_vars_template" "$ovmf_vars_copy"
+  if [[ -f "$ovmf_live_vars_copy" ]]; then
+    log "Live OVMF vars already exists: ${ovmf_live_vars_copy}"
+  else
+    run_cmd cp "$ovmf_vars_template" "$ovmf_live_vars_copy"
+  fi
 }
 
 build_qemu_command() {
@@ -434,6 +440,7 @@ build_qemu_command() {
   local boot_args=""
   local vtpm_args=""
   local zfs_disk_args=""
+  local ovmf_vars_file="$ovmf_vars_copy"
 
   if (( headless )); then
     display_args="-display none -serial mon:stdio"
@@ -447,6 +454,7 @@ build_qemu_command() {
   fi
 
   if [[ "$mode" == "live" ]]; then
+    ovmf_vars_file="$ovmf_live_vars_copy"
     cdrom_args="-cdrom ${iso_path}"
     boot_args="-boot order=d,menu=on"
   else
@@ -468,7 +476,7 @@ qemu-system-x86_64 \\
   -smp ${cpus} \\
   -m ${memory_mib} \\
   -drive if=pflash,format=raw,readonly=on,file=${ovmf_code} \\
-  -drive if=pflash,format=raw,file=${ovmf_vars_copy} \\
+  -drive if=pflash,format=raw,file=${ovmf_vars_file} \\
   -drive if=virtio,format=qcow2,file=${disk_path} \\
   ${zfs_disk_args} \\
   ${cdrom_args} \\
@@ -497,6 +505,8 @@ write_run_script() {
   cat >"$run_script_path" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
+
+cp "${ovmf_vars_template}" "${ovmf_live_vars_copy}"
 
 $(if (( enable_vtpm )); then cat <<VTPM
 start_vtpm() {
