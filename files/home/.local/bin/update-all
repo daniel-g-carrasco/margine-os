@@ -1,12 +1,53 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ -x /usr/local/bin/update-all ]]; then
-  exec /usr/local/bin/update-all "$@"
+runtime_product="${MARGINE_PRODUCT:-}"
+
+if [[ -z "${runtime_product}" && -r /var/lib/margine/product ]]; then
+  runtime_product="$(tr -d '[:space:]' < /var/lib/margine/product)"
+fi
+
+runtime_product="${runtime_product,,}"
+
+pick_repo_update_all() {
+  case "${runtime_product}" in
+    margine-cachyos)
+      if [[ -x "${HOME}/dev/margine-os-personal/scripts/update-all" ]]; then
+        printf '%s\n' "${HOME}/dev/margine-os-personal/scripts/update-all"
+        return 0
+      fi
+      ;;
+    margine-public|"")
+      if [[ -x "${HOME}/dev/margine-os/scripts/update-all" ]]; then
+        printf '%s\n' "${HOME}/dev/margine-os/scripts/update-all"
+        return 0
+      fi
+      ;;
+  esac
+
+  if [[ -x "${HOME}/dev/margine-os/scripts/update-all" ]]; then
+    printf '%s\n' "${HOME}/dev/margine-os/scripts/update-all"
+    return 0
+  fi
+
+  if [[ -x "${HOME}/dev/margine-os-personal/scripts/update-all" ]]; then
+    printf '%s\n' "${HOME}/dev/margine-os-personal/scripts/update-all"
+    return 0
+  fi
+
+  return 1
+}
+
+if repo_update_all="$(pick_repo_update_all)"; then
+  exec "${repo_update_all}" "$@"
 fi
 
 if [[ -x /usr/local/lib/margine/scripts/update-all ]]; then
   exec /usr/local/lib/margine/scripts/update-all "$@"
+fi
+
+if [[ -x /usr/local/bin/update-all ]]; then
+  exec /usr/local/bin/update-all "$@"
 fi
 
 printf 'error: no Margine update-all runtime found\n' >&2

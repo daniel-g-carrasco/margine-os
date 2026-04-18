@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ -x /usr/local/bin/update-all ]]; then
-  cmd="/usr/local/bin/update-all"
-elif [[ -x "${HOME}/.local/bin/update-all" ]]; then
+if [[ -x "${HOME}/.local/bin/update-all" ]]; then
   cmd="${HOME}/.local/bin/update-all"
+elif [[ -x /usr/local/bin/update-all ]]; then
+  cmd="/usr/local/bin/update-all"
 else
   cmd="update-all"
 fi
