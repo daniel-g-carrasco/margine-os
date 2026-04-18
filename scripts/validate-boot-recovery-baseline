@@ -236,12 +236,22 @@ boot_section() {
 
 uki_section() {
   local uki_count="0"
+  local required=""
 
   section "UKIs and boot artifacts"
   if [[ -d /boot/EFI/Linux ]]; then
     uki_count="$(find /boot/EFI/Linux -maxdepth 1 -type f -name '*.efi' | wc -l)"
     find /boot/EFI/Linux -maxdepth 1 -type f -name '*.efi' | sed 's/^/  - /'
     [[ "$uki_count" -gt 0 ]] || mark_issue
+
+    for required in margine-linux.efi margine-linux-fallback.efi margine-recovery.efi; do
+      if [[ -f "/boot/EFI/Linux/${required}" ]]; then
+        status_line "required UKI present: /boot/EFI/Linux/${required}"
+      else
+        status_line "required UKI missing: /boot/EFI/Linux/${required}"
+        mark_issue
+      fi
+    done
   else
     status_line "/boot/EFI/Linux missing"
     mark_issue

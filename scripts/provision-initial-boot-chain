@@ -30,8 +30,8 @@ Usage:
 Options:
   --esp-path PATH      Mountpoint ESP (default: /boot)
   --root-subvol NAME   Subvolume root Btrfs (default: @)
-  --crypt-name NAME    Nome mapper LUKS; se omesso prova a rilevarlo
-  --dry-run            Mostra il piano senza eseguirlo
+  --crypt-name NAME    LUKS mapper name; auto-detected if omitted
+  --dry-run            Show the plan without executing it
   --help               Show this help
 EOF
 }
@@ -240,6 +240,27 @@ build_ukis() {
   run_cmd mkinitcpio -P
 }
 
+verify_ukis() {
+  local -a expected=(
+    "/boot/EFI/Linux/margine-linux.efi"
+    "/boot/EFI/Linux/margine-linux-fallback.efi"
+    "/boot/EFI/Linux/margine-recovery.efi"
+  )
+  local artifact=""
+
+  log
+  log "==> Verify expected UKI artifacts"
+
+  for artifact in "${expected[@]}"; do
+    if (( dry_run )); then
+      printf '[dry-run] test -f %s\n' "$artifact"
+      continue
+    fi
+
+    [[ -f "$artifact" ]] || die "expected UKI missing after mkinitcpio -P: ${artifact}"
+  done
+}
+
 render_limine_config() {
   rendered_limine_conf="${repo_root}/build/limine.initial.conf"
 
@@ -287,7 +308,7 @@ main() {
   detect_luks_uuid
 
   log "=== Provision initial boot chain ==="
-  (( dry_run )) && log "Modalita': dry-run"
+  (( dry_run )) && log "Mode: dry-run"
   log "ESP: ${esp_path}"
   log "Root source: ${root_source}"
   log "Root UUID: ${root_uuid}"
@@ -298,12 +319,13 @@ main() {
   install_kernel_cmdline
   ensure_esp_layout
   build_ukis
+  verify_ukis
   render_limine_config
   deploy_limine
   enroll_limine_config
 
   log
-  log "Boot chain iniziale pronta: mkinitcpio, UKI prod/fallback/recovery e Limine sulla ESP."
+  log "Initial boot chain ready: mkinitcpio, main/fallback/recovery UKIs, and Limine on the ESP."
 }
 
 main "$@"

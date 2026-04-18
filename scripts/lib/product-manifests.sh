@@ -156,6 +156,20 @@ margine_product_extra_provisioners() {
   margine_product_list_field "$manifest" "extra_provisioners"
 }
 
+margine_kernel_image_default() {
+  local kernel_package="${1:-}"
+
+  [[ -n "$kernel_package" ]] || return 1
+  printf '/boot/vmlinuz-%s\n' "$kernel_package"
+}
+
+margine_mkinitcpio_preset_name_default() {
+  local kernel_package="${1:-}"
+
+  [[ -n "$kernel_package" ]] || return 1
+  printf '%s\n' "$kernel_package"
+}
+
 margine_detect_runtime_flavor() {
   local repo_root="$1"
   local flavor="${MARGINE_FLAVOR:-}"
@@ -189,6 +203,10 @@ margine_emit_product_context() {
   local base_distribution=""
   local visibility=""
   local redistributable=""
+  local kernel_package=""
+  local kernel_headers_package=""
+  local kernel_image=""
+  local mkinitcpio_preset_name=""
 
   if [[ -n "$requested_product" ]]; then
     product="${requested_product,,}"
@@ -211,6 +229,18 @@ margine_emit_product_context() {
   base_distribution="$(margine_product_field "$manifest" "base_distribution" "arch")"
   visibility="$(margine_product_field "$manifest" "visibility" "public")"
   redistributable="$(margine_product_field "$manifest" "redistributable" "true")"
+  kernel_package="$(margine_product_field "$manifest" "kernel_package" "")"
+  kernel_headers_package="$(margine_product_field "$manifest" "kernel_headers_package" "")"
+  kernel_image="$(margine_product_field "$manifest" "kernel_image" "")"
+  mkinitcpio_preset_name="$(margine_product_field "$manifest" "mkinitcpio_preset_name" "")"
+
+  if [[ -z "$kernel_image" && -n "$kernel_package" ]]; then
+    kernel_image="$(margine_kernel_image_default "$kernel_package")"
+  fi
+
+  if [[ -z "$mkinitcpio_preset_name" && -n "$kernel_package" ]]; then
+    mkinitcpio_preset_name="$(margine_mkinitcpio_preset_name_default "$kernel_package")"
+  fi
 
   printf 'product=%q\n' "$product"
   printf 'product_manifest=%q\n' "$manifest"
@@ -218,6 +248,10 @@ margine_emit_product_context() {
   printf 'product_base_distribution=%q\n' "$base_distribution"
   printf 'product_visibility=%q\n' "$visibility"
   printf 'product_redistributable=%q\n' "$redistributable"
+  printf 'product_kernel_package=%q\n' "$kernel_package"
+  printf 'product_kernel_headers_package=%q\n' "$kernel_headers_package"
+  printf 'product_kernel_image=%q\n' "$kernel_image"
+  printf 'product_mkinitcpio_preset_name=%q\n' "$mkinitcpio_preset_name"
   printf 'flavor=%q\n' "$flavor"
 }
 

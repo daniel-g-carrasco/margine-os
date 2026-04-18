@@ -43,6 +43,8 @@ Typical product fields:
 - `flavor`
 - `kernel_package`
 - `kernel_headers_package`
+- `kernel_image` (optional; defaults to `/boot/vmlinuz-${kernel_package}`)
+- `mkinitcpio_preset_name` (optional; defaults to `${kernel_package}`)
 - `bootloader`
 - `description`
 - `extra_package_layers` (optional)
