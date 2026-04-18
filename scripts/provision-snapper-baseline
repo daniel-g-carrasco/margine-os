@@ -16,7 +16,7 @@ Usage:
   provision-snapper-baseline [options]
 
 Options:
-  --dry-run  Mostra il piano senza eseguirlo
+  --dry-run  Show the plan without executing it
   --help     Show this help
 EOF
 }
@@ -80,7 +80,7 @@ ensure_btrfs_layout() {
   [[ "$root_fstype" == "btrfs" ]] || die "snapper baseline richiede root su btrfs"
 
   if ! mountpoint -q "$snapshots_dir"; then
-    warn "${snapshots_dir} non risulta un mountpoint dedicato; continuo ma la baseline recovery non e' allineata al layout previsto"
+    warn "${snapshots_dir} is not a dedicated mountpoint; continuing, but the recovery baseline is not aligned with the expected layout"
   fi
 }
 
@@ -181,7 +181,7 @@ create_initial_snapshot_if_needed() {
 
   snapshot_count="$(count_root_snapshots)"
   if [[ "$snapshot_count" -gt 0 ]]; then
-    log "Snapper ha gia' ${snapshot_count} snapshot root; nessuno snapshot bootstrap aggiuntivo."
+    log "Snapper already has ${snapshot_count} root snapshots; no additional bootstrap snapshot needed."
     return 0
   fi
 
@@ -206,7 +206,7 @@ main() {
   ensure_sources
 
   log "=== Provision Snapper baseline ==="
-  (( dry_run )) && log "Modalita': dry-run"
+  (( dry_run )) && log "Mode: dry-run"
 
   ensure_btrfs_layout
   bootstrap_snapper_config_if_needed
@@ -221,11 +221,11 @@ main() {
   enable_cleanup_timer
 
   log
-  log "Baseline Snapper pronta:"
-  log "- config root installata"
-  log "- snap-pac configurato"
-  log "- snapshot bootstrap iniziale garantito"
-  log "- snapper-cleanup.timer abilitato"
+  log "Snapper baseline ready:"
+  log "- root config installed"
+  log "- snap-pac configured"
+  log "- initial bootstrap snapshot ensured"
+  log "- snapper-cleanup.timer enabled"
 }
 
 main "$@"

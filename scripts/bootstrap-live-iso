@@ -315,9 +315,9 @@ run_pacstrap_phase() {
 
   log
   log "==> Stage 1 pacstrap"
-  log "Layer inclusi:"
+  log "Included layers:"
   printf '  - %s\n' "${stage1_layers[@]}"
-  log "Pacchetti stage1: ${#packages[@]}"
+  log "Stage 1 packages: ${#packages[@]}"
   run_cmd pacstrap -K "$target_root" "${packages[@]}"
 }
 

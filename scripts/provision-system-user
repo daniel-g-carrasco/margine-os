@@ -31,7 +31,7 @@ Options:
   --shell PATH                 Shell login dell'utente (default: /bin/bash)
   --extra-groups CSV           Gruppi aggiuntivi separati da virgola
   --user-password-hash HASH    Hash password da passare a usermod -p
-  --dry-run                    Mostra il piano senza eseguirlo
+  --dry-run                    Show the plan without executing it
   --help                       Show this help
 EOF
 }
@@ -256,7 +256,7 @@ main() {
   validate_groups "$groups_csv"
 
   log "=== Provision system user Margine ==="
-  (( dry_run )) && log "Modalita': dry-run"
+  (( dry_run )) && log "Mode: dry-run"
 
   install_sudoers_dropin
   ensure_user_account "$groups_csv"
@@ -264,7 +264,7 @@ main() {
   print_next_steps
 
   log
-  log "=== FINITO ==="
+  log "=== DONE ==="
 }
 
 main "$@"

@@ -31,7 +31,7 @@ Options:
   --mount-opts OPTS            Opzioni mount Btrfs (default coerente con ADR 0003)
   --yes-really-destroy-disk     Conferma esplicita dell'operazione distruttiva
   --no-next-step                Non mostra il prossimo comando consigliato
-  --dry-run                     Mostra il piano senza eseguirlo
+  --dry-run                     Show the plan without executing it
   --help                        Show this help
 EOF
 }
@@ -305,7 +305,7 @@ print_summary() {
 
   if (( show_next_step )); then
     log
-    log "Prossimo passo consigliato:"
+    log "Recommended next step:"
     printf '  %s\n' "${repo_root}/scripts/bootstrap-live-iso --target-root ${target_root}"
   fi
 }
@@ -316,7 +316,7 @@ main() {
   validate_inputs
 
   log "=== Provision storage Margine ==="
-  (( dry_run )) && log "Modalita': dry-run"
+  (( dry_run )) && log "Mode: dry-run"
 
   unmount_target_tree
   close_existing_mapper
@@ -328,7 +328,7 @@ main() {
   print_summary
 
   log
-  log "=== FINITO ==="
+  log "=== DONE ==="
 }
 
 main "$@"

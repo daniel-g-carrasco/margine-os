@@ -26,10 +26,10 @@ Usage:
   install-aur-packages [options] [package...]
 
 Options:
-  --manifest PATH        Legge i pacchetti AUR da un manifest; ripetibile
+  --manifest PATH        Read AUR packages from a manifest; repeatable
   --build-user NAME      Utente non-root usato per il build (default: aurbuilder)
-  --upgrade              Ricostruisce anche i pacchetti gia' installati
-  --dry-run              Mostra il piano senza eseguirlo
+  --upgrade              Rebuild already installed packages too
+  --dry-run              Show the plan without executing it
   --help                 Show this help
 EOF
 }
@@ -287,18 +287,18 @@ install_with_yay() {
 install_packages() {
   local package=""
 
-  log "Pacchetti AUR risolti: ${#packages[@]}"
+  log "Resolved AUR packages: ${#packages[@]}"
 
   bootstrap_yay
 
   for package in "${packages[@]}"; do
     if (( ! upgrade )) && pacman -Q "$package" >/dev/null 2>&1; then
-      log "==> Skip AUR gia' installato: ${package}"
+      log "==> Skip already installed AUR package: ${package}"
       continue
     fi
 
     if [[ "$package" == "yay" ]] && have_yay; then
-      log "==> Skip AUR helper gia' installato: yay"
+      log "==> Skip already installed AUR helper: yay"
       continue
     fi
 

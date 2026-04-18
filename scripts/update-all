@@ -927,7 +927,7 @@ main() {
   if (( soft_failures )); then
     warn "update-all ha completato il core con alcuni warning nei layer opzionali"
   else
-    log "=== FINITO ==="
+    log "=== DONE ==="
   fi
 }
 
