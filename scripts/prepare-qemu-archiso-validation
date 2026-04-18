@@ -898,8 +898,9 @@ cat /etc/margine/zfs-pre-update-datasets.conf
 Optional checks if you also installed the gaming stack:
 
 ```bash
-pacman -Q steam gamescope mangohud umu-launcher
-which steam gamescope mangohud
+pacman -Q steam gamescope mangohud umu-launcher obs-studio lact vkbasalt obs-vkcapture
+which steam gamescope mangohud obs obs-gamecapture
+which lact
 ```
 
 If you prepared the VM with `zfs-non-root-stack`, a realistic first lab after
@@ -1196,15 +1197,23 @@ Run this block only if you installed both `gaming-runtime-compat` and
 `gaming-apps-launchers`.
 
 ```bash
-pacman -Q steam gamescope mangohud umu-launcher vulkan-tools
+pacman -Q steam gamescope mangohud umu-launcher obs-studio lact vkbasalt obs-vkcapture vulkan-tools
 command -v steam
 command -v gamescope
 command -v mangohud
+command -v obs
+command -v obs-gamecapture
+command -v lact
 command -v umu-run || command -v umu-launcher || true
 steam --help >/tmp/steam-help.txt 2>&1 || true
 head -n 20 /tmp/steam-help.txt
 gamescope --help | sed -n '1,20p'
 mangohud --help | sed -n '1,20p' || true
+obs --help | sed -n '1,20p'
+lact --help | sed -n '1,20p' || true
+test -f /usr/share/vkBasalt/vkBasalt.conf.example
+test -e /usr/lib/obs-plugins/linux-vkcapture.so
+find /usr/share/vulkan/implicit_layer.d -maxdepth 1 -name 'obs_vkcapture*.json' -print
 vulkaninfo --summary | sed -n '1,40p'
 ```
 
@@ -1212,6 +1221,10 @@ Expected result:
 
 - the user-facing packages are installed;
 - the main commands resolve correctly;
+- `obs-studio` and `lact` have no immediate runtime/linker failure;
+- the `vkBasalt` example config is present on disk;
+- `obs-gamecapture`, the OBS plugin, and the Vulkan implicit-layer JSON are
+  actually present on disk;
 - basic CLI help works without obvious linker/runtime failures;
 - `vulkaninfo` runs, even if the renderer is virtualized.
 
@@ -1232,7 +1245,8 @@ Treat the VM as a successful first validation only if all of these are true:
 - if `ZFS` is enabled, the module loads, the pool can be created on `/dev/vdb`,
   manual rollback works, and `sanoid` creates snapshots;
 - if gaming layers are enabled, the package set and core commands are present
-  and do not fail immediately on launch/help.
+  and do not fail immediately on launch/help, including `obs-studio`, `lact`,
+  `vkbasalt`, and the `obs-vkcapture` plugin.
 EOF
 
   python - "$installed_checklist_path" "$flavor" "$(printf '%s' "${extra_layers[*]:-none}")" <<'PY'

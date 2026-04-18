@@ -139,6 +139,10 @@ Quindi il minimo serio da verificare e`:
 - `gamescope`
 - `mangohud`
 - `umu-launcher`
+- `obs-studio`
+- `lact`
+- `vkbasalt`
+- plugin `obs-vkcapture`
 - `vulkaninfo`
 
 Su `margine-cachyos` c'e` anche un vincolo packaging da fissare esplicitamente:
