@@ -34,6 +34,9 @@ readable and persistent.
 - `amdgpu_dpm=false`;
 - laptop lid close suspends the machine both on battery and on external power;
 - docked lid close remains ignored;
+- the physical power button is ignored by `systemd-logind`;
+- the long-press power-button action is also ignored at the OS layer, leaving
+  only the firmware-level hard power cut as the last-resort shutdown path;
 - the `60/120Hz` change of the internal panel is treated separately, with
   a dedicated user service in the desktop layer;
 - `VRR` and explicit refresh rate change are not confused: the first remains
@@ -41,8 +44,9 @@ readable and persistent.
   autonomy.
 
 The policy is versioned as the initial state of
-`/var/lib/power-profiles-daemon/state.ini`, plus a `logind` drop-in at
-`/etc/systemd/logind.conf.d/lid.conf`.
+`/var/lib/power-profiles-daemon/state.ini`, plus `logind` drop-ins at
+`/etc/systemd/logind.conf.d/lid.conf` and
+`/etc/systemd/logind.conf.d/power-key.conf`.
 
 ## Consequences
 
@@ -53,6 +57,8 @@ Positive:
   of the project;
 - the lid behavior is explicit and laptop-appropriate instead of relying on
   environment-specific defaults;
+- the fingerprint sensor integrated into the Framework power button no longer
+  risks a session poweroff because of an accidental short press;
 - we do not introduce an aggressive watcher that overrides manual choices
   of the user on the CPU profiles.
 
@@ -73,5 +79,6 @@ already enable the basic service.
 For lid behavior, the intended runtime model is:
 
 - `systemd-logind` handles the lid event and suspends;
+- `systemd-logind` ignores the power button in userspace;
 - `hypridle` locks the session before sleep;
 - on resume, the display is restored and the user returns to the locked session.

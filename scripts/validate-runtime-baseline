@@ -290,6 +290,52 @@ session_env_section() {
   fi
 }
 
+qt_theme_section() {
+  local env_file="${home_dir}/.config/environment.d/10-qt-platformtheme.conf"
+  local hypr_env_file="${home_dir}/.config/hypr/conf.d/30-environment.conf"
+  local qt_theme_file="${home_dir}/.config/hypr/hyprqt6engine.conf"
+  local launcher_file="${home_dir}/.local/bin/open-plasma-network-management"
+  local icon_theme=""
+  local theme_icon_theme=""
+
+  section "Qt and icon theme integration"
+
+  status_line "qt platformtheme env file: $( [[ -f "$env_file" ]] && echo yes || echo no )"
+  [[ -f "$env_file" ]] || mark_issue
+  if [[ -f "$env_file" ]] && rg -q '^QT_QPA_PLATFORMTHEME=hyprqt6engine$' "$env_file"; then
+    status_line "qt platformtheme env file content: ok"
+  else
+    status_line "qt platformtheme env file content: suspect"
+    mark_issue
+  fi
+
+  status_line "Hyprland Qt env wiring: $( [[ -f "$hypr_env_file" ]] && echo yes || echo no )"
+  [[ -f "$hypr_env_file" ]] || mark_issue
+  if [[ -f "$hypr_env_file" ]] && rg -q '^env = QT_QPA_PLATFORMTHEME,hyprqt6engine$' "$hypr_env_file"; then
+    status_line "Hyprland Qt env wiring content: ok"
+  else
+    status_line "Hyprland Qt env wiring content: suspect"
+    mark_issue
+  fi
+
+  status_line "hyprqt6engine config present: $( [[ -f "$qt_theme_file" ]] && echo yes || echo no )"
+  [[ -f "$qt_theme_file" ]] || mark_issue
+
+  status_line "Plasma test launcher present: $( [[ -x "$launcher_file" ]] && echo yes || echo no )"
+  [[ -x "$launcher_file" ]] || mark_issue
+
+  icon_theme="$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "'" || true)"
+  theme_icon_theme="$(sed -n "s/^MARGINE_THEME_ICON_THEME='\\(.*\\)'$/\\1/p" "${home_dir}/.config/margine/theme.env" | head -n1 || true)"
+  status_line "gsettings icon theme: ${icon_theme:-unknown}"
+  status_line "theme.env icon theme: ${theme_icon_theme:-unknown}"
+  if [[ -n "$icon_theme" && -n "$theme_icon_theme" && "$icon_theme" == "$theme_icon_theme" ]]; then
+    status_line "icon theme parity: ok"
+  else
+    status_line "icon theme parity: mismatch"
+    mark_issue
+  fi
+}
+
 maintenance_section() {
   local timer_state=""
   local timer_enablement=""
@@ -460,6 +506,8 @@ power_section() {
   local lid_switch="unknown"
   local lid_switch_external="unknown"
   local lid_switch_docked="unknown"
+  local power_key="unknown"
+  local power_key_long_press="unknown"
   local hypridle_state="stopped"
 
   section "Power and Resume"
@@ -497,14 +545,20 @@ power_section() {
     lid_switch="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandleLidSwitch=/ {print $2; exit}' || true)"
     lid_switch_external="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandleLidSwitchExternalPower=/ {print $2; exit}' || true)"
     lid_switch_docked="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandleLidSwitchDocked=/ {print $2; exit}' || true)"
+    power_key="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandlePowerKey=/ {print $2; exit}' || true)"
+    power_key_long_press="$(systemd-analyze cat-config systemd/logind.conf 2>/dev/null | awk -F= '/^HandlePowerKeyLongPress=/ {print $2; exit}' || true)"
   fi
   status_line "lid switch: ${lid_switch:-unknown}"
   status_line "lid switch on AC: ${lid_switch_external:-unknown}"
   status_line "lid switch docked: ${lid_switch_docked:-unknown}"
+  status_line "power key: ${power_key:-unknown}"
+  status_line "power key long press: ${power_key_long_press:-unknown}"
 
   if [[ -n "$battery_path" ]]; then
     [[ "$lid_switch" == "suspend" ]] || mark_issue
     [[ "$lid_switch_external" == "suspend" ]] || mark_issue
+    [[ "$power_key" == "ignore" ]] || mark_issue
+    [[ "$power_key_long_press" == "ignore" ]] || mark_issue
   fi
 
   status_line "resume hook present: $( [[ -x /etc/systemd/system-sleep/fprintd-reset ]] && echo yes || echo no )"
@@ -717,6 +771,7 @@ main() {
   init_product_context
   product_context_section
   session_env_section
+  qt_theme_section
   maintenance_section
   launcher_section
   ownership_section

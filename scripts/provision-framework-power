@@ -9,6 +9,8 @@ state_source="${repo_root}/files/var/lib/power-profiles-daemon/state.ini"
 state_target="/var/lib/power-profiles-daemon/state.ini"
 lid_source="${repo_root}/files/etc/systemd/logind.conf.d/lid.conf"
 lid_target="/etc/systemd/logind.conf.d/lid.conf"
+power_key_source="${repo_root}/files/etc/systemd/logind.conf.d/power-key.conf"
+power_key_target="/etc/systemd/logind.conf.d/power-key.conf"
 
 usage() {
   cat <<'EOF'
@@ -67,6 +69,7 @@ require_root() {
 ensure_sources() {
   [[ -f "$state_source" ]] || die "required source file not found: $state_source"
   [[ -f "$lid_source" ]] || die "required source file not found: $lid_source"
+  [[ -f "$power_key_source" ]] || die "required source file not found: $power_key_source"
 }
 
 install_state_file() {
@@ -79,6 +82,12 @@ install_lid_policy() {
   log
   log "==> Install laptop lid policy"
   run_cmd install -Dm644 "$lid_source" "$lid_target"
+}
+
+install_power_key_policy() {
+  log
+  log "==> Install power-button policy"
+  run_cmd install -Dm644 "$power_key_source" "$power_key_target"
 }
 
 apply_live_policy_if_possible() {
@@ -121,11 +130,12 @@ main() {
   ensure_sources
   install_state_file
   install_lid_policy
+  install_power_key_policy
   apply_live_policy_if_possible
   reload_logind_if_possible
 
   log
-  log "Baseline power Framework installata."
+  log "Framework power baseline installed."
 }
 
 main "$@"

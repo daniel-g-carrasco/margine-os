@@ -10,6 +10,7 @@ home_dir=""
 
 declare -a home_payload=(
   ".config/Code/User/settings.json"
+  ".config/environment.d"
   ".config/margine/README.md"
   ".config/margine/theme.env"
   ".config/margine/themes"

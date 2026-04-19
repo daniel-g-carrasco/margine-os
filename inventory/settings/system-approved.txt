@@ -1,5 +1,7 @@
 # Configurazioni di sistema approvate per la migrazione.
 
 /etc/fprintd.conf
+/etc/systemd/logind.conf.d/lid.conf
+/etc/systemd/logind.conf.d/power-key.conf
 /etc/pam.d/hyprlock
 /etc/timeshift/default.json

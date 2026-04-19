@@ -1,5 +1,6 @@
 # Desktop baseline files that must stay synchronized with the current host.
 .config/autostart/koofr.desktop
+.config/environment.d/10-qt-platformtheme.conf
 .config/elephant/websearch.toml
 .config/easyeffects/db/easyeffectsrc
 .config/easyeffects/db/graphrc

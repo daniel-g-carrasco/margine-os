@@ -225,7 +225,7 @@ On real hardware, also verify:
 
 ```bash
 pgrep -af hypridle
-systemd-analyze cat-config systemd/logind.conf | rg 'HandleLidSwitch|HandleLidSwitchExternalPower|HandleLidSwitchDocked'
+systemd-analyze cat-config systemd/logind.conf | rg 'HandleLidSwitch|HandleLidSwitchExternalPower|HandleLidSwitchDocked|HandlePowerKey|HandlePowerKeyLongPress'
 loginctl session-status | sed -n '1,80p'
 ```
 
@@ -235,11 +235,14 @@ Check:
 - the lid policy resolves to `HandleLidSwitch=suspend`
 - the lid policy resolves to `HandleLidSwitchExternalPower=suspend`
 - the docked policy remains `HandleLidSwitchDocked=ignore`
+- the power button policy resolves to `HandlePowerKey=ignore`
+- the long-press policy resolves to `HandlePowerKeyLongPress=ignore`
 
 Manual checks:
 
 - closing the laptop lid on real hardware must lock and suspend the machine instead of leaving the panel visibly active
 - reopening the lid must resume into the locked session with the display restored
+- briefly pressing the physical power button must not power off the machine, including from `hyprlock`
 - when `greetd` is the chosen login path, logout must return to `tuigreet`
 - on supported fingerprint hardware, both `tuigreet` and `hyprlock` must keep password fallback and allow fingerprint unlock when enrolled
 
@@ -417,6 +420,8 @@ gsettings get org.gnome.desktop.interface color-scheme
 gsettings get org.gnome.desktop.interface font-name
 gsettings get org.gnome.desktop.interface gtk-theme
 gsettings get org.gnome.desktop.interface icon-theme
+cat ~/.config/environment.d/10-qt-platformtheme.conf
+sed -n '1,80p' ~/.config/hypr/hyprqt6engine.conf
 sed -n '1,120p' ~/.config/margine/theme.env
 gdbus call --session \
   --dest org.freedesktop.portal.Desktop \
@@ -441,6 +446,8 @@ Check:
 - the Settings portal exposes `org.freedesktop.appearance accent-color`
 - GTK3 / legacy apps resolve to `adw-gtk3-dark`
 - icon theme resolves to `Adwaita-yellow` on the default preset
+- `~/.config/environment.d/10-qt-platformtheme.conf` pins `QT_QPA_PLATFORMTHEME=hyprqt6engine`
+- `~/.config/hypr/hyprqt6engine.conf` exists and remains parseable after reboot
 - `MoreWaita` and `Adwaita Colors` are installed so third-party app icons and
   folder accents inherit the intended Adwaita-styled baseline
 - GNOME Text Editor inherits the intended dark baseline via `gsettings`
