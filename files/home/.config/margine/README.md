@@ -11,7 +11,7 @@ It currently drives:
 - Qt / KDE icon theme override
 - UI font
 - accent color
-- Adwaita Colors / MoreWaita icon variant
+- stock Adwaita icon baseline
 - Breeze Dark Qt/KDE icon fallback on dark sessions
 - managed Firefox theme install
 - Hyprland window border colors and rounding

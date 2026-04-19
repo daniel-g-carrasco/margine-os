@@ -8,8 +8,6 @@
 yay
 elephant-all
 hyprqt6engine
-morewaita-icon-theme
-adwaita-colors-icon-theme
 ttf-ms-fonts
 walker
 wlogout

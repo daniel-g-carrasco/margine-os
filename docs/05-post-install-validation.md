@@ -446,12 +446,10 @@ Check:
 - `font-name` is set to the intended GNOME baseline (`IBM Plex Sans 10`)
 - the Settings portal exposes `org.freedesktop.appearance accent-color`
 - GTK3 / legacy apps resolve to `adw-gtk3-dark`
-- icon theme resolves to `Adwaita-yellow` on the default preset
+- icon theme resolves to `Adwaita` on the default preset
 - `~/.config/environment.d/10-qt-platformtheme.conf` pins `QT_QPA_PLATFORMTHEME=hyprqt6engine`
 - `~/.config/hypr/hyprqt6engine.conf` exists and remains parseable after reboot
 - Qt / KDE apps use `breeze-dark` icons by default on dark sessions
-- `MoreWaita` and `Adwaita Colors` are installed so third-party app icons and
-  folder accents inherit the intended Adwaita-styled baseline
 - GNOME Text Editor inherits the intended dark baseline via `gsettings`
 - Easy Effects UI defaults are present and sane, without dragging in hardware-specific runtime bindings
 - Koofr autostarts if expected, but does not steal focus as a normal foreground window
@@ -461,10 +459,8 @@ Manual checks:
 - after login, the intended wallpaper is actually visible
 - GTK / GNOME apps such as Nautilus, Calendar, Calculator, Loupe, Text Editor, and Firefox use the dark theme
 - GTK3 / legacy apps visually match `adw-gtk3-dark`
-- app icons resolve through the intended Adwaita-styled theme without obvious
-  missing-icon regressions
-- folder icons reflect the selected `Adwaita-*` icon variant in Nautilus and
-  file pickers
+- app icons resolve through stock `Adwaita` without obvious missing-icon
+  regressions
 
 ## 12. Waybar, notifications, and maintenance UX
 
