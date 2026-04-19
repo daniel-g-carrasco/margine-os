@@ -558,7 +558,7 @@ power_section() {
     [[ "$lid_switch" == "suspend" ]] || mark_issue
     [[ "$lid_switch_external" == "suspend" ]] || mark_issue
     [[ "$power_key" == "ignore" ]] || mark_issue
-    [[ "$power_key_long_press" == "ignore" ]] || mark_issue
+    [[ "$power_key_long_press" == "poweroff" ]] || mark_issue
   fi
 
   status_line "resume hook present: $( [[ -x /etc/systemd/system-sleep/fprintd-reset ]] && echo yes || echo no )"

@@ -236,13 +236,14 @@ Check:
 - the lid policy resolves to `HandleLidSwitchExternalPower=suspend`
 - the docked policy remains `HandleLidSwitchDocked=ignore`
 - the power button policy resolves to `HandlePowerKey=ignore`
-- the long-press policy resolves to `HandlePowerKeyLongPress=ignore`
+- the long-press policy resolves to `HandlePowerKeyLongPress=poweroff`
 
 Manual checks:
 
 - closing the laptop lid on real hardware must lock and suspend the machine instead of leaving the panel visibly active
 - reopening the lid must resume into the locked session with the display restored
 - briefly pressing the physical power button must not power off the machine, including from `hyprlock`
+- intentionally holding the physical power button must still power off through the OS path
 - when `greetd` is the chosen login path, logout must return to `tuigreet`
 - on supported fingerprint hardware, both `tuigreet` and `hyprlock` must keep password fallback and allow fingerprint unlock when enrolled
 
@@ -448,6 +449,7 @@ Check:
 - icon theme resolves to `Adwaita-yellow` on the default preset
 - `~/.config/environment.d/10-qt-platformtheme.conf` pins `QT_QPA_PLATFORMTHEME=hyprqt6engine`
 - `~/.config/hypr/hyprqt6engine.conf` exists and remains parseable after reboot
+- Qt / KDE apps use `breeze-dark` icons by default on dark sessions
 - `MoreWaita` and `Adwaita Colors` are installed so third-party app icons and
   folder accents inherit the intended Adwaita-styled baseline
 - GNOME Text Editor inherits the intended dark baseline via `gsettings`

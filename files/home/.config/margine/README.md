@@ -8,9 +8,11 @@ It currently drives:
 - GTK4 theme baseline
 - GNOME / GTK session defaults applied through `gsettings`
 - icon theme
+- Qt / KDE icon theme override
 - UI font
 - accent color
 - Adwaita Colors / MoreWaita icon variant
+- Breeze Dark Qt/KDE icon fallback on dark sessions
 - managed Firefox theme install
 - Hyprland window border colors and rounding
 - Hyprlock palette, blur treatment, fonts, and input rounding

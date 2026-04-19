@@ -35,8 +35,8 @@ readable and persistent.
 - laptop lid close suspends the machine both on battery and on external power;
 - docked lid close remains ignored;
 - the physical power button is ignored by `systemd-logind`;
-- the long-press power-button action is also ignored at the OS layer, leaving
-  only the firmware-level hard power cut as the last-resort shutdown path;
+- the short press of the physical power button is ignored by `systemd-logind`,
+  while the long press is delegated to the normal OS poweroff path;
 - the `60/120Hz` change of the internal panel is treated separately, with
   a dedicated user service in the desktop layer;
 - `VRR` and explicit refresh rate change are not confused: the first remains
@@ -59,6 +59,7 @@ Positive:
   environment-specific defaults;
 - the fingerprint sensor integrated into the Framework power button no longer
   risks a session poweroff because of an accidental short press;
+- an intentional long press still performs a controlled OS shutdown;
 - we do not introduce an aggressive watcher that overrides manual choices
   of the user on the CPU profiles.
 
@@ -79,6 +80,7 @@ already enable the basic service.
 For lid behavior, the intended runtime model is:
 
 - `systemd-logind` handles the lid event and suspends;
-- `systemd-logind` ignores the power button in userspace;
+- `systemd-logind` ignores the short press of the power button but still allows
+  the long-press poweroff path;
 - `hypridle` locks the session before sleep;
 - on resume, the display is restored and the user returns to the locked session.
