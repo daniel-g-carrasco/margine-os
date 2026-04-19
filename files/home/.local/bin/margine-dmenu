@@ -77,7 +77,6 @@ if command -v fuzzel >/dev/null 2>&1; then
 fi
 
 if command -v walker >/dev/null 2>&1; then
-  export GSK_RENDERER="${GSK_RENDERER:-gl}"
   exec walker -d -e -p "$prompt"
 fi
 
