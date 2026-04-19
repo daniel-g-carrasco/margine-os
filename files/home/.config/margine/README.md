@@ -6,6 +6,7 @@ It currently drives:
 
 - GTK3 theme
 - GTK4 theme baseline
+- generated GTK4/libadwaita CSS derived from a Rewaita export
 - GNOME / GTK session defaults applied through `gsettings`
 - icon theme
 - Qt / KDE icon theme override
@@ -73,12 +74,14 @@ Icon-theme note:
 
 Rewaita note:
 
-- `Rewaita` is useful only for GTK/libadwaita recoloring, not for icons or
-  Qt/KDE integration
-- it writes `gtk.css` and `assets` under `~/.config/gtk-3.0` and
-  `~/.config/gtk-4.0`, so it is intentionally not the default Margine engine
-- keep it optional until we choose a deterministic export path that can be
-  driven from `theme.env`
+- the default Margine GTK4/libadwaita CSS is derived from a Rewaita export,
+  but Rewaita itself is not required at runtime
+- Margine vendors the exported baseline as a template and regenerates `gtk.css`
+  from `theme.env`, so presets stay deterministic
+- `MARGINE_THEME_GTK4_SHARP_BORDERS='1'` appends the sharp-border override
+  block to the generated GTK4 CSS
+- Rewaita remains useful as an authoring tool if you want to design a new GTK4
+  baseline and re-export it, but it is no longer a required dependency
 
 Operational rule:
 

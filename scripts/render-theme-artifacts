@@ -6,6 +6,8 @@ repo_root="$(cd "${script_dir}/.." && pwd)"
 theme_file="${repo_root}/files/home/.config/margine/theme.env"
 gtk3_output="${repo_root}/files/home/.config/gtk-3.0/settings.ini"
 gtk4_output="${repo_root}/files/home/.config/gtk-4.0/settings.ini"
+gtk4_css_output="${repo_root}/files/home/.config/gtk-4.0/gtk.css"
+gtk4_dark_css_output="${repo_root}/files/home/.config/gtk-4.0/gtk-dark.css"
 firefox_policy_output="${repo_root}/files/etc/firefox/policies/policies.json"
 
 die() {
@@ -177,6 +179,9 @@ qt5ct_colors = repo_root / "files/home/.config/qt5ct/colors/margine.conf"
 qt6ct_config = repo_root / "files/home/.config/qt6ct/qt6ct.conf"
 qt6ct_colors = repo_root / "files/home/.config/qt6ct/colors/margine.conf"
 generated_icon_root = repo_root / "files/home/.local/share/icons"
+gtk4_css_template = repo_root / "files/home/.config/margine/templates/gtk-4.0-rewaita.css"
+gtk4_css_output = repo_root / "files/home/.config/gtk-4.0/gtk.css"
+gtk4_dark_css_output = repo_root / "files/home/.config/gtk-4.0/gtk-dark.css"
 
 primary = env("MARGINE_THEME_PRIMARY")
 secondary = env("MARGINE_THEME_SECONDARY")
@@ -207,6 +212,12 @@ icon_folder_color = os.environ.get("MARGINE_THEME_ICON_FOLDER_COLOR", "yellow")
 qt_icon_theme = os.environ.get("MARGINE_THEME_QT_ICON_THEME", "")
 if not qt_icon_theme:
     qt_icon_theme = "breeze-dark" if color_scheme == "prefer-dark" else icon_theme
+gtk4_sharp_borders = os.environ.get("MARGINE_THEME_GTK4_SHARP_BORDERS", "0").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 font_name = env("MARGINE_THEME_FONT_NAME")
 font_family_name = font_family(font_name)
 font_size_match = re.match(r"^.*\s+([0-9]+(?:\.[0-9]+)?)$", font_name.strip())
@@ -332,6 +343,56 @@ def write_generated_morewaita_overlay() -> None:
             symlink_icon(source, apps_dir / icon_name)
 
 write_generated_morewaita_overlay()
+
+gtk4_css_template_text = gtk4_css_template.read_text()
+gtk4_sharp_block = ""
+if gtk4_sharp_borders:
+    gtk4_sharp_block = "\n".join(
+        [
+            "window,",
+            "dialog,",
+            "popover,",
+            "menu,",
+            "menuitem,",
+            "button,",
+            "entry,",
+            "spinbutton,",
+            "text,",
+            "textview,",
+            "searchbar,",
+            "headerbar,",
+            "tab,",
+            "switch,",
+            "card,",
+            ".card,",
+            "list,",
+            "row,",
+            "frame,",
+            "notebook,",
+            "view {",
+            "  border-radius: 0;",
+            "  -gtk-outline-radius: 0;",
+            "}",
+        ]
+    )
+
+gtk4_css_rendered = gtk4_css_template_text
+for placeholder, value in {
+    "__BG__": bg,
+    "__TEXT__": text,
+    "__SURFACE__": surface,
+    "__SURFACE_ALT__": surface_alt,
+    "__MUTED__": muted,
+    "__PRIMARY__": primary,
+    "__WARNING__": warning,
+    "__CRITICAL__": critical,
+    "__SHARP_BORDERS__": gtk4_sharp_block,
+}.items():
+    gtk4_css_rendered = gtk4_css_rendered.replace(placeholder, value)
+
+gtk4_css_output.parent.mkdir(parents=True, exist_ok=True)
+gtk4_css_output.write_text(gtk4_css_rendered)
+gtk4_dark_css_output.write_text(gtk4_css_rendered)
 
 hypr_theme.parent.mkdir(parents=True, exist_ok=True)
 hypr_theme.write_text(

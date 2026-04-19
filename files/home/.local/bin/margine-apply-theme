@@ -13,6 +13,8 @@ list_presets=0
 declare -a generated_files=(
   ".config/fuzzel/theme-generated.ini"
   ".config/gtk-3.0/settings.ini"
+  ".config/gtk-4.0/gtk.css"
+  ".config/gtk-4.0/gtk-dark.css"
   ".config/gtk-4.0/settings.ini"
   ".config/hypr/conf.d/45-theme-generated.conf"
   ".config/hypr/hyprqt6engine.conf"
