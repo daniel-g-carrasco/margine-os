@@ -22,6 +22,7 @@ if (( ! force_fallback )) && command -v walker >/dev/null 2>&1 && command -v ele
     fi
   fi
 
+  export GSK_RENDERER="${GSK_RENDERER:-gl}"
   exec walker --gapplication-service "$@"
 fi
 
