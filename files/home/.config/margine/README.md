@@ -11,7 +11,7 @@ It currently drives:
 - Qt / KDE icon theme override
 - UI font
 - accent color
-- stock Adwaita icon baseline
+- generated Margine MoreWaita icon overlay
 - Breeze Dark Qt/KDE icon fallback on dark sessions
 - managed Firefox theme install
 - Hyprland window border colors and rounding
@@ -60,6 +60,26 @@ NMTUI-specific note:
 - the `MARGINE_THEME_NMTUI_*` block exists to keep it aligned with the desktop
   while making that limitation explicit
 
+Icon-theme note:
+
+- GTK/GNOME uses the generated `Margine-MoreWaita` icon theme by default
+- that overlay inherits `MoreWaita` for broader app coverage
+- Firefox and Thunderbird are explicitly forced back to upstream icons inside
+  the overlay because the MoreWaita replacements are intentionally not used
+- `MARGINE_THEME_ICON_FOLDER_COLOR` selects the folder variant source from the
+  installed `Adwaita-*` color themes without changing the rest of the app icons
+- Qt/KDE stays on `MARGINE_THEME_QT_ICON_THEME`, which should usually remain
+  `breeze-dark` on dark sessions
+
+Rewaita note:
+
+- `Rewaita` is useful only for GTK/libadwaita recoloring, not for icons or
+  Qt/KDE integration
+- it writes `gtk.css` and `assets` under `~/.config/gtk-3.0` and
+  `~/.config/gtk-4.0`, so it is intentionally not the default Margine engine
+- keep it optional until we choose a deterministic export path that can be
+  driven from `theme.env`
+
 Operational rule:
 
 - edit `theme.env`
@@ -85,6 +105,7 @@ What `margine-apply-theme` does:
 - refreshes the generated `nmtui` palette file
 - refreshes generated qt5ct / qt6ct palette files for Qt apps
 - refreshes generated hyprqt6engine theme data for Qt6 / KDE apps
+- refreshes the generated Margine icon overlay built on MoreWaita
 - updates the lockscreen theme source indirectly, so the next `hyprlock`
   invocation picks up the new palette, fonts, and blur tuning
 

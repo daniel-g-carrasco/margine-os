@@ -19,6 +19,7 @@ hypridle
 hyprland
 hyprlock
 hyprpaper
+hyprpicker
 kitty
 nautilus
 otf-font-awesome

@@ -29,6 +29,8 @@ declare -a generated_files=(
   ".config/walker/themes/default/theme-generated.css"
 )
 
+generated_icon_theme_relative=".local/share/icons/Margine-MoreWaita"
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -218,6 +220,30 @@ copy_generated_files_to_host() {
   done
 }
 
+copy_generated_icon_theme_to_host() {
+  local repo_root="$1"
+  local source="${repo_root}/files/home/${generated_icon_theme_relative}"
+  local target="${HOME}/${generated_icon_theme_relative}"
+
+  [[ -d "$source" ]] || return 0
+
+  log
+  log "==> Install generated icon theme overlay"
+
+  if (( dry_run )); then
+    printf '[dry-run] mkdir -p %q\n' "$(dirname "$target")"
+    printf '[dry-run] rsync -a --delete %q/ %q/\n' "$source" "$target"
+    printf '[dry-run] gtk-update-icon-cache -f -t %q\n' "$target"
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$target")"
+  rsync -a --delete "${source}/" "${target}/"
+  if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t "$target" >/dev/null 2>&1 || true
+  fi
+}
+
 apply_legacy_icon_overrides() {
   # shellcheck disable=SC1090
   source "$active_theme_file"
@@ -338,6 +364,7 @@ main() {
   [[ -n "$source_repo" ]] || die "public repo not found at ${public_repo}"
 
   copy_generated_files_to_host "$source_repo"
+  copy_generated_icon_theme_to_host "$source_repo"
   reload_session_theme
 
   if [[ -d "$personal_repo" ]]; then

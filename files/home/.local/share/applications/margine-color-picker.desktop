@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Color Picker
+Comment=Pick a screen color and copy it to the clipboard
+Exec=/home/daniel/.local/bin/margine-color-picker
+Icon=color-select-symbolic
+Terminal=false
+Categories=Graphics;Utility;
+Keywords=color;picker;hyprpicker;

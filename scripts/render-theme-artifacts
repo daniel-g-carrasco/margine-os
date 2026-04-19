@@ -48,6 +48,7 @@ import math
 import os
 import pathlib
 import re
+import shutil
 import sys
 
 repo_root = pathlib.Path(sys.argv[1])
@@ -175,6 +176,7 @@ qt5ct_config = repo_root / "files/home/.config/qt5ct/qt5ct.conf"
 qt5ct_colors = repo_root / "files/home/.config/qt5ct/colors/margine.conf"
 qt6ct_config = repo_root / "files/home/.config/qt6ct/qt6ct.conf"
 qt6ct_colors = repo_root / "files/home/.config/qt6ct/colors/margine.conf"
+generated_icon_root = repo_root / "files/home/.local/share/icons"
 
 primary = env("MARGINE_THEME_PRIMARY")
 secondary = env("MARGINE_THEME_SECONDARY")
@@ -201,6 +203,7 @@ hypr_shadow_alpha = float(env("MARGINE_THEME_HYPR_SHADOW_ALPHA"))
 kitty_bg_opacity = env("MARGINE_THEME_KITTY_BACKGROUND_OPACITY")
 color_scheme = env("MARGINE_THEME_COLOR_SCHEME")
 icon_theme = env("MARGINE_THEME_ICON_THEME")
+icon_folder_color = os.environ.get("MARGINE_THEME_ICON_FOLDER_COLOR", "yellow")
 qt_icon_theme = os.environ.get("MARGINE_THEME_QT_ICON_THEME", "")
 if not qt_icon_theme:
     qt_icon_theme = "breeze-dark" if color_scheme == "prefer-dark" else icon_theme
@@ -238,6 +241,97 @@ fuzzel_font_fallbacks = ",".join(
         f"Font Awesome 7 Free Solid:size={fuzzel_font_size}",
     ]
 )
+
+def ensure_icon_source(path: pathlib.Path) -> pathlib.Path:
+    if not path.exists():
+        raise SystemExit(f"missing icon source: {path}")
+    return path
+
+def symlink_icon(source: pathlib.Path, target: pathlib.Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists() or target.is_symlink():
+        target.unlink()
+    target.symlink_to(source)
+
+def write_generated_morewaita_overlay() -> None:
+    theme_root = generated_icon_root / "Margine-MoreWaita"
+    if theme_root.exists():
+        shutil.rmtree(theme_root)
+
+    if icon_theme != "Margine-MoreWaita":
+        return
+
+    morewaita_root = ensure_icon_source(pathlib.Path("/usr/share/icons/MoreWaita"))
+    folder_root = ensure_icon_source(pathlib.Path(f"/usr/share/icons/Adwaita-{icon_folder_color}/scalable/places"))
+    firefox_original = ensure_icon_source(pathlib.Path("/usr/share/icons/hicolor/scalable/apps/firefox.svg"))
+    thunderbird_symbolic = ensure_icon_source(pathlib.Path("/usr/share/icons/hicolor/symbolic/apps/thunderbird-symbolic.svg"))
+
+    thunderbird_sizes = {}
+    for size in ("16x16", "22x22", "24x24", "32x32", "48x48", "64x64", "128x128", "256x256"):
+        thunderbird_sizes[size] = ensure_icon_source(
+            pathlib.Path(f"/usr/share/icons/hicolor/{size}/apps/org.mozilla.Thunderbird.png")
+        )
+
+    scalable_places = theme_root / "scalable/places"
+    scalable_apps = theme_root / "scalable/apps"
+    symbolic_apps = theme_root / "symbolic/apps"
+    for directory in (scalable_places, scalable_apps, symbolic_apps):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    index_lines = [
+        "[Icon Theme]",
+        "Name=Margine MoreWaita",
+        "Comment=Generated Margine icon overlay built on MoreWaita",
+        "Inherits=MoreWaita,Adwaita,hicolor",
+        "Directories=scalable/apps,scalable/places,symbolic/apps,16x16/apps,22x22/apps,24x24/apps,32x32/apps,48x48/apps,64x64/apps,128x128/apps,256x256/apps",
+        "",
+        "[scalable/apps]",
+        "Size=48",
+        "Type=Scalable",
+        "Context=Applications",
+        "",
+        "[scalable/places]",
+        "Size=48",
+        "Type=Scalable",
+        "Context=Places",
+        "",
+        "[symbolic/apps]",
+        "Size=16",
+        "Type=Scalable",
+        "Context=Applications",
+        "",
+    ]
+    for size in ("16x16", "22x22", "24x24", "32x32", "48x48", "64x64", "128x128", "256x256"):
+        index_lines.extend(
+            [
+                f"[{size}/apps]",
+                f"Size={size.split('x', 1)[0]}",
+                "Type=Fixed",
+                "Context=Applications",
+                "",
+            ]
+        )
+    (theme_root / "index.theme").write_text("\n".join(index_lines))
+
+    for folder_icon in folder_root.iterdir():
+        if folder_icon.is_file():
+            symlink_icon(folder_icon, scalable_places / folder_icon.name)
+
+    for icon_name in ("firefox.svg", "mozilla-firefox.svg", "org.mozilla.Firefox.svg", "org.mozilla.firefox.svg"):
+        symlink_icon(firefox_original, scalable_apps / icon_name)
+
+    symlink_icon(thunderbird_symbolic, symbolic_apps / "thunderbird-symbolic.svg")
+    for size, source in thunderbird_sizes.items():
+        apps_dir = theme_root / size / "apps"
+        for icon_name in (
+            "org.mozilla.Thunderbird.png",
+            "thunderbird.png",
+            "thunderbird-bin.png",
+            "thunderbird-esr.png",
+        ):
+            symlink_icon(source, apps_dir / icon_name)
+
+write_generated_morewaita_overlay()
 
 hypr_theme.parent.mkdir(parents=True, exist_ok=True)
 hypr_theme.write_text(

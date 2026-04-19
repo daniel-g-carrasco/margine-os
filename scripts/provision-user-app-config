@@ -28,6 +28,8 @@ declare -a home_payload=(
   ".config/qt6ct"
   ".config/user-dirs.dirs"
   ".config/user-dirs.locale"
+  ".local/bin/margine-apply-theme"
+  ".local/bin/margine-color-picker"
   ".local/bin/update-all"
   ".local/bin/update-all-launcher"
   ".local/share/applications"
@@ -130,12 +132,27 @@ install_tree() {
     rel="${file#"${source_dir}"/}"
     mode=644
 
+    if [[ -L "$file" ]]; then
+      local link_target
+      link_target="$(readlink "$file")"
+
+      if (( dry_run )); then
+        printf '[dry-run] mkdir -p %q\n' "$(dirname "${target_dir}/${rel}")"
+        printf '[dry-run] ln -sfn %q %q\n' "$link_target" "${target_dir}/${rel}"
+      else
+        mkdir -p "$(dirname "${target_dir}/${rel}")"
+        ln -sfn "$link_target" "${target_dir}/${rel}"
+      fi
+
+      continue
+    fi
+
     if [[ "$rel" == *.sh || "$file" == */.local/bin/* ]]; then
       mode=755
     fi
 
     run_cmd install -Dm"${mode}" "$file" "${target_dir}/${rel}"
-  done < <(find "$source_dir" -type f -print0 | sort -z)
+  done < <(find "$source_dir" \( -type f -o -type l \) -print0 | sort -z)
 }
 
 copy_home_payload() {

@@ -7,7 +7,9 @@
 
 yay
 elephant-all
+adwaita-colors-icon-theme
 hyprqt6engine
+morewaita-icon-theme
 ttf-ms-fonts
 walker
 wlogout
