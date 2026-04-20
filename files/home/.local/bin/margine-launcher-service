@@ -13,7 +13,11 @@ if [[ -x "${HOME}/.local/bin/margine-import-session-environment" ]]; then
   "${HOME}/.local/bin/margine-import-session-environment"
 fi
 
-if (( ! force_fallback )) && command -v walker >/dev/null 2>&1 && command -v elephant >/dev/null 2>&1; then
+if (( ! force_fallback )) && command -v fuzzel >/dev/null 2>&1; then
+  exit 0
+fi
+
+if command -v walker >/dev/null 2>&1 && command -v elephant >/dev/null 2>&1; then
   if command -v systemctl >/dev/null 2>&1; then
     if systemctl --user --quiet is-active elephant.service; then
       systemctl --user restart elephant.service >/dev/null 2>&1 || true

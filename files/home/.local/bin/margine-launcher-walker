@@ -20,16 +20,4 @@ if command -v systemctl >/dev/null 2>&1; then
   systemctl --user start elephant.service >/dev/null 2>&1 || true
 fi
 
-pkill -x walker >/dev/null 2>&1 || true
-sleep 0.2
-
-clean_xdg_config_home="${HOME}/.config-clean/walker-cairo"
-clean_xdg_cache_home="${HOME}/.cache/walker-cairo"
-
-mkdir -p "${clean_xdg_config_home}" "${clean_xdg_cache_home}"
-
-exec env \
-  XDG_CONFIG_HOME="${clean_xdg_config_home}" \
-  XDG_CACHE_HOME="${clean_xdg_cache_home}" \
-  GSK_RENDERER="cairo" \
-  /usr/bin/walker "$@"
+exec walker "$@"
