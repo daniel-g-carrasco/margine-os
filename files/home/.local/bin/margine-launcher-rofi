@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+mode="drun"
+
+if [[ -x "${HOME}/.local/bin/margine-import-session-environment" ]]; then
+  "${HOME}/.local/bin/margine-import-session-environment"
+fi
+
+if [[ $# -gt 0 ]]; then
+  case "$1" in
+    drun|run|window)
+      mode="$1"
+      shift
+      ;;
+  esac
+fi
+
+if ! command -v rofi >/dev/null 2>&1; then
+  printf 'Rofi is not installed.\n' >&2
+  exit 1
+fi
+
+exec rofi -show "$mode" -config "${HOME}/.config/rofi/config.rasi" "$@"

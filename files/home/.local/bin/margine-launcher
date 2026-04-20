@@ -13,7 +13,11 @@ if [[ -x "${HOME}/.local/bin/margine-import-session-environment" ]]; then
   "${HOME}/.local/bin/margine-import-session-environment"
 fi
 
-if (( ! force_fallback )) && command -v fuzzel >/dev/null 2>&1; then
+if (( ! force_fallback )) && command -v rofi >/dev/null 2>&1; then
+  exec "${HOME}/.local/bin/margine-launcher-rofi" "$@"
+fi
+
+if command -v fuzzel >/dev/null 2>&1; then
   exec fuzzel "$@"
 fi
 
@@ -25,5 +29,5 @@ if command -v walker >/dev/null 2>&1 && command -v elephant >/dev/null 2>&1; the
   exec walker "$@"
 fi
 
-printf 'No launcher available: walker or fuzzel is required.\n' >&2
+printf 'No launcher available: rofi, fuzzel, or walker is required.\n' >&2
 exit 1

@@ -371,6 +371,7 @@ launcher_section() {
   local walker_path=""
   local elephant_path=""
   local fuzzel_path=""
+  local rofi_path=""
   local pkg=""
   local providers=""
   local -a expected_providers=(
@@ -392,6 +393,7 @@ launcher_section() {
   walker_path="$(command -v walker 2>/dev/null || true)"
   elephant_path="$(command -v elephant 2>/dev/null || true)"
   fuzzel_path="$(command -v fuzzel 2>/dev/null || true)"
+  rofi_path="$(command -v rofi 2>/dev/null || true)"
 
   if [[ -n "$aur_baseline_manifest" ]]; then
     while IFS= read -r pkg; do
@@ -406,6 +408,13 @@ launcher_section() {
   status_line "walker: ${walker_path:-missing}"
   status_line "elephant: ${elephant_path:-missing}"
   status_line "fuzzel: ${fuzzel_path:-missing}"
+  status_line "rofi: ${rofi_path:-missing}"
+  if package_installed rofi; then
+    status_line "package rofi: installed"
+  else
+    status_line "package rofi: missing"
+    mark_issue
+  fi
   if package_installed fuzzel; then
     status_line "package fuzzel: installed"
   else
@@ -436,7 +445,14 @@ launcher_section() {
     done
   fi
 
-  if [[ -n "$walker_path" && -n "$elephant_path" ]]; then
+  if [[ -n "$rofi_path" ]]; then
+    if [[ -n "$fuzzel_path" ]]; then
+      status_line "launcher baseline: rofi primary + fuzzel fallback"
+    else
+      status_line "launcher baseline: rofi only"
+      mark_issue
+    fi
+  elif [[ -n "$walker_path" && -n "$elephant_path" ]]; then
     status_line "launcher baseline: walker+elephant"
   elif [[ -n "$fuzzel_path" ]]; then
     status_line "launcher baseline: fuzzel fallback only"

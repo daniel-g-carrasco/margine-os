@@ -2,8 +2,9 @@
 # Nota:
 # - screenshot e recording usano direttamente `grim + slurp + satty + wf-recorder`;
 # - login path baseline: `greetd + tuigreet`;
-# - launcher preferito: `walker` se installato;
-# - fallback ufficiale: `fuzzel`.
+# - launcher preferito: `rofi`;
+# - picker/fallback ufficiale: `fuzzel`;
+# - `walker` resta opzionale e secondaria.
 
 brightnessctl
 cliphist
@@ -36,6 +37,7 @@ slurp
 swaync
 swayosd
 fuzzel
+rofi
 waybar
 wf-recorder
 wireplumber

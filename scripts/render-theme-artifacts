@@ -173,6 +173,7 @@ walker_theme = repo_root / "files/home/.config/walker/themes/default/theme-gener
 kitty_theme = repo_root / "files/home/.config/kitty/theme-generated.conf"
 hyprtoolkit_theme = repo_root / "files/home/.config/hypr/hyprtoolkit.conf"
 fuzzel_theme = repo_root / "files/home/.config/fuzzel/theme-generated.ini"
+rofi_theme = repo_root / "files/home/.config/rofi/theme-generated.rasi"
 nmtui_theme = repo_root / "files/home/.config/nmtui/colors.conf"
 qt5ct_config = repo_root / "files/home/.config/qt5ct/qt5ct.conf"
 qt5ct_colors = repo_root / "files/home/.config/qt5ct/colors/margine.conf"
@@ -245,6 +246,7 @@ launcher_font_family = font_family(launcher_font_name)
 fuzzel_font = fontconfig_font(launcher_font_name)
 launcher_font_size_match = re.match(r"^.*\s+([0-9]+(?:\.[0-9]+)?)$", launcher_font_name.strip())
 fuzzel_font_size = launcher_font_size_match.group(1) if launcher_font_size_match else "10"
+launcher_font_size_float = float(fuzzel_font_size)
 fuzzel_font_fallbacks = ",".join(
     [
         fuzzel_font,
@@ -252,6 +254,22 @@ fuzzel_font_fallbacks = ",".join(
         f"Font Awesome 7 Free Solid:size={fuzzel_font_size}",
     ]
 )
+rofi_window_width = max(720, min(1180, round(int(launcher_width) * 15)))
+rofi_mainbox_spacing = max(16, round(int(launcher_vertical_pad) * 0.75))
+rofi_list_spacing = max(10, round(int(launcher_inner_pad) * 0.75))
+rofi_element_padding_vertical = max(10, round(int(launcher_inner_pad) * 0.6))
+rofi_element_padding_horizontal = max(12, round(int(launcher_inner_pad) * 0.8))
+rofi_icon_size = max(18, round(launcher_font_size_float * 1.9))
+rofi_inputbar_border = "#" + plain_rgba_hex(secondary, 0.22)
+rofi_selection_background = "#" + plain_rgba_hex(hover, 1.0)
+rofi_selection_border = "#" + plain_rgba_hex(secondary, 0.78)
+rofi_background = "#" + plain_rgba_hex(bg, 0.99)
+rofi_surface = "#" + plain_rgba_hex(surface, 0.99)
+rofi_text = "#" + plain_rgba_hex(text, 1.0)
+rofi_muted = "#" + plain_rgba_hex(muted, 0.92)
+rofi_accent = "#" + plain_rgba_hex(secondary, 1.0)
+rofi_border = "#" + plain_rgba_hex(secondary, 0.58)
+rofi_prompt_width = max(80, round(int(launcher_horizontal_pad) * 5.0))
 
 def ensure_icon_source(path: pathlib.Path) -> pathlib.Path:
     if not path.exists():
@@ -590,6 +608,116 @@ fuzzel_theme.write_text(
             f"width={hypr_border_size}",
             f"radius={ui_radius}",
             f"selection-radius={rounding_small(ui_radius)}",
+            "",
+        ]
+    )
+)
+
+rofi_theme.parent.mkdir(parents=True, exist_ok=True)
+rofi_theme.write_text(
+    "\n".join(
+        [
+            "/* Generated from ~/.config/margine/theme.env */",
+            "configuration {",
+            f"    icon-theme: \"{icon_theme}\";",
+            "}",
+            "",
+            "* {",
+            f"    font: \"{launcher_font_name}\";",
+            f"    background: {rofi_background};",
+            f"    background-alt: {rofi_surface};",
+            f"    foreground: {rofi_text};",
+            f"    foreground-alt: {rofi_muted};",
+            f"    accent: {rofi_accent};",
+            f"    border-color: {rofi_border};",
+            f"    input-border-color: {rofi_inputbar_border};",
+            f"    selection-background: {rofi_selection_background};",
+            f"    selection-border-color: {rofi_selection_border};",
+            "    border: 0px;",
+            f"    border-radius: {ui_radius}px;",
+            "}",
+            "",
+            "window {",
+            "    anchor: center;",
+            "    location: center;",
+            "    fullscreen: false;",
+            f"    width: {rofi_window_width}px;",
+            "    border: 3px;",
+            "    border-color: @border-color;",
+            "    background-color: @background;",
+            "}",
+            "",
+            "mainbox {",
+            "    children: [ inputbar, message, listview ];",
+            f"    spacing: {rofi_mainbox_spacing}px;",
+            f"    padding: {launcher_vertical_pad}px {launcher_horizontal_pad}px;",
+            "    background-color: transparent;",
+            "}",
+            "",
+            "inputbar {",
+            "    children: [ prompt, entry ];",
+            f"    spacing: {rofi_list_spacing}px;",
+            f"    padding: {rofi_element_padding_vertical}px {rofi_element_padding_horizontal}px;",
+            "    border: 1px;",
+            "    border-color: @input-border-color;",
+            "    background-color: @background-alt;",
+            "}",
+            "",
+            "prompt {",
+            "    text-color: @accent;",
+            f"    width: {rofi_prompt_width}px;",
+            "}",
+            "",
+            "entry {",
+            "    text-color: @foreground;",
+            "    placeholder: \"Search apps, commands, and windows\";",
+            "    placeholder-color: @foreground-alt;",
+            "}",
+            "",
+            "message {",
+            "    enabled: false;",
+            "}",
+            "",
+            "listview {",
+            "    columns: 1;",
+            f"    lines: {launcher_lines};",
+            "    cycle: false;",
+            "    dynamic: false;",
+            "    fixed-height: true;",
+            "    scrollbar: false;",
+            f"    spacing: {rofi_list_spacing}px;",
+            "}",
+            "",
+            "element {",
+            "    orientation: horizontal;",
+            f"    spacing: {rofi_list_spacing}px;",
+            f"    padding: {rofi_element_padding_vertical}px {rofi_element_padding_horizontal}px;",
+            "    border: 1px;",
+            "    border-color: transparent;",
+            "    background-color: transparent;",
+            "    text-color: @foreground;",
+            "}",
+            "",
+            "element normal.normal {",
+            "    background-color: transparent;",
+            "    text-color: @foreground;",
+            "}",
+            "",
+            "element selected.normal {",
+            "    background-color: @selection-background;",
+            "    border-color: @selection-border-color;",
+            "    text-color: @foreground;",
+            "}",
+            "",
+            "element-text {",
+            "    text-color: inherit;",
+            "    vertical-align: 0.5;",
+            "}",
+            "",
+            "element-icon {",
+            f"    size: {rofi_icon_size}px;",
+            "    vertical-align: 0.5;",
+            "}",
             "",
         ]
     )

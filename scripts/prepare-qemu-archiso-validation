@@ -878,9 +878,10 @@ passed the first serious gate.
 For the `Walker/Elephant` regression, the important check here is:
 
 - the variable block above must be present inside `systemd --user`
-- `elephant.service` must be active
-- `walker` must exist; if it is missing for any reason, there must at least be
-  `fuzzel` as a coherent fallback
+- `rofi` should exist as the primary launcher
+- `fuzzel` must exist as the coherent fallback
+- `elephant.service` must be active if `walker` is installed
+- `walker` may exist as the secondary launcher, but it is no longer required
 - `snapper` must actually show the `root` config, not just the package installed
 - the screenshot/recording stack must have the official binaries available even
   if `hyprcap` is missing
@@ -1076,7 +1077,7 @@ Run:
 systemctl status greetd --no-pager
 systemctl --user show-environment | rg '^(DISPLAY|WAYLAND_DISPLAY|XDG_CURRENT_DESKTOP|XDG_SESSION_TYPE|XDG_SESSION_DESKTOP|DESKTOP_SESSION|GDK_BACKEND|MOZ_ENABLE_WAYLAND|_JAVA_AWT_WM_NONREPARENTING|HYPRLAND_INSTANCE_SIGNATURE|XDG_RUNTIME_DIR)='
 systemctl --user status elephant.service --no-pager
-which walker elephant fuzzel
+which rofi walker elephant fuzzel
 which grim slurp satty wf-recorder
 ```
 
@@ -1084,8 +1085,9 @@ Expected result:
 
 - `greetd` is active;
 - the graphical environment is imported into `systemd --user`;
-- `elephant.service` is active;
-- `walker` exists and `fuzzel` exists as the fallback launcher;
+- `elephant.service` is active if Walker is present;
+- `rofi` exists and `fuzzel` exists as the fallback launcher;
+- `walker` may exist as the secondary launcher;
 - the screenshot and recording stack is present.
 
 ## 3. Root filesystem snapshot baseline
@@ -1240,7 +1242,8 @@ Treat the VM as a successful first validation only if all of these are true:
 
 - installed guest boots from the installed disk, not from the live ISO;
 - login and desktop baseline are coherent;
-- `walker`, `fuzzel`, `elephant`, and the screenshot stack are present;
+- `rofi` and `fuzzel` are present, and if `walker` is installed then
+  `elephant` is also present;
 - `snapper` works for the root baseline;
 - if `ZFS` is enabled, the module loads, the pool can be created on `/dev/vdb`,
   manual rollback works, and `sanoid` creates snapshots;

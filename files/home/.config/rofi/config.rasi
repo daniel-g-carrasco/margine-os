@@ -1,0 +1,16 @@
+@theme "~/.config/rofi/theme-generated.rasi"
+
+configuration {
+    modi: "drun,run,window";
+    show-icons: true;
+    matching: "fuzzy";
+    sort: true;
+    hover-select: true;
+    terminal: "kitty -e";
+    drun-display-format: "{name}";
+    window-format: "{w} · {c}";
+    display-drun: "Apps";
+    display-run: "Run";
+    display-window: "Windows";
+    drun-match-fields: "name,generic,exec,categories,comment,keywords";
+}

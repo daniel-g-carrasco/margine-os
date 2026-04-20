@@ -12,6 +12,8 @@ declare -a home_payload=(
   ".config/xdg-desktop-portal/hyprland-portals.conf"
   ".config/fuzzel/fuzzel.ini"
   ".config/fuzzel/theme-generated.ini"
+  ".config/rofi/config.rasi"
+  ".config/rofi/theme-generated.rasi"
   ".config/hypr/hyprland.conf"
   ".config/hypr/README.md"
   ".config/hypr/hypridle.conf"
@@ -58,6 +60,7 @@ declare -a home_payload=(
   ".local/bin/margine-hyprlock"
   ".local/bin/launch-hyprpaper"
   ".local/bin/margine-dmenu"
+  ".local/bin/margine-launcher-rofi"
   ".local/bin/margine-host-health-menu"
   ".local/bin/margine-session-actions-menu"
   ".local/bin/network-status"
@@ -209,6 +212,7 @@ fix_ownership() {
     "${home_dir}/.config" \
     "${home_dir}/.local" \
     "${home_dir}/.config/hypr" \
+    "${home_dir}/.config/rofi" \
     "${home_dir}/.config/satty" \
     "${home_dir}/.config/swaync" \
     "${home_dir}/.config/swayosd" \
