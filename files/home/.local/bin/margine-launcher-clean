@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ -x "${HOME}/.local/bin/margine-import-session-environment" ]]; then
+  "${HOME}/.local/bin/margine-import-session-environment"
+fi
+
+if ! command -v walker >/dev/null 2>&1; then
+  printf 'Walker is not installed.\n' >&2
+  exit 1
+fi
+
+if ! command -v elephant >/dev/null 2>&1; then
+  printf 'Elephant is not installed.\n' >&2
+  exit 1
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl --user start elephant.service >/dev/null 2>&1 || true
+fi
+
+# Walker is a single-instance GApplication in practice. For a clean test
+# profile, close any running instance first so the new process uses the clean
+# XDG config tree instead of reusing the already-running one.
+pkill -x walker >/dev/null 2>&1 || true
+sleep 0.2
+
+clean_xdg_config_home="${HOME}/.config-clean/walker-vanilla"
+clean_xdg_cache_home="${HOME}/.cache/walker-vanilla"
+
+mkdir -p "${clean_xdg_config_home}" "${clean_xdg_cache_home}"
+
+exec env \
+  XDG_CONFIG_HOME="${clean_xdg_config_home}" \
+  XDG_CACHE_HOME="${clean_xdg_cache_home}" \
+  /usr/bin/walker "$@"
