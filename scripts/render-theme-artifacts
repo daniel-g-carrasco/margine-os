@@ -563,7 +563,7 @@ fuzzel_theme.write_text(
             f"font={fuzzel_font_fallbacks}",
             f"icon-theme={icon_theme}",
             "dpi-aware=auto",
-            "use-bold=yes",
+            "use-bold=no",
             f"width={launcher_width}",
             f"lines={launcher_lines}",
             f"horizontal-pad={launcher_horizontal_pad}",

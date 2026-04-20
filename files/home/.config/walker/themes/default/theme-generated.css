@@ -1,5 +1,5 @@
 /* Generated from ~/.config/margine/theme.env */
-* { font-family: "Atkinson Hyperlegible Next", sans-serif; }
+* { font-family: "IBM Plex Sans", sans-serif; }
 @define-color window_bg_color rgba(18, 18, 18, 0.99);
 @define-color surface_bg_color rgba(26, 26, 26, 0.99);
 @define-color accent_bg_color #e6d9c4;
