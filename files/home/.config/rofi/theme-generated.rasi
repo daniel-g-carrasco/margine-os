@@ -29,14 +29,14 @@ window {
 }
 
 mainbox {
-    children: [ inputbar, message, listview ];
+    children: [ inputbar, listview ];
     spacing: 18px;
     padding: 24px 28px;
     background-color: transparent;
 }
 
 inputbar {
-    children: [ prompt, entry ];
+    children: [ entry ];
     spacing: 12px;
     padding: 10px 13px;
     border: 1px;
@@ -45,18 +45,22 @@ inputbar {
 }
 
 prompt {
+    enabled: false;
+    background-color: transparent;
     text-color: @accent;
     width: 140px;
 }
 
 entry {
+    background-color: transparent;
     text-color: @foreground;
     placeholder: "Search apps, commands, and windows";
     placeholder-color: @foreground-alt;
 }
 
-message {
-    enabled: false;
+textbox {
+    background-color: transparent;
+    text-color: @foreground;
 }
 
 listview {
@@ -80,6 +84,11 @@ element {
 }
 
 element normal.normal {
+    background-color: transparent;
+    text-color: @foreground;
+}
+
+element alternate.normal {
     background-color: transparent;
     text-color: @foreground;
 }
