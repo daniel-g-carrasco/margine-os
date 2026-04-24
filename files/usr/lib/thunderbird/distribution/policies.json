@@ -1,0 +1,10 @@
+{
+  "policies": {
+    "Preferences": {
+      "mail.appearance.accentColor": {
+        "Value": "orange",
+        "Status": "user"
+      }
+    }
+  }
+}

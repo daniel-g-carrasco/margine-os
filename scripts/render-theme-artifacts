@@ -9,6 +9,7 @@ gtk4_output="${repo_root}/files/home/.config/gtk-4.0/settings.ini"
 gtk4_css_output="${repo_root}/files/home/.config/gtk-4.0/gtk.css"
 gtk4_dark_css_output="${repo_root}/files/home/.config/gtk-4.0/gtk-dark.css"
 firefox_policy_output="${repo_root}/files/etc/firefox/policies/policies.json"
+thunderbird_policy_output="${repo_root}/files/usr/lib/thunderbird/distribution/policies.json"
 
 die() {
   printf 'error: %s\n' "$*" >&2
@@ -44,7 +45,7 @@ gtk-icon-theme-name=${MARGINE_THEME_ICON_THEME}
 gtk-font-name=${MARGINE_THEME_FONT_NAME}
 EOF
 
-python3 - "$repo_root" "$firefox_policy_output" "$MARGINE_THEME_FIREFOX_THEME_ID" "$MARGINE_THEME_FIREFOX_THEME_INSTALL_URL" <<'PY'
+python3 - "$repo_root" "$firefox_policy_output" "$MARGINE_THEME_FIREFOX_THEME_ID" "$MARGINE_THEME_FIREFOX_THEME_INSTALL_URL" "$thunderbird_policy_output" <<'PY'
 import json
 import math
 import os
@@ -57,6 +58,7 @@ repo_root = pathlib.Path(sys.argv[1])
 output = pathlib.Path(sys.argv[2])
 theme_id = sys.argv[3]
 theme_url = sys.argv[4]
+thunderbird_policy_output = pathlib.Path(sys.argv[5])
 
 def env(name: str) -> str:
     value = os.environ.get(name)
@@ -111,6 +113,22 @@ def font_family(value: str) -> str:
     family, _ = match.groups()
     return family.strip()
 
+thunderbird_accent = os.environ.get("MARGINE_THEME_THUNDERBIRD_ACCENT_COLOR", "orange")
+allowed_thunderbird_accents = {
+    "accent-color",
+    "thunderbird",
+    "purple",
+    "orange",
+    "pink",
+    "ink",
+    "teal",
+}
+if thunderbird_accent not in allowed_thunderbird_accents:
+    raise SystemExit(
+        "MARGINE_THEME_THUNDERBIRD_ACCENT_COLOR must be one of: "
+        + ", ".join(sorted(allowed_thunderbird_accents))
+    )
+
 payload = {
     "policies": {
         "SearchEngines": {
@@ -164,6 +182,24 @@ payload = {
 output.parent.mkdir(parents=True, exist_ok=True)
 output.write_text(json.dumps(payload, indent=2) + "\n")
 
+thunderbird_payload = {
+    "policies": {
+        "Preferences": {
+            # Thunderbird's "follow OS" accent reads the GNOME/libadwaita named
+            # portal color, not Margine's generated Rewaita hex palette. Use
+            # Thunderbird's own accent channel so the default stays visually
+            # aligned with Margine without changing the global GNOME accent.
+            "mail.appearance.accentColor": {
+                "Value": thunderbird_accent,
+                "Status": "user",
+            }
+        }
+    }
+}
+
+thunderbird_policy_output.parent.mkdir(parents=True, exist_ok=True)
+thunderbird_policy_output.write_text(json.dumps(thunderbird_payload, indent=2) + "\n")
+
 hypr_theme = repo_root / "files/home/.config/hypr/conf.d/45-theme-generated.conf"
 hyprqt6engine_theme = repo_root / "files/home/.config/hypr/hyprqt6engine.conf"
 waybar_theme = repo_root / "files/home/.config/waybar/theme-generated.css"
@@ -173,7 +209,6 @@ walker_theme = repo_root / "files/home/.config/walker/themes/default/theme-gener
 kitty_theme = repo_root / "files/home/.config/kitty/theme-generated.conf"
 hyprtoolkit_theme = repo_root / "files/home/.config/hypr/hyprtoolkit.conf"
 fuzzel_theme = repo_root / "files/home/.config/fuzzel/theme-generated.ini"
-rofi_theme = repo_root / "files/home/.config/rofi/theme-generated.rasi"
 nmtui_theme = repo_root / "files/home/.config/nmtui/colors.conf"
 qt5ct_config = repo_root / "files/home/.config/qt5ct/qt5ct.conf"
 qt5ct_colors = repo_root / "files/home/.config/qt5ct/colors/margine.conf"
@@ -213,12 +248,7 @@ icon_folder_color = os.environ.get("MARGINE_THEME_ICON_FOLDER_COLOR", "yellow")
 qt_icon_theme = os.environ.get("MARGINE_THEME_QT_ICON_THEME", "")
 if not qt_icon_theme:
     qt_icon_theme = "breeze-dark" if color_scheme == "prefer-dark" else icon_theme
-gtk4_sharp_borders = os.environ.get("MARGINE_THEME_GTK4_SHARP_BORDERS", "0").strip().lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+gtk4_accent_bg = os.environ.get("MARGINE_THEME_GTK4_ACCENT_BG", primary)
 font_name = env("MARGINE_THEME_FONT_NAME")
 font_family_name = font_family(font_name)
 font_size_match = re.match(r"^.*\s+([0-9]+(?:\.[0-9]+)?)$", font_name.strip())
@@ -254,27 +284,17 @@ fuzzel_font_fallbacks = ",".join(
         f"Font Awesome 7 Free Solid:size={fuzzel_font_size}",
     ]
 )
-rofi_window_width = max(720, min(1180, round(int(launcher_width) * 15)))
-rofi_mainbox_spacing = max(16, round(int(launcher_vertical_pad) * 0.75))
-rofi_list_spacing = max(10, round(int(launcher_inner_pad) * 0.75))
-rofi_element_padding_vertical = max(10, round(int(launcher_inner_pad) * 0.6))
-rofi_element_padding_horizontal = max(12, round(int(launcher_inner_pad) * 0.8))
-rofi_icon_size = max(18, round(launcher_font_size_float * 1.9))
-rofi_inputbar_border = "#" + plain_rgba_hex(secondary, 0.22)
-rofi_selection_background = "#" + plain_rgba_hex(hover, 1.0)
-rofi_selection_border = "#" + plain_rgba_hex(secondary, 0.78)
-rofi_background = "#" + plain_rgba_hex(bg, 0.99)
-rofi_surface = "#" + plain_rgba_hex(surface, 0.99)
-rofi_text = "#" + plain_rgba_hex(text, 1.0)
-rofi_muted = "#" + plain_rgba_hex(muted, 0.92)
-rofi_accent = "#" + plain_rgba_hex(secondary, 1.0)
-rofi_border = "#" + plain_rgba_hex(secondary, 0.58)
-rofi_prompt_width = max(80, round(int(launcher_horizontal_pad) * 5.0))
-
 def ensure_icon_source(path: pathlib.Path) -> pathlib.Path:
     if not path.exists():
         raise SystemExit(f"missing icon source: {path}")
     return path
+
+def first_existing_icon_source(*candidates: str) -> pathlib.Path:
+    for candidate in candidates:
+        path = pathlib.Path(candidate)
+        if path.exists():
+            return path
+    raise SystemExit(f"missing icon source candidates: {', '.join(candidates)}")
 
 def symlink_icon(source: pathlib.Path, target: pathlib.Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -282,24 +302,119 @@ def symlink_icon(source: pathlib.Path, target: pathlib.Path) -> None:
         target.unlink()
     target.symlink_to(source)
 
-def write_generated_morewaita_overlay() -> None:
-    theme_root = generated_icon_root / "Margine-MoreWaita"
-    if theme_root.exists():
-        shutil.rmtree(theme_root)
+GENERATED_ICON_THEMES = {
+    "Margine-Adwaita": {
+        "display_name": "Margine Adwaita",
+        "comment": "Generated Margine icon overlay built on Adwaita",
+        "inherits": ("Adwaita", "AdwaitaLegacy", "hicolor"),
+        "preserve_brand_icons": False,
+    },
+    "Margine-MoreWaita": {
+        "display_name": "Margine MoreWaita",
+        "comment": "Generated Margine icon overlay built on MoreWaita",
+        "inherits": ("MoreWaita", "Adwaita", "AdwaitaLegacy", "hicolor"),
+        "preserve_brand_icons": True,
+    },
+}
 
-    if icon_theme != "Margine-MoreWaita":
+GENERATED_MARGINE_APP_ICON_CANDIDATES = {
+    "margine-color-picker": (
+        "/usr/share/icons/Adwaita/symbolic/actions/color-select-symbolic.svg",
+        "/usr/share/icons/Adwaita/symbolic/legacy/preferences-color-symbolic.svg",
+    ),
+    "margine-display-off": (
+        "/usr/share/icons/Adwaita/scalable/devices/video-display.svg",
+        "/usr/share/icons/Adwaita/symbolic/legacy/preferences-desktop-display-symbolic.svg",
+    ),
+    "margine-gaming-split-lock": (
+        "/usr/share/icons/MoreWaita/scalable/legacy/applications-games.svg",
+        "/usr/share/icons/Adwaita/scalable/devices/input-gaming.svg",
+        "/usr/share/icons/Adwaita/symbolic/devices/input-gaming-symbolic.svg",
+        "/usr/share/icons/Adwaita/symbolic/categories/applications-games-symbolic.svg",
+    ),
+    "margine-host-health": (
+        "/usr/share/icons/hicolor/scalable/apps/org.gnome.SystemMonitor.svg",
+        "/usr/share/icons/hicolor/scalable/apps/org.gnome.SystemMonitor.Devel.svg",
+        "/usr/share/icons/Adwaita/symbolic/legacy/preferences-system-details-symbolic.svg",
+        "/usr/share/icons/Adwaita/symbolic/categories/preferences-system-symbolic.svg",
+    ),
+    "margine-lock-screen": (
+        "/usr/share/icons/MoreWaita/scalable/legacy/system-lock-screen.svg",
+        "/usr/share/icons/Adwaita/symbolic/status/system-lock-screen-symbolic.svg",
+    ),
+    "margine-log-out": (
+        "/usr/share/icons/MoreWaita/scalable/legacy/system-log-out.svg",
+        "/usr/share/icons/Adwaita/symbolic/actions/system-log-out-symbolic.svg",
+    ),
+    "margine-network-settings": (
+        "/usr/share/icons/MoreWaita/scalable/legacy/preferences-system-network.svg",
+        "/usr/share/icons/MoreWaita/symbolic/legacy/preferences-system-network-symbolic.svg",
+        "/usr/share/icons/Adwaita/symbolic/legacy/preferences-system-network-symbolic.svg",
+        "/usr/share/icons/Adwaita/symbolic/legacy/preferences-system-network-proxy-symbolic.svg",
+    ),
+    "margine-power-off": (
+        "/usr/share/icons/MoreWaita/scalable/legacy/system-shutdown.svg",
+        "/usr/share/icons/Adwaita/symbolic/actions/system-shutdown-symbolic.svg",
+    ),
+    "margine-power-settings": (
+        "/usr/share/icons/MoreWaita/scalable/apps/org.gnome.PowerStats.svg",
+        "/usr/share/icons/MoreWaita/scalable/apps/gnome-power-statistics.svg",
+        "/usr/share/icons/MoreWaita/scalable/devices/uninterruptible-power-supply.svg",
+        "/usr/share/icons/Adwaita/symbolic/status/power-profile-balanced-symbolic.svg",
+    ),
+    "margine-reboot": (
+        "/usr/share/icons/MoreWaita/scalable/legacy/system-reboot.svg",
+        "/usr/share/icons/Adwaita/symbolic/actions/system-reboot-symbolic.svg",
+    ),
+    "margine-session-actions": (
+        "/usr/share/icons/MoreWaita/scalable/apps/session-desktop.svg",
+        "/usr/share/icons/MoreWaita/scalable/legacy/preferences-system.svg",
+        "/usr/share/icons/Adwaita/symbolic/categories/preferences-system-symbolic.svg",
+    ),
+    "margine-suspend": (
+        "/usr/share/icons/MoreWaita/scalable/legacy/system-suspend.svg",
+        "/usr/share/icons/MoreWaita/scalable/legacy/system-suspend-hibernate.svg",
+        "/usr/share/icons/Adwaita/symbolic/categories/preferences-system-symbolic.svg",
+    ),
+    "margine-themes": (
+        "/usr/share/icons/MoreWaita/scalable/legacy/preferences-desktop-theme.svg",
+        "/usr/share/icons/Adwaita/symbolic/legacy/preferences-desktop-appearance-symbolic.svg",
+        "/usr/share/icons/MoreWaita/symbolic/legacy/preferences-desktop-symbolic.svg",
+        "/usr/share/icons/Adwaita/symbolic/categories/preferences-other-symbolic.svg",
+    ),
+    "margine-update-all": (
+        "/usr/share/icons/MoreWaita/scalable/legacy/system-software-update.svg",
+        "/usr/share/icons/MoreWaita/symbolic/legacy/system-software-update-symbolic.svg",
+        "/usr/share/icons/Adwaita/symbolic/actions/system-software-install-symbolic.svg",
+        "/usr/share/icons/Adwaita/symbolic/categories/preferences-system-symbolic.svg",
+    ),
+}
+
+def write_generated_icon_overlay() -> None:
+    for theme_name in GENERATED_ICON_THEMES:
+        theme_root = generated_icon_root / theme_name
+        if theme_root.exists():
+            shutil.rmtree(theme_root)
+
+    if icon_theme not in GENERATED_ICON_THEMES:
         return
 
-    morewaita_root = ensure_icon_source(pathlib.Path("/usr/share/icons/MoreWaita"))
+    theme_metadata = GENERATED_ICON_THEMES[icon_theme]
+    theme_root = generated_icon_root / icon_theme
+
     folder_root = ensure_icon_source(pathlib.Path(f"/usr/share/icons/Adwaita-{icon_folder_color}/scalable/places"))
-    firefox_original = ensure_icon_source(pathlib.Path("/usr/share/icons/hicolor/scalable/apps/firefox.svg"))
-    thunderbird_symbolic = ensure_icon_source(pathlib.Path("/usr/share/icons/hicolor/symbolic/apps/thunderbird-symbolic.svg"))
+    morewaita_places_root = pathlib.Path("/usr/share/icons/MoreWaita/scalable/places")
+    firefox_original = pathlib.Path("/usr/share/icons/hicolor/scalable/apps/firefox.svg")
+    thunderbird_symbolic = pathlib.Path("/usr/share/icons/hicolor/symbolic/apps/thunderbird-symbolic.svg")
 
     thunderbird_sizes = {}
-    for size in ("16x16", "22x22", "24x24", "32x32", "48x48", "64x64", "128x128", "256x256"):
-        thunderbird_sizes[size] = ensure_icon_source(
-            pathlib.Path(f"/usr/share/icons/hicolor/{size}/apps/org.mozilla.Thunderbird.png")
-        )
+    if theme_metadata["preserve_brand_icons"]:
+        ensure_icon_source(firefox_original)
+        ensure_icon_source(thunderbird_symbolic)
+        for size in ("16x16", "22x22", "24x24", "32x32", "48x48", "64x64", "128x128", "256x256"):
+            thunderbird_sizes[size] = ensure_icon_source(
+                pathlib.Path(f"/usr/share/icons/hicolor/{size}/apps/org.mozilla.Thunderbird.png")
+            )
 
     scalable_places = theme_root / "scalable/places"
     scalable_apps = theme_root / "scalable/apps"
@@ -309,9 +424,9 @@ def write_generated_morewaita_overlay() -> None:
 
     index_lines = [
         "[Icon Theme]",
-        "Name=Margine MoreWaita",
-        "Comment=Generated Margine icon overlay built on MoreWaita",
-        "Inherits=MoreWaita,Adwaita,hicolor",
+        f"Name={theme_metadata['display_name']}",
+        f"Comment={theme_metadata['comment']}",
+        f"Inherits={','.join(theme_metadata['inherits'])}",
         "Directories=scalable/apps,scalable/places,symbolic/apps,16x16/apps,22x22/apps,24x24/apps,32x32/apps,48x48/apps,64x64/apps,128x128/apps,256x256/apps",
         "",
         "[scalable/apps]",
@@ -342,57 +457,38 @@ def write_generated_morewaita_overlay() -> None:
         )
     (theme_root / "index.theme").write_text("\n".join(index_lines))
 
-    for folder_icon in folder_root.iterdir():
+    for folder_icon in sorted(folder_root.iterdir(), key=lambda item: item.name):
         if folder_icon.is_file():
             symlink_icon(folder_icon, scalable_places / folder_icon.name)
 
-    for icon_name in ("firefox.svg", "mozilla-firefox.svg", "org.mozilla.Firefox.svg", "org.mozilla.firefox.svg"):
-        symlink_icon(firefox_original, scalable_apps / icon_name)
+    if morewaita_places_root.exists():
+        for folder_icon in sorted(morewaita_places_root.iterdir(), key=lambda item: item.name):
+            target = scalable_places / folder_icon.name
+            if folder_icon.is_file() and not target.exists():
+                symlink_icon(folder_icon, target)
 
-    symlink_icon(thunderbird_symbolic, symbolic_apps / "thunderbird-symbolic.svg")
-    for size, source in thunderbird_sizes.items():
-        apps_dir = theme_root / size / "apps"
-        for icon_name in (
-            "org.mozilla.Thunderbird.png",
-            "thunderbird.png",
-            "thunderbird-bin.png",
-            "thunderbird-esr.png",
-        ):
-            symlink_icon(source, apps_dir / icon_name)
+    for icon_name, candidates in GENERATED_MARGINE_APP_ICON_CANDIDATES.items():
+        source = first_existing_icon_source(*candidates)
+        symlink_icon(source, scalable_apps / f"{icon_name}{source.suffix}")
 
-write_generated_morewaita_overlay()
+    if theme_metadata["preserve_brand_icons"]:
+        for icon_name in ("firefox.svg", "mozilla-firefox.svg", "org.mozilla.Firefox.svg", "org.mozilla.firefox.svg"):
+            symlink_icon(firefox_original, scalable_apps / icon_name)
+
+        symlink_icon(thunderbird_symbolic, symbolic_apps / "thunderbird-symbolic.svg")
+        for size, source in thunderbird_sizes.items():
+            apps_dir = theme_root / size / "apps"
+            for icon_name in (
+                "org.mozilla.Thunderbird.png",
+                "thunderbird.png",
+                "thunderbird-bin.png",
+                "thunderbird-esr.png",
+            ):
+                symlink_icon(source, apps_dir / icon_name)
+
+write_generated_icon_overlay()
 
 gtk4_css_template_text = gtk4_css_template.read_text()
-gtk4_sharp_block = ""
-if gtk4_sharp_borders:
-    gtk4_sharp_block = "\n".join(
-        [
-            "window,",
-            "dialog,",
-            "popover,",
-            "menu,",
-            "menuitem,",
-            "button,",
-            "entry,",
-            "spinbutton,",
-            "text,",
-            "textview,",
-            "searchbar,",
-            "headerbar,",
-            "tab,",
-            "switch,",
-            "card,",
-            ".card,",
-            "list,",
-            "row,",
-            "frame,",
-            "notebook,",
-            "view {",
-            "  border-radius: 0;",
-            "  -gtk-outline-radius: 0;",
-            "}",
-        ]
-    )
 
 gtk4_css_rendered = gtk4_css_template_text
 for placeholder, value in {
@@ -401,10 +497,11 @@ for placeholder, value in {
     "__SURFACE__": surface,
     "__SURFACE_ALT__": surface_alt,
     "__MUTED__": muted,
+    "__HOVER__": hover,
     "__PRIMARY__": primary,
+    "__GTK4_ACCENT_BG__": gtk4_accent_bg,
     "__WARNING__": warning,
     "__CRITICAL__": critical,
-    "__SHARP_BORDERS__": gtk4_sharp_block,
 }.items():
     gtk4_css_rendered = gtk4_css_rendered.replace(placeholder, value)
 
@@ -608,125 +705,6 @@ fuzzel_theme.write_text(
             f"width={hypr_border_size}",
             f"radius={ui_radius}",
             f"selection-radius={rounding_small(ui_radius)}",
-            "",
-        ]
-    )
-)
-
-rofi_theme.parent.mkdir(parents=True, exist_ok=True)
-rofi_theme.write_text(
-    "\n".join(
-        [
-            "/* Generated from ~/.config/margine/theme.env */",
-            "configuration {",
-            f"    icon-theme: \"{icon_theme}\";",
-            "}",
-            "",
-            "* {",
-            f"    font: \"{launcher_font_name}\";",
-            f"    background: {rofi_background};",
-            f"    background-alt: {rofi_surface};",
-            f"    foreground: {rofi_text};",
-            f"    foreground-alt: {rofi_muted};",
-            f"    accent: {rofi_accent};",
-            f"    border-color: {rofi_border};",
-            f"    input-border-color: {rofi_inputbar_border};",
-            f"    selection-background: {rofi_selection_background};",
-            f"    selection-border-color: {rofi_selection_border};",
-            "    border: 0px;",
-            f"    border-radius: {ui_radius}px;",
-            "}",
-            "",
-            "window {",
-            "    anchor: center;",
-            "    location: center;",
-            "    fullscreen: false;",
-            f"    width: {rofi_window_width}px;",
-            "    border: 3px;",
-            "    border-color: @border-color;",
-            "    background-color: @background;",
-            "}",
-            "",
-            "mainbox {",
-            "    children: [ inputbar, listview ];",
-            f"    spacing: {rofi_mainbox_spacing}px;",
-            f"    padding: {launcher_vertical_pad}px {launcher_horizontal_pad}px;",
-            "    background-color: transparent;",
-            "}",
-            "",
-            "inputbar {",
-            "    children: [ entry ];",
-            f"    spacing: {rofi_list_spacing}px;",
-            f"    padding: {rofi_element_padding_vertical}px {rofi_element_padding_horizontal}px;",
-            "    border: 1px;",
-            "    border-color: @input-border-color;",
-            "    background-color: @background-alt;",
-            "}",
-            "",
-            "prompt {",
-            "    enabled: false;",
-            "    background-color: transparent;",
-            "    text-color: @accent;",
-            f"    width: {rofi_prompt_width}px;",
-            "}",
-            "",
-            "entry {",
-            "    background-color: transparent;",
-            "    text-color: @foreground;",
-            "    placeholder: \"Search apps, commands, and windows\";",
-            "    placeholder-color: @foreground-alt;",
-            "}",
-            "",
-            "textbox {",
-            "    background-color: transparent;",
-            "    text-color: @foreground;",
-            "}",
-            "",
-            "listview {",
-            "    columns: 1;",
-            f"    lines: {launcher_lines};",
-            "    cycle: false;",
-            "    dynamic: false;",
-            "    fixed-height: true;",
-            "    scrollbar: false;",
-            f"    spacing: {rofi_list_spacing}px;",
-            "}",
-            "",
-            "element {",
-            "    orientation: horizontal;",
-            f"    spacing: {rofi_list_spacing}px;",
-            f"    padding: {rofi_element_padding_vertical}px {rofi_element_padding_horizontal}px;",
-            "    border: 1px;",
-            "    border-color: transparent;",
-            "    background-color: transparent;",
-            "    text-color: @foreground;",
-            "}",
-            "",
-            "element normal.normal {",
-            "    background-color: transparent;",
-            "    text-color: @foreground;",
-            "}",
-            "",
-            "element alternate.normal {",
-            "    background-color: transparent;",
-            "    text-color: @foreground;",
-            "}",
-            "",
-            "element selected.normal {",
-            "    background-color: @selection-background;",
-            "    border-color: @selection-border-color;",
-            "    text-color: @foreground;",
-            "}",
-            "",
-            "element-text {",
-            "    text-color: inherit;",
-            "    vertical-align: 0.5;",
-            "}",
-            "",
-            "element-icon {",
-            f"    size: {rofi_icon_size}px;",
-            "    vertical-align: 0.5;",
-            "}",
             "",
         ]
     )

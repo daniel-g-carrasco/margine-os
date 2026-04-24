@@ -31,7 +31,7 @@ declare -a generated_files=(
   ".config/walker/themes/default/theme-generated.css"
 )
 
-generated_icon_theme_relative=".local/share/icons/Margine-MoreWaita"
+generated_icon_theme_relative=""
 
 usage() {
   cat <<'EOF'
@@ -222,12 +222,41 @@ copy_generated_files_to_host() {
   done
 }
 
+cleanup_legacy_theme_overrides() {
+  log
+  log "==> Remove stale legacy theme overrides"
+
+  run_cmd rm -f \
+    "${HOME}/.config/gtk-3.0/gtk.css" \
+    "${HOME}/.config/gtk-3.0/gtk-dark.css"
+}
+
+resolve_generated_icon_theme_relative() {
+  generated_icon_theme_relative=""
+
+  # shellcheck disable=SC1090
+  source "$active_theme_file"
+
+  case "${MARGINE_THEME_ICON_THEME:-}" in
+    Margine-*)
+      generated_icon_theme_relative=".local/share/icons/${MARGINE_THEME_ICON_THEME}"
+      ;;
+  esac
+}
+
 copy_generated_icon_theme_to_host() {
   local repo_root="$1"
-  local source="${repo_root}/files/home/${generated_icon_theme_relative}"
-  local target="${HOME}/${generated_icon_theme_relative}"
+  local source=""
+  local target=""
+  local stale=""
 
-  [[ -d "$source" ]] || return 0
+  resolve_generated_icon_theme_relative
+  [[ -n "$generated_icon_theme_relative" ]] || return 0
+
+  source="${repo_root}/files/home/${generated_icon_theme_relative}"
+  target="${HOME}/${generated_icon_theme_relative}"
+
+  [[ -d "$source" ]] || die "generated icon theme missing: $source"
 
   log
   log "==> Install generated icon theme overlay"
@@ -240,6 +269,10 @@ copy_generated_icon_theme_to_host() {
   fi
 
   mkdir -p "$(dirname "$target")"
+  for stale in "${HOME}/.local/share/icons/Margine-Adwaita" "${HOME}/.local/share/icons/Margine-MoreWaita"; do
+    [[ "$stale" == "$target" ]] && continue
+    rm -rf "$stale"
+  done
   rsync -a --delete "${source}/" "${target}/"
   if command -v gtk-update-icon-cache >/dev/null 2>&1; then
     gtk-update-icon-cache -f -t "$target" >/dev/null 2>&1 || true
@@ -335,7 +368,9 @@ Notes:
 - local visible refresh now happens before non-critical repo mirroring
 - repo copies of theme.env and generated artifacts are now updated
 - GTK / Hyprland / Waybar / SwayNC / Kitty live artifacts were refreshed
+- generated icon overlays are refreshed from the active icon-theme selection
 - if you changed the Firefox managed theme policy, use:
+- if you changed Firefox or Thunderbird managed policy values, use:
   sudo /home/daniel/dev/margine-os/scripts/provision-user-app-config --username "$USER"
 - legacy Papirus folder tint is refreshed live only when a Papirus theme is active
 - already-open GTK apps may still need a restart to pick up all visual changes
@@ -366,6 +401,7 @@ main() {
   [[ -n "$source_repo" ]] || die "public repo not found at ${public_repo}"
 
   copy_generated_files_to_host "$source_repo"
+  cleanup_legacy_theme_overrides
   copy_generated_icon_theme_to_host "$source_repo"
   reload_session_theme
 

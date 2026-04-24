@@ -39,6 +39,7 @@ declare -a home_payload=(
 )
 
 firefox_policy_source="${repo_root}/files/etc/firefox/policies/policies.json"
+thunderbird_policy_source="${repo_root}/files/usr/lib/thunderbird/distribution/policies.json"
 global_update_source="${repo_root}/scripts/update-all"
 host_health_wrapper_source="${repo_root}/files/usr/local/bin/margine-validate-host-health"
 darktable_baseline_source="${repo_root}/files/home/.config/darktable/darktablerc"
@@ -52,8 +53,8 @@ Usage:
   provision-user-app-config --username NAME [options]
 
 Options:
-  --username NAME   Utente target che ricevera' il layer applicativo
-  --dry-run         Mostra il piano senza eseguirlo
+  --username NAME   Target user that will receive the app layer
+  --dry-run         Show the plan without executing it
   --help            Show this help
 EOF
 }
@@ -195,7 +196,7 @@ install_darktable_baseline() {
   [[ -f "$darktable_baseline_source" ]] || die "required source not found: $darktable_baseline_source"
 
   if [[ -e "$target" ]]; then
-    log "darktable user config gia' presente: baseline non sovrascritta."
+    log "darktable user config already present; baseline not overwritten."
     return 0
   fi
 
@@ -211,7 +212,7 @@ install_libreoffice_baseline() {
   [[ -f "$libreoffice_baseline_source" ]] || die "required source not found: $libreoffice_baseline_source"
 
   if [[ -e "$target" ]]; then
-    log "LibreOffice user config gia' presente: baseline non sovrascritta."
+    log "LibreOffice user config already present; baseline not overwritten."
     return 0
   fi
 
@@ -227,6 +228,26 @@ install_firefox_policy() {
   run_cmd install -Dm644 \
     "$firefox_policy_source" \
     /etc/firefox/policies/policies.json
+}
+
+install_thunderbird_policy() {
+  log
+  log "==> Install Thunderbird baseline policy"
+
+  [[ -f "$thunderbird_policy_source" ]] || die "required source not found: $thunderbird_policy_source"
+
+  run_cmd install -Dm644 \
+    "$thunderbird_policy_source" \
+    /usr/lib/thunderbird/distribution/policies.json
+}
+
+cleanup_legacy_theme_overrides() {
+  log
+  log "==> Remove stale legacy theme overrides"
+
+  run_cmd rm -f \
+    "${home_dir}/.config/gtk-3.0/gtk.css" \
+    "${home_dir}/.config/gtk-3.0/gtk-dark.css"
 }
 
 apply_legacy_icon_overrides() {
@@ -329,6 +350,8 @@ main() {
   install_darktable_baseline
   install_libreoffice_baseline
   install_firefox_policy
+  install_thunderbird_policy
+  cleanup_legacy_theme_overrides
   apply_legacy_icon_overrides
   install_global_update_all
   cleanup_legacy_desktop_entries
