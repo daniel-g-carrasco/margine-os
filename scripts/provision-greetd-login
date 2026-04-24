@@ -28,6 +28,10 @@ log() {
   printf '%s\n' "$*"
 }
 
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
 die() {
   printf 'error: %s\n' "$*" >&2
   exit 1
@@ -133,6 +137,35 @@ install_config() {
   chmod 644 "$target"
 }
 
+seed_tuigreet_remembered_user() {
+  local cache_dir="/var/cache/tuigreet"
+  local display_name=""
+
+  [[ "$login_mode" = "tuigreet-only" ]] || return 0
+
+  log
+  log "==> Seed tuigreet remembered user"
+
+  if (( dry_run )); then
+    printf '[dry-run] seed tuigreet last user as %s in %s\n' "$username" "$cache_dir"
+    return 0
+  fi
+
+  if ! getent passwd greeter >/dev/null 2>&1; then
+    warn "greeter user not found; skipping tuigreet remembered-user cache"
+    return 0
+  fi
+
+  display_name="$(getent passwd "$username" | awk -F: '{ split($5, parts, ","); print parts[1] }')"
+  [[ -n "$display_name" ]] || display_name="$username"
+
+  install -d -m 755 -o greeter -g greeter "$cache_dir"
+  printf '%s\n' "$username" > "${cache_dir}/lastuser"
+  printf '%s\n' "$display_name" > "${cache_dir}/lastuser-name"
+  chown greeter:greeter "${cache_dir}/lastuser" "${cache_dir}/lastuser-name"
+  chmod 644 "${cache_dir}/lastuser" "${cache_dir}/lastuser-name"
+}
+
 enable_service() {
   log
   log "==> Enable greetd"
@@ -149,6 +182,7 @@ main() {
   (( dry_run )) && log "Mode: dry-run"
 
   install_config
+  seed_tuigreet_remembered_user
   if (( enable_service_flag )); then
     enable_service
   else

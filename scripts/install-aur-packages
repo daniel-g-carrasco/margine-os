@@ -1,10 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+if [[ -d "${repo_root}/packaging/aur" ]]; then
+  :
+elif [[ -d /usr/local/lib/margine/packaging/aur ]]; then
+  repo_root="/usr/local/lib/margine"
+  script_dir="${repo_root}/scripts"
+fi
+
 dry_run=0
 upgrade=0
 build_user="aurbuilder"
 build_root="/var/cache/margine-aur"
+sudoers_path="/etc/sudoers.d/90-margine-aurbuilder"
 yay_flags=(--noconfirm --answerclean None --answerdiff None --answeredit None --removemake --cleanafter --sudoloop)
 declare -a manifests=()
 declare -a packages=()
@@ -27,7 +38,7 @@ Usage:
 
 Options:
   --manifest PATH        Read AUR packages from a manifest; repeatable
-  --build-user NAME      Utente non-root usato per il build (default: aurbuilder)
+  --build-user NAME      Non-root user used for builds (default: aurbuilder)
   --upgrade              Rebuild already installed packages too
   --dry-run              Show the plan without executing it
   --help                 Show this help
@@ -53,7 +64,7 @@ run_cmd() {
 
 run_as_build_user() {
   if (( dry_run )); then
-    printf '[dry-run] sudo -u %q' "$build_user"
+    printf '[dry-run] runuser -u %q --' "$build_user"
     if [[ -n "${SNAP_PAC_SKIP:-}" ]]; then
       printf ' env SNAP_PAC_SKIP=%q' "${SNAP_PAC_SKIP}"
     fi
@@ -65,11 +76,31 @@ run_as_build_user() {
     return 0
   fi
 
-  if [[ -n "${SNAP_PAC_SKIP:-}" ]]; then
+  if [[ "$(id -u)" -eq 0 ]]; then
+    if [[ -n "${SNAP_PAC_SKIP:-}" ]]; then
+      runuser -u "$build_user" -- env "SNAP_PAC_SKIP=${SNAP_PAC_SKIP}" "$@"
+    else
+      runuser -u "$build_user" -- "$@"
+    fi
+  elif [[ -n "${SNAP_PAC_SKIP:-}" ]]; then
     sudo -u "$build_user" env "SNAP_PAC_SKIP=${SNAP_PAC_SKIP}" "$@"
   else
     sudo -u "$build_user" "$@"
   fi
+}
+
+stage_local_file_for_build_user() {
+  local source="$1"
+  local target="$2"
+
+  if (( dry_run )); then
+    printf '[dry-run] install -Dm644 %q %q\n' "$source" "$target"
+    printf '[dry-run] chown %q: %q\n' "$build_user" "$target"
+    return 0
+  fi
+
+  install -Dm644 "$source" "$target"
+  chown "$build_user:" "$target"
 }
 
 parse_args() {
@@ -148,7 +179,7 @@ resolve_packages() {
 
 ensure_prereqs() {
   local cmd=""
-  for cmd in git makepkg sudo pacman; do
+  for cmd in awk chown getent git groupadd groupmod makepkg pacman runuser sort sudo useradd usermod visudo; do
     command -v "$cmd" >/dev/null 2>&1 || die "required command not found: $cmd"
   done
 }
@@ -207,32 +238,124 @@ migrate_elephant_all() {
   done
 }
 
+login_defs_value() {
+  local key="$1"
+  local fallback="$2"
+  local value=""
+
+  value="$(awk -v key="$key" '$1 == key { print $2; exit }' /etc/login.defs 2>/dev/null || true)"
+  [[ -n "$value" ]] || value="$fallback"
+  printf '%s\n' "$value"
+}
+
+first_free_system_id() {
+  local min=""
+  local max=""
+  local id=""
+
+  min="$(login_defs_value SYS_UID_MIN 500)"
+  max="$(login_defs_value SYS_UID_MAX 999)"
+
+  for (( id = max; id >= min; id-- )); do
+    getent passwd "$id" >/dev/null 2>&1 && continue
+    getent group "$id" >/dev/null 2>&1 && continue
+    printf '%s\n' "$id"
+    return 0
+  done
+
+  die "no free system UID/GID available for ${build_user}"
+}
+
+normalize_build_user() {
+  local home_path="$1"
+  local uid=""
+  local uid_min=""
+  local new_id=""
+
+  uid="$(id -u "$build_user")"
+  uid_min="$(login_defs_value UID_MIN 1000)"
+
+  if (( uid >= uid_min )); then
+    new_id="$(first_free_system_id)"
+    log "==> Migrate AUR build user to system UID/GID: ${build_user} -> ${new_id}"
+
+    if (( dry_run )); then
+      printf '[dry-run] groupmod -g %q %q || groupadd --system -g %q %q\n' "$new_id" "$build_user" "$new_id" "$build_user"
+      printf '[dry-run] usermod -u %q -g %q -d %q -s /usr/bin/nologin %q\n' "$new_id" "$build_user" "$home_path" "$build_user"
+      return 0
+    fi
+
+    if getent group "$build_user" >/dev/null 2>&1; then
+      groupmod -g "$new_id" "$build_user"
+    else
+      groupadd --system -g "$new_id" "$build_user"
+    fi
+    usermod -u "$new_id" -g "$build_user" -d "$home_path" -s /usr/bin/nologin "$build_user"
+    return 0
+  fi
+
+  run_cmd usermod -d "$home_path" -s /usr/bin/nologin "$build_user"
+}
+
 ensure_build_user() {
-  local sudoers_path="/etc/sudoers.d/90-margine-aurbuilder"
   local home_path="${build_root}/home"
+  local sudoers_tmp=""
 
   if ! id -u "$build_user" >/dev/null 2>&1; then
-    run_cmd useradd -m -d "$home_path" -s /bin/bash "$build_user"
+    run_cmd useradd --system -m -d "$home_path" -s /usr/bin/nologin "$build_user"
+  else
+    normalize_build_user "$home_path"
   fi
 
   run_cmd install -d -m 755 -o "$build_user" -g "$build_user" \
     "${build_root}" \
     "${build_root}/src"
+  run_cmd chown -R "$build_user:$build_user" "$build_root"
 
   if (( dry_run )); then
-    printf '[dry-run] install sudoers drop-in for %s at %s\n' "$build_user" "$sudoers_path"
+    printf '[dry-run] install temporary sudoers drop-in for %s at %s\n' "$build_user" "$sudoers_path"
+    printf '[dry-run] remove temporary sudoers drop-in at script exit: %s\n' "$sudoers_path"
     return 0
   fi
 
-  install -Dm440 /dev/stdin "$sudoers_path" <<EOF
+  sudoers_tmp="$(mktemp)"
+  cat >"$sudoers_tmp" <<EOF
+# Managed temporarily by Margine install-aur-packages.
 Defaults:${build_user} !authenticate
 Defaults:${build_user} env_keep += "SNAP_PAC_SKIP"
 ${build_user} ALL=(root) NOPASSWD: /usr/bin/pacman
 EOF
+  chmod 440 "$sudoers_tmp"
+  visudo -cf "$sudoers_tmp" >/dev/null
+  install -Dm440 "$sudoers_tmp" "$sudoers_path"
+  rm -f "$sudoers_tmp"
+}
+
+cleanup_build_user_sudoers() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  if [[ -f "$sudoers_path" ]] \
+    && grep -Fxq '# Managed temporarily by Margine install-aur-packages.' "$sudoers_path"; then
+    rm -f "$sudoers_path"
+  fi
 }
 
 have_yay() {
   command -v yay >/dev/null 2>&1
+}
+
+local_override_dir() {
+  local package="$1"
+  local override_dir="${repo_root}/packaging/aur/${package}"
+
+  [[ -d "$override_dir" ]] || return 1
+  printf '%s\n' "$override_dir"
+}
+
+package_has_local_override() {
+  local_override_dir "$1" >/dev/null
 }
 
 refresh_repo() {
@@ -258,10 +381,155 @@ refresh_repo() {
   run_as_build_user git clone "https://aur.archlinux.org/${package}.git" "$repo_dir"
 }
 
+prepare_package_source() {
+  local package="$1"
+  local repo_dir="${build_root}/src/${package}"
+  local override_dir=""
+  local override_file=""
+  local patch_file=""
+  local dest_path=""
+  local -a override_files=()
+  local -a patch_files=()
+
+  refresh_repo "$package"
+
+  override_dir="$(local_override_dir "$package" || true)"
+  [[ -n "$override_dir" ]] || return 0
+
+  if (( dry_run )); then
+    run_as_build_user git -C "$repo_dir" clean -fdx
+  else
+    run_as_build_user git -C "$repo_dir" clean -fdx >/dev/null 2>&1
+  fi
+
+  shopt -s nullglob
+  override_files=("${override_dir}"/*)
+  shopt -u nullglob
+
+  for override_file in "${override_files[@]}"; do
+    [[ -f "$override_file" ]] || continue
+    [[ "$(basename "$override_file")" == "README.md" ]] && continue
+    if [[ "$override_file" == *.aur.patch ]]; then
+      patch_files+=("$override_file")
+      continue
+    fi
+
+    dest_path="${repo_dir}/$(basename "$override_file")"
+    log "==> Copy local AUR asset: ${package} ($(basename "$override_file"))"
+    stage_local_file_for_build_user "$override_file" "$dest_path"
+  done
+
+  for patch_file in "${patch_files[@]}"; do
+    dest_path="${repo_dir}/$(basename "$patch_file")"
+    log "==> Stage local AUR patch: ${package} ($(basename "$patch_file"))"
+    stage_local_file_for_build_user "$patch_file" "$dest_path"
+
+    log "==> Apply local AUR patch: ${package} ($(basename "$patch_file"))"
+    run_as_build_user git -C "$repo_dir" apply --whitespace=nowarn "$dest_path"
+  done
+}
+
+pkgbuild_dependencies() {
+  local package="$1"
+  local repo_dir="${build_root}/src/${package}"
+  local srcinfo="${repo_dir}/.SRCINFO.margine"
+
+  if (( dry_run )); then
+    printf '[dry-run] derive PKGBUILD dependencies for %q\n' "$package"
+    return 0
+  fi
+
+  run_as_build_user bash -lc "cd '$repo_dir' && makepkg --printsrcinfo > .SRCINFO.margine"
+
+  awk -F'= ' '
+    /^[[:space:]]*(depends|makedepends|checkdepends)[[:space:]]=/ {
+      dep = $2
+      sub(/[<>=].*/, "", dep)
+      sub(/:.*/, "", dep)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", dep)
+      if (dep != "") {
+        print dep
+      }
+    }
+  ' "$srcinfo" | sort -u
+}
+
+install_pkgbuild_dependencies() {
+  local package="$1"
+  local dep=""
+  local dep_check_status=0
+  local missing_tmp=""
+  local -a deps=()
+  local -a missing=()
+
+  if (( dry_run )); then
+    printf '[dry-run] pacman -S --needed --asdeps --noconfirm <PKGBUILD dependencies for %q>\n' "$package"
+    return 0
+  fi
+
+  mapfile -t deps < <(pkgbuild_dependencies "$package")
+  (( ${#deps[@]} > 0 )) || return 0
+
+  missing_tmp="$(mktemp)"
+  pacman -T "${deps[@]}" >"$missing_tmp" || dep_check_status=$?
+  if [[ "$dep_check_status" -ne 0 && "$dep_check_status" -ne 127 ]]; then
+    rm -f "$missing_tmp"
+    die "failed to resolve PKGBUILD dependencies for ${package}"
+  fi
+
+  mapfile -t missing <"$missing_tmp"
+  rm -f "$missing_tmp"
+  (( ${#missing[@]} > 0 )) || return 0
+
+  log "==> Install build dependencies for ${package}: ${missing[*]}"
+  run_cmd pacman -S --needed --asdeps --noconfirm "${missing[@]}"
+}
+
+install_built_package_files() {
+  local package="$1"
+  local repo_dir="${build_root}/src/${package}"
+  local package_file=""
+  local -a package_files=()
+
+  if (( dry_run )); then
+    printf '[dry-run] pacman -U --noconfirm <built package files for %q>\n' "$package"
+    return 0
+  fi
+
+  mapfile -t package_files < <(run_as_build_user bash -lc "cd '$repo_dir' && makepkg --packagelist")
+  (( ${#package_files[@]} > 0 )) || die "no built package files resolved for ${package}"
+
+  for package_file in "${package_files[@]}"; do
+    [[ -f "$package_file" ]] || die "built package file not found: ${package_file}"
+  done
+
+  run_cmd pacman -U --noconfirm "${package_files[@]}"
+}
+
+build_local_override_package() {
+  local package="$1"
+  local repo_dir="${build_root}/src/${package}"
+  local cmd=""
+
+  install_pkgbuild_dependencies "$package"
+
+  cmd="cd '$repo_dir' && makepkg --cleanbuild --clean --force --noconfirm --nodeps"
+
+  run_as_build_user bash -lc "$cmd"
+  install_built_package_files "$package"
+}
+
 build_package() {
   local package="$1"
   local repo_dir="${build_root}/src/${package}"
-  local cmd="cd '$repo_dir' && git clean -fdx >/dev/null 2>&1 || true && makepkg --syncdeps --install --cleanbuild --clean --force --noconfirm"
+  local pre_build_cmd="git clean -fdx >/dev/null 2>&1 || true && "
+  local cmd=""
+
+  if package_has_local_override "$package"; then
+    pre_build_cmd=""
+  fi
+
+  cmd="cd '$repo_dir' && ${pre_build_cmd}makepkg --syncdeps --install --cleanbuild --clean --force --noconfirm"
 
   run_as_build_user bash -lc "$cmd"
 }
@@ -273,7 +541,7 @@ bootstrap_yay() {
 
   log
   log "==> Bootstrap AUR helper: yay"
-  refresh_repo "yay"
+  prepare_package_source "yay"
   build_package "yay"
 }
 
@@ -286,10 +554,18 @@ install_with_yay() {
 
 install_packages() {
   local package=""
+  local needs_yay=0
 
   log "Resolved AUR packages: ${#packages[@]}"
 
-  bootstrap_yay
+  for package in "${packages[@]}"; do
+    if ! package_has_local_override "$package"; then
+      needs_yay=1
+      break
+    fi
+  done
+
+  (( needs_yay )) && bootstrap_yay
 
   for package in "${packages[@]}"; do
     if (( ! upgrade )) && pacman -Q "$package" >/dev/null 2>&1; then
@@ -303,14 +579,21 @@ install_packages() {
     fi
 
     log
-    log "==> Build/install AUR: ${package}"
-    install_with_yay "$package"
+    if package_has_local_override "$package"; then
+      log "==> Build/install local AUR override: ${package}"
+      prepare_package_source "$package"
+      build_local_override_package "$package"
+    else
+      log "==> Build/install AUR: ${package}"
+      install_with_yay "$package"
+    fi
   done
 }
 
 main() {
   parse_args "$@"
   require_root
+  trap cleanup_build_user_sudoers EXIT
   resolve_packages
   ensure_prereqs
   migrate_elephant_all
