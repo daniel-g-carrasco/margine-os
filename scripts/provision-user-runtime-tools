@@ -21,8 +21,8 @@ declare -a home_payload=(
   ".local/bin/margine-maintenance-check"
   ".local/bin/margine-notification-action-router"
   ".local/bin/margine-launcher"
-  ".local/bin/margine-launcher-rofi"
   ".local/bin/margine-launcher-service"
+  ".local/bin/margine-launcher-walker"
   ".local/bin/margine-bitwarden"
   ".local/bin/hypr-refresh-rate-watch"
   ".local/bin/margine-hyprlock"
@@ -45,8 +45,8 @@ Usage:
   provision-user-runtime-tools --username NAME [options]
 
 Options:
-  --username NAME   Utente target che ricevera' i tool runtime utente
-  --dry-run         Mostra il piano senza eseguirlo
+  --username NAME   Target user that will receive runtime user tools
+  --dry-run         Show the plan without executing it
   --help            Show this help
 EOF
 }

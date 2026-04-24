@@ -23,8 +23,8 @@ The goal is:
   Static wallpaper source of truth for the hyprpaper daemon.
 - `~/.config/fuzzel/fuzzel.ini`
   Official fallback launcher and shared dmenu picker configuration.
-- `~/.config/rofi/config.rasi`
-  Primary launcher configuration.
+- `~/.config/walker/config.toml`
+  Primary launcher provider and behavior configuration.
 - `~/.local/bin/margine-hyprlock`
   Runtime generator that scales and renders the hyprlock template.
 - `~/.local/bin/launch-hyprpaper`
@@ -169,10 +169,10 @@ Edit:
 
 Edit:
 
-- `~/.config/rofi/config.rasi` for the primary launcher
-- `~/.config/rofi/theme-generated.rasi` for the generated launcher palette and spacing
+- `~/.config/walker/config.toml` for the primary launcher provider behavior
+- `~/.config/walker/themes/default/style.css` for primary launcher layout and spacing
+- `~/.config/walker/themes/default/theme-generated.css` for generated primary launcher colors
 - `~/.config/fuzzel/fuzzel.ini` for the fallback launcher and shared picker
-- `~/.config/walker/config.toml` only if you intentionally keep Walker around
 
 ### Change dynamic lockscreen scaling or monitor selection
 

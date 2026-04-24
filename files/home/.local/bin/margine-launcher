@@ -9,25 +9,39 @@ if [[ "${1:-}" == "--fallback" ]]; then
   shift
 fi
 
-if [[ -x "${HOME}/.local/bin/margine-import-session-environment" ]]; then
+if [[ "${MARGINE_LAUNCHER_IMPORT_ENV:-0}" == "1" && -x "${HOME}/.local/bin/margine-import-session-environment" ]]; then
   "${HOME}/.local/bin/margine-import-session-environment"
 fi
 
-if (( ! force_fallback )) && command -v rofi >/dev/null 2>&1; then
-  exec "${HOME}/.local/bin/margine-launcher-rofi" "$@"
+theme_env="${XDG_CONFIG_HOME:-${HOME}/.config}/margine/theme.env"
+if [[ -f "$theme_env" ]]; then
+  # shellcheck source=/dev/null
+  source "$theme_env"
+fi
+export MARGINE_WALKER_SCROLL_STEP="${MARGINE_WALKER_SCROLL_STEP:-${MARGINE_THEME_WALKER_SCROLL_STEP:-12.0}}"
+
+walker_bin="${MARGINE_WALKER_BIN:-}"
+if [[ -z "$walker_bin" ]]; then
+  if [[ -x /usr/bin/walker ]]; then
+    walker_bin="/usr/bin/walker"
+  elif [[ -x "${HOME}/.local/bin/walker" ]]; then
+    walker_bin="${HOME}/.local/bin/walker"
+  else
+    walker_bin="$(command -v walker || true)"
+  fi
+fi
+
+if (( ! force_fallback )) && [[ -n "$walker_bin" ]] && command -v elephant >/dev/null 2>&1; then
+  if ! pgrep -xu "$(id -u)" -x elephant >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1; then
+    systemctl --user start elephant.service >/dev/null 2>&1 || true
+  fi
+
+  exec "$walker_bin" "$@"
 fi
 
 if command -v fuzzel >/dev/null 2>&1; then
   exec fuzzel "$@"
 fi
 
-if command -v walker >/dev/null 2>&1 && command -v elephant >/dev/null 2>&1; then
-  if command -v systemctl >/dev/null 2>&1; then
-    systemctl --user start elephant.service >/dev/null 2>&1 || true
-  fi
-
-  exec walker "$@"
-fi
-
-printf 'No launcher available: rofi, fuzzel, or walker is required.\n' >&2
+printf 'No launcher available: Walker or Fuzzel is required.\n' >&2
 exit 1

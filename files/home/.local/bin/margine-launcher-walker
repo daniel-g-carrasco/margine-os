@@ -2,11 +2,29 @@
 
 set -euo pipefail
 
-if [[ -x "${HOME}/.local/bin/margine-import-session-environment" ]]; then
+if [[ "${MARGINE_LAUNCHER_IMPORT_ENV:-0}" == "1" && -x "${HOME}/.local/bin/margine-import-session-environment" ]]; then
   "${HOME}/.local/bin/margine-import-session-environment"
 fi
 
-if ! command -v walker >/dev/null 2>&1; then
+theme_env="${XDG_CONFIG_HOME:-${HOME}/.config}/margine/theme.env"
+if [[ -f "$theme_env" ]]; then
+  # shellcheck source=/dev/null
+  source "$theme_env"
+fi
+export MARGINE_WALKER_SCROLL_STEP="${MARGINE_WALKER_SCROLL_STEP:-${MARGINE_THEME_WALKER_SCROLL_STEP:-12.0}}"
+
+walker_bin="${MARGINE_WALKER_BIN:-}"
+if [[ -z "$walker_bin" ]]; then
+  if [[ -x /usr/bin/walker ]]; then
+    walker_bin="/usr/bin/walker"
+  elif [[ -x "${HOME}/.local/bin/walker" ]]; then
+    walker_bin="${HOME}/.local/bin/walker"
+  else
+    walker_bin="$(command -v walker || true)"
+  fi
+fi
+
+if [[ -z "$walker_bin" ]]; then
   printf 'Walker is not installed.\n' >&2
   exit 1
 fi
@@ -16,8 +34,8 @@ if ! command -v elephant >/dev/null 2>&1; then
   exit 1
 fi
 
-if command -v systemctl >/dev/null 2>&1; then
+if ! pgrep -xu "$(id -u)" -x elephant >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1; then
   systemctl --user start elephant.service >/dev/null 2>&1 || true
 fi
 
-exec walker "$@"
+exec "$walker_bin" "$@"

@@ -16,8 +16,6 @@
 .config/xdg-desktop-portal/hyprland-portals.conf
 .config/fuzzel/fuzzel.ini
 .config/fuzzel/theme-generated.ini
-.config/rofi/config.rasi
-.config/rofi/theme-generated.rasi
 .config/hypr/hypridle.conf
 .config/hypr/hyprlock.conf
 .config/hypr/README.md
@@ -113,8 +111,8 @@
 .local/bin/margine-session-actions-menu
 .local/bin/margine-import-session-environment
 .local/bin/margine-launcher
-.local/bin/margine-launcher-rofi
 .local/bin/margine-launcher-service
+.local/bin/margine-launcher-walker
 .local/bin/margine-maintenance-check
 .local/bin/margine-notification-action-router
 .local/bin/margine-session-control
