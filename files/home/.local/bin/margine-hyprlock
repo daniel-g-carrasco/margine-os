@@ -121,6 +121,8 @@ FAIL_SPACING_MAX=56
 LINE_GAP_RATIO=0.026
 LINE_GAP_MIN=14
 LINE_GAP_MAX=28
+HIDPI_VISUAL_SCALE_FACTOR=0.25
+HIDPI_VISUAL_SCALE_MAX=1.28
 
 if [[ ! -d "$runtime_dir" ]]; then
   runtime_dir="/tmp"
@@ -255,6 +257,8 @@ load_theme_defaults() {
   theme_vibrancy_darkness="${MARGINE_THEME_HYPRLOCK_VIBRANCY_DARKNESS:-$theme_vibrancy_darkness}"
   FONT_SCALE_MIN="${MARGINE_THEME_HYPRLOCK_FONT_SCALE_MIN:-$FONT_SCALE_MIN}"
   FONT_SCALE_MAX="${MARGINE_THEME_HYPRLOCK_FONT_SCALE_MAX:-$FONT_SCALE_MAX}"
+  HIDPI_VISUAL_SCALE_FACTOR="${MARGINE_THEME_HYPRLOCK_HIDPI_VISUAL_SCALE_FACTOR:-$HIDPI_VISUAL_SCALE_FACTOR}"
+  HIDPI_VISUAL_SCALE_MAX="${MARGINE_THEME_HYPRLOCK_HIDPI_VISUAL_SCALE_MAX:-$HIDPI_VISUAL_SCALE_MAX}"
 }
 
 collect_monitor_metrics() {
@@ -386,11 +390,22 @@ load_theme_defaults
 
 # Stage 1: scale fonts from logical monitor height, then clamp them.
 font_scale="$(clamp_value "$(awk -v h="$logical_height" -v ref="$REFERENCE_LOGICAL_HEIGHT" 'BEGIN { print h / ref }')" "$FONT_SCALE_MIN" "$FONT_SCALE_MAX")"
-time_font="$(round_nearest "$(awk -v base="$TIME_FONT_BASE" -v scale="$font_scale" 'BEGIN { print base * scale }')")"
-date_font="$(round_nearest "$(awk -v base="$DATE_FONT_BASE" -v scale="$font_scale" 'BEGIN { print base * scale }')")"
-user_font="$(round_nearest "$(awk -v base="$USER_FONT_BASE" -v scale="$font_scale" 'BEGIN { print base * scale }')")"
-prompt_font="$(round_nearest "$(awk -v base="$PROMPT_FONT_BASE" -v scale="$font_scale" 'BEGIN { print base * scale }')")"
-fail_font="$(round_nearest "$(awk -v base="$FAIL_FONT_BASE" -v scale="$font_scale" 'BEGIN { print base * scale }')")"
+# High-DPI laptop panels can look too small if we size only from logical
+# geometry. Keep VMs/normal 1x displays compact, but restore physical legibility
+# on scaled internal displays.
+visual_scale="$(clamp_value "$(awk -v scale="$monitor_scale" -v factor="$HIDPI_VISUAL_SCALE_FACTOR" 'BEGIN {
+  if (scale <= 1) {
+    print 1
+  } else {
+    print 1 + ((scale - 1) * factor)
+  }
+}')" 1 "$HIDPI_VISUAL_SCALE_MAX")"
+
+time_font="$(round_nearest "$(awk -v base="$TIME_FONT_BASE" -v scale="$font_scale" -v visual="$visual_scale" 'BEGIN { print base * scale * visual }')")"
+date_font="$(round_nearest "$(awk -v base="$DATE_FONT_BASE" -v scale="$font_scale" -v visual="$visual_scale" 'BEGIN { print base * scale * visual }')")"
+user_font="$(round_nearest "$(awk -v base="$USER_FONT_BASE" -v scale="$font_scale" -v visual="$visual_scale" 'BEGIN { print base * scale * visual }')")"
+prompt_font="$(round_nearest "$(awk -v base="$PROMPT_FONT_BASE" -v scale="$font_scale" -v visual="$visual_scale" 'BEGIN { print base * scale * visual }')")"
+fail_font="$(round_nearest "$(awk -v base="$FAIL_FONT_BASE" -v scale="$font_scale" -v visual="$visual_scale" 'BEGIN { print base * scale * visual }')")"
 
 time_font="$(clamp_value "$time_font" "$TIME_FONT_MIN" "$TIME_FONT_MAX")"
 date_font="$(clamp_value "$date_font" "$DATE_FONT_MIN" "$DATE_FONT_MAX")"
@@ -398,8 +413,8 @@ user_font="$(clamp_value "$user_font" "$USER_FONT_MIN" "$USER_FONT_MAX")"
 prompt_font="$(clamp_value "$prompt_font" "$PROMPT_FONT_MIN" "$PROMPT_FONT_MAX")"
 fail_font="$(clamp_value "$fail_font" "$FAIL_FONT_MIN" "$FAIL_FONT_MAX")"
 
-input_width="$(round_nearest "$(awk -v w="$logical_width" -v ratio="$INPUT_WIDTH_RATIO" 'BEGIN { print w * ratio }')")"
-input_height="$(round_nearest "$(awk -v base="$INPUT_HEIGHT_BASE" -v scale="$font_scale" 'BEGIN { print base * scale }')")"
+input_width="$(round_nearest "$(awk -v w="$logical_width" -v ratio="$INPUT_WIDTH_RATIO" -v visual="$visual_scale" 'BEGIN { print w * ratio * visual }')")"
+input_height="$(round_nearest "$(awk -v base="$INPUT_HEIGHT_BASE" -v scale="$font_scale" -v visual="$visual_scale" 'BEGIN { print base * scale * visual }')")"
 line_width="$(round_nearest "$(awk -v width="$input_width" -v user="$user_font" 'BEGIN {
   candidate = width * '"$LINE_WIDTH_RATIO"'
   min_width = user * '"$LINE_WIDTH_USER_MULTIPLIER"'
@@ -458,8 +473,8 @@ render_runtime_config
 
 if (( do_dry_run )); then
   # Dry-run is the safe tuning path: inspect effective geometry without locking.
-  printf '[%s] monitor=%s raw=%sx%s scale=%s logical=%sx%s font_scale=%s time_font=%s date_font=%s user_font=%s prompt_font=%s fail_font=%s input_width=%s input_height=%s line_width=%s input_y=%s user_y=%s date_y=%s time_y=%s prompt_y=%s fail_y=%s line_y=%s\n' \
-    "$SCRIPT_NAME" "$monitor_name" "$monitor_width" "$monitor_height" "$monitor_scale" "$logical_width" "$logical_height" "$font_scale" "$time_font" "$date_font" "$user_font" "$prompt_font" "$fail_font" "$input_width" "$input_height" "$line_width" "$input_y" "$user_y" "$date_y" "$time_y" "$prompt_y" "$fail_y" "$line_y" \
+  printf '[%s] monitor=%s raw=%sx%s scale=%s logical=%sx%s font_scale=%s visual_scale=%s time_font=%s date_font=%s user_font=%s prompt_font=%s fail_font=%s input_width=%s input_height=%s line_width=%s input_y=%s user_y=%s date_y=%s time_y=%s prompt_y=%s fail_y=%s line_y=%s\n' \
+    "$SCRIPT_NAME" "$monitor_name" "$monitor_width" "$monitor_height" "$monitor_scale" "$logical_width" "$logical_height" "$font_scale" "$visual_scale" "$time_font" "$date_font" "$user_font" "$prompt_font" "$fail_font" "$input_width" "$input_height" "$line_width" "$input_y" "$user_y" "$date_y" "$time_y" "$prompt_y" "$fail_y" "$line_y" \
     >&2
   printf 'Generated config: %s\n' "$runtime_config"
   sed -n '1,220p' "$runtime_config"
