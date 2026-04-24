@@ -6,7 +6,7 @@ repo_root="$(cd "${script_dir}/.." && pwd)"
 
 dry_run=0
 username=""
-login_mode="autologin-lock"
+login_mode="tuigreet-only"
 install_packages=1
 switch_now=0
 
@@ -16,10 +16,10 @@ Usage:
   provision-host-greetd-baseline [options]
 
 Options:
-  --username NAME      Primary user for greetd initial_session.
+  --username NAME      Administrative user; only used for autologin-lock initial_session.
                        Default: SUDO_USER when available.
   --login-mode MODE    greetd mode: autologin-lock | tuigreet-only
-                       (default: autologin-lock)
+                       (default: tuigreet-only)
   --skip-packages      Do not install greetd packages; fail if missing
   --switch-now         Restart display manager immediately (disruptive)
   --dry-run            Show plan without changing the host

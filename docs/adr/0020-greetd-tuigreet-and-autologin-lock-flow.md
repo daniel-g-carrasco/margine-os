@@ -1,4 +1,4 @@
-# ADR 0020 - `greetd + tuigreet` with initial autologin and immediate lock
+# ADR 0020 - `greetd + tuigreet` login baseline
 
 ## State
 
@@ -31,21 +31,20 @@ You therefore need to decide:
 
 ## Decision
 
-For `Margine v1` the chosen path is:
+For `Margine v1` the default chosen path is:
 
 - `greetd` as minimal login manager;
-- `tuigreet` as fallback greeter;
-- `initial_session` of `greetd` configured to start automatically
-  the primary user in session `Hyprland`;
-- `hyprlock` launched immediately when starting the graphics session.
+- `tuigreet` as the primary greeter;
+- no `initial_session` by default;
+- `hyprlock` remains the session lockscreen after login, resume, and manual lock.
 
 In practice:
 
+`boot -> greetd -> tuigreet -> Hyprland`
+
+The older fast path is still available only as an explicit opt-in:
+
 `boot -> greetd -> initial autologin -> Hyprland -> hyprlock`
-
-If the session ends or the user logs out, the fallback reverts to:
-
-`greetd -> tuigreet`
 
 ## Why not pure TTY
 
@@ -82,8 +81,8 @@ This choice is intentional, but it is understood well:
 - `tuigreet` authenticates *before* the session;
 - `autologin + hyprlock` enters the session and then blocks it immediately.
 
-For an encrypted, single-user personal laptop, this is a compromise
-acceptable and desirable.
+For an encrypted, single-user personal laptop, `autologin-lock` can still be a
+valid convenience mode, but it is no longer the installation default.
 
 For a multi-user machine or with stricter policies, this would not be the choice
 right.
@@ -99,7 +98,9 @@ right.
 The configuration uses:
 
 - `default_session = tuigreet`
-- `initial_session = /usr/bin/start-hyprland`
+- no `initial_session` in the default `tuigreet-only` mode
+- optional `initial_session = /usr/bin/start-hyprland` only when
+  `--login-mode autologin-lock` is explicitly selected
 
 ## Practical consequences
 
@@ -107,7 +108,7 @@ This decision gives `Margine`:
 
 - a modern but minimal login path;
 - a UX consistent with `Hyprland`;
-- a clean fallback after logout;
+- no hidden autologin on bare metal or VM installs;
 - a clear separation from the GNOME world.
 
 ## For a student: the simple version

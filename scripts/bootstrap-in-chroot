@@ -28,7 +28,7 @@ extra_groups=""
 declare -a requested_extra_layers=()
 user_password_hash=""
 wifi_regdom="IT"
-greetd_login_mode="autologin-lock"
+greetd_login_mode="tuigreet-only"
 declare -a detected_hardware_layers=()
 
 phase2_layers=(
@@ -67,7 +67,8 @@ Options:
   --lang LANG            LANG finale (default: it_IT.UTF-8)
   --wifi-regdom CODE     Regulatory domain Wi-Fi (default: IT)
   --greetd-login-mode MODE
-                        Modalita' greetd: autologin-lock | tuigreet-only
+                        greetd mode: tuigreet-only | autologin-lock
+                        (default: tuigreet-only)
   --include-aur          Include il manifest AUR
   --include-flatpak      Include il manifest Flatpak
   --extra-layer NAME     Extra manifest layer to install in phase 2; repeatable
@@ -271,6 +272,13 @@ require_root() {
 
 validate_inputs() {
   [[ -n "$username" ]] || die "--username is required"
+
+  case "$greetd_login_mode" in
+    tuigreet-only|autologin-lock) ;;
+    *)
+      die "unsupported --greetd-login-mode: ${greetd_login_mode}"
+      ;;
+  esac
 }
 
 run_flavor_repo_bootstrap() {
@@ -569,6 +577,7 @@ run_greetd_provisioner() {
   local provisioner="${repo_root}/scripts/provision-greetd-login"
   local -a args=(
     --username "$username"
+    --login-mode "$greetd_login_mode"
   )
 
   (( dry_run )) && args+=(--dry-run)

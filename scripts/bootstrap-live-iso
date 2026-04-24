@@ -24,7 +24,7 @@ user_shell="/bin/bash"
 extra_groups=""
 user_password_hash=""
 wifi_regdom="IT"
-greetd_login_mode="autologin-lock"
+greetd_login_mode="tuigreet-only"
 run_chroot=0
 declare -a extra_layers=()
 
@@ -54,7 +54,8 @@ Options:
                          Password hash for the administrative user
   --wifi-regdom CODE      Regulatory domain Wi-Fi to pass to the chroot phase
   --greetd-login-mode MODE
-                         greetd mode: autologin-lock | tuigreet-only
+                         greetd mode: tuigreet-only | autologin-lock
+                         (default: tuigreet-only)
   --extra-layer NAME      Extra manifest layer to install in phase 2; repeatable
   --run-chroot            Immediately start phase 2 via arch-chroot
   --dry-run               Show the plan without executing it
@@ -271,6 +272,13 @@ ensure_repo_paths() {
 
 validate_inputs() {
   [[ -n "$username" ]] || die "--username is required"
+
+  case "$greetd_login_mode" in
+    tuigreet-only|autologin-lock) ;;
+    *)
+      die "unsupported --greetd-login-mode: ${greetd_login_mode}"
+      ;;
+  esac
 
   if (( ${#extra_layers[@]} > 0 )); then
     local layer=""

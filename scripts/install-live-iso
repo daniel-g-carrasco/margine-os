@@ -25,7 +25,7 @@ user_shell="/bin/bash"
 extra_groups=""
 user_password_hash=""
 wifi_regdom="IT"
-greetd_login_mode="autologin-lock"
+greetd_login_mode="tuigreet-only"
 run_chroot=0
 declare -a extra_layers=()
 confirm_destroy=0
@@ -54,7 +54,8 @@ Options:
   --extra-groups CSV             Extra groups, comma-separated
   --user-password-hash HASH      Password hash for the administrative user
   --wifi-regdom CODE             Regulatory domain Wi-Fi (default: IT)
-  --greetd-login-mode MODE       greetd mode: autologin-lock | tuigreet-only
+  --greetd-login-mode MODE       greetd mode: tuigreet-only | autologin-lock
+                                  (default: tuigreet-only)
   --extra-layer NAME             Extra manifest layer to install in phase 2; repeatable
   --run-chroot                   Immediately start phase 2 via arch-chroot
   --crypt-name NAME              Nome mapper LUKS (default: cryptroot)

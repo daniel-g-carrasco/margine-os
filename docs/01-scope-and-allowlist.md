@@ -28,7 +28,7 @@ Only what is included in the project:
 - `update-all` as operational entrypoint
 - `Btrfs` + `LUKS2`
 - `Secure Boot` + `TPM2`
-- `greetd + tuigreet` with initial autologin and `hyprlock`
+- `greetd + tuigreet` as the default login path, without initial autologin
 - educational documentation
 - local Git repository + GitHub
 - Pure `Firefox`, with enforced but not extreme configuration

@@ -315,7 +315,8 @@ resume handling.
 
 Keep both paths:
 
-- default `autologin -> hyprlock` for the owner;
-- explicit `tuigreet-only` mode for debugging, travel, or stricter contexts.
+- default `tuigreet-only` for bare metal and VM installs;
+- explicit `autologin -> hyprlock` only when the owner intentionally chooses
+  that convenience tradeoff.
 
 That is often the most pragmatic long-term model.

@@ -7,7 +7,7 @@ template_source="${repo_root}/files/etc/greetd/config.toml.template"
 
 dry_run=0
 username=""
-login_mode="autologin-lock"
+login_mode="tuigreet-only"
 enable_service_flag=1
 
 usage() {
@@ -16,10 +16,10 @@ Usage:
   provision-greetd-login --username NAME [options]
 
 Options:
-  --username NAME   Utente principale da usare per l'autologin iniziale
-  --login-mode MODE Modalita' login: autologin-lock | tuigreet-only
+  --username NAME   Administrative user; only used for autologin-lock initial_session
+  --login-mode MODE Login mode: tuigreet-only | autologin-lock (default: tuigreet-only)
   --skip-enable     Render only the config; do not enable greetd.service
-  --dry-run         Mostra il piano senza eseguirlo
+  --dry-run         Show the plan without executing it
   --help            Show this help
 EOF
 }
@@ -146,7 +146,7 @@ main() {
   ensure_sources
 
   log "=== Provision greetd login path ==="
-  (( dry_run )) && log "Modalita': dry-run"
+  (( dry_run )) && log "Mode: dry-run"
 
   install_config
   if (( enable_service_flag )); then
@@ -159,10 +159,10 @@ main() {
   log
   case "$login_mode" in
     autologin-lock)
-      log "greetd configurato: autologin iniziale verso Hyprland, fallback successivo a tuigreet."
+      log "greetd configured: initial Hyprland autologin, later fallback to tuigreet."
       ;;
     tuigreet-only)
-      log "greetd configurato: login sempre via tuigreet, senza initial_session."
+      log "greetd configured: always login through tuigreet, without initial_session."
       ;;
   esac
 }

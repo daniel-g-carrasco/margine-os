@@ -239,7 +239,8 @@ These points will be addressed in subsequent ADRs.
 
 Note:
 - the final login path was then closed in subsequent ADRs with `greetd +
-  tuigreet`, initial autologin and `hyprlock`.
+  tuigreet` as the default greeter path; `autologin-lock` remains an explicit
+  convenience mode, not the installation default.
 
 ## For a student: the simple version
 

@@ -26,7 +26,7 @@ user_shell="/bin/bash"
 extra_groups=""
 user_password_hash=""
 wifi_regdom="IT"
-greetd_login_mode="autologin-lock"
+greetd_login_mode="tuigreet-only"
 run_chroot="y"
 declare -a extra_layers=()
 prompt_result=""
@@ -53,7 +53,8 @@ Options:
   --shell PATH              User login shell (default: /bin/bash)
   --extra-groups CSV        Extra groups, comma-separated
   --wifi-regdom CODE        Wi-Fi regulatory domain (default: IT)
-  --greetd-login-mode MODE  greetd mode: autologin-lock | tuigreet-only
+  --greetd-login-mode MODE  greetd mode: tuigreet-only | autologin-lock
+                            (default: tuigreet-only)
   --extra-layer NAME        Extra manifest layer to install in phase 2; repeatable
   --run-chroot              Run the chroot phase after bootstrap
   --no-run-chroot           Stop before the chroot phase
@@ -328,10 +329,15 @@ prompt_mode() {
 
 prompt_password_hash() {
   local choice=""
+  local default_choice="n"
   local password1=""
   local password2=""
 
-  prompt_yes_no "Do you want to set the user password during installation?" "n"
+  if [[ "$greetd_login_mode" = "tuigreet-only" ]]; then
+    default_choice="y"
+  fi
+
+  prompt_yes_no "Do you want to set the user password during installation?" "$default_choice"
   choice="$prompt_result"
   [[ "$choice" = "y" ]] || return 0
 
