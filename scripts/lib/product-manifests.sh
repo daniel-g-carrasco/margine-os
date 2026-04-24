@@ -275,6 +275,69 @@ margine_resolve_package_layer() {
   return 1
 }
 
+margine_detect_hardware_package_layers() {
+  local repo_root="$1"
+  local flavor="$2"
+  local cpu_vendor=""
+  local dmi_vendor=""
+  local dmi_product=""
+  local pci_device=""
+  local pci_class=""
+  local pci_vendor=""
+  local -A layers=()
+  local -a ordered_layers=()
+  local layer=""
+
+  add_layer() {
+    local candidate="$1"
+
+    [[ -n "$candidate" ]] || return 0
+    [[ -n "${layers[$candidate]+x}" ]] && return 0
+    margine_resolve_package_layer "$repo_root" "$flavor" "$candidate" >/dev/null 2>&1 || return 0
+    layers["$candidate"]=1
+    ordered_layers+=("$candidate")
+  }
+
+  cpu_vendor="$(awk -F: '/vendor_id/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' /proc/cpuinfo 2>/dev/null || true)"
+  case "$cpu_vendor" in
+    AuthenticAMD)
+      add_layer hardware-amd-cpu
+      ;;
+    GenuineIntel)
+      add_layer hardware-intel-cpu
+      ;;
+  esac
+
+  for pci_device in /sys/bus/pci/devices/*; do
+    [[ -r "${pci_device}/class" && -r "${pci_device}/vendor" ]] || continue
+    pci_class="$(<"${pci_device}/class")"
+    [[ "$pci_class" == 0x03* ]] || continue
+    pci_vendor="$(<"${pci_device}/vendor")"
+
+    case "$pci_vendor" in
+      0x1002)
+        add_layer hardware-amd-graphics
+        ;;
+      0x8086)
+        add_layer hardware-intel-graphics
+        ;;
+      0x10de)
+        add_layer hardware-nvidia-open-graphics
+        ;;
+    esac
+  done
+
+  dmi_vendor="$(cat /sys/devices/virtual/dmi/id/sys_vendor 2>/dev/null || true)"
+  dmi_product="$(cat /sys/devices/virtual/dmi/id/product_name 2>/dev/null || true)"
+  if [[ "$dmi_vendor" == "Framework" && "$dmi_product" == Laptop\ 13* ]]; then
+    add_layer hardware-framework13
+  fi
+
+  for layer in "${ordered_layers[@]}"; do
+    printf '%s\n' "$layer"
+  done
+}
+
 margine_resolve_aur_layer() {
   local repo_root="$1"
   local flavor="$2"

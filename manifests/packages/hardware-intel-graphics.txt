@@ -1,0 +1,13 @@
+# Intel graphics, media acceleration, compute runtime, and diagnostics.
+
+clinfo
+intel-compute-runtime
+intel-gpu-tools
+intel-media-driver
+libva-intel-driver
+libva-utils
+mesa
+mesa-utils
+vpl-gpu-rt
+vulkan-intel
+vulkan-tools

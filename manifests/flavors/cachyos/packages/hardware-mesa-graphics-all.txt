@@ -1,0 +1,20 @@
+# Safe Mesa graphics fallback on CachyOS.
+# The standalone Arch vulkan-mesa-layers package is omitted to avoid the known
+# mesa-overlay-control.py collision with CachyOS mesa-git packaging.
+
+clinfo
+intel-compute-runtime
+intel-gpu-tools
+intel-media-driver
+libva-intel-driver
+libva-utils
+mesa
+mesa-utils
+radeontop
+rocminfo
+rocm-opencl-runtime
+vpl-gpu-rt
+vulkan-intel
+vulkan-nouveau
+vulkan-radeon
+vulkan-tools

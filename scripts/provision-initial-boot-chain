@@ -118,13 +118,31 @@ ensure_source_exists() {
   die "${label} not found: ${path}"
 }
 
+ensure_limine_binary_source() {
+  if [[ -e "$limine_binary_source" ]]; then
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "Limine EFI binary not found during dry-run: ${limine_binary_source}"
+    return 0
+  fi
+
+  if have_cmd pacman; then
+    warn "Limine EFI binary not found; installing limine package"
+    run_cmd pacman -S --needed --noconfirm limine
+  fi
+
+  ensure_source_exists "$limine_binary_source" "Limine EFI binary"
+}
+
 ensure_sources() {
   ensure_source_exists "$mkinitcpio_conf_source" "mkinitcpio config"
   ensure_source_exists "$linux_preset_source" "linux preset"
   ensure_source_exists "$cmdline_template_source" "kernel cmdline template"
   ensure_source_exists "$boot_baseline_script" "boot baseline provisioner"
   ensure_source_exists "$generate_limine_script" "Limine config generator"
-  ensure_source_exists "$limine_binary_source" "Limine EFI binary"
+  ensure_limine_binary_source
 }
 
 detect_root_source() {

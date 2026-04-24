@@ -1,0 +1,8 @@
+# NVIDIA open kernel module stack, userspace tools, PRIME, and diagnostics.
+# This layer is detected only when an NVIDIA display adapter is present.
+
+nvidia-open-dkms
+nvidia-utils
+nvidia-settings
+nvidia-prime
+vulkan-tools

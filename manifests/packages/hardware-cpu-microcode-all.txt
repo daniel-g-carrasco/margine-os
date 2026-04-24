@@ -1,0 +1,4 @@
+# Safe CPU microcode fallback when hardware detection is unavailable.
+
+amd-ucode
+intel-ucode

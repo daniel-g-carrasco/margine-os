@@ -20,10 +20,10 @@ flavor=""
 aur_installer="${repo_root}/scripts/install-aur-packages"
 declare -a requested_layers=()
 declare -a product_extra_layers=()
+declare -a detected_hardware_layers=()
 
 default_layers=(
   base-system
-  hardware-framework13-amd
   connectivity-stack
   security-and-recovery
   coding-system-tools
@@ -194,6 +194,15 @@ load_product_extra_layers() {
   done < <(margine_product_extra_package_layers "$repo_root" "$product")
 }
 
+load_detected_hardware_layers() {
+  local layer=""
+
+  while IFS= read -r layer; do
+    [[ -n "$layer" ]] || continue
+    detected_hardware_layers+=("$layer")
+  done < <(margine_detect_hardware_package_layers "$repo_root" "$flavor")
+}
+
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -241,6 +250,7 @@ parse_args() {
   eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
     || die "unsupported product/flavor combination"
   load_product_extra_layers
+  load_detected_hardware_layers
 
   if (( list_layers_only )); then
     list_layers
@@ -263,6 +273,9 @@ read_manifest_lines() {
 resolve_layers() {
   if (( ${#requested_layers[@]} == 0 )); then
     requested_layers=("${default_layers[@]}")
+    for layer in "${detected_hardware_layers[@]}"; do
+      append_unique_layer "$layer"
+    done
     for layer in "${product_extra_layers[@]}"; do
       append_unique_layer "$layer"
     done
@@ -403,6 +416,9 @@ main() {
   log "Base distribution: ${product_base_distribution}"
   if (( ${#product_extra_layers[@]} > 0 )); then
     log "Product extra layers: ${product_extra_layers[*]}"
+  fi
+  if (( ${#detected_hardware_layers[@]} > 0 )); then
+    log "Detected hardware layers: ${detected_hardware_layers[*]}"
   fi
   (( dry_run )) && log "Mode: dry-run"
 

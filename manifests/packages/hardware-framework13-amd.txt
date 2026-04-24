@@ -1,13 +1,7 @@
-# Framework 13 AMD: stack grafico, video, OpenCL/ROCm, power e diagnostica.
+# Deprecated compatibility alias.
+# New installs should use auto-detected hardware layers:
+# - hardware-framework13
+# - hardware-amd-cpu
+# - hardware-amd-graphics
 
-clinfo
-libva-utils
-mesa
-mesa-utils
-power-profiles-daemon
-radeontop
-rocminfo
-rocm-opencl-runtime
-vulkan-mesa-layers
-vulkan-radeon
-vulkan-tools
+framework-system

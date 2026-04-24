@@ -1,0 +1,13 @@
+# AMD graphics on CachyOS.
+# CachyOS Mesa packaging already owns mesa-overlay-control.py through its
+# mesa-git stack, so the standalone Arch vulkan-mesa-layers package is omitted.
+
+clinfo
+libva-utils
+mesa
+mesa-utils
+radeontop
+rocminfo
+rocm-opencl-runtime
+vulkan-radeon
+vulkan-tools

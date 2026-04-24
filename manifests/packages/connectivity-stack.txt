@@ -1,5 +1,5 @@
 # System connectivity: network, Wi-Fi, VPN, and Bluetooth.
-# Baseline target per Framework 13 AMD:
+# Baseline target:
 # - NetworkManager as the main orchestrator;
 # - iwd as the preferred Wi-Fi backend;
 # - nm-connection-editor / network-manager-applet / blueman for GUI access;

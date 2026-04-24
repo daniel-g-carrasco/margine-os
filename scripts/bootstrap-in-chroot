@@ -29,8 +29,10 @@ declare -a requested_extra_layers=()
 user_password_hash=""
 wifi_regdom="IT"
 greetd_login_mode="autologin-lock"
+declare -a detected_hardware_layers=()
 
 phase2_layers=(
+  security-and-recovery
   connectivity-stack
   coding-system-tools
   virtualization-containers-stack
@@ -54,12 +56,12 @@ Options:
   --product NAME         Product to bootstrap (default: runtime product)
   --flavor NAME          Flavor to bootstrap (arch | cachyos)
   --hostname NAME        Hostname del sistema target
-  --username NAME        Utente amministrativo da creare
+  --username NAME        Administrative user to create
   --real-name NAME       Nome reale/commento dell'utente
   --shell PATH           Shell login dell'utente (default: /bin/bash)
   --extra-groups CSV     Gruppi aggiuntivi separati da virgola
   --user-password-hash HASH
-                         Hash password per l'utente amministrativo
+                         Password hash for the administrative user
   --timezone ZONE        Timezone (default: Europe/Rome)
   --locale-line LINE     Riga da abilitare in /etc/locale.gen
   --lang LANG            LANG finale (default: it_IT.UTF-8)
@@ -69,7 +71,7 @@ Options:
   --include-aur          Include il manifest AUR
   --include-flatpak      Include il manifest Flatpak
   --extra-layer NAME     Extra manifest layer to install in phase 2; repeatable
-  --dry-run              Mostra il piano senza eseguirlo
+  --dry-run              Show the plan without executing it
   --help                 Show this help
 EOF
 }
@@ -122,6 +124,16 @@ load_product_bootstrap_extensions() {
     [[ -n "$item" ]] || continue
     product_extra_provisioners+=("$item")
   done < <(margine_product_extra_provisioners "$repo_root" "$product")
+}
+
+load_detected_hardware_layers() {
+  local layer=""
+
+  while IFS= read -r layer; do
+    [[ -n "$layer" ]] || continue
+    detected_hardware_layers+=("$layer")
+    append_unique_bootstrap_layer "$layer"
+  done < <(margine_detect_hardware_package_layers "$repo_root" "$flavor")
 }
 
 warn() {
@@ -239,6 +251,7 @@ parse_args() {
   eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
     || die "unsupported product/flavor combination"
   load_product_bootstrap_extensions
+  load_detected_hardware_layers
   if (( ${#requested_extra_layers[@]} > 0 )); then
     local layer=""
     for layer in "${requested_extra_layers[@]}"; do
@@ -643,7 +656,8 @@ run_product_extra_provisioners() {
 }
 
 enable_base_services() {
-  local -a services=(
+  local service=""
+  local -a required_services=(
     NetworkManager.service
     iwd.service
     bluetooth.service
@@ -659,7 +673,17 @@ enable_base_services() {
 
   log
   log "==> Enable base services"
-  run_cmd systemctl enable "${services[@]}"
+
+  for service in "${required_services[@]}"; do
+    if (( dry_run )); then
+      printf '[dry-run] systemctl enable %s\n' "$service"
+      continue
+    fi
+
+    systemctl list-unit-files "$service" >/dev/null 2>&1 \
+      || die "required systemd unit not found: $service"
+    systemctl enable "$service"
+  done
 }
 
 main() {
@@ -675,6 +699,9 @@ main() {
   fi
   if (( ${#product_extra_provisioners[@]} > 0 )); then
     log "Product extra provisioners: ${product_extra_provisioners[*]}"
+  fi
+  if (( ${#detected_hardware_layers[@]} > 0 )); then
+    log "Detected hardware layers: ${detected_hardware_layers[*]}"
   fi
   (( dry_run )) && log "Mode: dry-run"
 

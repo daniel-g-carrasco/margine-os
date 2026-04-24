@@ -1,0 +1,20 @@
+# Safe Mesa graphics fallback for AMD, Intel, and Nouveau-class open drivers.
+# NVIDIA proprietary/open kernel modules intentionally stay in their own layer.
+
+clinfo
+intel-compute-runtime
+intel-gpu-tools
+intel-media-driver
+libva-intel-driver
+libva-utils
+mesa
+mesa-utils
+radeontop
+rocminfo
+rocm-opencl-runtime
+vpl-gpu-rt
+vulkan-intel
+vulkan-mesa-layers
+vulkan-nouveau
+vulkan-radeon
+vulkan-tools

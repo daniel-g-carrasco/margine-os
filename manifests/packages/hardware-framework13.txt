@@ -1,0 +1,3 @@
+# Framework Laptop 13 chassis support.
+
+framework-system

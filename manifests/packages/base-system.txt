@@ -1,6 +1,5 @@
 # Base di sistema minimale e riproducibile.
 
-amd-ucode
 base
 base-devel
 btrfs-progs

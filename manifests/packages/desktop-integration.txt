@@ -1,5 +1,6 @@
-# Integrazione desktop volutamente limitata.
-# Si tengono componenti utili al workflow senza trascinarsi GNOME Shell.
+# Desktop integration without pulling a full GNOME Shell session.
+# Power profile handling is part of the generic desktop/laptop baseline, not a
+# Framework-only hardware layer.
 
 flatpak
 gvfs
@@ -7,5 +8,6 @@ gvfs-afc
 gvfs-gphoto2
 gvfs-mtp
 papers
+power-profiles-daemon
 sushi
 xdg-user-dirs-gtk
