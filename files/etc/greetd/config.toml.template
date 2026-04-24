@@ -5,7 +5,7 @@ vt = 1
 source_profile = true
 
 [default_session]
-command = "tuigreet --time --remember --remember-session --user-menu --user-menu-min-uid 1000 --asterisks --cmd /usr/bin/start-hyprland"
+command = "tuigreet --time --remember --remember-session --user-menu --user-menu-min-uid 1000 --asterisks --window-padding 2 --container-padding 2 --prompt-padding 1 --cmd /usr/bin/start-hyprland"
 user = "greeter"
 
 __MARGINE_INITIAL_SESSION_BLOCK__

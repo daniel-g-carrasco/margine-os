@@ -68,7 +68,7 @@ theme_vibrancy_darkness="0.05"
 # the layout math below. Values are still clamped later to avoid unusable
 # layouts on very small or very large displays.
 REFERENCE_LOGICAL_HEIGHT=1080
-FONT_SCALE_MIN=0.84
+FONT_SCALE_MIN=0.72
 FONT_SCALE_MAX=1.24
 
 TIME_FONT_BASE=118
@@ -253,6 +253,8 @@ load_theme_defaults() {
   theme_brightness="${MARGINE_THEME_HYPRLOCK_BRIGHTNESS:-$theme_brightness}"
   theme_vibrancy="${MARGINE_THEME_HYPRLOCK_VIBRANCY:-$theme_vibrancy}"
   theme_vibrancy_darkness="${MARGINE_THEME_HYPRLOCK_VIBRANCY_DARKNESS:-$theme_vibrancy_darkness}"
+  FONT_SCALE_MIN="${MARGINE_THEME_HYPRLOCK_FONT_SCALE_MIN:-$FONT_SCALE_MIN}"
+  FONT_SCALE_MAX="${MARGINE_THEME_HYPRLOCK_FONT_SCALE_MAX:-$FONT_SCALE_MAX}"
 }
 
 collect_monitor_metrics() {

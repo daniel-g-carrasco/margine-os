@@ -696,7 +696,8 @@ mount is correct.
 Start the guided wrapper:
 
 ```bash
-/root/margine-repo/scripts/install-live-iso-guided__GUIDED_FLAVOR_FLAG____GUIDED_EXTRA_LAYER_FLAGS__
+/root/margine-repo/scripts/install-live-iso-guided__GUIDED_FLAVOR_FLAG____GUIDED_EXTRA_LAYER_FLAGS__ \
+  --greetd-login-mode tuigreet-only
 ```
 
 When it asks questions, use these recommended answers in the VM:
@@ -786,10 +787,8 @@ This is the right choice if you want the pipeline to do everything in one go.
 
 ### User password
 
-If you also want to test user login immediately, set a password now.
-
-If you prefer to move faster, you can skip it and set it later with `passwd`
-from inside the chroot.
+Set a password now. This VM validation uses `greetd` without autologin, so the
+installed graphical login needs a real user password.
 
 ## 5. What happens during installation
 
@@ -878,10 +877,9 @@ passed the first serious gate.
 For the `Walker/Elephant` regression, the important check here is:
 
 - the variable block above must be present inside `systemd --user`
-- `rofi` should exist as the primary launcher
-- `fuzzel` must exist as the coherent fallback
-- `elephant.service` must be active if `walker` is installed
-- `walker` may exist as the secondary launcher, but it is no longer required
+- `walker` should exist as the primary launcher
+- `elephant.service` must be active for Walker providers
+- `fuzzel` must exist as the coherent fallback launcher
 - `snapper` must actually show the `root` config, not just the package installed
 - the screenshot/recording stack must have the official binaries available even
   if `hyprcap` is missing
@@ -1077,7 +1075,7 @@ Run:
 systemctl status greetd --no-pager
 systemctl --user show-environment | rg '^(DISPLAY|WAYLAND_DISPLAY|XDG_CURRENT_DESKTOP|XDG_SESSION_TYPE|XDG_SESSION_DESKTOP|DESKTOP_SESSION|GDK_BACKEND|MOZ_ENABLE_WAYLAND|_JAVA_AWT_WM_NONREPARENTING|HYPRLAND_INSTANCE_SIGNATURE|XDG_RUNTIME_DIR)='
 systemctl --user status elephant.service --no-pager
-which rofi walker elephant fuzzel
+which walker elephant fuzzel
 which grim slurp satty wf-recorder
 ```
 
@@ -1085,9 +1083,9 @@ Expected result:
 
 - `greetd` is active;
 - the graphical environment is imported into `systemd --user`;
-- `elephant.service` is active if Walker is present;
-- `rofi` exists and `fuzzel` exists as the fallback launcher;
-- `walker` may exist as the secondary launcher;
+- `elephant.service` is active for Walker providers;
+- `walker` exists as the primary launcher;
+- `fuzzel` exists as the fallback launcher;
 - the screenshot and recording stack is present.
 
 ## 3. Root filesystem snapshot baseline
@@ -1242,8 +1240,7 @@ Treat the VM as a successful first validation only if all of these are true:
 
 - installed guest boots from the installed disk, not from the live ISO;
 - login and desktop baseline are coherent;
-- `rofi` and `fuzzel` are present, and if `walker` is installed then
-  `elephant` is also present;
+- `walker`, `elephant`, and `fuzzel` are present;
 - `snapper` works for the root baseline;
 - if `ZFS` is enabled, the module loads, the pool can be created on `/dev/vdb`,
   manual rollback works, and `sanoid` creates snapshots;
