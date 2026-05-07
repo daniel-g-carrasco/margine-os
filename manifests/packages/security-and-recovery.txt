@@ -1,6 +1,6 @@
-# Sicurezza, cifratura, snapshot e restore.
-# Nota: in Margine la baseline resta Snapper; Timeshift e' un layer di
-# comodita', non il motore architetturale principale dei rollback.
+# Security, encryption, snapshots, and restore.
+# Note: Snapper remains the Margine baseline; Timeshift is a convenience layer,
+# not the main rollback architecture.
 
 arch-audit
 cryptsetup

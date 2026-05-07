@@ -29,6 +29,10 @@ declare -a requested_extra_layers=()
 user_password_hash=""
 wifi_regdom="IT"
 greetd_login_mode="tuigreet-only"
+storage_layout="btrfs"
+zfs_root_dataset=""
+crypt_name="cryptroot"
+qemu_validation_inhibit=0
 declare -a detected_hardware_layers=()
 
 phase2_layers=(
@@ -42,6 +46,7 @@ phase2_layers=(
   desktop-integration
   apps-core
   apps-photo-audio-video
+  gaming-runtime-compat
   fonts
 )
 declare -a product_extra_layers=()
@@ -69,6 +74,14 @@ Options:
   --greetd-login-mode MODE
                         greetd mode: tuigreet-only | autologin-lock
                         (default: tuigreet-only)
+  --storage-layout NAME Storage layout: btrfs | zfs-root (default: btrfs)
+  --zfs-root-dataset DS Root ZFS dataset, for example rpool/ROOT/default
+  --crypt-name NAME     LUKS mapper name for boot generation
+                        (default: cryptroot)
+  --qemu-validation-inhibit
+                        Install and enable a validation-only systemd inhibitor
+                        for sleep and idle. Use only for disposable QEMU
+                        validation guests.
   --include-aur          Include il manifest AUR
   --include-flatpak      Include il manifest Flatpak
   --extra-layer NAME     Extra manifest layer to install in phase 2; repeatable
@@ -222,6 +235,25 @@ parse_args() {
         greetd_login_mode="$2"
         shift 2
         ;;
+      --storage-layout)
+        [[ $# -ge 2 ]] || die "missing value for --storage-layout"
+        storage_layout="${2,,}"
+        shift 2
+        ;;
+      --zfs-root-dataset)
+        [[ $# -ge 2 ]] || die "missing value for --zfs-root-dataset"
+        zfs_root_dataset="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        shift 2
+        ;;
+      --qemu-validation-inhibit)
+        qemu_validation_inhibit=1
+        shift
+        ;;
       --include-aur)
         include_aur=1
         shift
@@ -277,6 +309,18 @@ validate_inputs() {
     tuigreet-only|autologin-lock) ;;
     *)
       die "unsupported --greetd-login-mode: ${greetd_login_mode}"
+      ;;
+  esac
+
+  case "$storage_layout" in
+    btrfs) ;;
+    zfs-root)
+      [[ -n "$zfs_root_dataset" ]] || die "--zfs-root-dataset is required with --storage-layout zfs-root"
+      [[ "$zfs_root_dataset" == */* ]] || die "--zfs-root-dataset must include the pool name, for example rpool/ROOT/default"
+      [[ -n "$crypt_name" ]] || die "--crypt-name must not be empty"
+      ;;
+    *)
+      die "unsupported --storage-layout: ${storage_layout}"
       ;;
   esac
 }
@@ -428,7 +472,18 @@ run_framework_power_provisioner() {
 
 run_initial_boot_provisioner() {
   local provisioner="${repo_root}/scripts/provision-initial-boot-chain"
-  local -a args=()
+  local -a args=(
+    --product "$product"
+    --flavor "$flavor"
+  )
+
+  if [[ "$storage_layout" == "zfs-root" ]]; then
+    provisioner="${repo_root}/scripts/provision-initial-boot-chain-zfs"
+    args+=(
+      --zfs-root-dataset "$zfs_root_dataset"
+      --crypt-name "$crypt_name"
+    )
+  fi
 
   (( dry_run )) && args+=(--dry-run)
 
@@ -437,6 +492,27 @@ run_initial_boot_provisioner() {
   log
   log "==> Provision initial boot chain"
   run_cmd "$provisioner" "${args[@]}"
+}
+
+run_root_zfs_validator() {
+  local mode="$1"
+  local validator="${repo_root}/scripts/validate-root-zfs-target"
+  local -a args=(
+    --target-root /
+    --pool-name "${zfs_root_dataset%%/*}"
+    --zfs-root-dataset "$zfs_root_dataset"
+    --crypt-name "$crypt_name"
+    --mode "$mode"
+  )
+
+  [[ "$storage_layout" == "zfs-root" ]] || return 0
+  (( dry_run )) && args+=(--dry-run)
+
+  [[ -x "$validator" ]] || die "root-on-ZFS validator not executable: $validator"
+
+  log
+  log "==> Validate root-on-ZFS target (${mode})"
+  run_cmd "$validator" "${args[@]}"
 }
 
 run_user_provisioner() {
@@ -492,6 +568,12 @@ run_snapper_provisioner() {
   local provisioner="${repo_root}/scripts/provision-snapper-baseline"
   local -a args=()
 
+  if [[ "$storage_layout" == "zfs-root" ]]; then
+    log
+    log "==> Skip Snapper baseline on root-on-ZFS"
+    return 0
+  fi
+
   (( dry_run )) && args+=(--dry-run)
 
   [[ -x "$provisioner" ]] || die "snapper provisioner not executable: $provisioner"
@@ -504,6 +586,12 @@ run_snapper_provisioner() {
 run_timeshift_provisioner() {
   local provisioner="${repo_root}/scripts/provision-timeshift-defaults"
   local -a args=()
+
+  if [[ "$storage_layout" == "zfs-root" ]]; then
+    log
+    log "==> Skip Timeshift defaults on root-on-ZFS"
+    return 0
+  fi
 
   (( dry_run )) && args+=(--dry-run)
 
@@ -695,6 +783,120 @@ enable_base_services() {
   done
 }
 
+install_firstboot_local_overrides() {
+  local script_source="${repo_root}/files/usr/local/bin/margine-build-local-overrides"
+  local service_source="${repo_root}/files/etc/systemd/system/margine-firstboot-local-overrides.service"
+  local timer_source="${repo_root}/files/etc/systemd/system/margine-firstboot-local-overrides.timer"
+
+  (( include_aur )) || {
+    log
+    log "==> Skip first-boot local package override builder"
+    log "AUR support is disabled for this bootstrap."
+    return 0
+  }
+
+  [[ -f "$script_source" ]] || die "first-boot local override script not found: $script_source"
+  [[ -f "$service_source" ]] || die "first-boot local override service not found: $service_source"
+  [[ -f "$timer_source" ]] || die "first-boot local override timer not found: $timer_source"
+
+  log
+  log "==> Install first-boot local package override builder"
+
+  if (( dry_run )); then
+    printf '[dry-run] install -Dm755 %s /usr/local/bin/margine-build-local-overrides\n' "$script_source"
+    printf '[dry-run] install -Dm644 %s /etc/systemd/system/margine-firstboot-local-overrides.service\n' "$service_source"
+    printf '[dry-run] install -Dm644 %s /etc/systemd/system/margine-firstboot-local-overrides.timer\n' "$timer_source"
+    printf '[dry-run] systemctl enable margine-firstboot-local-overrides.timer\n'
+    return 0
+  fi
+
+  install -Dm755 "$script_source" /usr/local/bin/margine-build-local-overrides
+  install -Dm644 "$service_source" /etc/systemd/system/margine-firstboot-local-overrides.service
+  install -Dm644 "$timer_source" /etc/systemd/system/margine-firstboot-local-overrides.timer
+  systemctl enable margine-firstboot-local-overrides.timer
+}
+
+install_qemu_validation_inhibit() {
+  local marker_path="/etc/margine/qemu-validation-inhibit.enabled"
+  local service_source="${repo_root}/files/etc/systemd/system/margine-qemu-validation-inhibit.service"
+  local service_target="/etc/systemd/system/margine-qemu-validation-inhibit.service"
+
+  (( qemu_validation_inhibit )) || return 0
+
+  [[ -f "$service_source" ]] || die "QEMU validation inhibitor service not found: $service_source"
+
+  log
+  log "==> Install QEMU validation idle inhibitor"
+
+  if (( dry_run )); then
+    printf '[dry-run] install -Dm644 %s %s\n' "$service_source" "$service_target"
+    printf '[dry-run] install -d /etc/margine\n'
+    printf '[dry-run] touch %s\n' "$marker_path"
+    printf '[dry-run] systemctl enable margine-qemu-validation-inhibit.service\n'
+    return 0
+  fi
+
+  install -Dm644 "$service_source" "$service_target"
+  install -d -m 755 "$(dirname "$marker_path")"
+  touch "$marker_path"
+  systemctl enable margine-qemu-validation-inhibit.service
+}
+
+validate_graphical_session_baseline() {
+  local home_dir=""
+  local hypr_config=""
+  local runtime_dir=""
+  local verify_log=""
+  local walker_launcher=""
+  local greetd_config="/etc/greetd/config.toml"
+  local greetd_zfs_dropin="/etc/systemd/system/greetd.service.d/10-margine-zfs-home.conf"
+
+  log
+  log "==> Validate graphical session baseline"
+
+  if (( dry_run )); then
+    printf '[dry-run] validate Hyprland config, Walker launcher, greetd session wrapper and ZFS /home ordering\n'
+    return 0
+  fi
+
+  home_dir="$(getent passwd "$username" | awk -F: '{ print $6 }')"
+  [[ -n "$home_dir" ]] || die "cannot resolve home directory for user: $username"
+
+  hypr_config="${home_dir}/.config/hypr/hyprland.conf"
+  walker_launcher="${home_dir}/.local/bin/margine-launcher-walker"
+
+  [[ -f "$hypr_config" ]] || die "Hyprland config missing after bootstrap: $hypr_config"
+  [[ -x "$walker_launcher" ]] || die "Walker launcher missing after bootstrap: $walker_launcher"
+  [[ -x /usr/local/bin/margine-start-hyprland ]] || die "Hyprland session wrapper missing after bootstrap: /usr/local/bin/margine-start-hyprland"
+  [[ -f "$greetd_config" ]] || die "greetd config missing after bootstrap: $greetd_config"
+  grep -Fq "/usr/local/bin/margine-start-hyprland" "$greetd_config" \
+    || die "greetd config does not launch Margine Hyprland wrapper: $greetd_config"
+
+  if [[ "$storage_layout" == "zfs-root" ]]; then
+    [[ -f "$greetd_zfs_dropin" ]] || die "greetd ZFS /home ordering drop-in missing: $greetd_zfs_dropin"
+    grep -Fq "RequiresMountsFor=/home" "$greetd_zfs_dropin" \
+      || die "greetd ZFS /home ordering drop-in does not require /home: $greetd_zfs_dropin"
+  fi
+
+  command -v Hyprland >/dev/null 2>&1 || die "Hyprland is not installed after bootstrap"
+  runtime_dir="$(mktemp -d /tmp/margine-hyprland-verify.XXXXXX)"
+  verify_log="${runtime_dir}/hyprland-verify.log"
+  chmod 700 "$runtime_dir"
+  if ! env \
+    HOME="$home_dir" \
+    USER="$username" \
+    LOGNAME="$username" \
+    XDG_CONFIG_HOME="${home_dir}/.config" \
+    XDG_RUNTIME_DIR="$runtime_dir" \
+    HYPRLAND_NO_RT=1 \
+    Hyprland --verify-config --i-am-really-stupid --config "$hypr_config" >"$verify_log" 2>&1; then
+    sed -n '1,160p' "$verify_log" >&2 || true
+    rm -rf "$runtime_dir"
+    die "Hyprland config validation failed after bootstrap: $hypr_config"
+  fi
+  rm -rf "$runtime_dir"
+}
+
 main() {
   parse_args "$@"
   require_root
@@ -703,6 +905,7 @@ main() {
   log "=== Bootstrap in chroot Margine ==="
   log "Product: ${product} (${product_name})"
   log "Flavor: ${flavor}"
+  log "Storage layout: ${storage_layout}"
   if (( ${#product_extra_layers[@]} > 0 )); then
     log "Product extra layers: ${product_extra_layers[*]}"
   fi
@@ -720,7 +923,9 @@ main() {
   configure_hostname
   install_vconsole_baseline
   run_manifest_installer
+  run_root_zfs_validator storage
   run_initial_boot_provisioner
+  run_root_zfs_validator boot-chain
   run_connectivity_provisioner
   run_framework_power_provisioner
   run_user_provisioner
@@ -738,7 +943,10 @@ main() {
   run_timeshift_provisioner
   run_zfs_non_root_provisioner
   enable_base_services
+  install_qemu_validation_inhibit
+  install_firstboot_local_overrides
   run_product_extra_provisioners
+  validate_graphical_session_baseline
 
   log
   log "=== DONE ==="

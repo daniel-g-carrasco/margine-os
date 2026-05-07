@@ -1,0 +1,6 @@
+# CachyOS ships prebuilt ZFS modules matching its kernel packages.
+# Do not use zfs-dkms here: current CachyOS kernels can move ahead of the
+# OpenZFS DKMS compatibility window.
+
+linux-cachyos-zfs
+zfs-utils

@@ -1,0 +1,146 @@
+#!/usr/bin/env python3
+"""Detect Bash function endings that can abort scripts under `set -e`.
+
+The main class this catches is:
+
+    helper() {
+      ...
+      (( optional_flag )) && log "optional message"
+    }
+
+When `optional_flag` is false, the function returns 1. In a caller running with
+`set -e`, that can terminate the whole installer without a useful error.
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCRIPT_ROOTS = [
+    REPO_ROOT / "scripts",
+    REPO_ROOT / "files" / "home" / ".local" / "bin",
+]
+
+
+def is_bash_file(path: Path) -> bool:
+    if not path.is_file():
+        return False
+
+    try:
+        with path.open("r", encoding="utf-8", errors="ignore") as handle:
+            first_line = handle.readline()
+    except OSError:
+        return False
+
+    return first_line.startswith("#!") and "bash" in first_line
+
+
+def iter_bash_files() -> list[Path]:
+    paths: list[Path] = []
+    for root in SCRIPT_ROOTS:
+        if not root.exists():
+            continue
+        paths.extend(path for path in root.rglob("*") if is_bash_file(path))
+    return sorted(paths)
+
+
+def iter_functions(lines: list[str]):
+    index = 0
+    function_start = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*\(\)\s*\{\s*$")
+
+    while index < len(lines):
+        match = function_start.match(lines[index])
+        if not match:
+            index += 1
+            continue
+
+        name = match.group(1)
+        body: list[tuple[int, str]] = []
+        depth = 1
+        index += 1
+
+        while index < len(lines) and depth > 0:
+            line = lines[index]
+            depth += line.count("{") - line.count("}")
+            if depth > 0:
+                body.append((index + 1, line))
+            index += 1
+
+        yield name, body
+
+
+def last_meaningful_line(body: list[tuple[int, str]]) -> tuple[int | None, str]:
+    for line_number, line in reversed(body):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        return line_number, stripped
+    return None, ""
+
+
+def has_allow_annotation(body: list[tuple[int, str]]) -> bool:
+    return any(
+        "margine-errexit: allow-nonzero-return" in line
+        or "margine-errexit: predicate-ok" in line
+        for _, line in body
+    )
+
+
+def is_problematic_final_line(line: str) -> bool:
+    optional_condition = re.compile(
+        r"^(?:\(\([^)]*\)\)|\[\[[^]]*\]\]|\[[^]]*\])\s*&&\s+"
+    )
+    if not optional_condition.match(line):
+        return False
+
+    # A final explicit return is intentional, not an accidental helper status.
+    if re.search(r"&&\s*return\b", line):
+        return False
+
+    return True
+
+
+def main() -> int:
+    failures: list[tuple[Path, int, str, str]] = []
+
+    for path in iter_bash_files():
+        try:
+            lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError as error:
+            print(f"warning: cannot read {path}: {error}", file=sys.stderr)
+            continue
+
+        for function_name, body in iter_functions(lines):
+            if has_allow_annotation(body):
+                continue
+
+            line_number, line = last_meaningful_line(body)
+            if line_number is None:
+                continue
+
+            if is_problematic_final_line(line):
+                failures.append((path.relative_to(REPO_ROOT), line_number, function_name, line))
+
+    if failures:
+        print("check-bash-errexit-footguns: found unsafe Bash function endings", file=sys.stderr)
+        for path, line_number, function_name, line in failures:
+            print(
+                f"{path}:{line_number}: function {function_name} ends with optional conditional: {line}",
+                file=sys.stderr,
+            )
+            print(
+                "  Rewrite as if/then/fi, add an explicit `return 0`, or annotate an intentional non-zero return.",
+                file=sys.stderr,
+            )
+        return 1
+
+    print("check-bash-errexit-footguns: OK")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

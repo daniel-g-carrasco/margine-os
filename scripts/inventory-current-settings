@@ -70,7 +70,7 @@ report_home() {
     repo_file="${repo_root}/files/home/${entry}"
 
     if [[ -e "$source" && -e "$repo_file" ]]; then
-      emit "- OK: \`${entry}\` esiste nella macchina corrente ed e' gia' versionato."
+      emit "- OK: \`${entry}\` exists on the current machine and is already versioned."
     elif [[ -e "$source" ]]; then
       emit "- REVIEW: \`${entry}\` esiste nella macchina corrente ma non e' ancora versionato."
     else
@@ -96,7 +96,7 @@ report_system() {
     repo_file="${repo_root}/files/${repo_rel}"
 
     if [[ -e "$approved_entry" && -e "$repo_file" ]]; then
-      emit "- OK: \`${approved_entry}\` esiste ed e' gia' versionato."
+      emit "- OK: \`${approved_entry}\` exists and is already versioned."
     elif [[ -e "$approved_entry" ]]; then
       emit "- REVIEW: \`${approved_entry}\` esiste ma non e' ancora versionato."
     else
@@ -115,7 +115,7 @@ report_system() {
     repo_file="${repo_root}/files/${repo_rel}"
 
     if [[ -e "$entry" && -e "$repo_file" ]]; then
-      emit "- VERSIONATO: \`${entry}\` esiste ed e' gia' in repo."
+      emit "- VERSIONED: \`${entry}\` exists and is already in the repo."
     elif [[ -e "$entry" ]]; then
       emit "- REVIEW: \`${entry}\` esiste ma va ancora tradotto in forma target."
     else

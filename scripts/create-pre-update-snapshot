@@ -13,11 +13,11 @@ Usage:
   create-pre-update-snapshot [options]
 
 Options:
-  --dry-run                Mostra il piano senza eseguirlo
-  --snapper-config NAME    Config Snapper da usare (default: root)
-  --description PREFIX     Prefisso descrizione snapshot
+  --dry-run                Show the plan without executing it
+  --snapper-config NAME    Snapper config to use (default: root)
+  --description PREFIX     Snapshot description prefix
   --cleanup ALGO           Cleanup algorithm (default: number)
-  --userdata DATA          Userdata da associare allo snapshot
+  --userdata DATA          Userdata to attach to the snapshot
   --help                   Show this help
 EOF
 }
@@ -92,18 +92,18 @@ main() {
   parse_args "$@"
 
   if ! command -v snapper >/dev/null 2>&1; then
-    warn "snapper non trovato, snapshot pre-update saltato"
+    warn "snapper not found; skipping pre-update snapshot"
     exit 0
   fi
 
   if ! snapper_config_exists; then
-    warn "config Snapper non trovata: ${snapper_config}"
+    warn "Snapper config not found: ${snapper_config}"
     exit 0
   fi
 
   description="${description_prefix} $(date +%F' '%T)"
 
-  log "==> Snapshot pre-update"
+  log "==> Pre-update snapshot"
   if (( dry_run )); then
     run_cmd sudo snapper --no-dbus -c "$snapper_config" create \
       --type single \

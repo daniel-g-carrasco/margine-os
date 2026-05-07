@@ -176,7 +176,7 @@ run_create_keys() {
   local args=()
 
   if keys_already_exist; then
-    log "Chiavi sbctl gia' presenti, salto create-keys."
+    log "sbctl keys already present; skipping create-keys."
     return 0
   fi
 

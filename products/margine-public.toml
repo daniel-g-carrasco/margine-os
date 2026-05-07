@@ -8,5 +8,7 @@ flavor = "arch"
 kernel_package = "linux"
 kernel_headers_package = "linux-headers"
 bootloader = "limine"
+qemu_guest_username = "margine"
+qemu_guest_real_name = "Margine User"
 
 description = "Public, redistributable Margine baseline built on top of Arch Linux."

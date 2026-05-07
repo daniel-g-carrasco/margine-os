@@ -2,7 +2,7 @@
 Name=Bitwarden
 GenericName=Password Manager
 Comment=A secure and free password manager for all of your devices.
-Exec=/home/daniel/.local/bin/margine-bitwarden %u
+Exec=sh -lc "exec \"\\$HOME/.local/bin/margine-bitwarden\" \"\\$@\"" sh %u
 Terminal=false
 MimeType=x-scheme-handler/bitwarden;
 Type=Application

@@ -26,10 +26,15 @@ download_iso=0
 run_vm=0
 headless=0
 dry_run=0
+iso_structure_check="arch"
 declare -a extra_layers=()
 zfs_lab_disk_size="120G"
 zfs_lab_disk_path=""
 enable_zfs_lab_disk=0
+guest_username="${MARGINE_QEMU_GUEST_USERNAME:-}"
+guest_real_name="${MARGINE_QEMU_GUEST_REAL_NAME:-}"
+guest_repo_mount_path="${MARGINE_QEMU_REPO_MOUNT_PATH:-/root/margine-repo}"
+guest_repo_dest_path="${MARGINE_TARGET_REPO_DEST:-/root/margine-os}"
 
 arch_iso_url="https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso"
 arch_sig_url="https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso.sig"
@@ -52,7 +57,7 @@ Usage:
   prepare-qemu-archiso-validation [options]
 
 Options:
-  --product NAME         Product to validate (default: margine-public)
+  --product NAME         Product to validate (default: repository default product)
   --flavor NAME          Flavor to validate (arch | cachyos)
   --workdir PATH          Working directory (default: build/qemu-archiso-validation)
   --iso PATH              Local Arch ISO to use
@@ -61,12 +66,16 @@ Options:
   --memory-mib N          RAM VM in MiB (default: 8192)
   --cpus N                vCPU VM (default: 6)
   --ssh-forward-port N    Host port forwarded to guest:22 (default: 2222)
+  --guest-username NAME   Recommended guest admin username (default: product default)
+  --guest-real-name NAME  Recommended guest real name (default: product default)
   --with-vtpm             Require a virtual TPM through swtpm
   --no-vtpm               Disable the virtual TPM even if swtpm is installed
   --extra-layer NAME      Extra manifest layer to install in the guest; repeatable
   --zfs-lab-disk-size N   Size of the extra qcow2 disk used for ZFS non-root validation
                           when zfs-non-root-stack is requested (default: 120G)
   --download-iso          Download the official Arch ISO and verification files
+  --iso-structure-check MODE
+                          ISO content check: arch | uefi | none (default: arch)
   --run                   Start QEMU immediately after preparation
   --headless              Start QEMU without a graphical window
   --dry-run               Show the plan without executing it
@@ -177,6 +186,16 @@ parse_args() {
         ssh_forward_port="$2"
         shift 2
         ;;
+      --guest-username)
+        [[ $# -ge 2 ]] || die "missing value for --guest-username"
+        guest_username="$2"
+        shift 2
+        ;;
+      --guest-real-name)
+        [[ $# -ge 2 ]] || die "missing value for --guest-real-name"
+        guest_real_name="$2"
+        shift 2
+        ;;
       --with-vtpm)
         vtpm_mode="on"
         shift
@@ -198,6 +217,11 @@ parse_args() {
       --download-iso)
         download_iso=1
         shift
+        ;;
+      --iso-structure-check)
+        [[ $# -ge 2 ]] || die "missing value for --iso-structure-check"
+        iso_structure_check="${2,,}"
+        shift 2
         ;;
       --run)
         run_vm=1
@@ -223,6 +247,16 @@ parse_args() {
 
   eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
     || die "unsupported product/flavor combination"
+
+  case "$iso_structure_check" in
+    arch|uefi|none) ;;
+    *)
+      die "unsupported --iso-structure-check: ${iso_structure_check}"
+      ;;
+  esac
+
+  guest_username="${guest_username:-$(margine_product_field "$product_manifest" "qemu_guest_username" "margine")}"
+  guest_real_name="${guest_real_name:-$(margine_product_field "$product_manifest" "qemu_guest_real_name" "Margine User")}"
 
   if (( ${#extra_layers[@]} > 0 )); then
     local layer=""
@@ -352,10 +386,19 @@ verify_iso_assets() {
   log
   log "==> Verify ISO boot structure"
 
+  if [[ "$iso_structure_check" == "none" ]]; then
+    warn "ISO structure validation disabled"
+    return 0
+  fi
+
   if (( dry_run )); then
-    printf '[dry-run] bsdtar -tf %s | rg %s\n' \
-      "$iso_path" \
-      "'(?i)^EFI/BOOT/BOOTX64.EFI$|^loader/entries$|^arch/boot/x86_64/vmlinuz-linux$'"
+    if [[ "$iso_structure_check" == "arch" ]]; then
+      printf '[dry-run] bsdtar -tf %s | rg %s\n' \
+        "$iso_path" \
+        "'(?i)^EFI/BOOT/BOOTX64.EFI$|^loader/entries$|^arch/boot/x86_64/vmlinuz-linux$'"
+    else
+      printf '[dry-run] bsdtar -tf %s | rg %s\n' "$iso_path" "'(?i)^EFI/BOOT/BOOTX64.EFI$'"
+    fi
     return 0
   fi
 
@@ -373,6 +416,12 @@ verify_iso_assets() {
     rm -f "$iso_listing"
     die "ISO missing EFI boot entry EFI/BOOT/BOOTX64.EFI: ${iso_path}"
   fi
+
+  if [[ "$iso_structure_check" == "uefi" ]]; then
+    rm -f "$iso_listing"
+    return 0
+  fi
+
   if ! rg -qx 'loader/entries' "$iso_listing"; then
     rm -f "$iso_listing"
     die "ISO missing loader/entries directory: ${iso_path}"
@@ -683,9 +732,9 @@ Important:
 Run:
 
 ```bash
-mkdir -p /root/margine-repo
-mount -t 9p -o trans=virtio,version=9p2000.L margine /root/margine-repo
-ls /root/margine-repo
+mkdir -p __GUEST_REPO_MOUNT_PATH__
+mount -t 9p -o trans=virtio,version=9p2000.L margine __GUEST_REPO_MOUNT_PATH__
+ls __GUEST_REPO_MOUNT_PATH__
 ```
 
 If the last command shows files such as `scripts`, `docs`, and `manifests`, the
@@ -696,7 +745,7 @@ mount is correct.
 Start the guided wrapper:
 
 ```bash
-/root/margine-repo/scripts/install-live-iso-guided__GUIDED_FLAVOR_FLAG____GUIDED_EXTRA_LAYER_FLAGS__ \
+__GUEST_REPO_MOUNT_PATH__/scripts/install-live-iso-guided__GUIDED_FLAVOR_FLAG____GUIDED_EXTRA_LAYER_FLAGS__ \
   --greetd-login-mode tuigreet-only
 ```
 
@@ -744,7 +793,7 @@ margine-vm
 You can use:
 
 ```text
-daniel
+__GUEST_USERNAME__
 ```
 
 ### Real name
@@ -752,7 +801,7 @@ daniel
 You can leave:
 
 ```text
-Daniel Carrasco
+__GUEST_REAL_NAME__
 ```
 
 ### Login shell
@@ -887,7 +936,8 @@ For the `Walker/Elephant` regression, the important check here is:
 Optional checks if you installed `zfs-non-root-stack`:
 
 ```bash
-pacman -Q zfs-dkms zfs-utils sanoid
+pacman -Q zfs-utils sanoid
+pacman -Q zfs-dkms || pacman -Q linux-cachyos-zfs
 which zpool zfs sanoid
 systemctl status margine-sanoid.timer --no-pager
 cat /etc/sanoid/sanoid.conf
@@ -920,6 +970,9 @@ sudo zpool create -f \\
 sudo zfs create -o mountpoint=/data tank/data
 sudo zfs create -o mountpoint=/srv tank/srv
 sudo zfs create -o mountpoint=/archive tank/archive
+sudo zfs create -o mountpoint=none tank/vm
+sudo zfs create -o mountpoint=none tank/machines
+sudo zfs create -o mountpoint=none tank/containers
 zpool status
 zfs list
 sudo sanoid --take-snapshots
@@ -949,7 +1002,7 @@ run-qemu-installed.sh
 Check the command again:
 
 ```bash
-mount -t 9p -o trans=virtio,version=9p2000.L margine /root/margine-repo
+mount -t 9p -o trans=virtio,version=9p2000.L margine __GUEST_REPO_MOUNT_PATH__
 ```
 
 ### The installer cannot find the disk
@@ -977,15 +1030,15 @@ cat /boot/EFI/BOOT/limine.conf
 If you want to avoid the wizard and repeat the same test every time:
 
 ```bash
-/root/margine-repo/scripts/install-live-iso \
+__GUEST_REPO_MOUNT_PATH__/scripts/install-live-iso \
   --disk /dev/vda \
   --yes-really-destroy-disk \
   --target-root /mnt \
-  --repo-source /root/margine-repo \
-  --repo-dest /root/margine-os \
+  --repo-source __GUEST_REPO_MOUNT_PATH__ \
+  --repo-dest __GUEST_REPO_DEST_PATH__ \
   --hostname margine-vm \
-  --username daniel \
-  --real-name "Daniel Carrasco" \
+  --username __GUEST_USERNAME__ \
+  --real-name "__GUEST_REAL_NAME__" \
 __NONINTERACTIVE_FLAVOR_FLAG__
 __NONINTERACTIVE_EXTRA_LAYER_FLAGS__\
   --greetd-login-mode tuigreet-only \
@@ -995,13 +1048,17 @@ __NONINTERACTIVE_EXTRA_LAYER_FLAGS__\
 This is the form best suited to repeatable tests.
 EOF
 
-  python - "$guide_path" "$flavor" "$guided_flavor_flag" "$noninteractive_flavor_flag" "$guided_extra_layer_flags" "$noninteractive_extra_layer_flags" "$(printf '%s' "${extra_layers[*]:-none}")" "$run_script_path" "$run_installed_script_path" "$installed_checklist_path" <<'PY'
+  python - "$guide_path" "$flavor" "$guided_flavor_flag" "$noninteractive_flavor_flag" "$guided_extra_layer_flags" "$noninteractive_extra_layer_flags" "$(printf '%s' "${extra_layers[*]:-none}")" "$run_script_path" "$run_installed_script_path" "$installed_checklist_path" "$guest_username" "$guest_real_name" "$guest_repo_mount_path" "$guest_repo_dest_path" <<'PY'
 from pathlib import Path
 import sys
 
-guide_path, flavor, guided_flag, noninteractive_flag, guided_extra_layers, noninteractive_extra_layers, extra_layer_summary, host_run_script, host_run_installed_script, host_installed_checklist = sys.argv[1:]
+guide_path, flavor, guided_flag, noninteractive_flag, guided_extra_layers, noninteractive_extra_layers, extra_layer_summary, host_run_script, host_run_installed_script, host_installed_checklist, guest_username, guest_real_name, guest_repo_mount_path, guest_repo_dest_path = sys.argv[1:]
 text = Path(guide_path).read_text()
 text = text.replace("__TARGET_FLAVOR__", flavor)
+text = text.replace("__GUEST_USERNAME__", guest_username)
+text = text.replace("__GUEST_REAL_NAME__", guest_real_name)
+text = text.replace("__GUEST_REPO_MOUNT_PATH__", guest_repo_mount_path)
+text = text.replace("__GUEST_REPO_DEST_PATH__", guest_repo_dest_path)
 text = text.replace("__GUIDED_FLAVOR_FLAG__", guided_flag)
 text = text.replace("__NONINTERACTIVE_FLAVOR_FLAG__", noninteractive_flag)
 text = text.replace("__GUIDED_EXTRA_LAYER_FLAGS__", guided_extra_layers)
@@ -1107,7 +1164,8 @@ Expected result:
 Run this block only if you installed `zfs-non-root-stack`:
 
 ```bash
-pacman -Q zfs-dkms zfs-utils sanoid
+pacman -Q zfs-utils sanoid
+pacman -Q zfs-dkms || pacman -Q linux-cachyos-zfs
 which zpool zfs sanoid
 sudo modprobe zfs
 lsmod | rg '^zfs'
@@ -1146,6 +1204,9 @@ sudo zpool create -f \
 sudo zfs create -o mountpoint=/data tank/data
 sudo zfs create -o mountpoint=/srv tank/srv
 sudo zfs create -o mountpoint=/archive tank/archive
+sudo zfs create -o mountpoint=none tank/vm
+sudo zfs create -o mountpoint=none tank/machines
+sudo zfs create -o mountpoint=none tank/containers
 zpool status
 zfs list
 ```
@@ -1153,7 +1214,9 @@ zfs list
 Expected result:
 
 - the pool imports cleanly;
-- `/data`, `/srv`, and `/archive` are mounted from `tank/*`.
+- `/data`, `/srv`, and `/archive` are mounted from `tank/*`;
+- `tank/vm`, `tank/machines`, and `tank/containers` exist for policy
+  validation without shadowing the installed Btrfs runtime directories.
 
 ### 5.2 Prove manual snapshot and rollback
 
@@ -1182,7 +1245,30 @@ Expected result:
 
 - at least one automatic snapshot appears for the configured datasets.
 
-### 5.4 Optional cleanup
+### 5.4 Reopen/import the encrypted pool after reboot
+
+After reboot, the lab pool is intentionally not imported automatically because
+the backing disk is LUKS encrypted. Reopen it manually:
+
+```bash
+sudo modprobe zfs
+sudo cryptsetup open /dev/vdb zfslab
+sudo zpool import -d /dev/mapper tank
+sudo zfs mount -a
+zpool status tank
+zfs list
+sudo systemctl start margine-sanoid.service
+systemctl status margine-sanoid.service --no-pager -l
+zfs list -t snapshot
+```
+
+Expected result:
+
+- `tank` imports cleanly and reports no known data errors;
+- `tank/data`, `tank/srv`, and `tank/archive` mount again;
+- `margine-sanoid.service` exits successfully after the datasets are available.
+
+### 5.5 Optional cleanup
 
 ```bash
 sudo zpool export tank
@@ -1205,8 +1291,10 @@ command -v obs
 command -v obs-gamecapture
 command -v lact
 command -v umu-run || command -v umu-launcher || true
-steam --help >/tmp/steam-help.txt 2>&1 || true
-head -n 20 /tmp/steam-help.txt
+steam_help_file="$(mktemp)"
+steam --help >"$steam_help_file" 2>&1 || true
+head -n 20 "$steam_help_file"
+rm -f -- "$steam_help_file"
 gamescope --help | sed -n '1,20p'
 mangohud --help | sed -n '1,20p' || true
 obs --help | sed -n '1,20p'

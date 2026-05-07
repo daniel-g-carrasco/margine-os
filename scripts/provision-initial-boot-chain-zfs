@@ -1,0 +1,553 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+# shellcheck source=lib/product-manifests.sh
+source "${script_dir}/lib/product-manifests.sh"
+
+dry_run=0
+esp_path="/boot"
+crypt_name="cryptroot"
+zfs_root_dataset=""
+crypt_name_from_cli=0
+zfs_root_dataset_from_cli=0
+boot_environment_entry_limit=8
+product="$(margine_detect_runtime_product "$repo_root")"
+product_manifest=""
+product_name=""
+product_base_distribution=""
+product_visibility=""
+product_redistributable=""
+product_kernel_package=""
+product_kernel_headers_package=""
+product_kernel_image=""
+product_mkinitcpio_preset_name=""
+flavor=""
+
+boot_baseline_script="${repo_root}/scripts/provision-boot-baseline"
+cmdline_template_source="${repo_root}/files/etc/kernel/cmdline.zfs.template"
+limine_template_source="${repo_root}/files/esp/EFI/BOOT/limine.zfs.conf.template"
+zfs_boot_environment_entry_generator="${repo_root}/scripts/generate-zfs-boot-environment-entries"
+limine_binary_source="/usr/share/limine/BOOTX64.EFI"
+
+luks_device=""
+luks_uuid=""
+pool_name=""
+rendered_limine_conf=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-initial-boot-chain-zfs [options]
+
+Options:
+  --product NAME          Target product (default: runtime product)
+  --flavor NAME           Target flavor (arch | cachyos)
+  --esp-path PATH         Mounted ESP path (default: /boot)
+  --crypt-name NAME       LUKS mapper name (default: cryptroot)
+  --zfs-root-dataset DS   Root ZFS dataset, for example rpool/ROOT/default
+  --boot-environment-limit N
+                         Maximum root-on-ZFS rollback entries to render (default: 8)
+  --dry-run               Show the plan without executing it
+  --help                  Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --product)
+        [[ $# -ge 2 ]] || die "missing value for --product"
+        product="${2,,}"
+        shift 2
+        ;;
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="${2,,}"
+        shift 2
+        ;;
+      --esp-path)
+        [[ $# -ge 2 ]] || die "missing value for --esp-path"
+        esp_path="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        crypt_name_from_cli=1
+        shift 2
+        ;;
+      --zfs-root-dataset)
+        [[ $# -ge 2 ]] || die "missing value for --zfs-root-dataset"
+        zfs_root_dataset="$2"
+        zfs_root_dataset_from_cli=1
+        shift 2
+        ;;
+      --boot-environment-limit)
+        [[ $# -ge 2 ]] || die "missing value for --boot-environment-limit"
+        boot_environment_entry_limit="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+
+  eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
+    || die "unsupported product/flavor combination"
+}
+
+load_install_manifest_defaults() {
+  local manifest_path="/etc/margine/install-layout.env"
+
+  [[ -f "$manifest_path" ]] || return 0
+
+  # shellcheck source=/dev/null
+  source "$manifest_path"
+  [[ "${MARGINE_STORAGE_LAYOUT:-}" == "zfs-root" ]] \
+    || die "target install manifest is not root-on-ZFS: ${manifest_path}"
+
+  if (( zfs_root_dataset_from_cli == 0 )) && [[ -n "${MARGINE_ZFS_ROOT_DATASET:-}" ]]; then
+    zfs_root_dataset="$MARGINE_ZFS_ROOT_DATASET"
+  fi
+  if (( crypt_name_from_cli == 0 )) && [[ -n "${MARGINE_LUKS_MAPPER:-}" ]]; then
+    crypt_name="$MARGINE_LUKS_MAPPER"
+  fi
+}
+
+validate_inputs() {
+  [[ -n "$product_kernel_package" ]] || die "product kernel_package missing from product context"
+  [[ -n "$product_kernel_image" ]] || die "product kernel_image missing from product context"
+  [[ -n "$product_mkinitcpio_preset_name" ]] || die "product mkinitcpio_preset_name missing from product context"
+  [[ -n "$zfs_root_dataset" ]] || die "--zfs-root-dataset is required"
+  [[ "$zfs_root_dataset" == */* ]] || die "--zfs-root-dataset must include the pool name, for example rpool/ROOT/default"
+  [[ -n "$crypt_name" ]] || die "--crypt-name must not be empty"
+  [[ "$boot_environment_entry_limit" =~ ^[0-9]+$ ]] || die "--boot-environment-limit must be a non-negative integer"
+  pool_name="${zfs_root_dataset%%/*}"
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-initial-boot-chain-zfs must run as root"
+}
+
+ensure_source_exists() {
+  local path="$1"
+  local label="$2"
+
+  if [[ -e "$path" ]]; then
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "${label} not found during dry-run: ${path}"
+    return 0
+  fi
+
+  die "${label} not found: ${path}"
+}
+
+ensure_limine_binary_source() {
+  if [[ -e "$limine_binary_source" ]]; then
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "Limine EFI binary not found during dry-run: ${limine_binary_source}"
+    return 0
+  fi
+
+  if have_cmd pacman; then
+    warn "Limine EFI binary not found; installing limine package"
+    run_cmd pacman -S --needed --noconfirm limine
+  fi
+
+  ensure_source_exists "$limine_binary_source" "Limine EFI binary"
+}
+
+ensure_sources() {
+  ensure_source_exists "$boot_baseline_script" "boot baseline provisioner"
+  ensure_source_exists "$cmdline_template_source" "ZFS kernel cmdline template"
+  ensure_source_exists "$limine_template_source" "ZFS Limine template"
+  ensure_source_exists "$zfs_boot_environment_entry_generator" "ZFS boot environment entry generator"
+  ensure_limine_binary_source
+}
+
+ensure_zfs_boot_prereqs() {
+  log
+  log "==> Verify ZFS boot prerequisites"
+
+  if (( dry_run )); then
+    printf '[dry-run] command -v zpool zfs zgenhostid cryptsetup mkinitcpio\n'
+    printf '[dry-run] test -e /usr/lib/initcpio/install/zfs\n'
+    return 0
+  fi
+
+  have_cmd zpool || die "zpool not found; install zfs-utils before boot generation"
+  have_cmd zfs || die "zfs not found; install zfs-utils before boot generation"
+  have_cmd zgenhostid || die "zgenhostid not found; install zfs-utils before boot generation"
+  have_cmd cryptsetup || die "cryptsetup not found"
+  have_cmd mkinitcpio || die "mkinitcpio not found"
+  have_cmd find || die "find not found"
+  have_cmd pacman || die "pacman not found"
+  [[ -e /usr/lib/initcpio/install/zfs ]] || die "mkinitcpio ZFS install hook not found; install zfs-utils"
+}
+
+detect_luks_device() {
+  if ! have_cmd cryptsetup; then
+    die "cryptsetup not found"
+  fi
+
+  luks_device="$(
+    (cryptsetup status "$crypt_name" 2>/dev/null || true) \
+      | awk '/device:/ { print $2; exit }'
+  )"
+  [[ -n "$luks_device" ]] || die "unable to detect backing LUKS device for mapper ${crypt_name}"
+}
+
+detect_luks_uuid() {
+  luks_uuid="$(blkid -s UUID -o value "$luks_device" 2>/dev/null || true)"
+  [[ -n "$luks_uuid" ]] || die "unable to detect LUKS UUID for ${luks_device}"
+}
+
+install_boot_baseline() {
+  local args=()
+
+  log
+  log "==> Install boot baseline"
+
+  args+=(--product "$product" --flavor "$flavor")
+  (( dry_run )) && args+=(--dry-run)
+  run_cmd "$boot_baseline_script" "${args[@]}"
+}
+
+validate_kernel_zfs_abi_gate() {
+  local module_dir=""
+  local kernel_version=""
+  local preset_path="/etc/mkinitcpio.d/${product_mkinitcpio_preset_name}.preset"
+  local zfs_module=""
+  local found_kernel=0
+
+  log
+  log "==> Validate kernel/ZFS ABI gate"
+
+  if (( dry_run )); then
+    printf '[dry-run] pacman -Q %s zfs-utils\n' "$product_kernel_package"
+    printf '[dry-run] test -f %s\n' "$preset_path"
+    printf '[dry-run] find /usr/lib/modules/<kernel> -name zfs*.ko*\n'
+    return 0
+  fi
+
+  pacman -Q "$product_kernel_package" >/dev/null \
+    || die "kernel package is not installed: ${product_kernel_package}"
+  pacman -Q zfs-utils >/dev/null \
+    || die "zfs-utils is not installed"
+  [[ -f "$preset_path" ]] \
+    || die "mkinitcpio preset missing for ${product_mkinitcpio_preset_name}: ${preset_path}"
+
+  for module_dir in /usr/lib/modules/*; do
+    [[ -d "$module_dir" ]] || continue
+    found_kernel=1
+    kernel_version="${module_dir##*/}"
+    zfs_module="$(find "$module_dir" -type f -name 'zfs*.ko*' -print -quit)"
+    [[ -n "$zfs_module" ]] \
+      || die "ZFS kernel module missing for installed kernel ${kernel_version}"
+  done
+  (( found_kernel == 1 )) || die "no installed kernel module directories found under /usr/lib/modules"
+}
+
+install_zfs_mkinitcpio_conf() {
+  log
+  log "==> Install root-on-ZFS mkinitcpio configuration"
+
+  if (( dry_run )); then
+    printf '[dry-run] write /etc/mkinitcpio.conf with encrypt + zfs hooks\n'
+    return 0
+  fi
+
+  cat >/etc/mkinitcpio.conf <<'EOF'
+# vim:set ft=sh:
+MODULES=(zfs)
+BINARIES=()
+FILES=(/etc/hostid /etc/zfs/zpool.cache)
+HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block encrypt zfs filesystems)
+EOF
+}
+
+ensure_hostid() {
+  log
+  log "==> Ensure ZFS hostid"
+
+  if (( dry_run )); then
+    printf '[dry-run] zgenhostid -f if /etc/hostid is missing\n'
+    return 0
+  fi
+
+  if [[ ! -s /etc/hostid ]]; then
+    zgenhostid -f
+  fi
+}
+
+configure_zpool_cache() {
+  log
+  log "==> Configure ZFS pool cache"
+
+  if (( dry_run )); then
+    printf '[dry-run] zpool set cachefile=/etc/zfs/zpool.cache %s\n' "$pool_name"
+    return 0
+  fi
+
+  install -d -m 755 /etc/zfs
+  zpool list -H -o name "$pool_name" >/dev/null 2>&1 \
+    || die "ZFS pool is not imported in chroot environment: ${pool_name}"
+  zpool set cachefile=/etc/zfs/zpool.cache "$pool_name"
+  zpool status "$pool_name" >/dev/null
+  [[ -s /etc/zfs/zpool.cache ]] \
+    || die "ZFS pool cache was not created at /etc/zfs/zpool.cache"
+}
+
+render_cmdline() {
+  sed \
+    -e "s|__MARGINE_LUKS_UUID__|${luks_uuid}|g" \
+    -e "s|__MARGINE_CRYPT_NAME__|${crypt_name}|g" \
+    -e "s|__MARGINE_ZFS_ROOT_DATASET__|${zfs_root_dataset}|g" \
+    "$cmdline_template_source"
+}
+
+install_kernel_cmdline() {
+  local target="/etc/kernel/cmdline"
+
+  log
+  log "==> Render ZFS kernel cmdline"
+
+  if (( dry_run )); then
+    printf '[dry-run] render %s -> %s\n' "$cmdline_template_source" "$target"
+    return 0
+  fi
+
+  install -d -m 755 /etc/kernel
+  render_cmdline >"$target"
+  chmod 644 "$target"
+}
+
+ensure_esp_layout() {
+  log
+  log "==> Ensure EFI layout"
+  run_cmd install -d -m 755 "${esp_path}/EFI/BOOT" "${esp_path}/EFI/Linux"
+}
+
+build_ukis() {
+  log
+  log "==> Build UKI set"
+  run_cmd mkinitcpio -P
+}
+
+verify_ukis() {
+  local -a expected=(
+    "/boot/EFI/Linux/margine-linux.efi"
+    "/boot/EFI/Linux/margine-linux-fallback.efi"
+    "/boot/EFI/Linux/margine-recovery.efi"
+  )
+  local artifact=""
+
+  log
+  log "==> Verify expected UKI artifacts"
+
+  for artifact in "${expected[@]}"; do
+    if (( dry_run )); then
+      printf '[dry-run] test -f %s\n' "$artifact"
+      continue
+    fi
+
+    [[ -f "$artifact" ]] || die "expected UKI missing after mkinitcpio -P: ${artifact}"
+  done
+}
+
+render_limine_config() {
+  local boot_environment_entries=""
+  local root_parent="${zfs_root_dataset%/*}"
+
+  rendered_limine_conf="${repo_root}/build/limine.zfs.initial.conf"
+
+  log
+  log "==> Render initial root-on-ZFS limine.conf"
+
+  if (( dry_run )); then
+    printf '[dry-run] render %s -> %s\n' "$limine_template_source" "$rendered_limine_conf"
+    printf '[dry-run] %s --pool %s --root-parent %s --luks-uuid %s --crypt-name %s --limit %s\n' \
+      "$zfs_boot_environment_entry_generator" "$pool_name" "$root_parent" "$luks_uuid" "$crypt_name" "$boot_environment_entry_limit"
+    return 0
+  fi
+
+  install -d -m 755 "$(dirname "$rendered_limine_conf")"
+  boot_environment_entries="$(
+    "$zfs_boot_environment_entry_generator" \
+      --pool "$pool_name" \
+      --root-parent "$root_parent" \
+      --luks-uuid "$luks_uuid" \
+      --crypt-name "$crypt_name" \
+      --limit "$boot_environment_entry_limit"
+  )"
+
+  sed \
+    -e "s|@LUKS_UUID@|${luks_uuid}|g" \
+    -e "s|@CRYPT_NAME@|${crypt_name}|g" \
+    -e "s|@ZFS_ROOT_DATASET@|${zfs_root_dataset}|g" \
+    "$limine_template_source" |
+    awk -v entries="$boot_environment_entries" '
+      $0 == "@ZFS_BOOT_ENVIRONMENT_ENTRIES@" {
+        if (entries != "") {
+          print entries
+        }
+        next
+      }
+      { print }
+    ' >"$rendered_limine_conf"
+}
+
+deploy_limine() {
+  log
+  log "==> Install Limine on ESP"
+  run_cmd install -Dm755 "$limine_binary_source" "${esp_path}/EFI/BOOT/BOOTX64.EFI"
+  run_cmd install -Dm644 "$rendered_limine_conf" "${esp_path}/EFI/BOOT/limine.conf"
+}
+
+enroll_limine_config() {
+  local config_path="${esp_path}/EFI/BOOT/limine.conf"
+  local binary_path="${esp_path}/EFI/BOOT/BOOTX64.EFI"
+  local config_hash=""
+
+  log
+  log "==> Enroll Limine config hash"
+
+  if (( dry_run )); then
+    printf '[dry-run] limine enroll-config %s <b2sum(%s)>\n' "$binary_path" "$config_path"
+    return 0
+  fi
+
+  have_cmd limine || die "limine host tool not found"
+  config_hash="$(b2sum "$config_path" | awk '{print $1}')"
+  limine enroll-config "$binary_path" "$config_hash"
+}
+
+enable_zfs_services() {
+  local service=""
+  local -a services=(
+    zfs-import-cache.service
+    zfs-mount.service
+    zfs-zed.service
+  )
+
+  log
+  log "==> Enable ZFS services"
+
+  for service in "${services[@]}"; do
+    if (( dry_run )); then
+      printf '[dry-run] systemctl enable %s\n' "$service"
+      continue
+    fi
+
+    systemctl list-unit-files "$service" >/dev/null 2>&1 \
+      || die "required ZFS systemd unit not found: $service"
+    systemctl enable "$service"
+  done
+}
+
+install_greetd_home_ordering() {
+  local dropin_dir="/etc/systemd/system/greetd.service.d"
+  local dropin_path="${dropin_dir}/10-margine-zfs-home.conf"
+
+  log
+  log "==> Order greetd after ZFS home mounts"
+
+  if (( dry_run )); then
+    printf '[dry-run] install greetd drop-in %s\n' "$dropin_path"
+    return 0
+  fi
+
+  install -d -m 755 "$dropin_dir"
+  cat >"$dropin_path" <<'EOF'
+[Unit]
+Wants=zfs-mount.service
+After=zfs-mount.service
+RequiresMountsFor=/home
+EOF
+  chmod 644 "$dropin_path"
+}
+
+main() {
+  parse_args "$@"
+  load_install_manifest_defaults
+  validate_inputs
+  require_root
+  ensure_sources
+  ensure_zfs_boot_prereqs
+  detect_luks_device
+  detect_luks_uuid
+
+  log "=== Provision initial root-on-ZFS boot chain ==="
+  (( dry_run )) && log "Mode: dry-run"
+  log "ESP: ${esp_path}"
+  log "ZFS root dataset: ${zfs_root_dataset}"
+  log "ZFS pool: ${pool_name}"
+  log "LUKS mapper: ${crypt_name}"
+  log "LUKS UUID: ${luks_uuid}"
+
+  install_boot_baseline
+  validate_kernel_zfs_abi_gate
+  install_zfs_mkinitcpio_conf
+  ensure_hostid
+  configure_zpool_cache
+  install_kernel_cmdline
+  ensure_esp_layout
+  build_ukis
+  verify_ukis
+  render_limine_config
+  deploy_limine
+  enroll_limine_config
+  install_greetd_home_ordering
+  enable_zfs_services
+
+  log
+  log "Initial root-on-ZFS boot chain ready: hostid, zpool cache, UKIs and Limine on the ESP."
+}
+
+main "$@"

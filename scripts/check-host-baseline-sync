@@ -7,7 +7,8 @@ payload_root="${repo_root}/files/home"
 manifest_file="${repo_root}/inventory/host-sync.manifest"
 host_home="${HOME}"
 tmp_dir="$(mktemp -d)"
-trap 'rm -rf -- "${tmp_dir}"; rm -f /tmp/margine-host-sync.diff' EXIT
+diff_file="${tmp_dir}/margine-host-sync.diff"
+trap 'rm -rf -- "${tmp_dir}"' EXIT
 
 [[ -d "$payload_root" ]] || {
   printf 'error: payload root not found: %s\n' "$payload_root" >&2
@@ -48,7 +49,7 @@ show_diff() {
   local repo_compare="$5"
 
   if diff -u --label "host:${host_file}" --label "repo:${repo_file}" \
-    "$host_compare" "$repo_compare" >/tmp/margine-host-sync.diff 2>/dev/null; then
+    "$host_compare" "$repo_compare" >"$diff_file" 2>/dev/null; then
     return 0
   fi
 
@@ -56,7 +57,7 @@ show_diff() {
     if [[ "$host_compare" != "$host_file" || "$repo_compare" != "$repo_file" ]]; then
       printf 'normalized compare for %s (volatile runtime fields removed)\n' "$rel"
     fi
-    sed -n '1,80p' /tmp/margine-host-sync.diff
+    sed -n '1,80p' "$diff_file"
   else
     printf 'binary-or-nontext mismatch: %s\n' "$host_file"
   fi

@@ -2,8 +2,8 @@
 Type=Application
 Name=Session Actions
 Comment=Open a terminal menu for lock, suspend, logout, restart, and power off
-Exec=/home/daniel/.local/bin/open-session-actions-menu
-Icon=preferences-system-power
+Exec=sh -lc "exec \"\\$HOME/.local/bin/open-session-actions-menu\""
+Icon=margine-session-actions
 Categories=System;
 Keywords=session;actions;lock;suspend;logout;restart;shutdown;power;
 Terminal=false

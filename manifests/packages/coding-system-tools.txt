@@ -1,9 +1,9 @@
-# Tooling esplicito per coding e amministrazione quotidiana.
-# Nota:
-# - alcuni comandi "base" esistono gia' grazie ad Arch (`base`, `procps-ng`,
-#   ecc.), ma li rendiamo comunque espliciti qui quando fanno parte
-#   dell'esperienza workstation che vogliamo garantire;
-# - `kitty` resta nel layer desktop, non qui.
+# Explicit tooling for coding and daily administration.
+# Note:
+# - some "base" commands already come from Arch (`base`, `procps-ng`, etc.),
+#   but they are still declared here when they are part of the workstation
+#   experience we want to guarantee;
+# - `kitty` stays in the desktop layer, not here.
 
 bash-completion
 bat
@@ -14,6 +14,7 @@ eza
 fd
 grep
 htop
+inetutils
 jq
 less
 lsof

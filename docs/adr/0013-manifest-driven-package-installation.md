@@ -94,6 +94,11 @@ install only once.
 
 This makes manifests more forgiving without degrading execution.
 
+Before the real official-package install, the installer performs a non-installing
+`pacman --print` transaction preflight for the full resolved package set. This
+catches missing targets and package conflicts in the active repositories before
+the non-interactive install step reaches a prompt it cannot answer safely.
+
 ## Readability rule
 
 The installation script must:

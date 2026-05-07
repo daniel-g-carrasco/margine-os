@@ -1,0 +1,567 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+failure_count=0
+
+log() {
+  printf '%s\n' "$*"
+}
+
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  failure_count=$((failure_count + 1))
+}
+
+pass() {
+  printf 'PASS: %s\n' "$*"
+}
+
+require_file() {
+  local path="$1"
+  local description="$2"
+
+  if [[ -f "${repo_root}/${path}" ]]; then
+    pass "$description"
+  else
+    fail "$description missing: ${path}"
+  fi
+}
+
+require_absent_file() {
+  local path="$1"
+  local description="$2"
+
+  if [[ -e "${repo_root}/${path}" ]]; then
+    fail "$description unexpectedly exists: ${path}"
+  else
+    pass "$description"
+  fi
+}
+
+require_executable() {
+  local path="$1"
+  local description="$2"
+
+  if [[ -x "${repo_root}/${path}" ]]; then
+    pass "$description"
+  else
+    fail "$description not executable: ${path}"
+  fi
+}
+
+require_literal() {
+  local path="$1"
+  local needle="$2"
+  local description="$3"
+
+  if grep -Fq -- "$needle" "${repo_root}/${path}"; then
+    pass "$description"
+  else
+    fail "$description not found in ${path}: ${needle}"
+  fi
+}
+
+require_absent_literal() {
+  local path="$1"
+  local needle="$2"
+  local description="$3"
+
+  if grep -Fq -- "$needle" "${repo_root}/${path}"; then
+    fail "$description unexpectedly found in ${path}: ${needle}"
+  else
+    pass "$description"
+  fi
+}
+
+require_not_both_literals() {
+  local path="$1"
+  local first="$2"
+  local second="$3"
+  local description="$4"
+
+  if grep -Fxq -- "$first" "${repo_root}/${path}" && grep -Fxq -- "$second" "${repo_root}/${path}"; then
+    fail "$description conflict in ${path}: ${first} + ${second}"
+  else
+    pass "$description"
+  fi
+}
+
+require_absent_install_literal() {
+  local needle="$1"
+  local description="$2"
+  local hit=""
+
+  hit="$(
+    grep -RFl -- "$needle" \
+      "${repo_root}/scripts" \
+      "${repo_root}/products" \
+      "${repo_root}/manifests" \
+      2>/dev/null | grep -v '/scripts/validate-installation-pipeline$' | head -n 1 || true
+  )"
+
+  if [[ -n "$hit" ]]; then
+    fail "$description unexpectedly found in ${hit#${repo_root}/}: ${needle}"
+  else
+    pass "$description"
+  fi
+}
+
+check_bash_syntax() {
+  local path=""
+  local -a scripts=(
+    scripts/update-all
+    scripts/install-live-iso
+    scripts/install-live-iso-guided
+    scripts/install-aur-packages
+    scripts/build-local-package-repo
+    scripts/bootstrap-live-iso
+    scripts/bootstrap-live-zfs-root-guided
+    scripts/bootstrap-live-zfs-tools
+    scripts/mount-zfs-root-target
+    scripts/unmount-zfs-root-target
+    scripts/repair-zfs-root-user-login
+    scripts/repair-zfs-root-desktop-session
+    scripts/repair-zfs-root-boot-chain
+    scripts/bootstrap-in-chroot
+    scripts/provision-storage
+    scripts/provision-storage-zfs-root
+    scripts/provision-initial-boot-chain
+    scripts/provision-initial-boot-chain-zfs
+    scripts/create-zfs-boot-environment
+    scripts/generate-zfs-boot-environment-entries
+    scripts/validate-root-zfs-target
+    scripts/validate-boot-recovery-baseline
+    scripts/validate-runtime-baseline
+    scripts/validate-host-health
+    scripts/validate-live-install-sources
+    scripts/enable-qemu-validation-ssh
+    scripts/enable-qemu-validation-inhibit
+    scripts/enable-qemu-validation-inhibit-over-ssh
+    scripts/collect-qemu-root-zfs-validation-logs
+    scripts/prepare-qemu-archiso-validation
+    scripts/prepare-qemu-root-zfs-validation
+    files/usr/local/bin/margine-build-local-overrides
+  )
+
+  log
+  log "==> Shell syntax and executability"
+  require_executable scripts/check-bash-errexit-footguns "errexit footgun checker is executable"
+  require_literal scripts/check-shell-and-manifests "check-bash-errexit-footguns" "shell/manifest checks run errexit footgun checker"
+
+  for path in "${scripts[@]}"; do
+    require_executable "$path" "$path is executable"
+    if bash -n "${repo_root}/${path}"; then
+      pass "$path syntax"
+    else
+      fail "$path syntax"
+    fi
+  done
+}
+
+check_destructive_storage_guards() {
+  local path=""
+
+  log
+  log "==> Destructive storage guards"
+  for path in scripts/provision-storage scripts/provision-storage-zfs-root scripts/install-live-iso; do
+    require_literal "$path" "--yes-really-destroy-disk" "$path requires explicit destructive confirmation"
+    require_literal "$path" "refusing to continue without --yes-really-destroy-disk" "$path refuses missing destructive confirmation"
+    require_literal "$path" '[[ "$target_root" != "/" ]]' "$path refuses / as target root"
+  done
+
+  require_literal scripts/provision-storage 'run_cmd wipefs -af "$disk"' "Btrfs storage path wipes only the selected disk variable"
+  require_literal scripts/provision-storage-zfs-root 'run_cmd wipefs -af "$disk"' "ZFS storage path wipes only the selected disk variable"
+  require_literal scripts/provision-storage 'run_cmd mount -o umask=0077 "$esp_part" "${target_root}/boot"' "Btrfs ESP mount is restrictive during install"
+  require_literal scripts/provision-storage-zfs-root 'run_cmd mount -o umask=0077 "$esp_part" "${target_root}/boot"' "ZFS ESP mount is restrictive during install"
+  require_literal scripts/provision-storage-zfs-root 'zfs create -o mountpoint=/ -o canmount=noauto "$root_full"' "ZFS root dataset uses root mountpoint"
+  require_literal scripts/provision-storage-zfs-root 'zfs mount "$root_full"' "ZFS root dataset is mounted through pool altroot"
+  require_literal scripts/provision-storage-zfs-root 'zfs create -o mountpoint=/games "${pool_name}/games"' "ZFS storage creates a dedicated games dataset"
+  require_literal scripts/provision-storage-zfs-root "MARGINE_STORAGE_LAYOUT" "ZFS storage writes an install-state manifest"
+  require_literal scripts/provision-storage-zfs-root "MARGINE_ZFS_ROOT_DATASET" "ZFS storage records the root dataset in install state"
+  require_literal scripts/provision-storage-zfs-root "MARGINE_LUKS_UUID" "ZFS storage records the LUKS UUID in install state"
+}
+
+check_repo_copy_guards() {
+  log
+  log "==> Repository copy guards"
+  require_literal scripts/bootstrap-live-iso '[[ "$repo_dest" != "/" ]]' "bootstrap refuses repo_dest=/"
+  require_literal scripts/bootstrap-live-iso '--repo-source must live outside --target-root; refusing recursive target copy' "bootstrap refuses recursive repo source"
+  require_literal scripts/bootstrap-live-iso '--repo-dest must be a path as seen from the installed system, not below --target-root' "bootstrap refuses host-style repo_dest"
+  require_literal scripts/install-live-iso '[[ "$repo_dest" != "/" ]]' "installer refuses repo_dest=/"
+  require_literal scripts/bootstrap-live-zfs-root-guided '[[ "$repo_dest" != "/" ]]' "ZFS guided bootstrap refuses repo_dest=/"
+  require_literal scripts/bootstrap-live-zfs-root-guided '--repo-source must live outside --target-root; refusing recursive target copy' "ZFS guided bootstrap refuses recursive repo source"
+
+  require_literal scripts/bootstrap-live-iso '--delete-excluded' "repo copy deletes excluded artifacts on rerun"
+  require_literal scripts/bootstrap-live-iso '--exclude=/.git/' "repo copy excludes .git"
+  require_literal scripts/bootstrap-live-iso '--exclude=/build/' "repo copy excludes build directory"
+  require_literal scripts/bootstrap-live-iso "--exclude='*.qcow2'" "repo copy excludes qcow2 images"
+  require_literal scripts/bootstrap-live-iso "--exclude='*.iso'" "repo copy excludes ISO images"
+  require_literal scripts/bootstrap-live-iso "--exclude='*.img'" "repo copy excludes raw image files"
+  require_absent_literal scripts/bootstrap-live-iso 'rsync -a "$repo_source/" "$destination/"' "repo copy no longer uses unfiltered rsync"
+}
+
+check_identity_defaults() {
+  local personal_username=""
+  local personal_real_name=""
+  local root_zfs_vm_hostname=""
+
+  personal_username="$(printf '%s%s' "daniel" "ito")"
+  personal_real_name="$(printf '%s %s %s' "Daniel" "G" "Carrasco")"
+  root_zfs_vm_hostname="$(printf '%s-%s-%s' "margine" "zfs" "vm")"
+
+  log
+  log "==> Installer identity defaults"
+  require_absent_install_literal "$personal_username" "install-facing files contain no personal username"
+  require_absent_install_literal "$personal_real_name" "install-facing files contain no personal real name"
+  require_absent_install_literal "$root_zfs_vm_hostname" "install-facing files contain no root-ZFS VM hostname default"
+  require_absent_literal scripts/bootstrap-live-zfs-root-guided "qemu_guest_username" "ZFS guided bootstrap does not inherit QEMU usernames"
+  require_absent_literal scripts/bootstrap-live-zfs-root-guided "qemu_guest_real_name" "ZFS guided bootstrap does not inherit QEMU real names"
+  require_literal scripts/bootstrap-live-zfs-root-guided "prompt_required_value hostname" "ZFS guided bootstrap asks for missing hostname"
+  require_literal scripts/bootstrap-live-zfs-root-guided "prompt_required_value username" "ZFS guided bootstrap asks for missing username"
+  require_literal scripts/bootstrap-live-zfs-root-guided "prompt_required_value real_name" "ZFS guided bootstrap asks for missing real name"
+  require_literal scripts/bootstrap-live-zfs-root-guided "prompt_user_password_hash" "ZFS guided bootstrap prompts for a user password"
+  require_literal scripts/bootstrap-live-zfs-root-guided "MARGINE_INSTALL_USER_PASSWORD_HASH" "ZFS guided bootstrap accepts a password hash through env"
+  require_literal scripts/bootstrap-live-zfs-root-guided "--skip-user-password" "ZFS guided bootstrap requires explicit opt-out for missing password"
+  require_literal scripts/repair-zfs-root-user-login 'arch-chroot "$target_root" passwd "$username"' "ZFS login repair can set the target user password interactively"
+  require_literal scripts/repair-zfs-root-user-login 'printf '\''%s\n'\'' "$username" > "${cache_dir}/lastuser"' "ZFS login repair seeds tuigreet with the login name"
+  require_literal scripts/repair-zfs-root-user-login "--user-menu-min-uid 1000" "ZFS login repair excludes system users from tuigreet"
+  require_literal scripts/repair-zfs-root-user-login 'margine-start-hyprland' "ZFS login repair installs the session wrapper"
+  require_literal scripts/repair-zfs-root-user-login 'RequiresMountsFor=/home' "ZFS login repair orders greetd after /home"
+  require_literal files/etc/greetd/config.toml.template "--user-menu-min-uid 1000" "tuigreet user menu excludes system users"
+  require_literal files/etc/greetd/config.toml.template "/usr/local/bin/margine-start-hyprland" "tuigreet launches Margine Hyprland wrapper"
+  require_file files/usr/local/bin/margine-start-hyprland "Margine Hyprland session wrapper exists"
+  require_literal files/usr/local/bin/margine-start-hyprland '--config "$config_path"' "Hyprland session wrapper pins the user config path"
+  require_literal scripts/provision-greetd-login 'install -Dm755 "$session_launcher_source" /usr/local/bin/margine-start-hyprland' "greetd provisioner installs session wrapper"
+  require_literal scripts/bootstrap-in-chroot "validate_graphical_session_baseline" "bootstrap validates graphical session baseline before completing"
+  require_literal scripts/bootstrap-in-chroot "Hyprland config missing after bootstrap" "bootstrap fails if Hyprland config is missing"
+  require_literal scripts/bootstrap-in-chroot "Walker launcher missing after bootstrap" "bootstrap fails if Walker launcher is missing"
+  require_literal scripts/bootstrap-in-chroot "Hyprland --verify-config --i-am-really-stupid" "bootstrap Hyprland verification works from root chroot"
+  require_literal scripts/bootstrap-in-chroot 'HOME="$home_dir"' "bootstrap Hyprland verification resolves user-relative includes from target home"
+  require_literal scripts/bootstrap-in-chroot "hyprland-verify.log" "bootstrap prints Hyprland verification diagnostics on failure"
+  require_literal scripts/bootstrap-in-chroot "RequiresMountsFor=/home" "bootstrap validates greetd ZFS /home ordering"
+  require_literal scripts/repair-zfs-root-desktop-session 'provision-hyprland-desktop' "ZFS desktop repair reapplies Hyprland payload"
+  require_literal scripts/repair-zfs-root-desktop-session 'margine-launcher-walker' "ZFS desktop repair verifies Walker payload"
+  require_literal scripts/repair-zfs-root-desktop-session "Hyprland --verify-config --i-am-really-stupid" "ZFS desktop repair Hyprland verification works from root chroot"
+  require_literal scripts/repair-zfs-root-desktop-session 'RequiresMountsFor=/home' "ZFS desktop repair orders greetd after /home"
+  require_literal scripts/repair-zfs-root-desktop-session 'zpool import -N -f -R "$target_root" "$pool_name"' "ZFS desktop repair imports pool with target altroot without automounting"
+  require_literal scripts/repair-zfs-root-desktop-session 'zfs mount "$root_dataset"' "ZFS desktop repair mounts root dataset through pool altroot"
+  require_literal scripts/repair-zfs-root-desktop-session 'zfs list -H -r -o name,mountpoint "$pool_name"' "ZFS desktop repair unmounts pool datasets explicitly"
+  require_literal scripts/repair-zfs-root-desktop-session 'zfs mount | awk -v pool="${pool_name}"' "ZFS desktop repair diagnoses busy pool exports"
+  require_literal scripts/repair-zfs-root-user-login 'zpool import -N -f -R "$target_root" "$pool_name"' "ZFS login repair imports pool with target altroot without automounting"
+  require_literal scripts/repair-zfs-root-user-login 'zfs mount "$root_dataset"' "ZFS login repair mounts root dataset through pool altroot"
+  require_literal scripts/mount-zfs-root-target 'zpool import -N -f -R "$target_root" "$pool_name"' "ZFS mount helper imports pool with target altroot without automounting"
+  require_literal scripts/mount-zfs-root-target 'zfs mount "$root_dataset"' "ZFS mount helper mounts root dataset through pool altroot"
+  require_literal scripts/mount-zfs-root-target 'zfs mount -a' "ZFS mount helper mounts child datasets through altroot"
+  require_literal scripts/mount-zfs-root-target 'require_dataset_mount_if_present home "${target_root}/home"' "ZFS mount helper refuses a missing mounted home dataset"
+  require_literal scripts/mount-zfs-root-target 'mount --make-rprivate /' "ZFS mount helper prevents live-ISO mount propagation"
+  require_literal scripts/mount-zfs-root-target 'target root is occupied by ${target_source}' "ZFS mount helper clears stale non-ZFS target root mounts"
+  require_literal scripts/mount-zfs-root-target '[[ "$target_source" != "$root_dataset" ]]' "ZFS mount helper verifies the exact root dataset source"
+  require_literal scripts/unmount-zfs-root-target 'umount -R "$target_root"' "ZFS unmount helper recursively unmounts target root"
+  require_literal scripts/unmount-zfs-root-target 'zfs list -H -r -o name "$pool_name"' "ZFS unmount helper unmounts remaining pool datasets"
+  require_literal scripts/unmount-zfs-root-target 'zpool export "$pool_name"' "ZFS unmount helper exports the pool"
+  require_literal scripts/unmount-zfs-root-target 'cryptsetup close "$crypt_name"' "ZFS unmount helper closes the LUKS mapper"
+  require_literal scripts/unmount-zfs-root-target "scan_busy_processes" "ZFS unmount helper diagnoses busy target users without fuser -km"
+  require_literal scripts/unmount-zfs-root-target '"${proc}/maps"' "ZFS unmount helper checks memory-mapped target references"
+  require_literal scripts/unmount-zfs-root-target "Other mount namespaces containing pool datasets" "ZFS unmount helper diagnoses retained mount namespaces"
+  require_literal scripts/unmount-zfs-root-target 'nsenter -t "$pid" -m -- umount -R "$target_root"' "ZFS unmount helper cleans retained mount namespaces"
+  require_literal scripts/unmount-zfs-root-target "--terminate-busy" "ZFS unmount helper requires an explicit flag before terminating busy target processes"
+  require_literal scripts/unmount-zfs-root-target "--force-zfs-unmount" "ZFS unmount helper requires an explicit flag before force-unmounting ZFS datasets"
+  require_literal scripts/unmount-zfs-root-target "--force-export" "ZFS unmount helper requires an explicit flag before force-exporting the pool"
+  require_literal scripts/unmount-zfs-root-target "--live-iso-recovery" "ZFS unmount helper exposes one explicit disposable live-ISO recovery shortcut"
+  require_literal scripts/unmount-zfs-root-target "Final lazy target detach" "ZFS unmount helper delays lazy unmount until final recovery"
+  require_literal scripts/unmount-zfs-root-target 'other_namespace_pool_mounts | awk' "ZFS unmount helper can terminate retained namespace holders when explicitly requested"
+  require_literal scripts/repair-zfs-root-desktop-session 'require_dataset_mount_if_present home "${target_root}/home"' "ZFS desktop repair refuses a missing mounted home dataset"
+  require_literal scripts/repair-zfs-root-user-login 'require_dataset_mount_if_present home "${target_root}/home"' "ZFS login repair refuses a missing mounted home dataset"
+  require_literal scripts/provision-greetd-login 'printf '\''%s\n'\'' "$username" > "${cache_dir}/lastuser"' "tuigreet remembered user stores the login name"
+  require_literal scripts/bootstrap-live-zfs-root-guided "return 0" "ZFS guided summary cannot abort the bootstrap under set -e"
+  require_file files/home/.local/bin/margine-elephant-service "Elephant service wrapper exists"
+  require_file files/home/.local/bin/margine-walker-healthcheck "Walker healthcheck exists"
+  require_file files/home/.config/systemd/user/margine-walker-healthcheck.service "Walker healthcheck service exists"
+  require_file files/home/.config/systemd/user/margine-walker-healthcheck.timer "Walker healthcheck timer exists"
+  require_literal files/home/.config/systemd/user/elephant.service 'ExecStart=%h/.local/bin/margine-elephant-service' "Elephant starts through environment-aware wrapper"
+  require_absent_literal files/home/.config/systemd/user/walker.service 'WantedBy=default.target' "Walker is not enabled before the graphical session environment exists"
+  require_absent_literal files/home/.config/systemd/user/walker.service 'ConditionEnvironment=WAYLAND_DISPLAY' "Walker service does not skip when systemd user env is late"
+  require_literal files/home/.config/systemd/user/walker.service 'Environment=MARGINE_LAUNCHER_IMPORT_ENV=1' "Walker service imports session environment before launch"
+  require_literal files/home/.local/bin/margine-launcher-service 'systemctl --user start walker.service' "Hyprland session bootstrap warms Walker after environment import"
+  require_literal files/home/.local/bin/margine-launcher-service 'margine-walker-healthcheck" --repair' "Hyprland session bootstrap validates Walker immediately after warming it"
+  require_literal files/home/.config/hypr/conf.d/20-autostart.conf 'exec-once = $menusvc' "Hyprland starts the launcher service after session environment import"
+  require_literal files/home/.config/hypr/conf.d/70-rules.conf 'name = float-modal-dialogs' "Hyprland floats modal toolkit dialogs"
+  require_literal files/home/.config/hypr/conf.d/70-rules.conf 'name = float-file-dialogs' "Hyprland floats file chooser dialogs"
+  require_literal files/home/.config/hypr/conf.d/70-rules.conf 'name = float-network-editor' "Hyprland floats NetworkManager GTK editor"
+  require_literal files/home/.config/hypr/conf.d/70-rules.conf 'name = float-virtual-machine-viewers' "Hyprland floats virtual machine viewers"
+  require_literal scripts/render-theme-artifacts '"MinSize=8"' "theme renderer declares scalable icon minimum sizes"
+  require_literal scripts/render-theme-artifacts '"MaxSize=512"' "theme renderer declares scalable icon maximum sizes"
+  require_literal files/home/.local/share/icons/Margine-Adwaita/index.theme "[scalable/places]" "Margine icon overlay declares scalable place icons"
+  require_literal files/home/.local/share/icons/Margine-Adwaita/index.theme "MinSize=8" "Margine icon overlay scales small place icons instead of clipping them"
+  require_literal files/home/.local/share/icons/Margine-Adwaita/index.theme "MaxSize=512" "Margine icon overlay keeps scalable icons available across GTK sizes"
+  require_literal files/home/.config/margine/theme.env "MARGINE_THEME_ACCENT_COLOR='yellow'" "Default GNOME/libadwaita named accent is aligned with Margine yellow baseline"
+  require_literal files/home/.config/margine/themes/default.env "MARGINE_THEME_ACCENT_COLOR='yellow'" "Default theme preset keeps GNOME/libadwaita accent aligned"
+  require_literal files/home/.config/margine/theme.env "MARGINE_THEME_THUNDERBIRD_ACCENT_COLOR='accent-color'" "Thunderbird follows the same named accent channel as Firefox/libadwaita"
+  require_literal files/usr/lib/thunderbird/distribution/policies.json '"Value": "accent-color"' "Generated Thunderbird policy follows the OS accent channel"
+  require_literal scripts/render-theme-artifacts '"__BORDER__": border' "theme renderer substitutes border tokens in GTK4 CSS"
+  require_literal files/home/.config/margine/templates/gtk-4.0-rewaita.css "@define-color headerbar_backdrop_color" "GTK4 template pins dark headerbar backdrop colors"
+  require_literal files/home/.config/gtk-4.0/gtk.css "@define-color headerbar_backdrop_color" "Generated GTK4 CSS includes headerbar backdrop colors"
+  require_literal files/home/.local/bin/gtk-dark-exec "ADW_DEBUG_COLOR_SCHEME" "GTK dark wrapper also forces libadwaita dark preference"
+  require_literal files/home/.local/bin/margine-import-session-environment "refresh_portal_backends" "session environment import refreshes portal backend routing"
+  require_literal files/home/.local/bin/margine-import-session-environment "xdg-desktop-portal-gnome.service" "session environment import starts GNOME Settings portal backend"
+  require_literal files/home/.local/bin/margine-import-session-environment "restart xdg-desktop-portal.service" "session environment import restarts portal after Hyprland env import"
+  require_literal files/home/.config/hypr/conf.d/20-autostart.conf "gtk-dark-exec easyeffects --service-mode --hide-window" "EasyEffects service-mode launch is forced through the dark GTK wrapper"
+  require_literal files/home/.config/waybar/config.jsonc "gtk-dark-exec easyeffects" "Waybar opens EasyEffects through the dark GTK wrapper"
+  require_file files/home/.local/share/applications/com.github.wwmm.easyeffects.desktop "EasyEffects desktop override exists"
+  require_literal files/home/.local/share/applications/com.github.wwmm.easyeffects.desktop 'Exec=sh -lc "exec \"\\$HOME/.local/bin/gtk-dark-exec\" easyeffects"' "Walker opens EasyEffects through the dark GTK wrapper"
+  require_literal files/home/.local/bin/margine-launcher-walker 'rm -f "$walker_socket"' "Walker launcher removes stale sockets before fresh launch"
+  require_literal files/home/.local/bin/margine-launcher-walker 'margine-walker-healthcheck" --repair' "Walker hotkey path repairs stale launcher state before socket reuse"
+  require_literal files/home/.config/systemd/user/margine-walker-healthcheck.service 'ExecStart=%h/.local/bin/margine-walker-healthcheck --repair' "Walker healthcheck runs in repair mode"
+  require_literal scripts/provision-user-runtime-tools 'margine-walker-healthcheck.timer' "runtime provisioning enables Walker health monitoring"
+  require_literal scripts/provision-user-runtime-tools 'default.target.wants/walker.service' "runtime provisioning removes legacy eager Walker enablement"
+}
+
+check_default_runtime_layers() {
+  log
+  log "==> Default runtime layers"
+  require_literal scripts/bootstrap-in-chroot "gaming-runtime-compat" "chroot default includes gaming runtime compatibility"
+  require_literal scripts/install-from-manifests "gaming-runtime-compat" "manifest default includes gaming runtime compatibility"
+  require_file manifests/packages/gaming-runtime-compat.txt "gaming runtime compatibility package layer exists"
+  require_not_both_literals manifests/packages/gaming-runtime-compat.txt "lib32-ocl-icd" "lib32-opencl-icd-loader" "gaming runtime avoids conflicting 32-bit OpenCL ICD loaders"
+  require_literal scripts/validate-runtime-baseline "Gaming split-lock policy" "runtime validation checks split-lock policy"
+  require_literal scripts/validate-runtime-baseline "kernel.split_lock_mitigate is 0" "runtime validation fails when gaming split-lock override is active by default"
+  require_literal scripts/provision-gaming-split-lock "--disable       Disable the gaming override" "split-lock provisioner can restore mitigation"
+}
+
+check_live_package_retry_policy() {
+  log
+  log "==> Live package retry policy"
+  require_literal scripts/bootstrap-live-iso "run_with_package_retry" "live pacstrap uses bounded retry wrapper"
+  require_literal scripts/bootstrap-live-iso 'pacman -Syy --noconfirm' "live pacstrap retry refreshes package databases without upgrading"
+  require_literal scripts/bootstrap-live-iso 'stage 1 pacstrap' "live pacstrap retry has a clear failure label"
+  require_absent_literal scripts/bootstrap-live-iso "pacman -Syu" "live bootstrap never performs full system upgrades"
+  require_literal scripts/install-from-manifests "run_privileged_with_package_retry" "manifest package install uses bounded retry wrapper"
+  require_literal scripts/install-from-manifests "preflight_official_package_transaction" "manifest package install preflights pacman transaction"
+  require_literal scripts/install-from-manifests "--print --print-format '%n'" "manifest package preflight resolves conflicts without installing"
+  require_literal scripts/install-from-manifests 'pacman -Syy --noconfirm' "manifest retry refreshes package databases without upgrading"
+  require_literal scripts/install-from-manifests 'official package installation' "manifest retry has a clear failure label"
+  require_absent_literal scripts/install-from-manifests "pacman -Syu" "manifest installer never performs full system upgrades"
+  require_literal scripts/bootstrap-live-zfs-tools "run_with_package_retry" "live ZFS bootstrap uses bounded retry wrapper"
+  require_literal scripts/bootstrap-live-zfs-tools 'pacman -Sy --needed --noconfirm "$zfs_kernel_package" zfs-utils' "live ZFS bootstrap installs ZFS tools non-interactively"
+  require_literal scripts/bootstrap-live-zfs-tools 'pacman -Syy --noconfirm' "live ZFS retry refreshes package databases without upgrading"
+  require_absent_literal scripts/bootstrap-live-zfs-tools "pacman -Syu" "live ZFS bootstrap never performs full system upgrades"
+}
+
+check_local_aur_overrides() {
+  log
+  log "==> Local AUR overrides"
+  require_file packaging/aur/walker/0001-discrete-result-list-scroll.patch "Walker source patch asset exists"
+  require_absent_file packaging/aur/walker/PKGBUILD.aur.patch "Walker override has no static PKGBUILD patch"
+  require_literal scripts/install-aur-packages "apply_walker_local_override" "Walker AUR override is wired programmatically"
+  require_literal scripts/install-aur-packages "0001-discrete-result-list-scroll.patch" "Walker AUR override stages the source patch asset"
+  require_literal scripts/install-aur-packages "emit_single_makedepends" "Walker AUR override injects patch as a build dependency"
+  require_literal scripts/install-aur-packages "makedepends array not found in walker PKGBUILD" "Walker AUR override fails closed if makedepends is missing"
+  require_literal scripts/install-aur-packages "walker PKGBUILD already defines prepare()" "Walker AUR override fails closed if upstream adds prepare()"
+  require_absent_literal scripts/install-aur-packages "--sync-system-first" "AUR installer has no full-system-sync option"
+  require_absent_literal scripts/install-aur-packages "pacman -Syu --noconfirm" "AUR installer never performs automatic full system upgrades"
+  require_literal scripts/install-aur-packages "running_from_live_root" "AUR installer detects live ISO root"
+  require_literal scripts/install-aur-packages "refusing to build AUR packages in the live ISO root" "AUR installer refuses live ISO root builds"
+  require_literal scripts/install-aur-packages "repository upgrades are pending before installing AUR build dependencies" "AUR installer refuses partial-upgrade build dependency installs"
+  require_literal scripts/install-aur-packages 'dep == "cargo"' "AUR dependency resolver maps generic cargo provider deterministically"
+  require_literal scripts/install-aur-packages "--repo-output" "AUR installer can build into a local package repository"
+  require_literal scripts/install-aur-packages "repo-add -n" "AUR installer creates pacman repository metadata"
+  require_literal scripts/install-aur-packages "Stage built package files into local repo" "AUR installer stages built package files instead of installing them"
+  require_literal scripts/install-from-manifests "local-pacman-repo" "manifest installer prefers a prebuilt local package repo by default"
+  require_literal scripts/install-from-manifests "Install prebuilt local package" "manifest installer can install prebuilt local packages"
+  require_literal scripts/install-from-manifests "defer_local_override_package" "manifest installer can defer local override packages"
+  require_literal scripts/install-from-manifests "Defer local override package until first boot" "manifest installer defers unbuilt local overrides to first boot"
+  require_literal scripts/build-local-package-repo "gaming-runtime-compat" "local package repo builder includes default gaming runtime compatibility AUR layer"
+  require_literal scripts/build-local-package-repo "install-aur-packages" "local package repo builder delegates package builds to the hardened AUR installer"
+  require_literal .gitignore "/local-pacman-repo/" "local package repo artifacts are ignored by git"
+  require_executable files/usr/local/bin/margine-build-local-overrides "first-boot local override builder is executable"
+  require_file files/etc/systemd/system/margine-firstboot-local-overrides.service "first-boot local override service exists"
+  require_file files/etc/systemd/system/margine-firstboot-local-overrides.timer "first-boot local override timer exists"
+  require_literal files/usr/local/bin/margine-build-local-overrides "refusing to build local overrides from a live ISO root" "first-boot local override builder refuses live ISO root"
+  require_literal files/usr/local/bin/margine-build-local-overrides 'install-aur-packages" --upgrade "$package"' "first-boot local override builder uses hardened AUR installer"
+  require_literal files/usr/local/bin/margine-build-local-overrides "firstboot.attempted" "first-boot local override builder records one automatic attempt"
+  require_literal files/usr/local/bin/margine-build-local-overrides "firstboot.failed" "first-boot local override builder records failures without blocking login"
+  require_absent_literal files/usr/local/bin/margine-build-local-overrides "pacman -Syu" "first-boot local override builder never performs full system upgrades"
+  require_literal files/etc/systemd/system/margine-firstboot-local-overrides.service "ConditionPathExists=!/var/lib/margine/local-overrides/firstboot.attempted" "first-boot local override service does not retry every boot"
+  require_literal files/etc/systemd/system/margine-firstboot-local-overrides.service "ExecStart=/usr/local/bin/margine-build-local-overrides --first-boot" "first-boot local override service runs in non-blocking mode"
+  require_literal files/etc/systemd/system/margine-firstboot-local-overrides.timer "OnBootSec=3min" "first-boot local override timer runs after login path has started"
+  require_literal files/etc/systemd/system/margine-firstboot-local-overrides.timer "WantedBy=timers.target" "first-boot local override timer is enableable"
+  require_literal scripts/bootstrap-in-chroot "install_firstboot_local_overrides" "bootstrap installs the first-boot local override builder"
+  require_literal scripts/bootstrap-in-chroot "systemctl enable margine-firstboot-local-overrides.timer" "bootstrap enables the first-boot local override timer"
+}
+
+check_root_zfs_path() {
+  log
+  log "==> Root-on-ZFS bootstrap path"
+  require_file manifests/flavors/cachyos/packages/zfs-root-stack.txt "CachyOS root-ZFS package layer exists"
+  require_literal manifests/flavors/cachyos/packages/zfs-root-stack.txt "linux-cachyos-zfs" "CachyOS root-ZFS layer installs matching kernel ZFS module"
+  require_literal manifests/flavors/cachyos/packages/zfs-root-stack.txt "zfs-utils" "CachyOS root-ZFS layer installs ZFS userspace"
+
+  require_literal scripts/bootstrap-live-iso 'stage1_layers+=(zfs-root-stack)' "bootstrap includes zfs-root-stack for root-on-ZFS"
+  require_literal scripts/bootstrap-live-iso 'filter_zfs_fstab_entries' "bootstrap filters ZFS datasets out of fstab"
+  require_literal scripts/bootstrap-live-iso '--storage-layout "$storage_layout"' "bootstrap forwards storage layout to chroot"
+  require_literal scripts/bootstrap-live-iso '--zfs-root-dataset "$zfs_root_dataset"' "bootstrap forwards ZFS root dataset to chroot"
+  require_literal scripts/bootstrap-live-iso '--crypt-name "$crypt_name"' "bootstrap forwards LUKS mapper name to chroot"
+
+  require_literal scripts/bootstrap-in-chroot 'provision-initial-boot-chain-zfs' "chroot uses ZFS-specific boot provisioner"
+  require_literal scripts/bootstrap-in-chroot 'Skip Snapper baseline on root-on-ZFS' "chroot skips Snapper on root-on-ZFS"
+  require_literal scripts/bootstrap-in-chroot 'Skip Timeshift defaults on root-on-ZFS' "chroot skips Timeshift on root-on-ZFS"
+
+  require_literal scripts/bootstrap-live-zfs-root-guided 'zpool get -H -o value bootfs "$pool_name"' "guided ZFS bootstrap infers root dataset from bootfs"
+  require_literal scripts/bootstrap-live-zfs-root-guided 'cryptsetup status "$crypt_name"' "guided ZFS bootstrap validates LUKS mapper"
+  require_literal scripts/bootstrap-live-zfs-root-guided 'fmask=0077' "guided ZFS bootstrap validates ESP fmask"
+  require_literal scripts/bootstrap-live-zfs-root-guided 'dmask=0077' "guided ZFS bootstrap validates ESP dmask"
+  require_literal scripts/bootstrap-live-zfs-root-guided 'root ZFS dataset must resolve to logical mountpoint=/' "guided ZFS bootstrap validates root dataset mountpoint"
+  require_literal scripts/bootstrap-live-zfs-root-guided 'current_pool_altroot' "guided ZFS bootstrap accepts live altroot mountpoint view"
+  require_literal scripts/bootstrap-live-zfs-root-guided 'root ZFS dataset must use canmount=noauto' "guided ZFS bootstrap validates root dataset canmount"
+  require_literal scripts/bootstrap-live-zfs-root-guided 'margine_resolve_package_layer "$repo_root" "$flavor" "zfs-root-stack"' "guided ZFS bootstrap fails early when flavor lacks zfs-root-stack"
+  require_literal scripts/bootstrap-live-zfs-root-guided 'load_install_manifest_defaults' "guided ZFS bootstrap reads the install-state manifest"
+  require_literal scripts/bootstrap-live-zfs-root-guided 'validate-root-zfs-target' "guided ZFS bootstrap runs the root-ZFS validator"
+
+  require_executable scripts/validate-root-zfs-target "root-ZFS target validator is executable"
+  require_literal scripts/validate-root-zfs-target 'strip_pool_altroot' "root-ZFS validator normalizes live altroot mountpoints"
+  require_literal scripts/validate-root-zfs-target 'fstab must not contain ZFS dataset entries' "root-ZFS validator rejects ZFS fstab entries"
+  require_literal scripts/validate-root-zfs-target 'root=ZFS=${zfs_root_dataset}' "root-ZFS validator checks generated root=ZFS cmdline"
+  require_literal scripts/validate-root-zfs-target 'FILES=(/etc/hostid /etc/zfs/zpool.cache)' "root-ZFS validator checks initramfs embedded ZFS files"
+  require_literal scripts/validate-root-zfs-target '@ZFS_BOOT_ENVIRONMENT_ENTRIES@' "root-ZFS validator rejects unrendered Limine boot-environment placeholders"
+  require_literal scripts/validate-root-zfs-target 'org.margine:bootenv' "root-ZFS validator scans marked rollback boot environments"
+  require_literal scripts/validate-root-zfs-target 'root=ZFS=${boot_environment_dataset}' "root-ZFS validator checks rollback clone Limine entries"
+  require_literal scripts/validate-root-zfs-target '/Rollback' "root-ZFS validator checks rollback menu when clones exist"
+
+  require_literal scripts/bootstrap-in-chroot 'run_root_zfs_validator storage' "chroot validates root-ZFS storage before boot provisioning"
+  require_literal scripts/bootstrap-in-chroot 'run_root_zfs_validator boot-chain' "chroot validates root-ZFS boot artifacts after boot provisioning"
+
+  require_file files/etc/kernel/cmdline.zfs.template "ZFS kernel command line template exists"
+  require_literal files/etc/kernel/cmdline.zfs.template "root=ZFS=__MARGINE_ZFS_ROOT_DATASET__" "ZFS cmdline uses root=ZFS"
+  require_literal files/etc/kernel/cmdline.zfs.template "rootfstype=zfs" "ZFS cmdline declares root filesystem type"
+  require_literal files/etc/kernel/cmdline.zfs.template "cryptdevice=UUID=__MARGINE_LUKS_UUID__:__MARGINE_CRYPT_NAME__" "ZFS cmdline carries LUKS mapper"
+  require_file files/esp/EFI/BOOT/limine.zfs.conf.template "ZFS Limine template exists"
+  require_literal files/esp/EFI/BOOT/limine.zfs.conf.template "root=ZFS=@ZFS_ROOT_DATASET@" "ZFS Limine template uses root=ZFS"
+  require_literal files/esp/EFI/BOOT/limine.zfs.conf.template "rootfstype=zfs" "ZFS Limine recovery cmdline declares root filesystem type"
+  require_literal files/esp/EFI/BOOT/limine.zfs.conf.template "@ZFS_BOOT_ENVIRONMENT_ENTRIES@" "ZFS Limine template includes boot-environment entry slot"
+  require_file files/esp/EFI/BOOT/zfs-boot-environment-entry.template "ZFS boot environment Limine entry template exists"
+  require_literal files/esp/EFI/BOOT/zfs-boot-environment-entry.template "root=ZFS=@ZFS_ROOT_DATASET@" "ZFS boot environment entries boot a selected clone"
+  require_literal files/esp/EFI/BOOT/zfs-boot-environment-entry.template "margine-recovery.efi" "ZFS boot environment entries use cmdline-capable recovery UKI"
+
+  require_literal scripts/provision-initial-boot-chain-zfs 'zpool set cachefile=/etc/zfs/zpool.cache "$pool_name"' "ZFS boot chain persists zpool cachefile"
+  require_literal scripts/provision-initial-boot-chain-zfs '[[ -s /etc/zfs/zpool.cache ]]' "ZFS boot chain verifies zpool cachefile creation"
+  require_literal scripts/provision-initial-boot-chain-zfs 'zgenhostid' "ZFS boot chain generates hostid"
+  require_literal scripts/provision-initial-boot-chain-zfs 'MODULES=(zfs)' "ZFS boot chain preloads the ZFS module"
+  require_literal scripts/provision-initial-boot-chain-zfs 'FILES=(/etc/hostid /etc/zfs/zpool.cache)' "ZFS boot chain embeds hostid and zpool cache"
+  require_literal scripts/provision-initial-boot-chain-zfs 'HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block encrypt zfs filesystems)' "ZFS boot chain uses root-on-ZFS mkinitcpio hooks"
+  require_literal scripts/provision-initial-boot-chain-zfs 'RequiresMountsFor=/home' "ZFS boot chain orders greetd after /home"
+  require_literal scripts/provision-initial-boot-chain-zfs 'load_install_manifest_defaults' "ZFS boot chain reads the install-state manifest"
+  require_literal scripts/provision-initial-boot-chain-zfs 'validate_kernel_zfs_abi_gate' "ZFS boot chain gates UKI generation on kernel/ZFS ABI"
+  require_literal scripts/provision-initial-boot-chain-zfs "ZFS kernel module missing for installed kernel" "ZFS boot chain fails when kernel ZFS module is missing"
+  require_literal scripts/provision-initial-boot-chain-zfs 'generate-zfs-boot-environment-entries' "ZFS boot chain renders bootable rollback entries"
+  require_literal scripts/provision-initial-boot-chain-zfs '@ZFS_BOOT_ENVIRONMENT_ENTRIES@' "ZFS boot chain replaces boot-environment entry slot"
+  require_literal scripts/create-zfs-boot-environment 'zfs clone' "ZFS boot environment helper creates clone datasets"
+  require_literal scripts/create-zfs-boot-environment 'org.margine:bootenv=pre-update' "ZFS boot environment helper marks rollback clones"
+  require_literal scripts/generate-zfs-boot-environment-entries 'org.margine:bootenv' "ZFS boot environment entry generator filters marked clones"
+  require_literal scripts/generate-zfs-boot-environment-entries '/Rollback' "ZFS boot environment entry generator renders Rollback menu"
+  require_literal scripts/provision-boot-baseline "--product NAME" "boot baseline accepts product context used by ZFS boot provisioning"
+  require_literal scripts/provision-boot-baseline "--flavor NAME" "boot baseline accepts flavor context used by ZFS boot provisioning"
+  require_literal scripts/validate-boot-recovery-baseline 'root_zfs_runtime' "installed-system boot validation detects root-on-ZFS runtime"
+  require_literal scripts/validate-boot-recovery-baseline '"$validator" --target-root / --mode boot-chain' "installed-system boot validation runs root-ZFS validator against /"
+  require_literal scripts/validate-boot-recovery-baseline "Snapper root baseline: skipped" "installed-system boot validation skips Btrfs Snapper checks on root-on-ZFS"
+  require_literal scripts/update-all "root_zfs_runtime" "update-all detects root-on-ZFS runtime"
+  require_literal scripts/update-all "run_root_zfs_update" "update-all has a dedicated root-on-ZFS maintenance path"
+  require_literal scripts/update-all "create-zfs-pre-update-snapshots" "update-all creates a ZFS pre-update snapshot on root-on-ZFS"
+  require_literal scripts/update-all "create-zfs-boot-environment" "update-all creates a bootable root-on-ZFS rollback clone"
+  require_literal scripts/update-all "zfs_pre_update_snapshot" "update-all records the root-on-ZFS snapshot used for rollback"
+  require_literal scripts/update-all "Publish ZFS rollback boot entry" "update-all publishes rollback entry before package mutation"
+  require_literal scripts/update-all "provision-initial-boot-chain-zfs" "update-all regenerates the root-on-ZFS boot chain"
+  require_literal scripts/update-all '--target-root / --mode boot-chain' "update-all validates root-on-ZFS before and after update"
+  require_literal scripts/update-all '--no-boot is not supported for real root-on-ZFS updates' "update-all refuses root-ZFS updates without boot regeneration"
+  require_literal scripts/update-all '--no-pre-update-snap is not supported for real root-on-ZFS updates' "update-all refuses root-ZFS updates without a pre-update snapshot"
+  require_literal files/home/.local/bin/update-all "zfs_capable_update_all" "user update wrapper refuses stale root-on-ZFS runtimes"
+  require_literal scripts/provision-user-app-config "run_root_zfs_update" "global update wrapper verifies installed root-on-ZFS support"
+  require_literal scripts/provision-user-app-config "--install-global-update-only" "app provisioner can refresh only installed update runtime"
+  require_literal scripts/repair-zfs-root-boot-chain 'arch-chroot "$target_root" "${repo_dest}/scripts/provision-initial-boot-chain-zfs"' "ZFS boot-chain repair reruns the ZFS boot provisioner in target"
+  require_literal scripts/repair-zfs-root-boot-chain 'provision-user-app-config" --install-global-update-only' "ZFS boot-chain repair refreshes installed update runtime"
+  require_literal scripts/repair-zfs-root-boot-chain 'validate-root-zfs-target" --target-root / --mode boot-chain' "ZFS boot-chain repair validates repaired target in chroot"
+  require_literal scripts/repair-zfs-root-boot-chain "--live-iso-recovery" "ZFS boot-chain repair exposes explicit live ISO detach mode"
+  require_literal scripts/enable-qemu-validation-ssh "qemu-margine_ed25519.pub" "QEMU SSH enable helper reads the generated validation public key"
+  require_literal scripts/enable-qemu-validation-ssh "margine-enable-ssh-server" "QEMU SSH enable helper uses the installed SSH/firewall helper"
+  require_literal scripts/enable-qemu-validation-ssh "enable_validation_inhibitor" "QEMU SSH enable helper arms the idle inhibitor before host collection"
+  require_literal scripts/enable-qemu-validation-ssh "/tmp/margine-enable-qemu-validation-inhibit" "QEMU SSH enable helper avoids running the inhibitor directly from 9p"
+  require_file files/etc/systemd/system/margine-qemu-validation-inhibit.service "QEMU validation persistent inhibitor unit exists"
+  require_literal files/etc/systemd/system/margine-qemu-validation-inhibit.service "ConditionPathExists=/etc/margine/qemu-validation-inhibit.enabled" "QEMU validation inhibitor is gated by an explicit marker"
+  require_literal files/etc/systemd/system/margine-qemu-validation-inhibit.service "systemd-inhibit --what=sleep:idle" "QEMU validation persistent unit blocks sleep and idle"
+  require_literal scripts/bootstrap-live-zfs-root-guided "--qemu-validation-inhibit" "ZFS guided bootstrap exposes validation-only QEMU inhibitor flag"
+  require_literal scripts/bootstrap-live-iso "--qemu-validation-inhibit" "live bootstrap forwards validation-only QEMU inhibitor flag"
+  require_literal scripts/bootstrap-in-chroot "install_qemu_validation_inhibit" "chroot bootstrap can install validation-only QEMU inhibitor"
+  require_literal scripts/enable-qemu-validation-inhibit "systemd-inhibit --what=sleep:idle" "QEMU idle inhibition helper blocks sleep and idle during validation"
+  require_literal scripts/enable-qemu-validation-inhibit "margine-qemu-validation-inhibit" "QEMU idle inhibition helper uses a dedicated transient systemd unit"
+  require_literal scripts/enable-qemu-validation-inhibit "reexec_from_local_filesystem" "QEMU idle inhibition helper re-execs from local storage when called from 9p"
+  require_literal scripts/enable-qemu-validation-inhibit "qemu-validation-inhibit.enabled" "QEMU idle inhibition helper manages the persistent validation marker"
+  require_literal scripts/enable-qemu-validation-inhibit "keep-awake.service" "QEMU idle inhibition helper starts the Margine user keep-awake service"
+  require_literal scripts/enable-qemu-validation-inhibit "run_user_systemctl" "QEMU idle inhibition helper uses the active user systemd bus when available"
+  require_literal scripts/enable-qemu-validation-inhibit-over-ssh "Copies the guest-side idle inhibitor helper" "QEMU idle inhibition SSH helper avoids direct 9p execution"
+  require_literal scripts/enable-qemu-validation-inhibit-over-ssh "base64 <" "QEMU idle inhibition SSH helper uploads the guest helper over SSH"
+  require_literal scripts/enable-qemu-validation-inhibit-over-ssh "--prompt-sudo" "QEMU idle inhibition SSH helper supports interactive sudo"
+  require_literal scripts/enable-qemu-validation-inhibit-over-ssh "SSH handshake succeeded" "QEMU idle inhibition SSH helper waits for a real SSH handshake"
+  require_literal scripts/collect-qemu-root-zfs-validation-logs "validate-root-zfs-target --target-root / --mode boot-chain" "QEMU root-ZFS log collector runs the installed root validator"
+  require_literal scripts/collect-qemu-root-zfs-validation-logs "update-all --dry-run --no-aur --no-flatpak --no-fwupd" "QEMU root-ZFS log collector captures the update-all root-ZFS dry-run"
+  require_literal scripts/collect-qemu-root-zfs-validation-logs "idle inhibitor status" "QEMU root-ZFS log collector records user idle-inhibitor state"
+  require_literal scripts/collect-qemu-root-zfs-validation-logs "margine-qemu-validation-inhibit.service" "QEMU root-ZFS log collector records system idle-inhibitor state"
+  require_literal scripts/collect-qemu-root-zfs-validation-logs "--prompt-sudo" "QEMU root-ZFS log collector can use an interactive sudo prompt"
+  require_literal scripts/collect-qemu-root-zfs-validation-logs "sudo -v &&" "QEMU root-ZFS log collector keeps the interactive sudo prompt and root payload in one TTY session"
+  require_literal scripts/collect-qemu-root-zfs-validation-logs 'tee -a "$log_path"' "QEMU root-ZFS log collector keeps prompt-sudo output visible and logged"
+  require_literal scripts/collect-qemu-root-zfs-validation-logs 'run_ssh_command' "QEMU root-ZFS log collector retries non-interactive SSH transport failures"
+  require_literal scripts/collect-qemu-root-zfs-validation-logs 'run_ssh_tty_command' "QEMU root-ZFS log collector retries prompt-sudo SSH transport failures"
+  require_literal scripts/collect-qemu-root-zfs-validation-logs "SSH handshake succeeded" "QEMU root-ZFS log collector waits for a real SSH handshake"
+  require_literal scripts/collect-qemu-root-zfs-validation-logs 'SYSTEMD_PAGER=cat' "QEMU root-ZFS log collector disables remote pagers"
+  require_literal scripts/collect-qemu-root-zfs-validation-logs 'bootctl --no-pager status' "QEMU root-ZFS log collector prevents bootctl from opening a pager"
+  require_literal scripts/collect-qemu-root-zfs-validation-logs 'qemu-root-zfs-*/qemu-margine_ed25519' "QEMU root-ZFS log collector infers only build directories that contain the SSH identity"
+  require_literal scripts/mount-zfs-root-target 'load_runtime_manifest_defaults' "ZFS mount helper reads runtime install state when present"
+  require_literal scripts/unmount-zfs-root-target 'load_install_manifest_defaults' "ZFS unmount helper reads install state when present"
+  require_absent_literal files/etc/margine/zfs-pre-update-datasets.conf "tank/games" "games dataset is excluded from non-root pre-update snapshots"
+  require_absent_literal files/etc/margine/zfs-pre-update-datasets.conf "rpool/games" "root games dataset is excluded from pre-update snapshots"
+  require_absent_literal files/etc/sanoid/sanoid.conf "[tank/games]" "games dataset is excluded from non-root automatic sanoid snapshots"
+  require_absent_literal files/etc/sanoid/sanoid.conf "[rpool/games]" "root games dataset is excluded from automatic sanoid snapshots"
+}
+
+check_guides_and_qemu() {
+  log
+  log "==> QEMU and runbook gates"
+  require_literal scripts/prepare-qemu-root-zfs-validation '--iso-structure-check uefi' "root-ZFS QEMU wrapper uses UEFI ISO structure check"
+  require_literal scripts/prepare-qemu-root-zfs-validation 'bootstrap-live-zfs-tools --flavor' "root-ZFS runbook validates live ZFS tools first"
+  require_literal scripts/prepare-qemu-root-zfs-validation 'findmnt /mnt' "root-ZFS runbook lists storage checks before bootstrap"
+  require_literal scripts/prepare-qemu-root-zfs-validation 'zfs list rpool/games' "root-ZFS runbook validates dedicated games dataset"
+  require_literal scripts/prepare-qemu-root-zfs-validation 'zfs get mountpoint,canmount rpool/ROOT/default' "root-ZFS runbook validates root dataset properties"
+  require_literal scripts/prepare-qemu-root-zfs-validation 'validate-live-install-sources --require-mounted-repo' "root-ZFS runbook validates mounted live sources before bootstrap"
+  require_literal scripts/prepare-qemu-root-zfs-validation 'bootstrap-live-zfs-root-guided' "root-ZFS runbook uses guided short bootstrap"
+  require_literal scripts/prepare-qemu-root-zfs-validation 'mount-zfs-root-target' "root-ZFS runbook includes the target remount helper"
+  require_literal scripts/prepare-qemu-root-zfs-validation 'repair-zfs-root-desktop-session' "root-ZFS runbook includes short desktop repair path"
+  require_literal scripts/prepare-qemu-root-zfs-validation 'unmount-zfs-root-target' "root-ZFS runbook includes clean target shutdown helper"
+  require_file docs/runbooks/root-on-zfs-live-target-mounting.md "root-ZFS live target mounting runbook exists"
+  require_literal docs/runbooks/root-on-zfs-live-target-mounting.md "Do not run broad process killers such as" "root-ZFS runbook documents unsafe broad process killers"
+  require_literal docs/runbooks/root-on-zfs-live-target-mounting.md "--terminate-busy --kill-busy --force-zfs-unmount --lazy-unmount --force-export" "root-ZFS runbook documents explicit final recovery path"
+  require_literal docs/runbooks/root-on-zfs-live-target-mounting.md "--force-zfs-unmount" "root-ZFS runbook documents explicit ZFS force-unmount path"
+  require_literal scripts/prepare-qemu-root-zfs-validation '--yes-really-destroy-disk' "root-ZFS runbook makes destructive storage explicit"
+}
+
+main() {
+  log "=== Validate Margine installation pipeline ==="
+  check_bash_syntax
+  check_destructive_storage_guards
+  check_repo_copy_guards
+  check_identity_defaults
+  check_default_runtime_layers
+  check_live_package_retry_policy
+  check_local_aur_overrides
+  check_root_zfs_path
+  check_guides_and_qemu
+
+  log
+  if (( failure_count > 0 )); then
+    printf 'Installation pipeline validation failed: %d issue(s)\n' "$failure_count" >&2
+    exit 1
+  fi
+
+  log "Installation pipeline validation: OK"
+}
+
+main "$@"

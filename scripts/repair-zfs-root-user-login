@@ -1,0 +1,452 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+session_launcher_source="${repo_root}/files/usr/local/bin/margine-start-hyprland"
+
+disk="/dev/vda"
+luks_part=""
+esp_part=""
+target_root="/mnt"
+crypt_name="cryptroot"
+pool_name="rpool"
+username=""
+real_name=""
+user_password_hash=""
+leave_mounted=0
+luks_part_from_cli=0
+esp_part_from_cli=0
+crypt_name_from_cli=0
+pool_name_from_cli=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  repair-zfs-root-user-login --username NAME [options]
+
+Repairs the login path of an installed Margine root-on-ZFS system from a live
+environment. It opens the LUKS device, imports and mounts the ZFS root pool,
+sets the administrative user's password, seeds tuigreet's remembered user, and
+ensures tuigreet shows only normal user accounts.
+
+Options:
+  --username NAME             Administrative user to repair
+  --real-name NAME            Display name to seed in tuigreet cache
+  --user-password-hash HASH   Set this password hash instead of prompting
+  --disk PATH                 Target disk used to infer partitions (default: /dev/vda)
+  --luks-part PATH            LUKS partition (default: disk partition 2)
+  --esp-part PATH             ESP partition (default: disk partition 1)
+  --target-root PATH          Target mountpoint (default: /mnt)
+  --crypt-name NAME           LUKS mapper name (default: cryptroot)
+  --pool-name NAME            ZFS pool name (default: rpool)
+  --leave-mounted             Do not unmount/export/close after repair
+  --help                      Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --username)
+        [[ $# -ge 2 ]] || die "missing value for --username"
+        username="$2"
+        shift 2
+        ;;
+      --real-name)
+        [[ $# -ge 2 ]] || die "missing value for --real-name"
+        real_name="$2"
+        shift 2
+        ;;
+      --user-password-hash)
+        [[ $# -ge 2 ]] || die "missing value for --user-password-hash"
+        user_password_hash="$2"
+        shift 2
+        ;;
+      --disk)
+        [[ $# -ge 2 ]] || die "missing value for --disk"
+        disk="$2"
+        shift 2
+        ;;
+      --luks-part)
+        [[ $# -ge 2 ]] || die "missing value for --luks-part"
+        luks_part="$2"
+        luks_part_from_cli=1
+        shift 2
+        ;;
+      --esp-part)
+        [[ $# -ge 2 ]] || die "missing value for --esp-part"
+        esp_part="$2"
+        esp_part_from_cli=1
+        shift 2
+        ;;
+      --target-root)
+        [[ $# -ge 2 ]] || die "missing value for --target-root"
+        target_root="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        crypt_name_from_cli=1
+        shift 2
+        ;;
+      --pool-name)
+        [[ $# -ge 2 ]] || die "missing value for --pool-name"
+        pool_name="$2"
+        pool_name_from_cli=1
+        shift 2
+        ;;
+      --leave-mounted)
+        leave_mounted=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+load_runtime_manifest_defaults() {
+  local manifest_path="/run/margine-install/root-zfs.env"
+
+  [[ -f "$manifest_path" ]] || return 0
+
+  # shellcheck source=/dev/null
+  source "$manifest_path"
+  [[ "${MARGINE_STORAGE_LAYOUT:-}" == "zfs-root" ]] \
+    || die "runtime install manifest is not root-on-ZFS: ${manifest_path}"
+
+  if (( luks_part_from_cli == 0 )) && [[ -n "${MARGINE_LUKS_DEVICE:-}" ]]; then
+    luks_part="$MARGINE_LUKS_DEVICE"
+  fi
+  if (( esp_part_from_cli == 0 )) && [[ -n "${MARGINE_ESP_DEVICE:-}" ]]; then
+    esp_part="$MARGINE_ESP_DEVICE"
+  fi
+  if (( crypt_name_from_cli == 0 )) && [[ -n "${MARGINE_LUKS_MAPPER:-}" ]]; then
+    crypt_name="$MARGINE_LUKS_MAPPER"
+  fi
+  if (( pool_name_from_cli == 0 )) && [[ -n "${MARGINE_ZFS_POOL:-}" ]]; then
+    pool_name="$MARGINE_ZFS_POOL"
+  fi
+}
+
+require_root() {
+  [[ "$(id -u)" -eq 0 ]] || die "repair-zfs-root-user-login must run as root"
+}
+
+partition_path() {
+  local partition_number="$1"
+
+  if [[ "$disk" =~ [0-9]$ ]]; then
+    printf '%sp%s\n' "$disk" "$partition_number"
+  else
+    printf '%s%s\n' "$disk" "$partition_number"
+  fi
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in arch-chroot cryptsetup findmnt grep install mount mountpoint sed sync umount zfs zpool; do
+    have_cmd "$cmd" || die "required command not found: $cmd"
+  done
+
+  [[ -f "$session_launcher_source" ]] || die "session launcher source not found: $session_launcher_source"
+}
+
+validate_inputs() {
+  [[ -n "$username" ]] || die "--username is required"
+  [[ "$target_root" = /* ]] || die "--target-root must be absolute"
+  [[ "$target_root" != "/" ]] || die "--target-root must not be /"
+
+  luks_part="${luks_part:-$(partition_path 2)}"
+  esp_part="${esp_part:-$(partition_path 1)}"
+
+  [[ -b "$luks_part" ]] || die "LUKS partition is not a block device: $luks_part"
+  [[ -b "$esp_part" ]] || die "ESP partition is not a block device: $esp_part"
+}
+
+open_luks_mapper() {
+  log
+  log "==> Open LUKS mapper"
+
+  if cryptsetup status "$crypt_name" >/dev/null 2>&1; then
+    log "  mapper already open: ${crypt_name}"
+    return 0
+  fi
+
+  cryptsetup open "$luks_part" "$crypt_name"
+}
+
+import_pool() {
+  local altroot=""
+
+  log
+  log "==> Import ZFS pool"
+
+  install -d "$target_root"
+
+  if zpool list -H -o name "$pool_name" >/dev/null 2>&1; then
+    altroot="$(zpool get -H -o value altroot "$pool_name" 2>/dev/null || true)"
+    if [[ "$altroot" == "$target_root" ]]; then
+      log "  pool already imported with target altroot: ${pool_name}"
+      return 0
+    fi
+
+    log "  pool already imported without target altroot; reimporting: ${pool_name}"
+    unmount_pool_datasets
+    zpool export "$pool_name" \
+      || die "unable to export ${pool_name}; close shells/files under ${target_root} and retry"
+  fi
+
+  zpool import -N -f -R "$target_root" "$pool_name"
+}
+
+mount_target() {
+  local root_dataset=""
+
+  log
+  log "==> Mount target system"
+
+  root_dataset="$(zpool get -H -o value bootfs "$pool_name" 2>/dev/null || true)"
+  [[ -n "$root_dataset" && "$root_dataset" != "-" && "$root_dataset" != "none" ]] \
+    || die "unable to infer root dataset from ${pool_name} bootfs"
+
+  if ! mountpoint -q "$target_root"; then
+    zfs mount "$root_dataset"
+  fi
+
+  zfs mount -a
+  require_dataset_mount_if_present home "${target_root}/home"
+  mountpoint -q "$target_root" || die "target root is not mounted: $target_root"
+
+  if ! mountpoint -q "${target_root}/boot"; then
+    install -d "${target_root}/boot"
+    mount -o umask=0077 "$esp_part" "${target_root}/boot"
+  fi
+
+  log "  root dataset: ${root_dataset}"
+  log "  target root: ${target_root}"
+  log "  ESP: ${esp_part} -> ${target_root}/boot"
+}
+
+require_dataset_mount_if_present() {
+  local dataset_suffix="$1"
+  local expected_mount="$2"
+  local dataset="${pool_name}/${dataset_suffix}"
+
+  if ! zfs list -H -o name "$dataset" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  mountpoint -q "$expected_mount" \
+    || die "${dataset} exists but is not mounted at ${expected_mount}; check ZFS altroot import"
+}
+
+unmount_pool_datasets() {
+  local dataset=""
+
+  if mountpoint -q "$target_root"; then
+    umount -R "$target_root" || true
+  fi
+
+  while read -r dataset; do
+    [[ -n "$dataset" ]] || continue
+    zfs unmount "$dataset" 2>/dev/null || true
+  done < <(zfs list -H -r -o name "$pool_name" 2>/dev/null | sort -r)
+}
+
+ensure_target_user() {
+  arch-chroot "$target_root" id "$username" >/dev/null \
+    || die "target user does not exist: $username"
+}
+
+set_user_password() {
+  log
+  log "==> Set target user password"
+
+  ensure_target_user
+
+  if [[ -n "$user_password_hash" ]]; then
+    arch-chroot "$target_root" usermod -p "$user_password_hash" "$username"
+  else
+    arch-chroot "$target_root" passwd "$username"
+  fi
+}
+
+target_user_display_name() {
+  local passwd_line=""
+
+  [[ -n "$real_name" ]] && {
+    printf '%s\n' "$real_name"
+    return 0
+  }
+
+  passwd_line="$(arch-chroot "$target_root" getent passwd "$username" || true)"
+  if [[ -n "$passwd_line" ]]; then
+    printf '%s\n' "$passwd_line" | awk -F: '{ split($5, parts, ","); print parts[1] }'
+  else
+    printf '%s\n' "$username"
+  fi
+}
+
+seed_tuigreet() {
+  local cache_dir="${target_root}/var/cache/tuigreet"
+  local display_name=""
+
+  log
+  log "==> Seed tuigreet user cache"
+
+  display_name="$(target_user_display_name)"
+  [[ -n "$display_name" ]] || display_name="$username"
+
+  install -d -m 755 "$cache_dir"
+  printf '%s\n' "$username" > "${cache_dir}/lastuser"
+  printf '%s\n' "$display_name" > "${cache_dir}/lastuser-name"
+
+  if arch-chroot "$target_root" getent passwd greeter >/dev/null 2>&1; then
+    arch-chroot "$target_root" chown -R greeter:greeter /var/cache/tuigreet
+  else
+    warn "target greeter user not found; leaving tuigreet cache owned by root"
+  fi
+  chmod 644 "${cache_dir}/lastuser" "${cache_dir}/lastuser-name"
+}
+
+install_session_launcher() {
+  log
+  log "==> Install Hyprland session launcher"
+
+  install -Dm755 "$session_launcher_source" "${target_root}/usr/local/bin/margine-start-hyprland"
+}
+
+install_zfs_greetd_ordering() {
+  local dropin_dir="${target_root}/etc/systemd/system/greetd.service.d"
+  local dropin_path="${dropin_dir}/10-margine-zfs-home.conf"
+
+  log
+  log "==> Ensure greetd waits for /home"
+
+  install -d -m 755 "$dropin_dir"
+  cat >"$dropin_path" <<'EOF'
+[Unit]
+Wants=zfs-mount.service
+After=zfs-mount.service
+RequiresMountsFor=/home
+EOF
+  chmod 644 "$dropin_path"
+}
+
+ensure_greetd_config() {
+  local config_path="${target_root}/etc/greetd/config.toml"
+
+  log
+  log "==> Ensure greetd tuigreet config"
+
+  install -d -m 755 "${target_root}/etc/greetd"
+
+  if [[ ! -f "$config_path" ]]; then
+    cat > "$config_path" <<'EOF'
+[terminal]
+vt = 1
+
+[general]
+source_profile = true
+
+[default_session]
+command = "tuigreet --time --remember --remember-session --user-menu --user-menu-min-uid 1000 --user-menu-max-uid 59999 --asterisks --window-padding 2 --container-padding 2 --prompt-padding 1 --cmd /usr/local/bin/margine-start-hyprland"
+user = "greeter"
+EOF
+  else
+    sed -i \
+      's/tuigreet --time --remember --remember-session /tuigreet --time --remember --remember-session --user-menu --user-menu-min-uid 1000 --user-menu-max-uid 59999 /' \
+      "$config_path"
+    sed -i \
+      's|--cmd /usr/bin/start-hyprland|--cmd /usr/local/bin/margine-start-hyprland|g' \
+      "$config_path"
+  fi
+
+  arch-chroot "$target_root" systemctl enable greetd.service >/dev/null
+}
+
+print_status() {
+  log
+  log "==> Target login status"
+  arch-chroot "$target_root" passwd -S "$username" || true
+  findmnt "$target_root" || true
+  findmnt "${target_root}/boot" || true
+}
+
+cleanup_mounts() {
+  (( leave_mounted )) && return 0
+
+  log
+  log "==> Sync and unmount target"
+
+  sync
+  if ! umount -R "$target_root"; then
+    warn "unable to unmount ${target_root}; leave the live session running and inspect with: fuser -vm ${target_root}"
+    return 0
+  fi
+
+  if ! zpool export "$pool_name"; then
+    warn "unable to export ${pool_name}; it may still be busy"
+    return 0
+  fi
+
+  if cryptsetup status "$crypt_name" >/dev/null 2>&1; then
+    cryptsetup close "$crypt_name" || warn "unable to close mapper ${crypt_name}"
+  fi
+}
+
+main() {
+  parse_args "$@"
+  load_runtime_manifest_defaults
+  require_root
+  ensure_prereqs
+  validate_inputs
+
+  log "=== Repair Margine root-on-ZFS user login ==="
+  log "User: ${username}"
+  log "LUKS: ${luks_part} -> ${crypt_name}"
+  log "Pool: ${pool_name}"
+  log "Target root: ${target_root}"
+
+  open_luks_mapper
+  import_pool
+  mount_target
+  set_user_password
+  seed_tuigreet
+  install_session_launcher
+  install_zfs_greetd_ordering
+  ensure_greetd_config
+  print_status
+  cleanup_mounts
+
+  log
+  log "=== DONE ==="
+}
+
+main "$@"

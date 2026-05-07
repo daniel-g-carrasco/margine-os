@@ -183,6 +183,12 @@ The semantics are:
 - `--enable`: enable the gaming override (`kernel.split_lock_mitigate=0`)
 - `--disable`: restore mitigation (`kernel.split_lock_mitigate=1`)
 
+The default Margine baseline is mitigation active. On CachyOS-derived personal
+installs, `provision-cachyos-personal-baseline` pins the default back to
+`kernel.split_lock_mitigate=1` because CachyOS gaming-oriented defaults may
+otherwise leave the runtime in `SL0` after first boot. The opt-in gaming toggle
+still exists, but it must be a deliberate operator action.
+
 The script can:
 
 - inspect the current runtime value

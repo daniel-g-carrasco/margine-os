@@ -1,0 +1,483 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+show_next_step=1
+confirm_destroy=0
+disk=""
+target_root="/mnt"
+crypt_name="cryptroot"
+esp_size_mib=4096
+esp_label="MARGINE-ESP"
+pool_name="rpool"
+root_dataset="ROOT/default"
+ashift="12"
+compression="lz4"
+arc_profile=""
+install_state_runtime="/run/margine-install/root-zfs.env"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-storage-zfs-root --disk PATH --yes-really-destroy-disk [options]
+
+Options:
+  --disk PATH                    Target disk, for example /dev/nvme0n1
+  --target-root PATH             Final mountpoint (default: /mnt)
+  --crypt-name NAME              LUKS mapper name (default: cryptroot)
+  --esp-size-mib NUM             ESP size in MiB (default: 4096)
+  --esp-label LABEL              FAT32 ESP label (default: MARGINE-ESP)
+  --pool-name NAME               ZFS pool name (default: rpool)
+  --root-dataset NAME            Root dataset below the pool (default: ROOT/default)
+  --ashift NUM                   Pool ashift value (default: 12)
+  --compression NAME             Root pool compression (default: lz4)
+  --arc-profile NAME             Document intended ARC profile, not applied yet
+  --yes-really-destroy-disk      Explicit confirmation for the destructive operation
+  --no-next-step                 Do not print the recommended next command
+  --dry-run                      Show the plan without executing it
+  --help                         Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --disk)
+        [[ $# -ge 2 ]] || die "missing value for --disk"
+        disk="$2"
+        shift 2
+        ;;
+      --target-root)
+        [[ $# -ge 2 ]] || die "missing value for --target-root"
+        target_root="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        shift 2
+        ;;
+      --esp-size-mib)
+        [[ $# -ge 2 ]] || die "missing value for --esp-size-mib"
+        esp_size_mib="$2"
+        shift 2
+        ;;
+      --esp-label)
+        [[ $# -ge 2 ]] || die "missing value for --esp-label"
+        esp_label="$2"
+        shift 2
+        ;;
+      --pool-name)
+        [[ $# -ge 2 ]] || die "missing value for --pool-name"
+        pool_name="$2"
+        shift 2
+        ;;
+      --root-dataset)
+        [[ $# -ge 2 ]] || die "missing value for --root-dataset"
+        root_dataset="$2"
+        shift 2
+        ;;
+      --ashift)
+        [[ $# -ge 2 ]] || die "missing value for --ashift"
+        ashift="$2"
+        shift 2
+        ;;
+      --compression)
+        [[ $# -ge 2 ]] || die "missing value for --compression"
+        compression="$2"
+        shift 2
+        ;;
+      --arc-profile)
+        [[ $# -ge 2 ]] || die "missing value for --arc-profile"
+        arc_profile="$2"
+        shift 2
+        ;;
+      --yes-really-destroy-disk)
+        confirm_destroy=1
+        shift
+        ;;
+      --no-next-step)
+        show_next_step=0
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in parted partprobe wipefs cryptsetup mkfs.fat zpool zfs blkid mount umount findmnt mountpoint udevadm grep awk sort install lsblk modprobe paste; do
+    if have_cmd "$cmd"; then
+      continue
+    fi
+
+    if (( dry_run )); then
+      warn "command not found during dry-run: $cmd"
+    else
+      die "required command not found: $cmd"
+    fi
+  done
+}
+
+validate_inputs() {
+  [[ -n "$disk" ]] || die "--disk is required"
+  (( confirm_destroy )) || die "refusing to continue without --yes-really-destroy-disk"
+  [[ "$target_root" = /* ]] || die "--target-root must be an absolute path"
+  [[ "$target_root" != "/" ]] || die "--target-root must not be /"
+  [[ "$pool_name" != */* ]] || die "--pool-name must be a pool name, not a dataset path"
+  [[ "$root_dataset" != /* ]] || die "--root-dataset must be relative to the pool"
+  [[ -n "$root_dataset" ]] || die "--root-dataset must not be empty"
+
+  if [[ -b "$disk" ]]; then
+    return 0
+  fi
+
+  if (( dry_run )); then
+    warn "disk is not a block device during dry-run: $disk"
+    return 0
+  fi
+
+  die "disk is not a block device: $disk"
+}
+
+ensure_zfs_available() {
+  if (( dry_run )); then
+    printf '[dry-run] modprobe zfs\n'
+    return 0
+  fi
+
+  modprobe zfs || die "unable to load zfs module in the live environment"
+  zpool version >/dev/null || die "zpool is not usable in the live environment"
+}
+
+ensure_pool_name_free() {
+  if (( dry_run )); then
+    printf '[dry-run] ensure ZFS pool name is not imported: %s\n' "$pool_name"
+    return 0
+  fi
+
+  if zpool list -H -o name "$pool_name" >/dev/null 2>&1; then
+    die "ZFS pool already imported: ${pool_name}; export it explicitly before running this script"
+  fi
+}
+
+partition_path() {
+  local partition_number="$1"
+  if [[ "$disk" =~ [0-9]$ ]]; then
+    printf '%sp%s\n' "$disk" "$partition_number"
+  else
+    printf '%s%s\n' "$disk" "$partition_number"
+  fi
+}
+
+root_dataset_full_name() {
+  printf '%s/%s\n' "$pool_name" "$root_dataset"
+}
+
+write_env_line() {
+  local key="$1"
+  local value="$2"
+
+  printf '%s=%q\n' "$key" "$value"
+}
+
+write_install_state_manifest() {
+  local manifest_path="$1"
+  local esp_part=""
+  local crypt_part=""
+  local root_full=""
+  local luks_uuid=""
+  local esp_uuid=""
+  local datasets=""
+
+  esp_part="$(partition_path 1)"
+  crypt_part="$(partition_path 2)"
+  root_full="$(root_dataset_full_name)"
+  datasets="$(
+    printf '%s\n' \
+      "$root_full" \
+      "${pool_name}/home" \
+      "${pool_name}/root" \
+      "${pool_name}/var" \
+      "${pool_name}/var/log" \
+      "${pool_name}/var/cache" \
+      "${pool_name}/var/tmp" \
+      "${pool_name}/data" \
+      "${pool_name}/games" \
+      "${pool_name}/srv" \
+      "${pool_name}/containers" \
+      "${pool_name}/machines" \
+      "${pool_name}/vm" \
+      | paste -sd ':' -
+  )"
+
+  if (( dry_run )); then
+    luks_uuid="<luks-uuid>"
+    esp_uuid="<esp-uuid>"
+    printf '[dry-run] write root-on-ZFS install state manifest: %s\n' "$manifest_path"
+  else
+    luks_uuid="$(blkid -s UUID -o value "$crypt_part" 2>/dev/null || true)"
+    [[ -n "$luks_uuid" ]] || die "unable to detect LUKS UUID for ${crypt_part}"
+    esp_uuid="$(blkid -s UUID -o value "$esp_part" 2>/dev/null || true)"
+    [[ -n "$esp_uuid" ]] || die "unable to detect ESP UUID for ${esp_part}"
+    install -d -m 755 "$(dirname "$manifest_path")"
+  fi
+
+  if (( dry_run )); then
+    return 0
+  fi
+
+  {
+    printf '# Generated by provision-storage-zfs-root. Do not edit by hand.\n'
+    write_env_line MARGINE_STORAGE_LAYOUT "zfs-root"
+    write_env_line MARGINE_ZFS_POOL "$pool_name"
+    write_env_line MARGINE_ZFS_ROOT_DATASET "$root_full"
+    write_env_line MARGINE_ZFS_BOOTFS "$root_full"
+    write_env_line MARGINE_LUKS_MAPPER "$crypt_name"
+    write_env_line MARGINE_LUKS_DEVICE "$crypt_part"
+    write_env_line MARGINE_LUKS_UUID "$luks_uuid"
+    write_env_line MARGINE_ESP_DEVICE "$esp_part"
+    write_env_line MARGINE_ESP_UUID "$esp_uuid"
+    write_env_line MARGINE_ESP_MOUNT "/boot"
+    write_env_line MARGINE_TARGET_ROOT "$target_root"
+    write_env_line MARGINE_ZFS_DATASETS "$datasets"
+  } >"$manifest_path"
+  chmod 644 "$manifest_path"
+}
+
+unmount_target_tree() {
+  local target=""
+
+  if [[ ! -d "$target_root" ]]; then
+    return 0
+  fi
+
+  while IFS= read -r target; do
+    [[ -n "$target" ]] || continue
+    run_cmd umount "$target"
+  done < <(findmnt -Rno TARGET "$target_root" 2>/dev/null | awk '{print length, $0}' | sort -rn | cut -d" " -f2-)
+}
+
+close_existing_mapper() {
+  local mapper_path="/dev/mapper/${crypt_name}"
+
+  if [[ -e "$mapper_path" ]]; then
+    run_cmd cryptsetup close "$crypt_name"
+  fi
+}
+
+ensure_disk_not_in_use() {
+  local row=""
+  local mountpoints=""
+  local mountpoint=""
+
+  if (( dry_run )) && [[ ! -b "$disk" ]]; then
+    warn "skipping in-use disk scan during dry-run because disk is not present: $disk"
+    return 0
+  fi
+
+  while IFS= read -r row; do
+    mountpoints="$(printf '%s' "$row" | awk '{$1=""; sub(/^ /, ""); print}')"
+    mountpoints="${mountpoints//\\x0a/$'\n'}"
+
+    while IFS= read -r mountpoint; do
+      [[ -n "$mountpoint" ]] || continue
+
+      if (( dry_run )); then
+        warn "disk or descendants appear mounted during dry-run: $mountpoint"
+        continue
+      fi
+
+      die "disk or descendants appear mounted: $mountpoint"
+    done <<< "$mountpoints"
+  done < <(lsblk -nrpo NAME,MOUNTPOINTS "$disk")
+}
+
+wipe_and_partition_disk() {
+  local esp_end_mib=$((1 + esp_size_mib))
+
+  log
+  log "==> Partition disk"
+  run_cmd wipefs -af "$disk"
+  run_cmd parted -s -a optimal "$disk" mklabel gpt
+  run_cmd parted -s -a optimal "$disk" unit MiB mkpart ESP fat32 1 "$esp_end_mib"
+  run_cmd parted -s "$disk" set 1 esp on
+  run_cmd parted -s "$disk" name 1 ESP
+  run_cmd parted -s -a optimal "$disk" unit MiB mkpart cryptroot "$esp_end_mib" 100%
+  run_cmd parted -s "$disk" name 2 cryptroot
+  run_cmd partprobe "$disk"
+  run_cmd udevadm settle
+}
+
+format_and_open_devices() {
+  local esp_part=""
+  local crypt_part=""
+
+  esp_part="$(partition_path 1)"
+  crypt_part="$(partition_path 2)"
+
+  log
+  log "==> Format ESP and open LUKS2"
+  run_cmd mkfs.fat -F 32 -n "$esp_label" "$esp_part"
+  run_cmd cryptsetup luksFormat --type luks2 "$crypt_part"
+  run_cmd cryptsetup open "$crypt_part" "$crypt_name"
+}
+
+create_zfs_layout() {
+  local mapper_path="/dev/mapper/${crypt_name}"
+  local root_full=""
+
+  root_full="$(root_dataset_full_name)"
+
+  log
+  log "==> Create ZFS root pool and datasets"
+  run_cmd install -d "$target_root"
+  run_cmd zpool create -f \
+    -R "$target_root" \
+    -o "ashift=${ashift}" \
+    -o autotrim=on \
+    -O "compression=${compression}" \
+    -O atime=off \
+    -O acltype=posixacl \
+    -O xattr=sa \
+    -O mountpoint=none \
+    -O canmount=off \
+    "$pool_name" "$mapper_path"
+
+  run_cmd zfs create -o mountpoint=none -o canmount=off "${pool_name}/ROOT"
+  run_cmd zfs create -o mountpoint=/ -o canmount=noauto "$root_full"
+  run_cmd zpool set "bootfs=${root_full}" "$pool_name"
+  run_cmd zfs mount "$root_full"
+
+  run_cmd zfs create -o mountpoint=/home "${pool_name}/home"
+  run_cmd zfs create -o mountpoint=/root "${pool_name}/root"
+  run_cmd zfs create -o mountpoint=/var -o canmount=off "${pool_name}/var"
+  run_cmd zfs create -o mountpoint=/var/log "${pool_name}/var/log"
+  run_cmd zfs create -o mountpoint=/var/cache "${pool_name}/var/cache"
+  run_cmd zfs create -o mountpoint=/var/tmp "${pool_name}/var/tmp"
+  run_cmd zfs create -o mountpoint=/data "${pool_name}/data"
+  run_cmd zfs create -o mountpoint=/games "${pool_name}/games"
+  run_cmd zfs create -o mountpoint=/srv "${pool_name}/srv"
+  run_cmd zfs create -o mountpoint=/var/lib/containers "${pool_name}/containers"
+  run_cmd zfs create -o mountpoint=/var/lib/machines "${pool_name}/machines"
+  run_cmd zfs create -o mountpoint=/var/lib/libvirt -o recordsize=64K "${pool_name}/vm"
+}
+
+mount_esp() {
+  local esp_part=""
+
+  esp_part="$(partition_path 1)"
+
+  log
+  log "==> Mount ESP"
+  run_cmd install -d "${target_root}/boot"
+  run_cmd mount -o umask=0077 "$esp_part" "${target_root}/boot"
+}
+
+persist_install_state() {
+  local target_manifest="${target_root}/etc/margine/install-layout.env"
+
+  log
+  log "==> Persist root-on-ZFS install state"
+  write_install_state_manifest "$install_state_runtime"
+  write_install_state_manifest "$target_manifest"
+}
+
+print_summary() {
+  local esp_part=""
+  local crypt_part=""
+  local root_full=""
+
+  esp_part="$(partition_path 1)"
+  crypt_part="$(partition_path 2)"
+  root_full="$(root_dataset_full_name)"
+
+  log
+  log "Target ZFS root storage ready:"
+  log "  Disk: ${disk}"
+  log "  ESP: ${esp_part} -> ${target_root}/boot"
+  log "  LUKS2: ${crypt_part}"
+  log "  Mapper: /dev/mapper/${crypt_name}"
+  log "  Pool: ${pool_name}"
+  log "  Root dataset: ${root_full}"
+  log "  Root mounted at: ${target_root}"
+  log "  Games dataset: ${pool_name}/games -> ${target_root}/games"
+  log "  Install state: ${install_state_runtime} and ${target_root}/etc/margine/install-layout.env"
+  if [[ -n "$arc_profile" ]]; then
+    log "  Intended ARC profile: ${arc_profile} (not applied by this storage script)"
+  fi
+
+  if (( show_next_step )); then
+    log
+    log "Next gate:"
+    log "  Validate storage only. Do not run the generic bootstrap-live-iso path yet:"
+    log "  root-on-ZFS boot, initramfs, UKI and bootloader integration still need their"
+    log "  dedicated implementation gate."
+  fi
+}
+
+main() {
+  parse_args "$@"
+  ensure_prereqs
+  validate_inputs
+
+  log "=== Provision root-on-ZFS storage Margine ==="
+  (( dry_run )) && log "Mode: dry-run"
+
+  ensure_zfs_available
+  ensure_pool_name_free
+  unmount_target_tree
+  close_existing_mapper
+  ensure_disk_not_in_use
+  wipe_and_partition_disk
+  format_and_open_devices
+  create_zfs_layout
+  mount_esp
+  persist_install_state
+  print_summary
+
+  log
+  log "=== DONE ==="
+}
+
+main "$@"

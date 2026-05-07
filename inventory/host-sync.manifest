@@ -45,6 +45,7 @@
 .config/swayosd/theme-generated.css
 .config/waybar/README.md
 .config/systemd/user/elephant.service
+.config/systemd/user/walker.service
 .config/systemd/user/hypr-refresh-rate.service
 .config/systemd/user/keep-awake.service
 .config/systemd/user/margine-maintenance-check.service

@@ -21,17 +21,17 @@ Usage:
   refresh-efi-trust --esp-path PATH [options]
 
 Options:
-  --dry-run              Mostra i comandi senza eseguirli
+  --dry-run              Show commands without executing them
   --esp-path PATH        Mountpoint della EFI System Partition
   --limine-tool PATH     Path esplicito al tool host `limine`
-  --limine-binary PATH   Binario EFI di Limine gia' deployato
+  --limine-binary PATH   Already deployed Limine EFI binary
   --limine-binary-source PATH
                          Binario EFI Limine unsigned da reinstallare prima di enroll-config
-  --limine-config PATH   limine.conf gia' deployato
-  --main-uki PATH        UKI principale gia' deployata
-  --fallback-uki PATH    UKI fallback gia' deployata
-  --recovery-uki PATH    UKI recovery gia' deployata
-  --memtest-efi PATH     Memtest86+ EFI gia' deployato e da firmare
+  --limine-config PATH   Already deployed limine.conf
+  --main-uki PATH        Already deployed main UKI
+  --fallback-uki PATH    Already deployed fallback UKI
+  --recovery-uki PATH    Already deployed recovery UKI
+  --memtest-efi PATH     Already deployed Memtest86+ EFI to sign
   --help                 Show this help
 EOF
 }
@@ -253,7 +253,7 @@ sign_if_present() {
   fi
 
   if [[ ! -f "$path" ]]; then
-    warn "${label} non presente, salto firma: ${path}"
+    warn "${label} not present; skipping signing: ${path}"
     return 0
   fi
 
@@ -355,7 +355,7 @@ main() {
   run_cmd sudo sbctl verify
 
   log
-  log "=== Refresh completato ==="
+  log "=== Refresh complete ==="
 }
 
 main "$@"

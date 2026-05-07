@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_root="${XDG_CONFIG_HOME:-${HOME}/.config}"
+config_path="${config_root}/hypr/hyprland.conf"
+
+if [[ ! -r "$config_path" ]]; then
+  printf 'margine-start-hyprland: missing Hyprland config: %s\n' "$config_path" >&2
+  printf 'margine-start-hyprland: check that /home is mounted and the Margine user payload was provisioned.\n' >&2
+  sleep 3
+  exit 78
+fi
+
+if command -v start-hyprland >/dev/null 2>&1; then
+  exec start-hyprland -- --config "$config_path"
+fi
+
+exec Hyprland --config "$config_path"

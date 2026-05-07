@@ -26,7 +26,7 @@ Usage:
   provision-system-user --username NAME [options]
 
 Options:
-  --username NAME              Utente amministrativo da creare o riallineare
+  --username NAME              Administrative user to create or realign
   --real-name NAME             Nome reale/commento dell'utente
   --shell PATH                 Shell login dell'utente (default: /bin/bash)
   --extra-groups CSV           Gruppi aggiuntivi separati da virgola

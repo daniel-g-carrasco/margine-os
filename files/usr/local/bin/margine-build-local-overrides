@@ -1,0 +1,229 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: margine-build-local-overrides [options]
+
+Build and install Margine local package overrides on an installed system.
+
+Options:
+  --first-boot        Run in non-blocking first-boot mode. Failures are logged
+                      and do not fail the systemd unit.
+  --retry            Ignore previous first-boot attempt markers.
+  --strict           Return non-zero on failure.
+  --no-strict        Log failures and return success.
+  --dry-run          Print what would be built.
+  --package NAME     Build one package override. Can be repeated.
+  --repo-root PATH   Repository checkout to use. Default: /root/margine-os.
+  -h, --help         Show this help.
+
+Environment:
+  MARGINE_REPO_ROOT                    Override repository path.
+  MARGINE_LOCAL_OVERRIDES_STATE_DIR    Override state directory.
+  MARGINE_LOCAL_OVERRIDES_LOG          Override log file.
+USAGE
+}
+
+first_boot=0
+retry=0
+strict=1
+dry_run=0
+repo_root="${MARGINE_REPO_ROOT:-}"
+state_dir="${MARGINE_LOCAL_OVERRIDES_STATE_DIR:-/var/lib/margine/local-overrides}"
+log_file="${MARGINE_LOCAL_OVERRIDES_LOG:-/var/log/margine/firstboot-local-overrides.log}"
+packages=()
+
+while (($#)); do
+  case "$1" in
+    --first-boot)
+      first_boot=1
+      strict=0
+      shift
+      ;;
+    --retry)
+      retry=1
+      shift
+      ;;
+    --strict)
+      strict=1
+      shift
+      ;;
+    --no-strict)
+      strict=0
+      shift
+      ;;
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    --package)
+      [[ $# -ge 2 ]] || { echo "error: --package requires a value" >&2; exit 2; }
+      packages+=("$2")
+      shift 2
+      ;;
+    --repo-root)
+      [[ $# -ge 2 ]] || { echo "error: --repo-root requires a value" >&2; exit 2; }
+      repo_root="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "error: unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if ((${#packages[@]} == 0)); then
+  packages=(walker)
+fi
+
+setup_logging() {
+  if ((dry_run)); then
+    return 0
+  fi
+  install -d -m 0755 "$(dirname "$log_file")"
+  exec > >(tee -a "$log_file") 2>&1
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+soft_fail() {
+  local message="$1"
+  log "error: ${message}"
+  install -d -m 0755 "$state_dir"
+  touch "${state_dir}/firstboot.failed"
+  if ((strict)); then
+    exit 1
+  fi
+  exit 0
+}
+
+running_from_live_root() {
+  local root_source root_fstype
+  root_source="$(findmnt -n -o SOURCE / 2>/dev/null || true)"
+  root_fstype="$(findmnt -n -o FSTYPE / 2>/dev/null || true)"
+  [[ "$root_source" == *airootfs* || "$root_fstype" == "overlay" || "$root_fstype" == "squashfs" ]]
+}
+
+resolve_repo_root() {
+  if [[ -n "$repo_root" ]]; then
+    return 0
+  fi
+  if [[ -x /root/margine-os/scripts/install-aur-packages ]]; then
+    repo_root=/root/margine-os
+    return 0
+  fi
+  if [[ -x /root/margine-repo/scripts/install-aur-packages ]]; then
+    repo_root=/root/margine-repo
+    return 0
+  fi
+  repo_root=/root/margine-os
+}
+
+walker_is_patched() {
+  command -v strings >/dev/null 2>&1 || return 1
+  [[ -x /usr/bin/walker ]] || return 1
+  strings /usr/bin/walker 2>/dev/null | grep -Fq 'MARGINE_WALKER_SCROLL_STEP'
+}
+
+validate_context() {
+  resolve_repo_root
+  [[ -x "${repo_root}/scripts/install-aur-packages" ]] || soft_fail "install-aur-packages not found under ${repo_root}"
+
+  if ((dry_run)); then
+    return 0
+  fi
+
+  [[ "$(id -u)" == "0" ]] || soft_fail "must be run as root"
+  running_from_live_root && soft_fail "refusing to build local overrides from a live ISO root"
+
+  if [[ -e /var/lib/pacman/db.lck ]]; then
+    soft_fail "pacman database is locked; retry after the current package transaction finishes"
+  fi
+
+  if ! command -v fuzzel >/dev/null 2>&1; then
+    log "warning: fuzzel fallback is not available"
+  fi
+}
+
+build_package() {
+  local package="$1"
+  local package_state="${state_dir}/${package}.done"
+
+  if [[ "$package" == "walker" && "$retry" -eq 0 && -e "$package_state" ]]; then
+    log "skip: ${package} already marked as built"
+    return 0
+  fi
+
+  if [[ "$package" == "walker" && "$retry" -eq 0 ]] && walker_is_patched; then
+    log "skip: walker already contains the Margine scroll-step patch"
+    touch "$package_state"
+    return 0
+  fi
+
+  if ((dry_run)); then
+    log "would build local override: ${package}"
+    return 0
+  fi
+
+  log "==> Build local override: ${package}"
+  "${repo_root}/scripts/install-aur-packages" --upgrade "$package"
+  touch "$package_state"
+}
+
+main() {
+  setup_logging
+  log "=== Margine local package overrides ==="
+  log "repo root: ${repo_root:-auto}"
+  log "packages: ${packages[*]}"
+
+  validate_context
+
+  if ((dry_run)); then
+    local dry_package=""
+    for dry_package in "${packages[@]}"; do
+      build_package "$dry_package"
+    done
+    log "dry-run complete"
+    exit 0
+  fi
+
+  install -d -m 0755 "$state_dir"
+
+  if ((first_boot && ! retry)) && [[ -e "${state_dir}/firstboot.attempted" ]]; then
+    log "skip: first-boot local override build already attempted"
+    exit 0
+  fi
+
+  if ((first_boot)); then
+    touch "${state_dir}/firstboot.attempted"
+  fi
+
+  local failed=0
+  for package in "${packages[@]}"; do
+    if ! build_package "$package"; then
+      log "warning: local override build failed for ${package}"
+      failed=1
+    fi
+  done
+
+  if ((failed)); then
+    touch "${state_dir}/firstboot.failed"
+    ((strict)) && exit 1
+    exit 0
+  fi
+
+  rm -f "${state_dir}/firstboot.failed"
+  touch "${state_dir}/firstboot.done"
+  log "local overrides ready"
+}
+
+main "$@"

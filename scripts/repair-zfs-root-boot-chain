@@ -1,0 +1,412 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+if [[ -f "${script_dir}/lib/product-manifests.sh" ]]; then
+  # shellcheck source=lib/product-manifests.sh
+  source "${script_dir}/lib/product-manifests.sh"
+fi
+
+disk="/dev/vda"
+luks_part=""
+esp_part=""
+target_root="/mnt"
+crypt_name="cryptroot"
+pool_name="rpool"
+repo_dest="/root/margine-os"
+product=""
+flavor=""
+live_iso_recovery=0
+leave_mounted=0
+luks_part_from_cli=0
+esp_part_from_cli=0
+crypt_name_from_cli=0
+pool_name_from_cli=0
+api_bound=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  repair-zfs-root-boot-chain [options]
+
+Repairs the installed root-on-ZFS boot chain from a live ISO. The helper mounts
+the target, refreshes the target repo copy, reruns the ZFS boot provisioner in
+the target chroot, validates the boot chain, and optionally detaches the target.
+
+Options:
+  --disk PATH           Target disk used to infer partitions (default: /dev/vda)
+  --luks-part PATH      LUKS partition (default: disk partition 2)
+  --esp-part PATH       ESP partition (default: disk partition 1)
+  --target-root PATH    Target mountpoint (default: /mnt)
+  --crypt-name NAME     LUKS mapper name (default: cryptroot)
+  --pool-name NAME      ZFS pool name (default: rpool)
+  --repo-dest PATH      Repo path inside target (default: /root/margine-os)
+  --product NAME        Product context; inferred from target when omitted
+  --flavor NAME         Flavor context; inferred from target when omitted
+  --live-iso-recovery   Detach with unmount-zfs-root-target --live-iso-recovery
+  --leave-mounted       Do not detach the target after repair
+  --help                Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+partition_path() {
+  local partition_number="$1"
+
+  if [[ "$disk" =~ [0-9]$ ]]; then
+    printf '%sp%s\n' "$disk" "$partition_number"
+  else
+    printf '%s%s\n' "$disk" "$partition_number"
+  fi
+}
+
+single_line_file() {
+  local path="$1"
+
+  [[ -r "$path" ]] || return 1
+  tr -d '[:space:]' <"$path"
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --disk)
+        [[ $# -ge 2 ]] || die "missing value for --disk"
+        disk="$2"
+        shift 2
+        ;;
+      --luks-part)
+        [[ $# -ge 2 ]] || die "missing value for --luks-part"
+        luks_part="$2"
+        luks_part_from_cli=1
+        shift 2
+        ;;
+      --esp-part)
+        [[ $# -ge 2 ]] || die "missing value for --esp-part"
+        esp_part="$2"
+        esp_part_from_cli=1
+        shift 2
+        ;;
+      --target-root)
+        [[ $# -ge 2 ]] || die "missing value for --target-root"
+        target_root="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        crypt_name_from_cli=1
+        shift 2
+        ;;
+      --pool-name)
+        [[ $# -ge 2 ]] || die "missing value for --pool-name"
+        pool_name="$2"
+        pool_name_from_cli=1
+        shift 2
+        ;;
+      --repo-dest)
+        [[ $# -ge 2 ]] || die "missing value for --repo-dest"
+        repo_dest="$2"
+        shift 2
+        ;;
+      --product)
+        [[ $# -ge 2 ]] || die "missing value for --product"
+        product="${2,,}"
+        shift 2
+        ;;
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="${2,,}"
+        shift 2
+        ;;
+      --live-iso-recovery)
+        live_iso_recovery=1
+        shift
+        ;;
+      --leave-mounted)
+        leave_mounted=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+load_runtime_manifest_defaults() {
+  local manifest_path="/run/margine-install/root-zfs.env"
+
+  [[ -f "$manifest_path" ]] || return 0
+
+  # shellcheck source=/dev/null
+  source "$manifest_path"
+  [[ "${MARGINE_STORAGE_LAYOUT:-}" == "zfs-root" ]] \
+    || die "runtime install manifest is not root-on-ZFS: ${manifest_path}"
+
+  if (( luks_part_from_cli == 0 )) && [[ -n "${MARGINE_LUKS_DEVICE:-}" ]]; then
+    luks_part="$MARGINE_LUKS_DEVICE"
+  fi
+  if (( esp_part_from_cli == 0 )) && [[ -n "${MARGINE_ESP_DEVICE:-}" ]]; then
+    esp_part="$MARGINE_ESP_DEVICE"
+  fi
+  if (( crypt_name_from_cli == 0 )) && [[ -n "${MARGINE_LUKS_MAPPER:-}" ]]; then
+    crypt_name="$MARGINE_LUKS_MAPPER"
+  fi
+  if (( pool_name_from_cli == 0 )) && [[ -n "${MARGINE_ZFS_POOL:-}" ]]; then
+    pool_name="$MARGINE_ZFS_POOL"
+  fi
+}
+
+require_root() {
+  [[ "$(id -u)" -eq 0 ]] || die "repair-zfs-root-boot-chain must run as root"
+}
+
+validate_inputs() {
+  [[ "$target_root" = /* ]] || die "--target-root must be absolute"
+  [[ "$target_root" != "/" ]] || die "--target-root must not be /"
+  [[ "$repo_dest" = /* ]] || die "--repo-dest must be absolute"
+  [[ "$repo_dest" != "/" ]] || die "--repo-dest must not be /"
+  (( live_iso_recovery == 0 || leave_mounted == 0 )) \
+    || die "--live-iso-recovery and --leave-mounted are mutually exclusive"
+
+  luks_part="${luks_part:-$(partition_path 2)}"
+  esp_part="${esp_part:-$(partition_path 1)}"
+}
+
+ensure_live_zfs_tools() {
+  local zfs_bootstrap="${repo_root}/scripts/bootstrap-live-zfs-tools"
+  local flavor_hint="${flavor:-auto}"
+
+  if have_cmd zfs && have_cmd zpool; then
+    if have_cmd modprobe; then
+      modprobe zfs >/dev/null 2>&1 || true
+    fi
+    return 0
+  fi
+
+  [[ -x "$zfs_bootstrap" ]] || die "ZFS tools missing and bootstrap helper not executable: ${zfs_bootstrap}"
+
+  log
+  log "==> Bootstrap live ZFS tools"
+  "$zfs_bootstrap" --flavor "$flavor_hint"
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in arch-chroot cryptsetup findmnt install mount mountpoint rsync sync umount zfs zpool; do
+    have_cmd "$cmd" || die "required command not found: $cmd"
+  done
+
+  [[ -x "${repo_root}/scripts/mount-zfs-root-target" ]] || die "mount helper not executable"
+  [[ -x "${repo_root}/scripts/unmount-zfs-root-target" ]] || die "unmount helper not executable"
+  [[ -x "${repo_root}/scripts/provision-initial-boot-chain-zfs" ]] || die "ZFS boot provisioner not executable"
+  [[ -x "${repo_root}/scripts/provision-user-app-config" ]] || die "app config provisioner not executable"
+  [[ -x "${repo_root}/scripts/validate-root-zfs-target" ]] || die "ZFS target validator not executable"
+}
+
+mount_target() {
+  local -a args=(
+    --disk "$disk"
+    --luks-part "$luks_part"
+    --esp-part "$esp_part"
+    --target-root "$target_root"
+    --crypt-name "$crypt_name"
+    --pool-name "$pool_name"
+  )
+
+  log
+  log "==> Mount root-on-ZFS target"
+  "${repo_root}/scripts/mount-zfs-root-target" "${args[@]}"
+}
+
+load_target_product_defaults() {
+  if [[ -z "$product" ]]; then
+    product="$(single_line_file "${target_root}/var/lib/margine/product" 2>/dev/null || true)"
+  fi
+  if [[ -z "$flavor" ]]; then
+    flavor="$(single_line_file "${target_root}/var/lib/margine/flavor" 2>/dev/null || true)"
+  fi
+  if [[ -z "$product" && "$(type -t margine_default_product || true)" == "function" ]]; then
+    product="$(margine_default_product)"
+  fi
+  if [[ -z "$flavor" && "$(type -t margine_default_flavor || true)" == "function" ]]; then
+    flavor="$(margine_default_flavor)"
+  fi
+}
+
+validate_target_manifest() {
+  local manifest="${target_root}/etc/margine/install-layout.env"
+
+  [[ -f "$manifest" ]] || die "target install manifest missing: ${manifest}"
+  grep -Fqx 'MARGINE_STORAGE_LAYOUT="zfs-root"' "$manifest" \
+    || grep -Fqx 'MARGINE_STORAGE_LAYOUT=zfs-root' "$manifest" \
+    || die "target is not marked as root-on-ZFS: ${manifest}"
+}
+
+copy_repo_into_target() {
+  local target_repo="${target_root}${repo_dest}"
+
+  log
+  log "==> Refresh target repo copy"
+
+  [[ "$repo_root" != "$target_root"* ]] \
+    || die "repo source must live outside target root; refusing recursive copy"
+  [[ "$target_repo" != "${target_root}/" ]] \
+    || die "target repo destination must not be target root"
+
+  install -d -m 755 "$target_repo"
+  rsync -a --delete \
+    --no-owner \
+    --no-group \
+    --exclude .git \
+    --exclude .github \
+    --exclude build \
+    --exclude dist \
+    --exclude target \
+    --exclude node_modules \
+    --exclude cache \
+    --exclude '*.qcow2' \
+    --exclude '*.raw' \
+    --exclude '*.img' \
+    --exclude '*.iso' \
+    "${repo_root}/" "${target_repo}/"
+  chown -R root:root "$target_repo"
+}
+
+bind_api_filesystems() {
+  local path=""
+
+  log
+  log "==> Bind live API filesystems"
+
+  for path in dev proc sys run; do
+    install -d "${target_root}/${path}"
+    if mountpoint -q "${target_root}/${path}"; then
+      continue
+    fi
+    mount --rbind "/${path}" "${target_root}/${path}"
+    mount --make-rslave "${target_root}/${path}"
+  done
+
+  api_bound=1
+}
+
+unmount_api_filesystems() {
+  local path=""
+
+  for path in run sys proc dev; do
+    if mountpoint -q "${target_root}/${path}"; then
+      umount -R "${target_root}/${path}" || warn "unable to unmount ${target_root}/${path}"
+    fi
+  done
+
+  api_bound=0
+}
+
+cleanup_api_on_exit() {
+  (( api_bound == 0 )) && return 0
+  unmount_api_filesystems || true
+}
+
+repair_boot_chain() {
+  local -a args=()
+
+  log
+  log "==> Rebuild root-on-ZFS boot chain in target"
+
+  [[ -n "$product" ]] && args+=(--product "$product")
+  [[ -n "$flavor" ]] && args+=(--flavor "$flavor")
+
+  arch-chroot "$target_root" "${repo_dest}/scripts/provision-initial-boot-chain-zfs" "${args[@]}"
+}
+
+refresh_update_runtime() {
+  log
+  log "==> Refresh installed update runtime in target"
+
+  arch-chroot "$target_root" "${repo_dest}/scripts/provision-user-app-config" --install-global-update-only
+}
+
+validate_boot_chain() {
+  log
+  log "==> Validate repaired root-on-ZFS boot chain"
+
+  arch-chroot "$target_root" "${repo_dest}/scripts/validate-root-zfs-target" --target-root / --mode boot-chain
+}
+
+detach_target() {
+  local -a args=(
+    --target-root "$target_root"
+    --crypt-name "$crypt_name"
+    --pool-name "$pool_name"
+  )
+
+  (( leave_mounted == 0 )) || return 0
+
+  log
+  log "==> Detach root-on-ZFS target"
+
+  sync
+  unmount_api_filesystems
+  if (( live_iso_recovery )); then
+    args+=(--live-iso-recovery)
+  fi
+  "${repo_root}/scripts/unmount-zfs-root-target" "${args[@]}"
+}
+
+main() {
+  parse_args "$@"
+  load_runtime_manifest_defaults
+  require_root
+  validate_inputs
+  ensure_live_zfs_tools
+  ensure_prereqs
+  trap cleanup_api_on_exit EXIT
+
+  log "=== Repair Margine root-on-ZFS boot chain ==="
+  log "Target root: ${target_root}"
+  log "LUKS: ${luks_part} -> ${crypt_name}"
+  log "Pool: ${pool_name}"
+  log "Repo target: ${repo_dest}"
+
+  mount_target
+  validate_target_manifest
+  load_target_product_defaults
+  log "Product: ${product:-unknown}"
+  log "Flavor: ${flavor:-unknown}"
+  copy_repo_into_target
+  bind_api_filesystems
+  refresh_update_runtime
+  repair_boot_chain
+  validate_boot_chain
+  detach_target
+
+  log
+  log "=== DONE ==="
+}
+
+main "$@"

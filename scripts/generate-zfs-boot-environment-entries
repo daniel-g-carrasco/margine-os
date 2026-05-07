@@ -1,0 +1,222 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+pool_name=""
+root_parent=""
+luks_uuid=""
+crypt_name="cryptroot"
+limit=8
+output_path=""
+entry_template="${repo_root}/files/esp/EFI/BOOT/zfs-boot-environment-entry.template"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  generate-zfs-boot-environment-entries --pool POOL --luks-uuid UUID [options]
+
+Options:
+  --pool NAME          ZFS pool name
+  --root-parent DS     Parent dataset for boot environments (default: POOL/ROOT)
+  --luks-uuid UUID     LUKS2 container UUID
+  --crypt-name NAME    LUKS mapper name (default: cryptroot)
+  --limit N            Maximum entries to render (default: 8)
+  --template PATH      Limine entry template
+  --output PATH        Write entries to a file instead of stdout
+  --help               Show this help
+EOF
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --pool)
+        [[ $# -ge 2 ]] || die "missing value for --pool"
+        pool_name="$2"
+        shift 2
+        ;;
+      --root-parent)
+        [[ $# -ge 2 ]] || die "missing value for --root-parent"
+        root_parent="$2"
+        shift 2
+        ;;
+      --luks-uuid)
+        [[ $# -ge 2 ]] || die "missing value for --luks-uuid"
+        luks_uuid="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        shift 2
+        ;;
+      --limit)
+        [[ $# -ge 2 ]] || die "missing value for --limit"
+        limit="$2"
+        shift 2
+        ;;
+      --template)
+        [[ $# -ge 2 ]] || die "missing value for --template"
+        entry_template="$2"
+        shift 2
+        ;;
+      --output)
+        [[ $# -ge 2 ]] || die "missing value for --output"
+        output_path="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+trim_field() {
+  local value="$1"
+
+  value="${value//$'\r'/ }"
+  value="${value//$'\n'/ }"
+  value="${value//$'\t'/ }"
+  value="$(printf '%s' "$value" | tr -s ' ')"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+escape_sed_replacement() {
+  printf '%s' "$1" | sed -e 's/[\/&]/\\&/g'
+}
+
+sanitize_limine_comment() {
+  local value="$1"
+
+  value="$(trim_field "$value")"
+  value="${value//\\/ }"
+  value="${value//\$/ }"
+  printf '%s' "$value"
+}
+
+format_creation_label() {
+  local creation="$1"
+
+  if [[ "$creation" =~ ^[0-9]+$ ]]; then
+    if LC_ALL=C date -d "@${creation}" '+%F %R' 2>/dev/null; then
+      return 0
+    fi
+  fi
+
+  printf '%s' "$creation"
+}
+
+collect_boot_environments() {
+  local dataset=""
+  local marker=""
+  local origin=""
+  local creation=""
+  local description=""
+
+  zfs list -H -r -o name "$root_parent" 2>/dev/null |
+    while IFS= read -r dataset; do
+      [[ -n "$dataset" ]] || continue
+      [[ "$dataset" == "$root_parent" ]] && continue
+
+      marker="$(zfs get -H -o value org.margine:bootenv "$dataset" 2>/dev/null || true)"
+      [[ "$marker" == "pre-update" ]] || continue
+
+      origin="$(zfs get -H -o value origin "$dataset" 2>/dev/null || true)"
+      [[ "$origin" == *@* ]] || continue
+
+      creation="$(zfs get -H -p -o value creation "$dataset" 2>/dev/null || true)"
+      [[ "$creation" =~ ^[0-9]+$ ]] || creation=0
+
+      description="$(zfs get -H -o value org.margine:description "$dataset" 2>/dev/null || true)"
+      [[ "$description" != "-" ]] || description=""
+
+      printf '%s\t%s\t%s\t%s\n' "$creation" "$dataset" "$origin" "$description"
+    done |
+    sort -t$'\t' -k1,1nr |
+    head -n "$limit"
+}
+
+render_entry() {
+  local creation="$1"
+  local dataset="$2"
+  local origin="$3"
+  local description="$4"
+  local label=""
+  local comment=""
+
+  label="$(format_creation_label "$creation")"
+  if [[ -n "$description" ]]; then
+    comment="${description}; origin: ${origin}"
+  else
+    comment="origin: ${origin}"
+  fi
+  comment="$(sanitize_limine_comment "$comment")"
+
+  sed \
+    -e "s|@BOOT_ENV_LABEL@|$(escape_sed_replacement "$label")|g" \
+    -e "s|@BOOT_ENV_COMMENT@|$(escape_sed_replacement "$comment")|g" \
+    -e "s|@LUKS_UUID@|$(escape_sed_replacement "$luks_uuid")|g" \
+    -e "s|@CRYPT_NAME@|$(escape_sed_replacement "$crypt_name")|g" \
+    -e "s|@ZFS_ROOT_DATASET@|$(escape_sed_replacement "$dataset")|g" \
+    "$entry_template"
+}
+
+render_entries() {
+  local rendered_any=0
+  local creation=""
+  local dataset=""
+  local origin=""
+  local description=""
+
+  while IFS=$'\t' read -r creation dataset origin description; do
+    [[ -n "$dataset" ]] || continue
+    if (( rendered_any == 0 )); then
+      cat <<'EOF'
+/Rollback
+comment: Bootable root-on-ZFS clones created before updates.
+
+EOF
+      rendered_any=1
+    fi
+    render_entry "$creation" "$dataset" "$origin" "$description"
+    printf '\n\n'
+  done
+}
+
+main() {
+  local rendered=""
+
+  parse_args "$@"
+  [[ -n "$pool_name" ]] || die "--pool is required"
+  [[ -n "$luks_uuid" ]] || die "--luks-uuid is required"
+  [[ -n "$crypt_name" ]] || die "--crypt-name must not be empty"
+  [[ "$limit" =~ ^[0-9]+$ ]] || die "--limit must be a non-negative integer"
+  [[ -n "$root_parent" ]] || root_parent="${pool_name}/ROOT"
+  [[ -f "$entry_template" ]] || die "template not found: ${entry_template}"
+  command -v zfs >/dev/null 2>&1 || die "zfs command not found"
+
+  rendered="$(collect_boot_environments | render_entries)"
+
+  if [[ -n "$output_path" ]]; then
+    mkdir -p "$(dirname "$output_path")"
+    printf '%s' "$rendered" >"$output_path"
+  else
+    printf '%s' "$rendered"
+  fi
+}
+
+main "$@"

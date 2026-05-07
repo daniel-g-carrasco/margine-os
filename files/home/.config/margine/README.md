@@ -12,7 +12,7 @@ It currently drives:
 - Qt / KDE icon theme override
 - UI font
 - accent color
-- generated Margine MoreWaita icon overlay
+- generated Margine icon overlay
 - Breeze Dark Qt/KDE icon fallback on dark sessions
 - managed Firefox theme install
 - Hyprland window border colors and rounding
@@ -63,12 +63,17 @@ NMTUI-specific note:
 
 Icon-theme note:
 
-- GTK/GNOME uses the generated `Margine-MoreWaita` icon theme by default
-- that overlay inherits `MoreWaita` for broader app coverage
-- Firefox and Thunderbird are explicitly forced back to upstream icons inside
-  the overlay because the MoreWaita replacements are intentionally not used
+- GTK/GNOME uses the generated `Margine-Adwaita` icon theme by default
+- that overlay keeps Adwaita / hicolor as the app icon baseline
+- Margine-specific launchers are explicitly assigned icons inside the overlay
+- MoreWaita is selectively layered for `MimeTypes`, `Devices`, and extra
+  `Places`; its `Apps` catalog is not imported wholesale
 - `MARGINE_THEME_ICON_FOLDER_COLOR` selects the folder variant source from the
   installed `Adwaita-*` color themes without changing the rest of the app icons
+- selected Adwaita folder colors override matching MoreWaita place names so
+  folder tint remains controlled by `theme.env`
+- MoreWaita `Legacy` remains opt-in through explicit Margine launcher icon
+  candidates instead of being imported as a whole context
 - Qt/KDE stays on `MARGINE_THEME_QT_ICON_THEME`, which should usually remain
   `breeze-dark` on dark sessions
 
@@ -78,10 +83,25 @@ Rewaita note:
   but Rewaita itself is not required at runtime
 - Margine vendors the exported baseline as a template and regenerates `gtk.css`
   from `theme.env`, so presets stay deterministic
-- `MARGINE_THEME_GTK4_SHARP_BORDERS='1'` appends the sharp-border override
-  block to the generated GTK4 CSS
+- the default baseline is derived from the `Margine V2` Rewaita export and
+  intentionally does not append a sharp-border override because that caused
+  rendering issues in GTK/libadwaita apps
+- `MARGINE_THEME_GTK4_ACCENT_BG` keeps the Rewaita accent background explicit
+  so it is not collapsed into the libadwaita named accent color
+- GTK4/libadwaita backdrop colors are generated explicitly because some apps
+  otherwise fall back to light inactive-window colors even when the active
+  window is dark
 - Rewaita remains useful as an authoring tool if you want to design a new GTK4
   baseline and re-export it, but it is no longer a required dependency
+
+Browser accent note:
+
+- Firefox's managed libadwaita theme follows the GNOME named accent exposed by
+  `MARGINE_THEME_ACCENT_COLOR`
+- the default preset uses `yellow`, the closest standard libadwaita accent to
+  Margine's muted amber palette
+- Thunderbird is kept on `accent-color` so browser and mailer follow the same
+  OS accent channel instead of carrying a hardcoded orange override
 
 Operational rule:
 
@@ -108,21 +128,22 @@ What `margine-apply-theme` does:
 - refreshes the generated `nmtui` palette file
 - refreshes generated qt5ct / qt6ct palette files for Qt apps
 - refreshes generated hyprqt6engine theme data for Qt6 / KDE apps
-- refreshes the generated Margine icon overlay built on MoreWaita
+- refreshes the generated Margine icon overlay and icon cache when a generated
+  icon theme is active
 - updates the lockscreen theme source indirectly, so the next `hyprlock`
   invocation picks up the new palette, fonts, and blur tuning
 
 What it does not do:
 
 - it does not touch root-managed files under `/etc`
-- if you changed the Firefox managed theme policy, re-run:
-  `sudo /home/daniel/dev/margine-os/scripts/provision-user-app-config --username $USER`
+- if you changed the Firefox or Thunderbird managed theme policy, re-run:
+  `sudo ${MARGINE_PUBLIC_REPO:-/usr/local/lib/margine}/scripts/provision-user-app-config --username $USER`
 
 Current generator:
 
-- `/home/daniel/dev/margine-os/scripts/render-theme-artifacts`
+- `${MARGINE_PUBLIC_REPO:-/usr/local/lib/margine}/scripts/render-theme-artifacts`
 
 Preset launcher:
 
-- `/home/daniel/.local/bin/margine-theme-menu`
+- `~/.local/bin/margine-theme-menu`
 - desktop entry: `Themes`

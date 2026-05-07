@@ -19,8 +19,8 @@ Usage:
   provision-framework-audio --username NAME [options]
 
 Options:
-  --username NAME   Utente target che ricevera' preset e servizio
-  --dry-run         Mostra il piano senza eseguirlo
+  --username NAME   Target user that will receive presets and service
+  --dry-run         Show the plan without executing it
   --help            Show this help
 EOF
 }
@@ -162,7 +162,7 @@ main() {
   resolve_home_dir
 
   if ! is_framework_laptop13; then
-    log "Hardware non compatibile: provisioning audio Framework saltato."
+    log "Unsupported hardware: skipping Framework audio provisioning."
     return 0
   fi
 

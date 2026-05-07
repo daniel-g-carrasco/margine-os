@@ -12,8 +12,6 @@ declare -a home_payload=(
   ".config/xdg-desktop-portal/hyprland-portals.conf"
   ".config/fuzzel/fuzzel.ini"
   ".config/fuzzel/theme-generated.ini"
-  ".config/rofi/config.rasi"
-  ".config/rofi/theme-generated.rasi"
   ".config/hypr/hyprland.conf"
   ".config/hypr/README.md"
   ".config/hypr/hypridle.conf"
@@ -60,7 +58,6 @@ declare -a home_payload=(
   ".local/bin/margine-hyprlock"
   ".local/bin/launch-hyprpaper"
   ".local/bin/margine-dmenu"
-  ".local/bin/margine-launcher-rofi"
   ".local/bin/margine-host-health-menu"
   ".local/bin/margine-session-actions-menu"
   ".local/bin/network-status"
@@ -73,6 +70,7 @@ declare -a home_payload=(
   ".local/bin/open-bluetooth-tui"
   ".local/bin/open-network-settings"
   ".local/bin/open-network-tui"
+  ".local/bin/open-plasma-network-management"
   ".local/bin/open-power-settings"
   ".local/bin/polkit-agent-launch"
   ".local/bin/polkit-agent-restart"
@@ -94,8 +92,8 @@ Usage:
   provision-hyprland-desktop --username NAME [options]
 
 Options:
-  --username NAME   Utente target che ricevera' il desktop payload
-  --dry-run         Mostra il piano senza eseguirlo
+  --username NAME   Target user that will receive the desktop payload
+  --dry-run         Show the plan without executing it
   --help            Show this help
 EOF
 }
@@ -212,7 +210,6 @@ fix_ownership() {
     "${home_dir}/.config" \
     "${home_dir}/.local" \
     "${home_dir}/.config/hypr" \
-    "${home_dir}/.config/rofi" \
     "${home_dir}/.config/satty" \
     "${home_dir}/.config/swaync" \
     "${home_dir}/.config/swayosd" \

@@ -1,0 +1,320 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+disk="/dev/vda"
+luks_part=""
+esp_part=""
+target_root="/mnt"
+crypt_name="cryptroot"
+pool_name="rpool"
+repo_tag=""
+repo_mount_path="/root/margine-repo"
+luks_part_from_cli=0
+esp_part_from_cli=0
+crypt_name_from_cli=0
+pool_name_from_cli=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  mount-zfs-root-target [options]
+
+Opens and mounts an installed Margine root-on-ZFS target from a live ISO. This
+is the recovery/resume helper to use after rebooting the live environment.
+
+Options:
+  --disk PATH             Target disk used to infer partitions (default: /dev/vda)
+  --luks-part PATH        LUKS partition (default: disk partition 2)
+  --esp-part PATH         ESP partition (default: disk partition 1)
+  --target-root PATH      Target mountpoint (default: /mnt)
+  --crypt-name NAME       LUKS mapper name (default: cryptroot)
+  --pool-name NAME        ZFS pool name (default: rpool)
+  --repo-tag NAME         Optional 9p tag to mount, for example: margine
+  --repo-mount-path PATH  9p repo mountpoint (default: /root/margine-repo)
+  --help                  Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+partition_path() {
+  local partition_number="$1"
+
+  if [[ "$disk" =~ [0-9]$ ]]; then
+    printf '%sp%s\n' "$disk" "$partition_number"
+  else
+    printf '%s%s\n' "$disk" "$partition_number"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --disk)
+        [[ $# -ge 2 ]] || die "missing value for --disk"
+        disk="$2"
+        shift 2
+        ;;
+      --luks-part)
+        [[ $# -ge 2 ]] || die "missing value for --luks-part"
+        luks_part="$2"
+        luks_part_from_cli=1
+        shift 2
+        ;;
+      --esp-part)
+        [[ $# -ge 2 ]] || die "missing value for --esp-part"
+        esp_part="$2"
+        esp_part_from_cli=1
+        shift 2
+        ;;
+      --target-root)
+        [[ $# -ge 2 ]] || die "missing value for --target-root"
+        target_root="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        crypt_name_from_cli=1
+        shift 2
+        ;;
+      --pool-name)
+        [[ $# -ge 2 ]] || die "missing value for --pool-name"
+        pool_name="$2"
+        pool_name_from_cli=1
+        shift 2
+        ;;
+      --repo-tag)
+        [[ $# -ge 2 ]] || die "missing value for --repo-tag"
+        repo_tag="$2"
+        shift 2
+        ;;
+      --repo-mount-path)
+        [[ $# -ge 2 ]] || die "missing value for --repo-mount-path"
+        repo_mount_path="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+load_runtime_manifest_defaults() {
+  local manifest_path="/run/margine-install/root-zfs.env"
+
+  [[ -f "$manifest_path" ]] || return 0
+
+  # shellcheck source=/dev/null
+  source "$manifest_path"
+  [[ "${MARGINE_STORAGE_LAYOUT:-}" == "zfs-root" ]] \
+    || die "runtime install manifest is not root-on-ZFS: ${manifest_path}"
+
+  if (( luks_part_from_cli == 0 )) && [[ -n "${MARGINE_LUKS_DEVICE:-}" ]]; then
+    luks_part="$MARGINE_LUKS_DEVICE"
+  fi
+  if (( esp_part_from_cli == 0 )) && [[ -n "${MARGINE_ESP_DEVICE:-}" ]]; then
+    esp_part="$MARGINE_ESP_DEVICE"
+  fi
+  if (( crypt_name_from_cli == 0 )) && [[ -n "${MARGINE_LUKS_MAPPER:-}" ]]; then
+    crypt_name="$MARGINE_LUKS_MAPPER"
+  fi
+  if (( pool_name_from_cli == 0 )) && [[ -n "${MARGINE_ZFS_POOL:-}" ]]; then
+    pool_name="$MARGINE_ZFS_POOL"
+  fi
+}
+
+require_root() {
+  [[ "$(id -u)" -eq 0 ]] || die "mount-zfs-root-target must run as root"
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in cryptsetup findmnt install mount mountpoint sort umount zfs zpool; do
+    have_cmd "$cmd" || die "required command not found: $cmd"
+  done
+}
+
+validate_inputs() {
+  [[ "$target_root" = /* ]] || die "--target-root must be absolute"
+  [[ "$target_root" != "/" ]] || die "--target-root must not be /"
+  [[ "$repo_mount_path" = /* ]] || die "--repo-mount-path must be absolute"
+
+  luks_part="${luks_part:-$(partition_path 2)}"
+  esp_part="${esp_part:-$(partition_path 1)}"
+
+  [[ -b "$luks_part" ]] || die "LUKS partition is not a block device: $luks_part"
+  [[ -b "$esp_part" ]] || die "ESP partition is not a block device: $esp_part"
+}
+
+prepare_private_target_root() {
+  log
+  log "==> Prepare private live mount namespace"
+
+  install -d "$target_root"
+  mount --make-rprivate /
+  log "  live mount namespace is private before target import"
+}
+
+open_luks_mapper() {
+  log
+  log "==> Open LUKS mapper"
+
+  if cryptsetup status "$crypt_name" >/dev/null 2>&1; then
+    log "  mapper already open: ${crypt_name}"
+    return 0
+  fi
+
+  cryptsetup open "$luks_part" "$crypt_name"
+}
+
+unmount_pool_datasets() {
+  local dataset=""
+
+  if mountpoint -q "$target_root"; then
+    umount -R "$target_root" || true
+  fi
+
+  while read -r dataset; do
+    [[ -n "$dataset" ]] || continue
+    zfs unmount "$dataset" 2>/dev/null || true
+  done < <(zfs list -H -r -o name "$pool_name" 2>/dev/null | sort -r)
+}
+
+import_pool() {
+  local altroot=""
+
+  log
+  log "==> Import ZFS pool"
+
+  if zpool list -H -o name "$pool_name" >/dev/null 2>&1; then
+    altroot="$(zpool get -H -o value altroot "$pool_name" 2>/dev/null || true)"
+    if [[ "$altroot" == "$target_root" ]]; then
+      log "  pool already imported with target altroot: ${pool_name}"
+      return 0
+    fi
+
+    log "  pool already imported without target altroot; reimporting: ${pool_name}"
+    unmount_pool_datasets
+    zpool export "$pool_name" \
+      || die "unable to export ${pool_name}; close shells/files under ${target_root} and retry"
+  fi
+
+  zpool import -N -f -R "$target_root" "$pool_name"
+}
+
+mount_target() {
+  local root_dataset=""
+  local target_source=""
+
+  log
+  log "==> Mount target system"
+
+  root_dataset="$(zpool get -H -o value bootfs "$pool_name" 2>/dev/null || true)"
+  [[ -n "$root_dataset" && "$root_dataset" != "-" && "$root_dataset" != "none" ]] \
+    || die "unable to infer root dataset from ${pool_name} bootfs"
+
+  target_source="$(findmnt -n -o SOURCE "$target_root" 2>/dev/null || true)"
+  if [[ -n "$target_source" && "$target_source" != "$root_dataset" ]]; then
+    log "  target root is occupied by ${target_source}; unmounting before ZFS root mount"
+    umount -R "$target_root" \
+      || die "unable to clear non-ZFS target root mount at ${target_root}"
+  fi
+
+  target_source="$(findmnt -n -o SOURCE "$target_root" 2>/dev/null || true)"
+  if [[ "$target_source" != "$root_dataset" ]]; then
+    zfs mount "$root_dataset"
+  fi
+
+  zfs mount -a
+  require_dataset_mount_if_present home "${target_root}/home"
+
+  install -d "${target_root}/boot"
+  if ! mountpoint -q "${target_root}/boot"; then
+    mount -o umask=0077 "$esp_part" "${target_root}/boot"
+  fi
+
+  log "  root dataset: ${root_dataset}"
+  log "  target root: ${target_root}"
+  log "  ESP: ${esp_part} -> ${target_root}/boot"
+}
+
+require_dataset_mount_if_present() {
+  local dataset_suffix="$1"
+  local expected_mount="$2"
+  local dataset="${pool_name}/${dataset_suffix}"
+
+  if ! zfs list -H -o name "$dataset" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  mountpoint -q "$expected_mount" \
+    || die "${dataset} exists but is not mounted at ${expected_mount}; check ZFS altroot import"
+}
+
+mount_repo_if_requested() {
+  [[ -n "$repo_tag" ]] || return 0
+
+  log
+  log "==> Mount repository 9p share"
+
+  install -d "$repo_mount_path"
+  if mountpoint -q "$repo_mount_path"; then
+    log "  repo already mounted: ${repo_mount_path}"
+    return 0
+  fi
+
+  mount -t 9p -o trans=virtio,version=9p2000.L "$repo_tag" "$repo_mount_path"
+  log "  repo: ${repo_tag} -> ${repo_mount_path}"
+}
+
+print_status() {
+  log
+  log "==> Mounted target status"
+  findmnt "$target_root"
+  findmnt "${target_root}/home" || true
+  findmnt "${target_root}/boot"
+  zpool get bootfs "$pool_name"
+}
+
+main() {
+  parse_args "$@"
+  load_runtime_manifest_defaults
+  require_root
+  ensure_prereqs
+  validate_inputs
+
+  log "=== Mount Margine root-on-ZFS target ==="
+  log "LUKS: ${luks_part} -> ${crypt_name}"
+  log "Pool: ${pool_name}"
+  log "Target root: ${target_root}"
+
+  prepare_private_target_root
+  open_luks_mapper
+  import_pool
+  mount_target
+  mount_repo_if_requested
+  print_status
+
+  log
+  log "=== DONE ==="
+}
+
+main "$@"

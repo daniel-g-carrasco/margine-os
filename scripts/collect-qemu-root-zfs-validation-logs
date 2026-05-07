@@ -1,0 +1,399 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "${script_dir}/.." && pwd)"
+
+build_dir=""
+identity_file=""
+known_hosts=""
+log_dir=""
+ssh_user="${MARGINE_QEMU_SSH_USER:-margine}"
+ssh_port="${MARGINE_QEMU_SSH_PORT:-2222}"
+product="margine-cachyos"
+flavor="cachyos"
+prompt_sudo=0
+timeout_seconds="${MARGINE_QEMU_SSH_TIMEOUT:-120}"
+declare -a ssh_args=()
+
+usage() {
+  cat <<'EOF'
+Usage:
+  collect-qemu-root-zfs-validation-logs [options]
+
+Collects post-install validation output from a running QEMU root-on-ZFS guest
+over SSH and stores host-side text logs under build/.
+
+Options:
+  --build-dir PATH       QEMU harness directory containing qemu-margine_ed25519
+  --identity-file PATH   SSH identity file (default: BUILD_DIR/qemu-margine_ed25519)
+  --known-hosts PATH     SSH known_hosts file (default: BUILD_DIR/known_hosts)
+  --log-dir PATH         Output directory (default: build/qemu-root-zfs-validation-logs/TIMESTAMP)
+  --user USER            SSH user (default: MARGINE_QEMU_SSH_USER or margine)
+  --port PORT            Host forwarded SSH port (default: MARGINE_QEMU_SSH_PORT or 2222)
+  --product NAME         Product passed to validators (default: margine-cachyos)
+  --flavor NAME          Flavor passed to validators (default: cachyos)
+  --prompt-sudo          Allow an interactive sudo password prompt over SSH
+  --timeout SECONDS      Wait time for SSH reachability (default: 120)
+  --help                 Show this help
+
+Inside the guest, enable SSH once with:
+  sudo /root/margine-repo/scripts/enable-qemu-validation-ssh --user "$USER"
+Then run this helper from the host.
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+latest_root_zfs_build_dir() {
+  local candidate=""
+
+  candidate="$(
+    find "${repo_root}/build" -maxdepth 2 -type f -path "${repo_root}/build/qemu-root-zfs-*/qemu-margine_ed25519" -printf '%T@ %h\n' 2>/dev/null |
+      sort -nr |
+      awk 'NR == 1 { $1 = ""; sub(/^ /, ""); print; exit }'
+  )"
+
+  [[ -n "$candidate" ]] || die "unable to infer --build-dir; no build/qemu-root-zfs-* directory containing qemu-margine_ed25519 found"
+  printf '%s\n' "$candidate"
+  return 0
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --build-dir)
+        [[ $# -ge 2 ]] || die "missing value for --build-dir"
+        build_dir="$2"
+        shift 2
+        ;;
+      --identity-file)
+        [[ $# -ge 2 ]] || die "missing value for --identity-file"
+        identity_file="$2"
+        shift 2
+        ;;
+      --known-hosts)
+        [[ $# -ge 2 ]] || die "missing value for --known-hosts"
+        known_hosts="$2"
+        shift 2
+        ;;
+      --log-dir)
+        [[ $# -ge 2 ]] || die "missing value for --log-dir"
+        log_dir="$2"
+        shift 2
+        ;;
+      --user)
+        [[ $# -ge 2 ]] || die "missing value for --user"
+        ssh_user="$2"
+        shift 2
+        ;;
+      --port)
+        [[ $# -ge 2 ]] || die "missing value for --port"
+        ssh_port="$2"
+        shift 2
+        ;;
+      --product)
+        [[ $# -ge 2 ]] || die "missing value for --product"
+        product="${2,,}"
+        shift 2
+        ;;
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="${2,,}"
+        shift 2
+        ;;
+      --prompt-sudo)
+        prompt_sudo=1
+        shift
+        ;;
+      --timeout)
+        [[ $# -ge 2 ]] || die "missing value for --timeout"
+        timeout_seconds="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+init_defaults() {
+  local timestamp=""
+
+  build_dir="${build_dir:-$(latest_root_zfs_build_dir)}"
+  identity_file="${identity_file:-${build_dir}/qemu-margine_ed25519}"
+  known_hosts="${known_hosts:-${build_dir}/known_hosts}"
+  timestamp="$(date '+%Y%m%d-%H%M%S')"
+  log_dir="${log_dir:-${repo_root}/build/qemu-root-zfs-validation-logs/${timestamp}}"
+
+  [[ -f "$identity_file" ]] || die "SSH identity file not found: $identity_file"
+  install -d -m 700 "$(dirname "$known_hosts")"
+  install -d -m 755 "$log_dir"
+
+  ssh_args=(
+    ssh
+    -p "$ssh_port"
+    -i "$identity_file"
+    -o StrictHostKeyChecking=accept-new
+    -o UserKnownHostsFile="$known_hosts"
+    -o IdentitiesOnly=yes
+    -o ServerAliveInterval=30
+    -o ServerAliveCountMax=3
+    "${ssh_user}@127.0.0.1"
+  )
+
+  return 0
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in awk base64 date find install sort ssh tee timeout; do
+    have_cmd "$cmd" || die "required command not found: $cmd"
+  done
+
+  return 0
+}
+
+wait_for_ssh() {
+  local deadline=$((SECONDS + timeout_seconds))
+  local destination=""
+  local -a probe_args=()
+
+  destination="${ssh_args[$((${#ssh_args[@]} - 1))]}"
+  probe_args=(
+    "${ssh_args[@]:0:$((${#ssh_args[@]} - 1))}"
+    -o BatchMode=yes
+    -o ConnectTimeout=2
+    -o ConnectionAttempts=1
+    "$destination"
+  )
+
+  log "Waiting for SSH handshake on 127.0.0.1:${ssh_port}"
+  while (( SECONDS < deadline )); do
+    if timeout 5 "${probe_args[@]}" true >/dev/null 2>&1; then
+      log "SSH handshake succeeded on 127.0.0.1:${ssh_port}"
+      return 0
+    fi
+    sleep 1
+  done
+
+  die "SSH handshake did not succeed on 127.0.0.1:${ssh_port} within ${timeout_seconds}s"
+}
+
+encode_payload() {
+  base64 | tr -d '\n'
+}
+
+run_ssh_command() {
+  local log_path="$1"
+  shift
+  local attempt=""
+  local status=0
+
+  for attempt in 1 2 3; do
+    if (( attempt > 1 )); then
+      printf '\n### retry SSH command attempt %s\n' "$attempt" >>"$log_path"
+      sleep 2
+    fi
+
+    if "${ssh_args[@]}" "$@" >>"$log_path" 2>&1; then
+      return 0
+    else
+      status=$?
+      printf '\n### SSH command attempt %s failed: exit=%s\n' "$attempt" "$status" >>"$log_path"
+    fi
+  done
+
+  return "$status"
+}
+
+run_ssh_tty_command() {
+  local log_path="$1"
+  shift
+  local attempt=""
+  local status=0
+
+  for attempt in 1 2 3; do
+    if (( attempt > 1 )); then
+      printf '\n### retry SSH TTY command attempt %s\n' "$attempt" | tee -a "$log_path"
+      sleep 2
+    fi
+
+    set +e
+    "${ssh_args[@]:0:1}" -tt "${ssh_args[@]:1}" "$@" 2>&1 | tee -a "$log_path"
+    status="${PIPESTATUS[0]}"
+    set -e
+
+    if (( status == 0 )); then
+      return 0
+    fi
+
+    printf '\n### SSH TTY command attempt %s failed: exit=%s\n' "$attempt" "$status" | tee -a "$log_path"
+  done
+
+  return "$status"
+}
+
+run_remote_payload() {
+  local label="$1"
+  local payload="$2"
+  local log_path="${log_dir}/${label}.log"
+  local remote_command=""
+
+  log "Collecting ${label}: ${log_path}"
+  : >"$log_path"
+  remote_command="printf %s '${payload}' | base64 -d | bash"
+  run_ssh_command "$log_path" "$remote_command" || true
+  return 0
+}
+
+run_remote_root_payload() {
+  local label="$1"
+  local payload="$2"
+  local log_path="${log_dir}/${label}.log"
+  local remote_command=""
+
+  log "Collecting ${label}: ${log_path}"
+  : >"$log_path"
+  if (( prompt_sudo == 1 )); then
+    log "Interactive sudo prompt may follow; root output is also written to ${log_path}"
+    remote_command="sudo -v && printf %s '${payload}' | base64 -d | sudo -n env SYSTEMD_PAGER=cat SYSTEMD_LESS=FRSXMK LESS=FRSXMK PAGER=cat bash"
+    run_ssh_tty_command "$log_path" "$remote_command" || true
+  else
+    remote_command="printf %s '${payload}' | base64 -d | sudo -n bash"
+    run_ssh_command "$log_path" "$remote_command" || true
+  fi
+
+  return 0
+}
+
+guest_user_script() {
+  cat <<EOF
+set +e
+export SYSTEMD_PAGER=cat
+export SYSTEMD_LESS=FRSXMK
+export LESS=FRSXMK
+export PAGER=cat
+
+run_sh() {
+  label="\$1"
+  command="\$2"
+  printf '\n### %s\n' "\$label"
+  printf '$ %s\n' "\$command"
+  bash -lc "\$command"
+  status="\$?"
+  printf 'exit=%s\n' "\$status"
+  return 0
+}
+
+run_sh "identity" "id; hostnamectl; cat /etc/os-release"
+run_sh "kernel and command line" "uname -a; cat /proc/cmdline"
+run_sh "mount overview" "findmnt /; findmnt /home || true; findmnt /games || true; findmnt /boot || true"
+run_sh "user services" "systemctl --user --failed --no-pager; systemctl --user status walker.service margine-walker-healthcheck.timer --no-pager || true"
+run_sh "idle inhibitor status" "systemctl --user status keep-awake.service --no-pager || true; command -v keep-awake-status >/dev/null 2>&1 && keep-awake-status || true; systemd-inhibit --list --no-pager || true"
+run_sh "graphical context" "loginctl; printf 'XDG_SESSION_TYPE=%s\n' \"\${XDG_SESSION_TYPE:-}\"; printf 'WAYLAND_DISPLAY=%s\n' \"\${WAYLAND_DISPLAY:-}\"; printf 'HYPRLAND_INSTANCE_SIGNATURE=%s\n' \"\${HYPRLAND_INSTANCE_SIGNATURE:-}\""
+run_sh "session validator" "/usr/local/lib/margine/scripts/validate-host-health --session --product ${product} --flavor ${flavor} --verbose"
+run_sh "update-all root-on-ZFS dry-run" "update-all --dry-run --no-aur --no-flatpak --no-fwupd"
+run_sh "user journal launcher slice" "journalctl --user -b --no-pager | rg 'walker|waybar|swaync|hyprpaper|elephant' || true"
+EOF
+  return 0
+}
+
+guest_root_script() {
+  cat <<EOF
+set +e
+export SYSTEMD_PAGER=cat
+export SYSTEMD_LESS=FRSXMK
+export LESS=FRSXMK
+export PAGER=cat
+
+run_sh() {
+  label="\$1"
+  command="\$2"
+  printf '\n### %s\n' "\$label"
+  printf '$ %s\n' "\$command"
+  bash -lc "\$command"
+  status="\$?"
+  printf 'exit=%s\n' "\$status"
+  return 0
+}
+
+run_sh "root identity" "id; hostnamectl; cat /etc/os-release"
+run_sh "root-on-ZFS mounts" "findmnt /; findmnt /home || true; findmnt /games || true; findmnt /boot; findmnt -no OPTIONS /boot"
+run_sh "ZFS pool status" "zpool status rpool; zpool status -x; zpool get bootfs,cachefile,altroot rpool"
+run_sh "ZFS datasets" "zfs list -o name,mountpoint,canmount,mounted,used,available; zfs get mountpoint,canmount rpool/ROOT/default; zfs list rpool/games"
+run_sh "LUKS mapper" "cryptsetup status cryptroot"
+run_sh "install manifest" "cat /etc/margine/install-layout.env"
+run_sh "kernel and ZFS packages" "uname -r; modinfo zfs | sed -n '1,80p'; pacman -Q zfs-utils linux-cachyos-zfs linux-cachyos linux-cachyos-headers 2>/dev/null || true"
+run_sh "boot artifacts" "cat /etc/kernel/cmdline; sed -n '1,120p' /etc/mkinitcpio.conf; ls -la /boot/EFI/BOOT /boot/EFI/Linux; bootctl --no-pager status || true; sbctl verify || true"
+run_sh "root validator" "/usr/local/lib/margine/scripts/validate-root-zfs-target --target-root / --mode boot-chain"
+run_sh "root host health" "/usr/local/lib/margine/scripts/validate-host-health --root --product ${product} --flavor ${flavor} --skip-tpm2 --verbose"
+run_sh "system services" "systemctl --failed --no-pager; systemctl status greetd NetworkManager sshd zfs-import-cache zfs-mount zfs-zed --no-pager || true"
+run_sh "validation idle inhibitor" "systemctl status margine-qemu-validation-inhibit.service --no-pager || true; systemd-inhibit --list --no-pager || true"
+run_sh "boot warnings" "journalctl -b -p warning..alert --no-pager"
+EOF
+  return 0
+}
+
+write_summary() {
+  local summary="${log_dir}/summary.txt"
+
+  {
+    printf 'Margine QEMU root-on-ZFS validation logs\n'
+    printf 'timestamp: %s\n' "$(date '+%Y-%m-%d %H:%M:%S %Z')"
+    printf 'repo: %s\n' "$repo_root"
+    printf 'build_dir: %s\n' "$build_dir"
+    printf 'ssh: %s@127.0.0.1:%s\n' "$ssh_user" "$ssh_port"
+    printf 'product: %s\n' "$product"
+    printf 'flavor: %s\n' "$flavor"
+    printf 'prompt_sudo: %s\n' "$prompt_sudo"
+    printf '\nlogs:\n'
+    find "$log_dir" -maxdepth 1 -type f -name '*.log' -printf '  %f\n' | sort
+  } >"$summary"
+
+  log "Summary: ${summary}"
+  return 0
+}
+
+main() {
+  local user_payload=""
+  local root_payload=""
+
+  parse_args "$@"
+  ensure_prereqs
+  init_defaults
+
+  log "=== Collect QEMU root-on-ZFS validation logs ==="
+  log "Build dir: ${build_dir}"
+  log "Log dir: ${log_dir}"
+  log "SSH: ${ssh_user}@127.0.0.1:${ssh_port}"
+
+  wait_for_ssh
+  user_payload="$(guest_user_script | encode_payload)"
+  root_payload="$(guest_root_script | encode_payload)"
+  run_remote_payload "guest-user" "$user_payload"
+  run_remote_root_payload "guest-root" "$root_payload"
+  write_summary
+
+  log
+  log "=== DONE ==="
+}
+
+main "$@"

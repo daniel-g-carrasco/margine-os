@@ -3,6 +3,7 @@
 set -euo pipefail
 
 export GTK_THEME="${GTK_THEME:-Adwaita:dark}"
+export ADW_DEBUG_COLOR_SCHEME="${ADW_DEBUG_COLOR_SCHEME:-prefer-dark}"
 export GDK_BACKEND="x11"
 
 exec "$@"

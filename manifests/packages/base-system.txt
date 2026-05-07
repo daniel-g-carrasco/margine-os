@@ -3,6 +3,7 @@
 base
 base-devel
 btrfs-progs
+dosfstools
 efibootmgr
 fwupd
 git
@@ -12,7 +13,9 @@ linux-firmware
 linux-headers
 man-db
 pacman-contrib
+parted
 sof-firmware
 sudo
+unzip
 wget
 zram-generator

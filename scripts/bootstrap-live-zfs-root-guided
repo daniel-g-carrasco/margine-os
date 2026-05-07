@@ -1,0 +1,596 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+# shellcheck source=lib/product-manifests.sh
+source "${script_dir}/lib/product-manifests.sh"
+
+dry_run=0
+assume_yes=0
+product="$(margine_default_product)"
+product_manifest=""
+product_name=""
+product_base_distribution=""
+product_visibility=""
+product_redistributable=""
+flavor=""
+target_root="/mnt"
+repo_source=""
+repo_dest="${MARGINE_TARGET_REPO_DEST:-/root/margine-os}"
+hostname="${MARGINE_INSTALL_HOSTNAME:-}"
+username="${MARGINE_INSTALL_USERNAME:-}"
+real_name="${MARGINE_INSTALL_REAL_NAME:-}"
+user_shell="/bin/bash"
+extra_groups=""
+user_password_hash="${MARGINE_INSTALL_USER_PASSWORD_HASH:-}"
+skip_user_password=0
+wifi_regdom="IT"
+greetd_login_mode="tuigreet-only"
+run_chroot=1
+qemu_validation_inhibit=0
+pool_name="${MARGINE_ZFS_ROOT_POOL:-rpool}"
+zfs_root_dataset="${MARGINE_ZFS_ROOT_DATASET:-}"
+crypt_name="${MARGINE_CRYPT_NAME:-cryptroot}"
+pool_name_from_cli=0
+zfs_root_dataset_from_cli=0
+crypt_name_from_cli=0
+declare -a extra_layers=()
+
+usage() {
+  cat <<'EOF'
+Usage:
+  bootstrap-live-zfs-root-guided [options]
+
+This is the short guided bootstrap path for a target that has already been
+prepared by provision-storage-zfs-root. It validates the ZFS/LUKS/ESP preflight
+and then runs bootstrap-live-iso with the correct root-on-ZFS options.
+
+Options:
+  --product NAME              Product to bootstrap (default: repository default)
+  --flavor NAME               Flavor to bootstrap (arch | cachyos)
+  --target-root PATH          Target system mountpoint (default: /mnt)
+  --repo-source PATH          Local repo to copy into the target
+                              (default: /root/margine-repo when present,
+                              otherwise this repository)
+  --repo-dest PATH            Absolute destination inside the target
+                              (default: MARGINE_TARGET_REPO_DEST or /root/margine-os)
+  --hostname NAME             Hostname to install; required unless
+                              MARGINE_INSTALL_HOSTNAME is set
+  --username NAME             Administrative username; required unless
+                              MARGINE_INSTALL_USERNAME is set
+  --real-name NAME            User real name/comment; required unless
+                              MARGINE_INSTALL_REAL_NAME is set
+  --shell PATH                User login shell (default: /bin/bash)
+  --extra-groups CSV          Extra groups, comma-separated
+  --user-password-hash HASH   Password hash for the administrative user
+  --skip-user-password        Do not set the user password during bootstrap.
+                              This is only for recovery or deliberately locked
+                              accounts; normal installs should set a password.
+  --wifi-regdom CODE          Wi-Fi regulatory domain (default: IT)
+  --greetd-login-mode MODE    greetd mode: tuigreet-only | autologin-lock
+                              (default: tuigreet-only)
+  --pool-name NAME            ZFS root pool name (default: rpool)
+  --zfs-root-dataset DS       Root ZFS dataset; inferred from pool bootfs by default
+  --crypt-name NAME           LUKS mapper name for boot generation
+                              (default: cryptroot)
+  --extra-layer NAME          Extra manifest layer to install in phase 2; repeatable
+  --run-chroot                Run the chroot phase after bootstrap (default)
+  --no-run-chroot             Stop before the chroot phase
+  --qemu-validation-inhibit   Install a validation-only sleep/idle inhibitor
+                              in the target. Use only for disposable QEMU
+                              validation guests.
+  --yes                       Accept the final confirmation prompt
+  --dry-run                   Show the plan without executing it
+  --help                      Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+current_pool_altroot() {
+  local altroot=""
+
+  altroot="$(zpool get -H -o value altroot "$pool_name" 2>/dev/null || true)"
+  [[ "$altroot" == "-" ]] && altroot=""
+  printf '%s\n' "$altroot"
+}
+
+strip_pool_altroot() {
+  local path="$1"
+  local altroot="$2"
+
+  if [[ -n "$altroot" && "$path" == "$altroot" ]]; then
+    printf '/\n'
+  elif [[ -n "$altroot" && "$path" == "${altroot%/}/"* ]]; then
+    printf '/%s\n' "${path#"${altroot%/}/"}"
+  else
+    printf '%s\n' "$path"
+  fi
+}
+
+default_repo_source() {
+  if [[ -d /root/margine-repo ]]; then
+    printf '/root/margine-repo\n'
+  else
+    printf '%s\n' "$repo_root"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --product)
+        [[ $# -ge 2 ]] || die "missing value for --product"
+        product="${2,,}"
+        shift 2
+        ;;
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="${2,,}"
+        shift 2
+        ;;
+      --target-root)
+        [[ $# -ge 2 ]] || die "missing value for --target-root"
+        target_root="$2"
+        shift 2
+        ;;
+      --repo-source)
+        [[ $# -ge 2 ]] || die "missing value for --repo-source"
+        repo_source="$2"
+        shift 2
+        ;;
+      --repo-dest)
+        [[ $# -ge 2 ]] || die "missing value for --repo-dest"
+        repo_dest="$2"
+        shift 2
+        ;;
+      --hostname)
+        [[ $# -ge 2 ]] || die "missing value for --hostname"
+        hostname="$2"
+        shift 2
+        ;;
+      --username)
+        [[ $# -ge 2 ]] || die "missing value for --username"
+        username="$2"
+        shift 2
+        ;;
+      --real-name)
+        [[ $# -ge 2 ]] || die "missing value for --real-name"
+        real_name="$2"
+        shift 2
+        ;;
+      --shell)
+        [[ $# -ge 2 ]] || die "missing value for --shell"
+        user_shell="$2"
+        shift 2
+        ;;
+      --extra-groups)
+        [[ $# -ge 2 ]] || die "missing value for --extra-groups"
+        extra_groups="$2"
+        shift 2
+        ;;
+      --user-password-hash)
+        [[ $# -ge 2 ]] || die "missing value for --user-password-hash"
+        user_password_hash="$2"
+        shift 2
+        ;;
+      --skip-user-password)
+        skip_user_password=1
+        shift
+        ;;
+      --wifi-regdom)
+        [[ $# -ge 2 ]] || die "missing value for --wifi-regdom"
+        wifi_regdom="${2^^}"
+        shift 2
+        ;;
+      --greetd-login-mode)
+        [[ $# -ge 2 ]] || die "missing value for --greetd-login-mode"
+        greetd_login_mode="$2"
+        shift 2
+        ;;
+      --pool-name)
+        [[ $# -ge 2 ]] || die "missing value for --pool-name"
+        pool_name="$2"
+        pool_name_from_cli=1
+        shift 2
+        ;;
+      --zfs-root-dataset)
+        [[ $# -ge 2 ]] || die "missing value for --zfs-root-dataset"
+        zfs_root_dataset="$2"
+        zfs_root_dataset_from_cli=1
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        crypt_name_from_cli=1
+        shift 2
+        ;;
+      --extra-layer)
+        [[ $# -ge 2 ]] || die "missing value for --extra-layer"
+        extra_layers+=("$2")
+        shift 2
+        ;;
+      --run-chroot)
+        run_chroot=1
+        shift
+        ;;
+      --no-run-chroot)
+        run_chroot=0
+        shift
+        ;;
+      --qemu-validation-inhibit)
+        qemu_validation_inhibit=1
+        shift
+        ;;
+      --yes)
+        assume_yes=1
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+
+  repo_source="${repo_source:-$(default_repo_source)}"
+
+  eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
+    || die "unsupported product/flavor combination"
+
+}
+
+load_install_manifest_defaults() {
+  local manifest_path="${target_root%/}/etc/margine/install-layout.env"
+
+  [[ -f "$manifest_path" ]] || return 0
+
+  # shellcheck source=/dev/null
+  source "$manifest_path"
+  [[ "${MARGINE_STORAGE_LAYOUT:-}" == "zfs-root" ]] \
+    || die "target install manifest is not root-on-ZFS: ${manifest_path}"
+
+  if (( pool_name_from_cli == 0 )) && [[ -n "${MARGINE_ZFS_POOL:-}" ]]; then
+    pool_name="$MARGINE_ZFS_POOL"
+  fi
+  if (( zfs_root_dataset_from_cli == 0 )) && [[ -n "${MARGINE_ZFS_ROOT_DATASET:-}" ]]; then
+    zfs_root_dataset="$MARGINE_ZFS_ROOT_DATASET"
+  fi
+  if (( crypt_name_from_cli == 0 )) && [[ -n "${MARGINE_LUKS_MAPPER:-}" ]]; then
+    crypt_name="$MARGINE_LUKS_MAPPER"
+  fi
+}
+
+prompt_required_value() {
+  local var_name="$1"
+  local option_name="$2"
+  local prompt="$3"
+  local value="${!var_name}"
+
+  [[ -n "$value" ]] && return 0
+
+  if [[ -t 0 && -t 1 ]]; then
+    printf '%s: ' "$prompt"
+    IFS= read -r value
+    [[ -n "$value" ]] || die "${option_name} must not be empty"
+    printf -v "$var_name" '%s' "$value"
+    return 0
+  fi
+
+  die "${option_name} is required in non-interactive mode"
+}
+
+collect_required_identity() {
+  prompt_required_value hostname "--hostname" "Target hostname"
+  prompt_required_value username "--username" "Administrative username"
+  prompt_required_value real_name "--real-name" "User real name"
+}
+
+prompt_user_password_hash() {
+  local password1=""
+  local password2=""
+
+  [[ -n "$user_password_hash" ]] && return 0
+  (( skip_user_password )) && return 0
+  (( dry_run )) && return 0
+
+  have_cmd openssl \
+    || die "openssl is required to hash the user password; rerun with --user-password-hash or --skip-user-password"
+  [[ -t 0 && -t 1 ]] \
+    || die "non-interactive bootstrap requires --user-password-hash or --skip-user-password"
+
+  while :; do
+    printf 'Administrative user password: ' >&2
+    if ! IFS= read -rs password1; then
+      die "failed to read password"
+    fi
+    printf '\n' >&2
+
+    printf 'Repeat administrative user password: ' >&2
+    if ! IFS= read -rs password2; then
+      die "failed to read password confirmation"
+    fi
+    printf '\n' >&2
+
+    if [[ -z "$password1" ]]; then
+      warn "empty passwords are not allowed"
+      continue
+    fi
+
+    if [[ "$password1" != "$password2" ]]; then
+      warn "passwords do not match"
+      continue
+    fi
+
+    user_password_hash="$(printf '%s\n' "$password1" | openssl passwd -6 -stdin)"
+    password1=""
+    password2=""
+    return 0
+  done
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  [[ -x "${script_dir}/bootstrap-live-iso" ]] || die "missing executable: ${script_dir}/bootstrap-live-iso"
+  [[ -x "${script_dir}/validate-root-zfs-target" ]] || die "missing executable: ${script_dir}/validate-root-zfs-target"
+
+  for cmd in findmnt mountpoint zpool zfs cryptsetup grep awk; do
+    if have_cmd "$cmd"; then
+      continue
+    fi
+
+    if (( dry_run )); then
+      warn "command not found during dry-run: $cmd"
+    else
+      die "required command not found: $cmd"
+    fi
+  done
+}
+
+infer_zfs_root_dataset() {
+  local bootfs=""
+
+  [[ -z "$zfs_root_dataset" ]] || return 0
+
+  if (( dry_run )); then
+    zfs_root_dataset="${pool_name}/ROOT/default"
+    return 0
+  fi
+
+  bootfs="$(zpool get -H -o value bootfs "$pool_name" 2>/dev/null || true)"
+  [[ -n "$bootfs" && "$bootfs" != "-" && "$bootfs" != "none" ]] \
+    || die "unable to infer root ZFS dataset from ${pool_name} bootfs"
+  zfs_root_dataset="$bootfs"
+}
+
+validate_inputs() {
+  [[ "$target_root" = /* ]] || die "--target-root must be an absolute path"
+  [[ "$target_root" != "/" ]] || die "--target-root must not be /"
+  [[ "$repo_source" = /* ]] || die "--repo-source must be an absolute path"
+  [[ "$repo_dest" = /* ]] || die "--repo-dest must be an absolute path inside the target"
+  [[ "$repo_dest" != "/" ]] || die "--repo-dest must not be /"
+  [[ -n "$hostname" ]] || die "--hostname must not be empty"
+  [[ -n "$username" ]] || die "--username must not be empty"
+  [[ -n "$real_name" ]] || die "--real-name must not be empty"
+  [[ -n "$crypt_name" ]] || die "--crypt-name must not be empty"
+  [[ -d "$repo_source" ]] || die "repo source not found: $repo_source"
+
+  case "${repo_source}/" in
+    "${target_root}/"*)
+      die "--repo-source must live outside --target-root; refusing recursive target copy"
+      ;;
+  esac
+
+  case "${repo_dest}/" in
+    "${target_root}/"*)
+      die "--repo-dest must be a path as seen from the installed system, not below --target-root"
+      ;;
+  esac
+
+  case "$greetd_login_mode" in
+    tuigreet-only|autologin-lock) ;;
+    *) die "unsupported --greetd-login-mode: ${greetd_login_mode}" ;;
+  esac
+
+  if ! margine_resolve_package_layer "$repo_root" "$flavor" "zfs-root-stack" >/dev/null 2>&1; then
+    die "root-on-ZFS bootstrap requires a zfs-root-stack package layer for flavor ${flavor}"
+  fi
+}
+
+validate_storage_preflight() {
+  local target_source=""
+  local boot_options=""
+  local root_mountpoint=""
+  local logical_root_mountpoint=""
+  local root_canmount=""
+  local pool_altroot=""
+  local -a validator_args=()
+
+  infer_zfs_root_dataset
+
+  log
+  log "==> Root-on-ZFS storage preflight"
+
+  if (( dry_run )); then
+    log "[dry-run] findmnt ${target_root}"
+    log "[dry-run] findmnt ${target_root}/boot"
+    log "[dry-run] zpool status ${pool_name}"
+    log "[dry-run] zfs list ${zfs_root_dataset}"
+    log "[dry-run] cryptsetup status ${crypt_name}"
+    return 0
+  fi
+
+  mountpoint -q "$target_root" || die "target root is not mounted: ${target_root}"
+  mountpoint -q "${target_root}/boot" || die "ESP is not mounted: ${target_root}/boot"
+
+  target_source="$(findmnt -nro SOURCE --target "$target_root")"
+  [[ "$target_source" = "$zfs_root_dataset" ]] \
+    || die "target root source mismatch: expected ${zfs_root_dataset}, got ${target_source}"
+
+  boot_options="$(findmnt -nro OPTIONS --target "${target_root}/boot")"
+  if ! grep -Eq '(^|,)umask=0077(,|$)' <<<"$boot_options" \
+    && { ! grep -Eq '(^|,)fmask=(0077|0177)(,|$)' <<<"$boot_options" \
+      || ! grep -Eq '(^|,)dmask=0077(,|$)' <<<"$boot_options"; }; then
+    die "ESP must be mounted with fmask=0077,dmask=0077; current options: ${boot_options}"
+  fi
+
+  zpool status "$pool_name" >/dev/null || die "ZFS pool is not online: ${pool_name}"
+  zfs list "$zfs_root_dataset" >/dev/null || die "root ZFS dataset not found: ${zfs_root_dataset}"
+  pool_altroot="$(current_pool_altroot)"
+  root_mountpoint="$(zfs get -H -o value mountpoint "$zfs_root_dataset")"
+  logical_root_mountpoint="$(strip_pool_altroot "$root_mountpoint" "$pool_altroot")"
+  [[ "$logical_root_mountpoint" == "/" ]] \
+    || die "root ZFS dataset must resolve to logical mountpoint=/; current value: ${root_mountpoint}; pool altroot: ${pool_altroot:-none}"
+  root_canmount="$(zfs get -H -o value canmount "$zfs_root_dataset")"
+  [[ "$root_canmount" == "noauto" ]] \
+    || die "root ZFS dataset must use canmount=noauto; current value: ${root_canmount}"
+  cryptsetup status "$crypt_name" >/dev/null || die "LUKS mapper is not open: ${crypt_name}"
+
+  log "  target root: ${target_source} -> ${target_root}"
+  log "  ESP: ${target_root}/boot (${boot_options})"
+  log "  pool: ${pool_name}"
+  log "  bootfs: ${zfs_root_dataset}"
+  log "  root dataset properties: mountpoint=${root_mountpoint}, logical-mountpoint=${logical_root_mountpoint}, canmount=${root_canmount}, altroot=${pool_altroot:-none}"
+  log "  mapper: ${crypt_name}"
+
+  validator_args=(
+    --target-root "$target_root"
+    --pool-name "$pool_name"
+    --zfs-root-dataset "$zfs_root_dataset"
+    --crypt-name "$crypt_name"
+    --mode storage
+  )
+  (( dry_run )) && validator_args+=(--dry-run)
+  "${script_dir}/validate-root-zfs-target" "${validator_args[@]}"
+}
+
+print_summary() {
+  log
+  log "Summary:"
+  log "  Product: ${product} (${product_name})"
+  log "  Flavor: ${flavor}"
+  log "  Target root: ${target_root}"
+  log "  Repository source: ${repo_source}"
+  log "  Repository destination: ${repo_dest}"
+  log "  Hostname: ${hostname}"
+  log "  Username: ${username}"
+  log "  Real name: ${real_name}"
+  if [[ -n "$user_password_hash" ]]; then
+    log "  User password: set"
+  elif (( skip_user_password )); then
+    log "  User password: intentionally not set"
+  elif (( dry_run )); then
+    log "  User password: not set during dry-run"
+  fi
+  log "  greetd login mode: ${greetd_login_mode}"
+  log "  ZFS pool: ${pool_name}"
+  log "  ZFS root dataset: ${zfs_root_dataset}"
+  log "  LUKS mapper: ${crypt_name}"
+  if (( ${#extra_layers[@]} > 0 )); then
+    log "  Extra layers: ${extra_layers[*]}"
+  else
+    log "  Extra layers: none"
+  fi
+  if (( run_chroot )); then
+    log "  Automatic chroot: yes"
+  else
+    log "  Automatic chroot: no"
+  fi
+  if (( qemu_validation_inhibit )); then
+    log "  QEMU validation inhibit: yes"
+  else
+    log "  QEMU validation inhibit: no"
+  fi
+  if (( dry_run )); then
+    log "  Execution mode: dry-run"
+  fi
+
+  return 0
+}
+
+confirm_execution() {
+  local reply=""
+
+  (( assume_yes )) && return 0
+  [[ -t 0 && -t 1 ]] || die "non-interactive execution requires --yes"
+
+  printf '\nContinue with root-on-ZFS bootstrap? [y/N]: '
+  IFS= read -r reply
+  reply="${reply,,}"
+  [[ "$reply" = "y" || "$reply" = "yes" ]] || die "bootstrap cancelled"
+}
+
+run_bootstrap() {
+  local -a args=(
+    --product "$product"
+    --flavor "$flavor"
+    --target-root "$target_root"
+    --repo-source "$repo_source"
+    --repo-dest "$repo_dest"
+    --hostname "$hostname"
+    --username "$username"
+    --real-name "$real_name"
+    --shell "$user_shell"
+    --greetd-login-mode "$greetd_login_mode"
+    --storage-layout zfs-root
+    --zfs-root-dataset "$zfs_root_dataset"
+    --crypt-name "$crypt_name"
+  )
+
+  [[ -n "$extra_groups" ]] && args+=(--extra-groups "$extra_groups")
+  [[ -n "$user_password_hash" ]] && args+=(--user-password-hash "$user_password_hash")
+  [[ -n "$wifi_regdom" ]] && args+=(--wifi-regdom "$wifi_regdom")
+  if (( ${#extra_layers[@]} > 0 )); then
+    local layer=""
+    for layer in "${extra_layers[@]}"; do
+      args+=(--extra-layer "$layer")
+    done
+  fi
+  (( run_chroot )) && args+=(--run-chroot)
+  (( qemu_validation_inhibit )) && args+=(--qemu-validation-inhibit)
+  (( dry_run )) && args+=(--dry-run)
+
+  log
+  log "==> Start root-on-ZFS bootstrap"
+  "${script_dir}/bootstrap-live-iso" "${args[@]}"
+}
+
+main() {
+  parse_args "$@"
+  load_install_manifest_defaults
+  collect_required_identity
+  ensure_prereqs
+  prompt_user_password_hash
+  validate_inputs
+  validate_storage_preflight
+  print_summary
+  confirm_execution
+  run_bootstrap
+}
+
+main "$@"

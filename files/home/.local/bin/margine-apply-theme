@@ -9,6 +9,8 @@ personal_repo="${HOME}/dev/margine-os-personal"
 dry_run=0
 preset_name=""
 list_presets=0
+theme_work_repo=""
+theme_work_repo_tmp=""
 
 declare -a generated_files=(
   ".config/fuzzel/theme-generated.ini"
@@ -72,6 +74,21 @@ run_cmd() {
     printf '\n'
   else
     "$@"
+  fi
+}
+
+run_optional_cmd() {
+  local description="$1"
+  shift
+
+  if (( dry_run )); then
+    run_cmd "$@"
+    return 0
+  fi
+
+  if ! "$@"; then
+    warn "${description} failed; continuing because generated theme files were already installed"
+    return 0
   fi
 }
 
@@ -186,6 +203,60 @@ apply_preset_to_theme_file() {
 
 ensure_prereqs() {
   [[ -f "$home_theme_file" ]] || die "theme file not found: $home_theme_file"
+}
+
+repo_can_render_theme() {
+  local repo_root="$1"
+
+  [[ -d "$repo_root" ]] || return 1
+  [[ -x "${repo_root}/scripts/render-theme-artifacts" ]] || return 1
+  [[ -d "${repo_root}/files/home/.config/margine" ]] || return 1
+}
+
+resolve_public_repo() {
+  local candidate=""
+  local -a candidates=()
+
+  if [[ -n "${MARGINE_PUBLIC_REPO:-}" ]]; then
+    candidates+=("$MARGINE_PUBLIC_REPO")
+  fi
+
+  candidates+=(
+    "$public_repo"
+    /usr/local/lib/margine
+  )
+
+  for candidate in "${candidates[@]}"; do
+    if repo_can_render_theme "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+prepare_theme_work_repo() {
+  local repo_root="$1"
+  local repo_theme="${repo_root}/files/home/.config/margine/theme.env"
+
+  if (( dry_run )) || [[ -w "$repo_theme" ]]; then
+    theme_work_repo="$repo_root"
+    return 0
+  fi
+
+  theme_work_repo_tmp="$(mktemp -d)"
+
+  log
+  log "==> Stage read-only Margine repo for theme rendering"
+  rsync -a --delete "${repo_root}/" "${theme_work_repo_tmp}/"
+  theme_work_repo="$theme_work_repo_tmp"
+}
+
+cleanup_theme_work_repo() {
+  if [[ -n "$theme_work_repo_tmp" && -d "$theme_work_repo_tmp" ]]; then
+    rm -rf "$theme_work_repo_tmp"
+  fi
 }
 
 sync_theme_to_repo() {
@@ -315,7 +386,7 @@ reload_session_theme() {
   log
   log "==> Reapply session defaults"
   if [[ -x "${HOME}/.local/bin/margine-apply-desktop-defaults" ]]; then
-    run_cmd "${HOME}/.local/bin/margine-apply-desktop-defaults"
+    run_optional_cmd "desktop defaults refresh" "${HOME}/.local/bin/margine-apply-desktop-defaults"
   else
     warn "margine-apply-desktop-defaults not found; skipping gsettings refresh"
   fi
@@ -323,7 +394,7 @@ reload_session_theme() {
   log
   log "==> Reload Hyprland"
   if command -v hyprctl >/dev/null 2>&1; then
-    run_cmd hyprctl reload
+    run_optional_cmd "Hyprland reload" hyprctl reload
   else
     warn "hyprctl not found; skipping Hyprland reload"
   fi
@@ -331,7 +402,7 @@ reload_session_theme() {
   log
   log "==> Restart Waybar"
   if [[ -x "${HOME}/.config/waybar/launch.sh" ]]; then
-    run_cmd "${HOME}/.config/waybar/launch.sh"
+    run_optional_cmd "Waybar restart" "${HOME}/.config/waybar/launch.sh"
   else
     warn "Waybar launch helper not found; skipping Waybar restart"
   fi
@@ -339,7 +410,7 @@ reload_session_theme() {
   log
   log "==> Restart SwayNC"
   if [[ -x "${HOME}/.config/swaync/launch.sh" ]]; then
-    run_cmd "${HOME}/.config/swaync/launch.sh"
+    run_optional_cmd "SwayNC restart" "${HOME}/.config/swaync/launch.sh"
   else
     warn "SwayNC launch helper not found; skipping SwayNC restart"
   fi
@@ -369,9 +440,8 @@ Notes:
 - repo copies of theme.env and generated artifacts are now updated
 - GTK / Hyprland / Waybar / SwayNC / Kitty live artifacts were refreshed
 - generated icon overlays are refreshed from the active icon-theme selection
-- if you changed the Firefox managed theme policy, use:
 - if you changed Firefox or Thunderbird managed policy values, use:
-  sudo /home/daniel/dev/margine-os/scripts/provision-user-app-config --username "$USER"
+  sudo "${MARGINE_PUBLIC_REPO:-/usr/local/lib/margine}/scripts/provision-user-app-config" --username "$USER"
 - legacy Papirus folder tint is refreshed live only when a Papirus theme is active
 - already-open GTK apps may still need a restart to pick up all visual changes
 EOF
@@ -382,6 +452,8 @@ main() {
   local preset_file=""
 
   parse_args "$@"
+  trap cleanup_theme_work_repo EXIT
+
   if (( list_presets )); then
     list_available_presets
     exit 0
@@ -396,19 +468,28 @@ main() {
     apply_preset_to_theme_file "$preset_file"
   fi
 
-  sync_theme_to_repo "$public_repo" && source_repo="$public_repo"
+  public_repo="$(resolve_public_repo)" || die "public repo not found at ${public_repo} or /usr/local/lib/margine"
+  prepare_theme_work_repo "$public_repo"
 
-  [[ -n "$source_repo" ]] || die "public repo not found at ${public_repo}"
+  sync_theme_to_repo "$theme_work_repo" && source_repo="$theme_work_repo"
 
   copy_generated_files_to_host "$source_repo"
   cleanup_legacy_theme_overrides
   copy_generated_icon_theme_to_host "$source_repo"
   reload_session_theme
 
-  if [[ -d "$personal_repo" ]]; then
+  if [[ "$source_repo" == "$public_repo" && -d "$personal_repo" ]]; then
     log
     log "==> Sync non-critical repo mirror"
-    sync_theme_to_repo "$personal_repo"
+    if repo_can_render_theme "$personal_repo"; then
+      if ! sync_theme_to_repo "$personal_repo"; then
+        warn "non-critical personal repo mirror sync failed; visible session theme remains applied"
+      fi
+    else
+      warn "personal repo cannot render themes; skipped non-critical mirror sync"
+    fi
+  elif [[ "$source_repo" != "$public_repo" ]]; then
+    warn "source repo is read-only; skipped non-critical repo mirror sync"
   fi
 
   apply_legacy_icon_overrides

@@ -19,6 +19,7 @@ mode="erase-disk"
 mode_explicit=0
 disk=""
 target_root="/mnt"
+repo_dest="${MARGINE_TARGET_REPO_DEST:-/root/margine-os}"
 hostname="margine"
 username=""
 real_name=""
@@ -536,7 +537,7 @@ run_mounted_target_mode() {
     --flavor "$flavor"
     --target-root "$target_root"
     --repo-source "$repo_root"
-    --repo-dest /root/margine-os
+    --repo-dest "$repo_dest"
     --hostname "$hostname"
     --username "$username"
     --real-name "$real_name"

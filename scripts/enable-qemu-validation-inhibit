@@ -1,0 +1,265 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+target_user="${MARGINE_QEMU_GUEST_USERNAME:-${SUDO_USER:-}}"
+mode="enable"
+unit_name="margine-qemu-validation-inhibit"
+unit_service="${unit_name}.service"
+persistent_marker="/etc/margine/qemu-validation-inhibit.enabled"
+persistent_unit_path="/etc/systemd/system/${unit_service}"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  enable-qemu-validation-inhibit [options]
+
+Keeps an installed QEMU validation guest awake while root-on-ZFS evidence is
+collected. The helper starts a systemd inhibitor for suspend/idle and, when a
+graphical user session bus is available, starts Margine's user
+keep-awake.service as well.
+
+Options:
+  --user USER     Guest login user whose keep-awake.service should be started
+  --enable        Enable inhibitors (default)
+  --disable       Stop inhibitors created for validation
+  --status        Show current inhibitor status
+  --help          Show this help
+
+Typical guest-side use:
+  sudo /root/margine-repo/scripts/enable-qemu-validation-inhibit --user "$USER"
+
+If already inside sudo -i, pass the real guest username explicitly.
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --user)
+        [[ $# -ge 2 ]] || die "missing value for --user"
+        target_user="$2"
+        shift 2
+        ;;
+      --enable)
+        mode="enable"
+        shift
+        ;;
+      --disable)
+        mode="disable"
+        shift
+        ;;
+      --status)
+        mode="status"
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  [[ "${EUID}" -eq 0 ]] || die "run this helper with sudo or as root"
+}
+
+require_commands() {
+  local cmd=""
+
+  for cmd in id install runuser sleep systemctl systemd-inhibit systemd-run touch; do
+    have_cmd "$cmd" || die "required command not found: $cmd"
+  done
+}
+
+reexec_from_local_filesystem() {
+  local fstype=""
+  local local_copy="/tmp/margine-enable-qemu-validation-inhibit"
+  local self_path=""
+
+  [[ "${MARGINE_QEMU_VALIDATION_INHIBIT_LOCAL_REEXEC:-0}" != "1" ]] || return 0
+  have_cmd findmnt || return 0
+  have_cmd readlink || return 0
+
+  self_path="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null || true)"
+  [[ -n "$self_path" && -f "$self_path" ]] || return 0
+
+  fstype="$(findmnt -nro FSTYPE --target "$self_path" 2>/dev/null || true)"
+  [[ "$fstype" == "9p" ]] || return 0
+
+  install -m 700 "$self_path" "$local_copy"
+  log "re-executing validation inhibitor from local guest filesystem: ${local_copy}"
+  exec env MARGINE_QEMU_VALIDATION_INHIBIT_LOCAL_REEXEC=1 "$local_copy" "$@"
+}
+
+validate_target_user() {
+  if [[ -z "$target_user" ]]; then
+    warn "no --user supplied; only the system-level inhibitor will be managed"
+    return 0
+  fi
+
+  id "$target_user" >/dev/null 2>&1 || die "guest user not found: $target_user"
+}
+
+run_user_systemctl() {
+  local uid=""
+  local runtime_dir=""
+
+  [[ -n "$target_user" ]] || return 1
+  uid="$(id -u "$target_user" 2>/dev/null)" || return 1
+  runtime_dir="/run/user/${uid}"
+  [[ -S "${runtime_dir}/bus" ]] || return 1
+
+  runuser -u "$target_user" -- env \
+    XDG_RUNTIME_DIR="$runtime_dir" \
+    DBUS_SESSION_BUS_ADDRESS="unix:path=${runtime_dir}/bus" \
+    systemctl --user "$@"
+}
+
+run_user_command() {
+  local uid=""
+  local runtime_dir=""
+
+  [[ -n "$target_user" ]] || return 1
+  uid="$(id -u "$target_user" 2>/dev/null)" || return 1
+  runtime_dir="/run/user/${uid}"
+  [[ -S "${runtime_dir}/bus" ]] || return 1
+
+  runuser -u "$target_user" -- env \
+    XDG_RUNTIME_DIR="$runtime_dir" \
+    DBUS_SESSION_BUS_ADDRESS="unix:path=${runtime_dir}/bus" \
+    "$@"
+}
+
+enable_system_inhibitor() {
+  log "==> Enable system idle/suspend inhibitor"
+  systemctl stop "$unit_service" >/dev/null 2>&1 || true
+  systemctl reset-failed "$unit_service" >/dev/null 2>&1 || true
+
+  if [[ -f "$persistent_unit_path" ]]; then
+    install -d -m 755 "$(dirname "$persistent_marker")"
+    touch "$persistent_marker"
+    systemctl daemon-reload
+    systemctl enable --now "$unit_service" >/dev/null
+  else
+    systemd-run \
+      --unit="$unit_name" \
+      --description="Margine QEMU validation idle inhibitor" \
+      --property=Type=exec \
+      --collect \
+      /usr/bin/systemd-inhibit --what=sleep:idle \
+        --who="Margine QEMU validation" \
+        --why="QEMU root-on-ZFS validation in progress" \
+        --mode=block \
+        /usr/bin/sleep infinity >/dev/null
+  fi
+
+  systemctl --quiet is-active "$unit_service" ||
+    die "failed to start ${unit_service}"
+  log "system inhibitor active: ${unit_service}"
+}
+
+disable_system_inhibitor() {
+  log "==> Disable system idle/suspend inhibitor"
+  rm -f "$persistent_marker"
+  systemctl disable "$unit_service" >/dev/null 2>&1 || true
+  systemctl stop "$unit_service" >/dev/null 2>&1 || true
+  systemctl reset-failed "$unit_service" >/dev/null 2>&1 || true
+}
+
+enable_user_keep_awake() {
+  [[ -n "$target_user" ]] || return 0
+
+  log "==> Enable user keep-awake service"
+  if run_user_systemctl daemon-reload &&
+    run_user_systemctl start keep-awake.service; then
+    log "user keep-awake active for ${target_user}"
+  else
+    warn "could not start keep-awake.service for ${target_user}; graphical user bus may be unavailable"
+  fi
+}
+
+disable_user_keep_awake() {
+  [[ -n "$target_user" ]] || return 0
+
+  log "==> Disable user keep-awake service"
+  if ! run_user_systemctl stop keep-awake.service; then
+    warn "could not stop keep-awake.service for ${target_user}; graphical user bus may be unavailable"
+  fi
+}
+
+show_status() {
+  log "==> System inhibitor status"
+  if [[ -f "$persistent_unit_path" ]]; then
+    if [[ -e "$persistent_marker" ]]; then
+      log "persistent validation marker: present (${persistent_marker})"
+    else
+      log "persistent validation marker: absent (${persistent_marker})"
+    fi
+    systemctl is-enabled "$unit_service" || true
+  fi
+  systemctl status "$unit_service" --no-pager || true
+  systemd-inhibit --list --no-pager || true
+
+  [[ -n "$target_user" ]] || return 0
+
+  log
+  log "==> User keep-awake status for ${target_user}"
+  run_user_systemctl status keep-awake.service --no-pager || true
+  run_user_command bash -lc 'command -v keep-awake-status >/dev/null 2>&1 && keep-awake-status || true' || true
+}
+
+main() {
+  reexec_from_local_filesystem "$@"
+  parse_args "$@"
+  require_root
+  require_commands
+  validate_target_user
+
+  case "$mode" in
+    enable)
+      log "=== Enable QEMU validation idle inhibition ==="
+      enable_system_inhibitor
+      enable_user_keep_awake
+      show_status
+      ;;
+    disable)
+      log "=== Disable QEMU validation idle inhibition ==="
+      disable_user_keep_awake
+      disable_system_inhibitor
+      show_status
+      ;;
+    status)
+      log "=== QEMU validation idle inhibition status ==="
+      show_status
+      ;;
+    *)
+      die "unsupported mode: $mode"
+      ;;
+  esac
+
+  log
+  log "=== DONE ==="
+}
+
+main "$@"

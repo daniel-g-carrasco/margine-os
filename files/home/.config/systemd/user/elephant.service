@@ -6,6 +6,6 @@ PartOf=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/elephant
+ExecStart=%h/.local/bin/margine-elephant-service
 Restart=always
 RestartSec=2

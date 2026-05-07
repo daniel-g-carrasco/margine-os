@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically check Walker launcher health
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=1min
+AccuracySec=20s
+Unit=margine-walker-healthcheck.service
+
+[Install]
+WantedBy=timers.target

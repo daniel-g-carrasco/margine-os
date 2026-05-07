@@ -1,0 +1,96 @@
+--- a/src/ui/window.rs
++++ b/src/ui/window.rs
+@@ -39,6 +39,8 @@
+ };
+ use gtk4::{
+     Application, Builder, Button, CustomFilter, Entry, EventControllerKey, EventControllerMotion,
++    EventControllerScroll,
++    EventControllerScrollFlags,
+     FilterListModel, GestureClick, Label, ListView, PropagationPhase, ScrolledWindow,
+     SignalListItemFactory, SingleSelection, Window,
+     gdk::ModifierType,
+@@ -67,6 +69,7 @@
+ use std::{
+     cell::{Cell, OnceCell, RefCell},
+     collections::HashMap,
++    env,
+     process::{self, Command, Stdio},
+     thread,
+ };
+@@ -112,6 +115,7 @@
+     pub content_container: gtk4::Box,
+     pub box_wrapper: gtk4::Box,
+     pub error: gtk4::Label,
++    pub scroll_accumulator: Cell<f64>,
+ }
+
+ pub fn with_window<F, R>(f: F) -> R
+@@ -328,6 +332,7 @@
+         scroll,
+         mouse_x: 0.0.into(),
+         mouse_y: 0.0.into(),
++        scroll_accumulator: 0.0.into(),
+         app: app.clone(),
+         window,
+         selection,
+@@ -822,6 +827,16 @@
+     ui.list.set_factory(Some(&factory));
+ }
+
++fn get_scroll_step() -> f64 {
++    const DEFAULT_SCROLL_STEP: f64 = 12.0;
++
++    env::var("MARGINE_WALKER_SCROLL_STEP")
++        .ok()
++        .and_then(|value| value.parse::<f64>().ok())
++        .filter(|value| value.is_finite() && *value > 0.0)
++        .unwrap_or(DEFAULT_SCROLL_STEP)
++}
++
+ fn setup_mouse_handling(ui: &WindowData) {
+     if get_config().disable_mouse {
+         ui.list.set_can_target(false);
+@@ -832,6 +847,35 @@
+         return;
+     }
+
++    let scroll = EventControllerScroll::new(EventControllerScrollFlags::VERTICAL);
++    scroll.set_propagation_phase(PropagationPhase::Capture);
++    scroll.connect_scroll(|_, _, dy| {
++        with_window(|w| {
++            let n_items = w.selection.n_items();
++            if n_items == 0 {
++                w.scroll_accumulator.set(0.0);
++                return glib::Propagation::Stop;
++            }
++
++            let scroll_step = get_scroll_step();
++            let accumulator = w.scroll_accumulator.get() + dy;
++
++            if accumulator >= scroll_step {
++                select_next();
++                w.scroll_accumulator.set(0.0);
++            } else if accumulator <= -scroll_step {
++                select_previous();
++                w.scroll_accumulator.set(0.0);
++            } else {
++                w.scroll_accumulator.set(accumulator);
++            }
++
++            glib::Propagation::Stop
++        })
++    });
++
++    ui.scroll.add_controller(scroll);
++
+     let motion = EventControllerMotion::new();
+     motion.connect_motion(|_, x, y| {
+         with_window(|w| {
+@@ -1122,6 +1166,7 @@
+     with_window(|w| {
+         w.mouse_x.set(0.0);
+         w.mouse_y.set(0.0);
++        w.scroll_accumulator.set(0.0);
+         w.list.set_can_target(false);
+     });
+ }

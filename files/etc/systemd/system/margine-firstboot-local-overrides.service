@@ -1,0 +1,13 @@
+[Unit]
+Description=Build Margine local package overrides after first boot
+Documentation=file:/root/margine-os/docs/adr/0042-local-package-overrides.md
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=!/var/lib/margine/local-overrides/firstboot.attempted
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/margine-build-local-overrides --first-boot
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

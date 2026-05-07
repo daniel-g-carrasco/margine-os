@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+# shellcheck source=lib/product-manifests.sh
+source "${script_dir}/lib/product-manifests.sh"
+
+dry_run=0
+include_aur_exceptions=0
+product="$(margine_detect_runtime_product "$repo_root")"
+flavor=""
+product_name=""
+product_base_distribution=""
+product_visibility=""
+product_redistributable=""
+output_dir="${MARGINE_LOCAL_PACKAGE_REPO:-${repo_root}/local-pacman-repo}"
+repo_name="margine-local"
+declare -a requested_layers=()
+declare -a requested_packages=()
+declare -a manifest_paths=()
+
+usage() {
+  cat <<'EOF'
+Usage:
+  build-local-package-repo [options]
+
+Builds prebuilt AUR/local-override package files into a local pacman repository.
+Run this on an installed build host, not inside the live ISO.
+
+Options:
+  --product NAME          Product context (default: runtime product)
+  --flavor NAME           Flavor context (arch | cachyos)
+  --output PATH           Output repository directory (default: ./local-pacman-repo)
+  --repo-name NAME        Pacman repository database name (default: margine-local)
+  --layer NAME            Extra AUR layer to prebuild; repeatable
+  --package NAME          Extra package to prebuild; repeatable
+  --include-aur           Include aur-exceptions in addition to the baseline
+  --dry-run               Show the build plan without executing it
+  --help                  Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+append_unique_manifest() {
+  local manifest="$1"
+  local existing=""
+
+  [[ -n "$manifest" ]] || return 0
+  for existing in "${manifest_paths[@]}"; do
+    [[ "$existing" == "$manifest" ]] && return 0
+  done
+  manifest_paths+=("$manifest")
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --product)
+        [[ $# -ge 2 ]] || die "missing value for --product"
+        product="${2,,}"
+        shift 2
+        ;;
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="${2,,}"
+        shift 2
+        ;;
+      --output)
+        [[ $# -ge 2 ]] || die "missing value for --output"
+        output_dir="$2"
+        shift 2
+        ;;
+      --repo-name)
+        [[ $# -ge 2 ]] || die "missing value for --repo-name"
+        repo_name="$2"
+        shift 2
+        ;;
+      --layer)
+        [[ $# -ge 2 ]] || die "missing value for --layer"
+        requested_layers+=("$2")
+        shift 2
+        ;;
+      --package)
+        [[ $# -ge 2 ]] || die "missing value for --package"
+        requested_packages+=("$2")
+        shift 2
+        ;;
+      --include-aur)
+        include_aur_exceptions=1
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+
+  eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
+    || die "unsupported product/flavor combination"
+}
+
+require_root() {
+  (( dry_run )) && return 0
+  [[ "$(id -u)" -eq 0 ]] || die "build-local-package-repo must run as root"
+}
+
+resolve_manifests() {
+  local layer=""
+  local manifest=""
+
+  append_unique_manifest "$(margine_resolve_aur_baseline_manifest "$repo_root" "$flavor")"
+
+  if manifest="$(margine_resolve_aur_layer "$repo_root" "$flavor" "gaming-runtime-compat" 2>/dev/null)"; then
+    append_unique_manifest "$manifest"
+  fi
+
+  if (( include_aur_exceptions )); then
+    append_unique_manifest "$(margine_resolve_aur_exceptions_manifest "$repo_root" "$flavor")"
+  fi
+
+  for layer in "${requested_layers[@]}"; do
+    manifest="$(margine_resolve_aur_layer "$repo_root" "$flavor" "$layer")" \
+      || die "AUR layer not found for flavor ${flavor}: ${layer}"
+    append_unique_manifest "$manifest"
+  done
+}
+
+fix_output_owner() {
+  local output_real=""
+  local repo_real=""
+
+  (( dry_run )) && return 0
+  [[ -n "${SUDO_UID:-}" && -n "${SUDO_GID:-}" ]] || return 0
+
+  output_real="$(realpath -m "$output_dir")"
+  repo_real="$(realpath -m "$repo_root")"
+  case "$output_real" in
+    "$repo_real"/*)
+      chown -R "${SUDO_UID}:${SUDO_GID}" "$output_real"
+      ;;
+  esac
+}
+
+build_repo() {
+  local installer="${repo_root}/scripts/install-aur-packages"
+  local manifest=""
+  local package=""
+  local -a args=(--upgrade --repo-output "$output_dir" --repo-name "$repo_name")
+
+  [[ -x "$installer" ]] || die "AUR installer not executable: $installer"
+  [[ "$output_dir" != "/" ]] || die "--output cannot be /"
+  [[ -n "$repo_name" ]] || die "--repo-name cannot be empty"
+
+  for manifest in "${manifest_paths[@]}"; do
+    args+=(--manifest "$manifest")
+  done
+  for package in "${requested_packages[@]}"; do
+    args+=("$package")
+  done
+  (( dry_run )) && args+=(--dry-run)
+
+  log "=== Build Margine local package repo ==="
+  log "Product: ${product} (${product_name})"
+  log "Flavor: ${flavor}"
+  log "Output: ${output_dir}"
+  log "Repo name: ${repo_name}"
+  log "Manifests:"
+  for manifest in "${manifest_paths[@]}"; do
+    printf '  - %s\n' "$manifest"
+  done
+  if (( ${#requested_packages[@]} > 0 )); then
+    log "Extra packages:"
+    for package in "${requested_packages[@]}"; do
+      printf '  - %s\n' "$package"
+    done
+  fi
+  log
+
+  "$installer" "${args[@]}"
+  fix_output_owner
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  resolve_manifests
+  build_repo
+}
+
+main "$@"

@@ -4,4 +4,5 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 "${script_dir}/check-shell-and-manifests"
+"${script_dir}/validate-installation-pipeline"
 "${script_dir}/check-host-baseline-sync"

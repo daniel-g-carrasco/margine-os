@@ -157,7 +157,7 @@
     "return-type": "json",
     "exec": "~/.local/bin/easyeffects-status",
     "interval": 5,
-    "on-click": "easyeffects",
+    "on-click": "~/.local/bin/gtk-dark-exec easyeffects",
     "escape": true
   },
 

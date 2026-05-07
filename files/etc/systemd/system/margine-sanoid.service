@@ -3,7 +3,8 @@ Description=Margine ZFS snapshot cycle via sanoid
 Documentation=https://github.com/jimsalterjrs/sanoid
 After=zfs.target
 Wants=zfs.target
+ConditionPathIsDirectory=/sys/module/zfs
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/sanoid --cron
+ExecStart=/usr/local/lib/margine/scripts/margine-sanoid-cycle /etc/sanoid/sanoid.conf

@@ -2,8 +2,8 @@
 Type=Application
 Name=Host Health Check
 Comment=Run Margine runtime and root health validation
-Exec=/home/daniel/.local/bin/open-host-health-menu
-Icon=utilities-system-monitor
+Exec=sh -lc "exec \"\\$HOME/.local/bin/open-host-health-menu\""
+Icon=margine-host-health
 Categories=System;
 Keywords=health;validation;maintenance;diagnostics;
 Terminal=false

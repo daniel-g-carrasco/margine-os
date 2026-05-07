@@ -86,6 +86,18 @@ def plain_rgba_hex(value: str, alpha: float = 1.0) -> str:
     a = max(0, min(255, round(alpha * 255)))
     return f"{rgb}{a:02x}"
 
+def mix_hex(base: str, overlay: str, overlay_ratio: float) -> str:
+    base_rgb = hex_triplet(base)
+    overlay_rgb = hex_triplet(overlay)
+    ratio = max(0.0, min(1.0, overlay_ratio))
+    channels = []
+    for index in range(0, 6, 2):
+        base_channel = int(base_rgb[index : index + 2], 16)
+        overlay_channel = int(overlay_rgb[index : index + 2], 16)
+        mixed = round((base_channel * (1.0 - ratio)) + (overlay_channel * ratio))
+        channels.append(f"{mixed:02x}")
+    return "#" + "".join(channels)
+
 def qt_argb(value: str, alpha: float = 1.0) -> str:
     rgb = hex_triplet(value)
     a = max(0, min(255, round(alpha * 255)))
@@ -284,6 +296,7 @@ fuzzel_font_fallbacks = ",".join(
         f"Font Awesome 7 Free Solid:size={fuzzel_font_size}",
     ]
 )
+fuzzel_selection = mix_hex(surface_alt, secondary, 0.22)
 def ensure_icon_source(path: pathlib.Path) -> pathlib.Path:
     if not path.exists():
         raise SystemExit(f"missing icon source: {path}")
@@ -301,6 +314,19 @@ def symlink_icon(source: pathlib.Path, target: pathlib.Path) -> None:
     if target.exists() or target.is_symlink():
         target.unlink()
     target.symlink_to(source)
+
+def symlink_icon_directory(source: pathlib.Path, target: pathlib.Path, *, overwrite: bool = True) -> None:
+    if not source.exists():
+        return
+
+    target.mkdir(parents=True, exist_ok=True)
+    for icon in sorted(source.iterdir(), key=lambda item: item.name):
+        if not icon.is_file():
+            continue
+        icon_target = target / icon.name
+        if icon_target.exists() and not overwrite:
+            continue
+        symlink_icon(icon, icon_target)
 
 GENERATED_ICON_THEMES = {
     "Margine-Adwaita": {
@@ -357,8 +383,6 @@ GENERATED_MARGINE_APP_ICON_CANDIDATES = {
         "/usr/share/icons/Adwaita/symbolic/actions/system-shutdown-symbolic.svg",
     ),
     "margine-power-settings": (
-        "/usr/share/icons/MoreWaita/scalable/apps/org.gnome.PowerStats.svg",
-        "/usr/share/icons/MoreWaita/scalable/apps/gnome-power-statistics.svg",
         "/usr/share/icons/MoreWaita/scalable/devices/uninterruptible-power-supply.svg",
         "/usr/share/icons/Adwaita/symbolic/status/power-profile-balanced-symbolic.svg",
     ),
@@ -367,7 +391,6 @@ GENERATED_MARGINE_APP_ICON_CANDIDATES = {
         "/usr/share/icons/Adwaita/symbolic/actions/system-reboot-symbolic.svg",
     ),
     "margine-session-actions": (
-        "/usr/share/icons/MoreWaita/scalable/apps/session-desktop.svg",
         "/usr/share/icons/MoreWaita/scalable/legacy/preferences-system.svg",
         "/usr/share/icons/Adwaita/symbolic/categories/preferences-system-symbolic.svg",
     ),
@@ -403,7 +426,7 @@ def write_generated_icon_overlay() -> None:
     theme_root = generated_icon_root / icon_theme
 
     folder_root = ensure_icon_source(pathlib.Path(f"/usr/share/icons/Adwaita-{icon_folder_color}/scalable/places"))
-    morewaita_places_root = pathlib.Path("/usr/share/icons/MoreWaita/scalable/places")
+    morewaita_root = pathlib.Path("/usr/share/icons/MoreWaita")
     firefox_original = pathlib.Path("/usr/share/icons/hicolor/scalable/apps/firefox.svg")
     thunderbird_symbolic = pathlib.Path("/usr/share/icons/hicolor/symbolic/apps/thunderbird-symbolic.svg")
 
@@ -418,8 +441,11 @@ def write_generated_icon_overlay() -> None:
 
     scalable_places = theme_root / "scalable/places"
     scalable_apps = theme_root / "scalable/apps"
+    scalable_devices = theme_root / "scalable/devices"
+    scalable_mimetypes = theme_root / "scalable/mimetypes"
     symbolic_apps = theme_root / "symbolic/apps"
-    for directory in (scalable_places, scalable_apps, symbolic_apps):
+    symbolic_places = theme_root / "symbolic/places"
+    for directory in (scalable_places, scalable_apps, scalable_devices, scalable_mimetypes, symbolic_apps, symbolic_places):
         directory.mkdir(parents=True, exist_ok=True)
 
     index_lines = [
@@ -427,22 +453,49 @@ def write_generated_icon_overlay() -> None:
         f"Name={theme_metadata['display_name']}",
         f"Comment={theme_metadata['comment']}",
         f"Inherits={','.join(theme_metadata['inherits'])}",
-        "Directories=scalable/apps,scalable/places,symbolic/apps,16x16/apps,22x22/apps,24x24/apps,32x32/apps,48x48/apps,64x64/apps,128x128/apps,256x256/apps",
+        "Directories=scalable/apps,scalable/devices,scalable/mimetypes,scalable/places,symbolic/apps,symbolic/places,16x16/apps,22x22/apps,24x24/apps,32x32/apps,48x48/apps,64x64/apps,128x128/apps,256x256/apps",
         "",
         "[scalable/apps]",
         "Size=48",
+        "MinSize=16",
+        "MaxSize=512",
         "Type=Scalable",
         "Context=Applications",
         "",
+        "[scalable/devices]",
+        "Size=64",
+        "MinSize=16",
+        "MaxSize=512",
+        "Type=Scalable",
+        "Context=Devices",
+        "",
+        "[scalable/mimetypes]",
+        "Size=96",
+        "MinSize=16",
+        "MaxSize=512",
+        "Type=Scalable",
+        "Context=MimeTypes",
+        "",
         "[scalable/places]",
-        "Size=48",
+        "Size=128",
+        "MinSize=8",
+        "MaxSize=512",
         "Type=Scalable",
         "Context=Places",
         "",
         "[symbolic/apps]",
         "Size=16",
+        "MinSize=8",
+        "MaxSize=512",
         "Type=Scalable",
         "Context=Applications",
+        "",
+        "[symbolic/places]",
+        "Size=16",
+        "MinSize=8",
+        "MaxSize=512",
+        "Type=Scalable",
+        "Context=Places",
         "",
     ]
     for size in ("16x16", "22x22", "24x24", "32x32", "48x48", "64x64", "128x128", "256x256"):
@@ -457,15 +510,16 @@ def write_generated_icon_overlay() -> None:
         )
     (theme_root / "index.theme").write_text("\n".join(index_lines))
 
-    for folder_icon in sorted(folder_root.iterdir(), key=lambda item: item.name):
-        if folder_icon.is_file():
-            symlink_icon(folder_icon, scalable_places / folder_icon.name)
+    # Selectively layer MoreWaita by context. Apps and legacy are intentionally
+    # not copied wholesale; Margine app launcher overrides below stay explicit.
+    symlink_icon_directory(morewaita_root / "scalable/devices", scalable_devices)
+    symlink_icon_directory(morewaita_root / "scalable/mimetypes", scalable_mimetypes)
+    symlink_icon_directory(morewaita_root / "scalable/places", scalable_places)
+    symlink_icon_directory(morewaita_root / "symbolic/places", symbolic_places)
 
-    if morewaita_places_root.exists():
-        for folder_icon in sorted(morewaita_places_root.iterdir(), key=lambda item: item.name):
-            target = scalable_places / folder_icon.name
-            if folder_icon.is_file() and not target.exists():
-                symlink_icon(folder_icon, target)
+    # Keep folder color controlled by theme.env even when MoreWaita provides the
+    # same place icon names.
+    symlink_icon_directory(folder_root, scalable_places)
 
     for icon_name, candidates in GENERATED_MARGINE_APP_ICON_CANDIDATES.items():
         source = first_existing_icon_source(*candidates)
@@ -496,6 +550,7 @@ for placeholder, value in {
     "__TEXT__": text,
     "__SURFACE__": surface,
     "__SURFACE_ALT__": surface_alt,
+    "__BORDER__": border,
     "__MUTED__": muted,
     "__HOVER__": hover,
     "__PRIMARY__": primary,
@@ -695,7 +750,7 @@ fuzzel_theme.write_text(
             f"placeholder={plain_rgba_hex(muted, 0.78)}",
             f"input={plain_rgba_hex(text)}",
             f"match={plain_rgba_hex(secondary)}",
-            f"selection={plain_rgba_hex(surface_alt, 1.0)}",
+            f"selection={plain_rgba_hex(fuzzel_selection, 1.0)}",
             f"selection-text={plain_rgba_hex(text)}",
             f"selection-match={plain_rgba_hex(secondary)}",
             f"counter={plain_rgba_hex(muted, 0.92)}",

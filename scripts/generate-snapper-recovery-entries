@@ -181,12 +181,12 @@ normalize_userdata() {
 
 collect_snapshots() {
   if ! command -v snapper >/dev/null 2>&1; then
-    warn "snapper non trovato, nessuna recovery entry generata"
+    warn "snapper not found; no recovery entries generated"
     return 0
   fi
 
   if ! snapper --no-dbus -c "$snapper_config" get-config >/dev/null 2>&1; then
-    warn "config Snapper non trovata: $snapper_config"
+    warn "Snapper config not found: $snapper_config"
     return 0
   fi
 

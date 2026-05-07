@@ -1,0 +1,258 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "${script_dir}/.." && pwd)"
+
+build_dir=""
+identity_file=""
+known_hosts=""
+ssh_user="${MARGINE_QEMU_SSH_USER:-}"
+ssh_port="${MARGINE_QEMU_SSH_PORT:-2222}"
+target_user=""
+mode="enable"
+prompt_sudo=0
+timeout_seconds="${MARGINE_QEMU_SSH_TIMEOUT:-120}"
+remote_script="/tmp/margine-enable-qemu-validation-inhibit"
+declare -a ssh_args=()
+
+usage() {
+  cat <<'EOF'
+Usage:
+  enable-qemu-validation-inhibit-over-ssh [options]
+
+Copies the guest-side idle inhibitor helper into a running QEMU root-on-ZFS
+guest over SSH and executes it from the guest's local filesystem. This avoids
+running operational validation helpers directly from the QEMU 9p repository
+mount, which can block before the helper can print diagnostics.
+
+Options:
+  --build-dir PATH       QEMU harness directory containing qemu-margine_ed25519
+  --identity-file PATH   SSH identity file (default: BUILD_DIR/qemu-margine_ed25519)
+  --known-hosts PATH     SSH known_hosts file (default: BUILD_DIR/known_hosts)
+  --ssh-user USER        SSH login user (default: MARGINE_QEMU_SSH_USER, --user, or margine)
+  --user USER            Guest login user whose keep-awake.service should be managed
+  --port PORT            Host forwarded SSH port (default: MARGINE_QEMU_SSH_PORT or 2222)
+  --enable               Enable inhibitors (default)
+  --disable              Disable inhibitors
+  --status               Show inhibitor status
+  --prompt-sudo          Allow an interactive sudo password prompt over SSH
+  --timeout SECONDS      Wait time for SSH reachability (default: 120)
+  --help                 Show this help
+
+Example:
+  ./scripts/enable-qemu-validation-inhibit-over-ssh --user danielitivov --prompt-sudo
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+latest_root_zfs_build_dir() {
+  local candidate=""
+
+  candidate="$(
+    find "${repo_root}/build" -maxdepth 2 -type f -path "${repo_root}/build/qemu-root-zfs-*/qemu-margine_ed25519" -printf '%T@ %h\n' 2>/dev/null |
+      sort -nr |
+      awk 'NR == 1 { $1 = ""; sub(/^ /, ""); print; exit }'
+  )"
+
+  [[ -n "$candidate" ]] || die "unable to infer --build-dir; no build/qemu-root-zfs-* directory containing qemu-margine_ed25519 found"
+  printf '%s\n' "$candidate"
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --build-dir)
+        [[ $# -ge 2 ]] || die "missing value for --build-dir"
+        build_dir="$2"
+        shift 2
+        ;;
+      --identity-file)
+        [[ $# -ge 2 ]] || die "missing value for --identity-file"
+        identity_file="$2"
+        shift 2
+        ;;
+      --known-hosts)
+        [[ $# -ge 2 ]] || die "missing value for --known-hosts"
+        known_hosts="$2"
+        shift 2
+        ;;
+      --ssh-user)
+        [[ $# -ge 2 ]] || die "missing value for --ssh-user"
+        ssh_user="$2"
+        shift 2
+        ;;
+      --user)
+        [[ $# -ge 2 ]] || die "missing value for --user"
+        target_user="$2"
+        shift 2
+        ;;
+      --port)
+        [[ $# -ge 2 ]] || die "missing value for --port"
+        ssh_port="$2"
+        shift 2
+        ;;
+      --enable)
+        mode="enable"
+        shift
+        ;;
+      --disable)
+        mode="disable"
+        shift
+        ;;
+      --status)
+        mode="status"
+        shift
+        ;;
+      --prompt-sudo)
+        prompt_sudo=1
+        shift
+        ;;
+      --timeout)
+        [[ $# -ge 2 ]] || die "missing value for --timeout"
+        timeout_seconds="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+init_defaults() {
+  build_dir="${build_dir:-$(latest_root_zfs_build_dir)}"
+  identity_file="${identity_file:-${build_dir}/qemu-margine_ed25519}"
+  known_hosts="${known_hosts:-${build_dir}/known_hosts}"
+  ssh_user="${ssh_user:-${target_user:-margine}}"
+  target_user="${target_user:-$ssh_user}"
+
+  [[ -f "${script_dir}/enable-qemu-validation-inhibit" ]] ||
+    die "guest helper not found: ${script_dir}/enable-qemu-validation-inhibit"
+  [[ -f "$identity_file" ]] || die "SSH identity file not found: $identity_file"
+
+  install -d -m 700 "$(dirname "$known_hosts")"
+
+  ssh_args=(
+    ssh
+    -p "$ssh_port"
+    -i "$identity_file"
+    -o StrictHostKeyChecking=accept-new
+    -o UserKnownHostsFile="$known_hosts"
+    -o IdentitiesOnly=yes
+    -o ServerAliveInterval=30
+    -o ServerAliveCountMax=3
+    "${ssh_user}@127.0.0.1"
+  )
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in awk base64 find install sort ssh timeout; do
+    have_cmd "$cmd" || die "required command not found: $cmd"
+  done
+}
+
+wait_for_ssh() {
+  local deadline=$((SECONDS + timeout_seconds))
+  local destination=""
+  local -a probe_args=()
+
+  destination="${ssh_args[$((${#ssh_args[@]} - 1))]}"
+  probe_args=(
+    "${ssh_args[@]:0:$((${#ssh_args[@]} - 1))}"
+    -o BatchMode=yes
+    -o ConnectTimeout=2
+    -o ConnectionAttempts=1
+    "$destination"
+  )
+
+  log "Waiting for SSH handshake on 127.0.0.1:${ssh_port}"
+  while (( SECONDS < deadline )); do
+    if timeout 5 "${probe_args[@]}" true >/dev/null 2>&1; then
+      log "SSH handshake succeeded on 127.0.0.1:${ssh_port}"
+      return 0
+    fi
+    sleep 1
+  done
+
+  die "SSH handshake did not succeed on 127.0.0.1:${ssh_port} within ${timeout_seconds}s"
+}
+
+quote_remote() {
+  printf '%q' "$1"
+}
+
+upload_helper() {
+  log "==> Upload guest inhibitor helper to ${remote_script}"
+  base64 <"${script_dir}/enable-qemu-validation-inhibit" |
+    "${ssh_args[@]}" "umask 077; base64 -d > $(quote_remote "$remote_script"); chmod 700 $(quote_remote "$remote_script")"
+}
+
+run_remote_helper() {
+  local remote_user=""
+  local remote_mode=""
+  local remote_command=""
+  local sudo_prefix=""
+  local tty_arg=()
+
+  remote_user="$(quote_remote "$target_user")"
+  remote_mode="$(quote_remote "--${mode}")"
+
+  if (( prompt_sudo )); then
+    sudo_prefix="sudo -v && sudo"
+    tty_arg=(-tt)
+  else
+    sudo_prefix="sudo -n"
+  fi
+
+  remote_command=$(
+    cat <<EOF
+trap 'rm -f $(quote_remote "$remote_script")' EXIT
+echo '==> Running local guest inhibitor helper'
+${sudo_prefix} $(quote_remote "$remote_script") --user ${remote_user} ${remote_mode}
+EOF
+  )
+
+  log "==> Execute guest inhibitor helper"
+  "${ssh_args[@]:0:1}" "${tty_arg[@]}" "${ssh_args[@]:1}" "$remote_command"
+}
+
+main() {
+  parse_args "$@"
+  ensure_prereqs
+  init_defaults
+
+  log "=== Enable QEMU validation idle inhibition over SSH ==="
+  log "Build dir: ${build_dir}"
+  log "SSH: ${ssh_user}@127.0.0.1:${ssh_port}"
+  log "Target user: ${target_user}"
+  log "Mode: ${mode}"
+  log
+
+  wait_for_ssh
+  upload_helper
+  run_remote_helper
+
+  log
+  log "=== DONE ==="
+}
+
+main "$@"

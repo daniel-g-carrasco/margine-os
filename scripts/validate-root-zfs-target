@@ -1,0 +1,435 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+target_root="/mnt"
+pool_name=""
+zfs_root_dataset=""
+crypt_name=""
+mode="storage"
+dry_run=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  validate-root-zfs-target [options]
+
+Validates a mounted Margine root-on-ZFS target. In storage mode it checks the
+mounted target, ZFS dataset properties, LUKS mapper, ESP mount policy and fstab
+policy. In boot-chain mode it also checks hostid, zpool cache, mkinitcpio, UKI
+command line and Limine artifacts.
+
+Options:
+  --target-root PATH       Mounted target root (default: /mnt)
+  --pool-name NAME         ZFS pool name; inferred from manifest or root dataset
+  --zfs-root-dataset DS    Root ZFS dataset, for example rpool/ROOT/default
+  --crypt-name NAME        LUKS mapper name; inferred from manifest or cryptroot
+  --mode NAME              storage | boot-chain (default: storage)
+  --dry-run                Show checks without executing them
+  --help                   Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+target_path() {
+  local relative="${1#/}"
+
+  if [[ "$target_root" == "/" ]]; then
+    printf '/%s\n' "$relative"
+  else
+    printf '%s/%s\n' "${target_root%/}" "$relative"
+  fi
+}
+
+current_pool_altroot() {
+  local altroot=""
+
+  altroot="$(zpool get -H -o value altroot "$pool_name" 2>/dev/null || true)"
+  [[ "$altroot" == "-" ]] && altroot=""
+  printf '%s\n' "$altroot"
+}
+
+strip_pool_altroot() {
+  local path="$1"
+  local altroot="$2"
+
+  if [[ -n "$altroot" && "$path" == "$altroot" ]]; then
+    printf '/\n'
+  elif [[ -n "$altroot" && "$path" == "${altroot%/}/"* ]]; then
+    printf '/%s\n' "${path#"${altroot%/}/"}"
+  else
+    printf '%s\n' "$path"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --target-root)
+        [[ $# -ge 2 ]] || die "missing value for --target-root"
+        target_root="$2"
+        shift 2
+        ;;
+      --pool-name)
+        [[ $# -ge 2 ]] || die "missing value for --pool-name"
+        pool_name="$2"
+        shift 2
+        ;;
+      --zfs-root-dataset)
+        [[ $# -ge 2 ]] || die "missing value for --zfs-root-dataset"
+        zfs_root_dataset="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        shift 2
+        ;;
+      --mode)
+        [[ $# -ge 2 ]] || die "missing value for --mode"
+        mode="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+load_install_manifest() {
+  local target_manifest=""
+  local runtime_manifest="/run/margine-install/root-zfs.env"
+
+  target_manifest="$(target_path /etc/margine/install-layout.env)"
+
+  if [[ -f "$target_manifest" ]]; then
+    # shellcheck source=/dev/null
+    source "$target_manifest"
+  elif [[ -f "$runtime_manifest" ]]; then
+    # shellcheck source=/dev/null
+    source "$runtime_manifest"
+  else
+    return 0
+  fi
+
+  if [[ "${MARGINE_STORAGE_LAYOUT:-}" != "zfs-root" ]]; then
+    die "install manifest does not describe a root-on-ZFS target"
+  fi
+
+  pool_name="${pool_name:-${MARGINE_ZFS_POOL:-}}"
+  zfs_root_dataset="${zfs_root_dataset:-${MARGINE_ZFS_ROOT_DATASET:-}}"
+  crypt_name="${crypt_name:-${MARGINE_LUKS_MAPPER:-}}"
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in awk cryptsetup findmnt grep mountpoint zfs zpool; do
+    if have_cmd "$cmd"; then
+      continue
+    fi
+
+    if (( dry_run )); then
+      warn "command not found during dry-run: $cmd"
+    else
+      die "required command not found: $cmd"
+    fi
+  done
+}
+
+validate_inputs() {
+  [[ "$target_root" = /* ]] || die "--target-root must be absolute"
+  [[ "$target_root" != "" ]] || die "--target-root must not be empty"
+
+  case "$mode" in
+    storage|boot-chain) ;;
+    *) die "unsupported --mode: $mode" ;;
+  esac
+
+  crypt_name="${crypt_name:-cryptroot}"
+
+  if [[ -z "$zfs_root_dataset" && -n "$pool_name" && ! "$dry_run" -eq 1 ]]; then
+    zfs_root_dataset="$(zpool get -H -o value bootfs "$pool_name" 2>/dev/null || true)"
+    [[ "$zfs_root_dataset" != "-" && "$zfs_root_dataset" != "none" ]] || zfs_root_dataset=""
+  fi
+
+  if [[ -z "$pool_name" && -n "$zfs_root_dataset" ]]; then
+    pool_name="${zfs_root_dataset%%/*}"
+  fi
+
+  if (( dry_run )); then
+    pool_name="${pool_name:-rpool}"
+    zfs_root_dataset="${zfs_root_dataset:-${pool_name}/ROOT/default}"
+  fi
+
+  [[ -n "$pool_name" ]] || die "--pool-name is required when it cannot be inferred"
+  [[ -n "$zfs_root_dataset" ]] || die "--zfs-root-dataset is required when it cannot be inferred"
+  [[ "$zfs_root_dataset" == "${pool_name}/"* ]] \
+    || die "root dataset ${zfs_root_dataset} is not below pool ${pool_name}"
+}
+
+check_storage_mounts() {
+  local root_source=""
+  local boot_path=""
+  local boot_options=""
+
+  log
+  log "==> Validate mounted root-on-ZFS target"
+
+  if (( dry_run )); then
+    printf '[dry-run] findmnt %s\n' "$target_root"
+    printf '[dry-run] findmnt %s\n' "$(target_path /boot)"
+    return 0
+  fi
+
+  mountpoint -q "$target_root" || die "target root is not mounted: ${target_root}"
+  root_source="$(findmnt -nro SOURCE --target "$target_root")"
+  [[ "$root_source" == "$zfs_root_dataset" ]] \
+    || die "target root source mismatch: expected ${zfs_root_dataset}, got ${root_source}"
+
+  boot_path="$(target_path /boot)"
+  mountpoint -q "$boot_path" || die "ESP is not mounted: ${boot_path}"
+  boot_options="$(findmnt -nro OPTIONS --target "$boot_path")"
+  if ! grep -Eq '(^|,)umask=0077(,|$)' <<<"$boot_options" \
+    && { ! grep -Eq '(^|,)fmask=(0077|0177)(,|$)' <<<"$boot_options" \
+      || ! grep -Eq '(^|,)dmask=0077(,|$)' <<<"$boot_options"; }; then
+    die "ESP must be mounted with fmask=0077,dmask=0077; current options: ${boot_options}"
+  fi
+
+  log "  root: ${root_source} -> ${target_root}"
+  log "  ESP: ${boot_path} (${boot_options})"
+}
+
+check_zfs_state() {
+  local bootfs=""
+  local root_mountpoint=""
+  local logical_root_mountpoint=""
+  local root_canmount=""
+  local pool_altroot=""
+  local dataset=""
+  local mountpoint_path=""
+  local logical_mountpoint_path=""
+  local expected_mount=""
+
+  log
+  log "==> Validate ZFS pool and datasets"
+
+  if (( dry_run )); then
+    printf '[dry-run] zpool status %s\n' "$pool_name"
+    printf '[dry-run] zpool get bootfs %s\n' "$pool_name"
+    printf '[dry-run] zfs get mountpoint,canmount %s\n' "$zfs_root_dataset"
+    return 0
+  fi
+
+  zpool status "$pool_name" >/dev/null || die "ZFS pool is not online: ${pool_name}"
+  zpool status -x "$pool_name" >/dev/null || die "ZFS pool is not healthy: ${pool_name}"
+  bootfs="$(zpool get -H -o value bootfs "$pool_name")"
+  [[ "$bootfs" == "$zfs_root_dataset" ]] \
+    || die "pool bootfs mismatch: expected ${zfs_root_dataset}, got ${bootfs}"
+
+  zfs list "$zfs_root_dataset" >/dev/null || die "root ZFS dataset not found: ${zfs_root_dataset}"
+  pool_altroot="$(current_pool_altroot)"
+  root_mountpoint="$(zfs get -H -o value mountpoint "$zfs_root_dataset")"
+  logical_root_mountpoint="$(strip_pool_altroot "$root_mountpoint" "$pool_altroot")"
+  [[ "$logical_root_mountpoint" == "/" ]] \
+    || die "root ZFS dataset must resolve to logical mountpoint=/; current value: ${root_mountpoint}; pool altroot: ${pool_altroot:-none}"
+  root_canmount="$(zfs get -H -o value canmount "$zfs_root_dataset")"
+  [[ "$root_canmount" == "noauto" ]] \
+    || die "root ZFS dataset must use canmount=noauto; current value: ${root_canmount}"
+
+  for dataset in "${pool_name}/home" "${pool_name}/games"; do
+    zfs list -H -o name "$dataset" >/dev/null 2>&1 || continue
+    mountpoint_path="$(zfs get -H -o value mountpoint "$dataset")"
+    logical_mountpoint_path="$(strip_pool_altroot "$mountpoint_path" "$pool_altroot")"
+    [[ "$logical_mountpoint_path" = /* ]] || continue
+    expected_mount="$(target_path "$logical_mountpoint_path")"
+    mountpoint -q "$expected_mount" \
+      || die "${dataset} exists but is not mounted at ${expected_mount}"
+  done
+
+  log "  pool: ${pool_name}"
+  log "  bootfs: ${bootfs}"
+  log "  root dataset: mountpoint=${root_mountpoint}, logical-mountpoint=${logical_root_mountpoint}, canmount=${root_canmount}, altroot=${pool_altroot:-none}"
+}
+
+check_luks_mapper() {
+  log
+  log "==> Validate LUKS mapper"
+
+  if (( dry_run )); then
+    printf '[dry-run] cryptsetup status %s\n' "$crypt_name"
+    return 0
+  fi
+
+  cryptsetup status "$crypt_name" >/dev/null || die "LUKS mapper is not open: ${crypt_name}"
+  log "  mapper: ${crypt_name}"
+}
+
+check_fstab_policy() {
+  local fstab_path=""
+
+  fstab_path="$(target_path /etc/fstab)"
+
+  log
+  log "==> Validate fstab policy"
+
+  if (( dry_run )); then
+    printf '[dry-run] verify %s contains no ZFS datasets\n' "$fstab_path"
+    return 0
+  fi
+
+  if [[ ! -f "$fstab_path" ]]; then
+    log "  fstab does not exist yet; skipping generated fstab policy check"
+    return 0
+  fi
+
+  awk -v pool="$pool_name" '
+    /^[[:space:]]*#/ || NF < 3 { next }
+    $3 == "zfs" || $1 == pool || index($1, pool "/") == 1 { bad = 1 }
+    END { exit bad }
+  ' "$fstab_path" || die "fstab must not contain ZFS dataset entries: ${fstab_path}"
+
+  log "  no ZFS dataset entries in ${fstab_path}"
+}
+
+check_boot_chain_artifacts() {
+  local hostid_path=""
+  local zpool_cache_path=""
+  local mkinitcpio_path=""
+  local cmdline_path=""
+  local limine_path=""
+  local uki_dir=""
+  local hooks_line=""
+  local root_parent=""
+  local boot_environment_dataset=""
+  local boot_environment_marker=""
+  local boot_environment_count=0
+
+  [[ "$mode" == "boot-chain" ]] || return 0
+
+  hostid_path="$(target_path /etc/hostid)"
+  zpool_cache_path="$(target_path /etc/zfs/zpool.cache)"
+  mkinitcpio_path="$(target_path /etc/mkinitcpio.conf)"
+  cmdline_path="$(target_path /etc/kernel/cmdline)"
+  limine_path="$(target_path /boot/EFI/BOOT/limine.conf)"
+  uki_dir="$(target_path /boot/EFI/Linux)"
+
+  log
+  log "==> Validate root-on-ZFS boot-chain artifacts"
+
+  if (( dry_run )); then
+    printf '[dry-run] verify hostid, zpool.cache, mkinitcpio, cmdline, Limine and UKIs under %s\n' "$target_root"
+    return 0
+  fi
+
+  [[ -s "$hostid_path" ]] || die "hostid missing or empty: ${hostid_path}"
+  [[ -s "$zpool_cache_path" ]] || die "zpool cache missing or empty: ${zpool_cache_path}"
+  [[ -f "$mkinitcpio_path" ]] || die "mkinitcpio config missing: ${mkinitcpio_path}"
+  [[ -f "$cmdline_path" ]] || die "kernel cmdline missing: ${cmdline_path}"
+  [[ -f "$limine_path" ]] || die "Limine config missing: ${limine_path}"
+  [[ -d "$uki_dir" ]] || die "UKI directory missing: ${uki_dir}"
+
+  grep -Fq 'MODULES=(zfs)' "$mkinitcpio_path" \
+    || die "mkinitcpio MODULES must preload zfs: ${mkinitcpio_path}"
+  grep -Fq 'FILES=(/etc/hostid /etc/zfs/zpool.cache)' "$mkinitcpio_path" \
+    || die "mkinitcpio FILES must embed hostid and zpool cache: ${mkinitcpio_path}"
+  hooks_line="$(grep -E '^HOOKS=' "$mkinitcpio_path" | tail -n 1)"
+  [[ "$hooks_line" == *"encrypt"* && "$hooks_line" == *"zfs"* ]] \
+    || die "mkinitcpio HOOKS must include encrypt and zfs: ${mkinitcpio_path}"
+  [[ "${hooks_line%%zfs*}" == *"encrypt"* ]] \
+    || die "mkinitcpio HOOKS must place encrypt before zfs: ${mkinitcpio_path}"
+
+  grep -Fq "root=ZFS=${zfs_root_dataset}" "$cmdline_path" \
+    || die "kernel cmdline missing root=ZFS=${zfs_root_dataset}: ${cmdline_path}"
+  grep -Fq "cryptdevice=UUID=" "$cmdline_path" \
+    || die "kernel cmdline missing classic cryptdevice argument: ${cmdline_path}"
+  grep -Fq ":${crypt_name}" "$cmdline_path" \
+    || die "kernel cmdline missing LUKS mapper name ${crypt_name}: ${cmdline_path}"
+  grep -Fq "rootfstype=zfs" "$cmdline_path" \
+    || die "kernel cmdline missing rootfstype=zfs: ${cmdline_path}"
+
+  grep -Fq "root=ZFS=${zfs_root_dataset}" "$limine_path" \
+    || die "Limine config missing root=ZFS=${zfs_root_dataset}: ${limine_path}"
+  grep -Fq ":${crypt_name}" "$limine_path" \
+    || die "Limine config missing LUKS mapper name ${crypt_name}: ${limine_path}"
+  if grep -Fq '@ZFS_BOOT_ENVIRONMENT_ENTRIES@' "$limine_path"; then
+    die "Limine config still contains unrendered root-on-ZFS boot-environment placeholder: ${limine_path}"
+  fi
+
+  root_parent="${zfs_root_dataset%/*}"
+  while IFS= read -r boot_environment_dataset; do
+    [[ -n "$boot_environment_dataset" ]] || continue
+    [[ "$boot_environment_dataset" == "$zfs_root_dataset" ]] && continue
+
+    boot_environment_marker="$(zfs get -H -o value org.margine:bootenv "$boot_environment_dataset" 2>/dev/null || true)"
+    [[ "$boot_environment_marker" == "pre-update" ]] || continue
+
+    boot_environment_count=$((boot_environment_count + 1))
+    grep -Fq "root=ZFS=${boot_environment_dataset}" "$limine_path" \
+      || die "Limine config missing rollback entry for ${boot_environment_dataset}: ${limine_path}"
+  done < <(zfs list -H -r -o name "$root_parent" 2>/dev/null || true)
+
+  if (( boot_environment_count > 0 )); then
+    grep -Fq '/Rollback' "$limine_path" \
+      || die "Limine config has rollback clones but no /Rollback menu: ${limine_path}"
+  fi
+
+  compgen -G "${uki_dir}/*.efi" >/dev/null \
+    || die "no UKI artifacts found in ${uki_dir}"
+
+  log "  hostid: ${hostid_path}"
+  log "  zpool cache: ${zpool_cache_path}"
+  log "  cmdline: root=ZFS=${zfs_root_dataset}, crypt mapper=${crypt_name}"
+  log "  rollback boot environments: ${boot_environment_count}"
+  log "  UKIs: ${uki_dir}/*.efi"
+}
+
+main() {
+  parse_args "$@"
+  load_install_manifest
+  ensure_prereqs
+  validate_inputs
+
+  log "=== Validate Margine root-on-ZFS target ==="
+  log "Mode: ${mode}"
+  log "Target root: ${target_root}"
+  log "Pool: ${pool_name}"
+  log "Root dataset: ${zfs_root_dataset}"
+  log "LUKS mapper: ${crypt_name}"
+  (( dry_run )) && log "Execution mode: dry-run"
+
+  check_storage_mounts
+  check_zfs_state
+  check_luks_mapper
+  check_fstab_policy
+  check_boot_chain_artifacts
+
+  log
+  log "Root-on-ZFS target validation: OK"
+}
+
+main "$@"

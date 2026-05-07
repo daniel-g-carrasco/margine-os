@@ -285,7 +285,7 @@ mount_layout() {
   done < <(grep -hvE '^[[:space:]]*(#|$)' "$subvolumes_manifest")
 
   run_cmd install -d "${target_root}/boot"
-  run_cmd mount "$esp_part" "${target_root}/boot"
+  run_cmd mount -o umask=0077 "$esp_part" "${target_root}/boot"
 }
 
 print_summary() {

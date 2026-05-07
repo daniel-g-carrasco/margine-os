@@ -1,0 +1,49 @@
+# Base limine.conf template for Margine root-on-ZFS.
+
+timeout: 5
+default_entry: Margine/Primary
+remember_last_entry: yes
+quiet: no
+verbose: no
+editor_enabled: no
+interface_branding: Margine
+interface_branding_colour: 6
+interface_help_hidden: yes
+term_palette: 050505;3a3a3a;4a4a4a;5a5a5a;6a6a6a;7a7a7a;9a9a9a;d8d8d8
+term_palette_bright: 151515;525252;626262;727272;8a8a8a;a2a2a2;c2c2c2;f3f3f3
+term_background: ff050505
+term_foreground: e6e6e6
+term_background_bright: 101010
+term_foreground_bright: f5f5f5
+term_margin: 48
+term_margin_gradient: 12
+
+${EFI_LINUX}=boot():/EFI/Linux
+
+/Margine
+comment: Stable daily boot path.
+
+//Primary
+protocol: efi
+path: ${EFI_LINUX}/margine-linux.efi
+
+//Fallback
+protocol: efi
+path: ${EFI_LINUX}/margine-linux-fallback.efi
+
+/Recovery
+comment: Manual recovery entry for the root-on-ZFS prototype.
+
+//Manual recovery
+protocol: efi
+path: ${EFI_LINUX}/margine-recovery.efi
+cmdline: cryptdevice=UUID=@LUKS_UUID@:@CRYPT_NAME@ root=ZFS=@ZFS_ROOT_DATASET@ rootfstype=zfs rw zfs_import_dir=/dev/ quiet
+
+@ZFS_BOOT_ENVIRONMENT_ENTRIES@
+
+/Diagnostics
+comment: Offline diagnostics and maintenance tools.
+
+//Memtest86+
+protocol: efi
+path: boot():/memtest86+/memtest.efi

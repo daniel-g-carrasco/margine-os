@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repair=0
+launcher_stack_restarted=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  margine-walker-healthcheck [--repair]
+
+Checks the Walker/Elephant launcher path for stale sockets, missing services and
+Wayland environment drift. With --repair, it removes stale Walker sockets and
+restarts affected user services.
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --repair)
+        repair=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        printf 'error: unknown argument: %s\n' "$1" >&2
+        exit 1
+        ;;
+    esac
+  done
+}
+
+active_wayland_socket() {
+  local instances=""
+
+  command -v hyprctl >/dev/null 2>&1 || return 0
+
+  instances="$(hyprctl instances -j 2>/dev/null || true)"
+  [[ -n "$instances" ]] || return 0
+
+  printf '%s\n' "$instances" |
+    sed -n 's/.*"wl_socket"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' |
+    head -n 1
+}
+
+process_wayland_socket() {
+  local pid="$1"
+
+  [[ -r "/proc/${pid}/environ" ]] || return 0
+  tr '\0' '\n' <"/proc/${pid}/environ" |
+    sed -n 's/^WAYLAND_DISPLAY=//p' |
+    head -n 1
+}
+
+user_service_active() {
+  local service="$1"
+
+  systemctl --user is-active --quiet "$service" 2>/dev/null
+}
+
+restart_user_service() {
+  local service="$1"
+
+  if (( repair == 0 )); then
+    warn "${service} needs restart"
+    return 1
+  fi
+
+  systemctl --user restart "$service"
+}
+
+restart_launcher_stack() {
+  if (( repair == 0 )); then
+    warn "walker/elephant launcher stack needs restart"
+    return 1
+  fi
+
+  if (( launcher_stack_restarted == 1 )); then
+    return 0
+  fi
+
+  systemctl --user restart elephant.service walker.service
+  launcher_stack_restarted=1
+}
+
+start_user_service() {
+  local service="$1"
+
+  if (( repair == 0 )); then
+    warn "${service} is not active"
+    return 1
+  fi
+
+  systemctl --user start "$service"
+}
+
+check_stale_walker_socket() {
+  local runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  local walker_socket="${MARGINE_WALKER_SOCKET:-${runtime_dir}/walker/walker.sock}"
+
+  [[ -S "$walker_socket" ]] || return 0
+  pgrep -xu "$(id -u)" -x walker >/dev/null 2>&1 && return 0
+
+  if (( repair == 0 )); then
+    warn "stale Walker socket without walker process: ${walker_socket}"
+    return 1
+  fi
+
+  rm -f "$walker_socket"
+  log "removed stale Walker socket: ${walker_socket}"
+}
+
+check_service_env() {
+  local service="$1"
+  local process_name="$2"
+  local active_socket="$3"
+  local pid=""
+  local process_socket=""
+
+  [[ -n "$active_socket" ]] || return 0
+  pid="$(pgrep -xu "$(id -u)" -x "$process_name" | head -n 1 || true)"
+  [[ -n "$pid" ]] || return 0
+
+  process_socket="$(process_wayland_socket "$pid")"
+  if [[ "$process_socket" == "$active_socket" ]]; then
+    return 0
+  fi
+
+  warn "${process_name} uses WAYLAND_DISPLAY=${process_socket}, active Hyprland socket is ${active_socket}"
+  case "$service" in
+    elephant.service|walker.service)
+      restart_launcher_stack
+      ;;
+    *)
+      restart_user_service "$service"
+      ;;
+  esac
+}
+
+main() {
+  local active_socket=""
+
+  parse_args "$@"
+
+  if [[ -x "${HOME}/.local/bin/margine-import-session-environment" ]]; then
+    "${HOME}/.local/bin/margine-import-session-environment" || true
+  fi
+
+  active_socket="$(active_wayland_socket)"
+
+  check_stale_walker_socket
+
+  if ! user_service_active elephant.service; then
+    start_user_service elephant.service
+  fi
+
+  if ! user_service_active walker.service; then
+    start_user_service walker.service
+  fi
+
+  check_service_env elephant.service elephant "$active_socket"
+  check_service_env walker.service walker "$active_socket"
+
+  log "Walker healthcheck: OK"
+}
+
+main "$@"

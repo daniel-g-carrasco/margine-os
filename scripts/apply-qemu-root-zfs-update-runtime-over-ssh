@@ -1,0 +1,273 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "${script_dir}/.." && pwd)"
+
+build_dir=""
+identity_file=""
+known_hosts=""
+ssh_user="${MARGINE_QEMU_SSH_USER:-margine}"
+ssh_port="${MARGINE_QEMU_SSH_PORT:-2222}"
+prompt_sudo=0
+timeout_seconds="${MARGINE_QEMU_SSH_TIMEOUT:-120}"
+remote_repo="/root/margine-repo"
+remote_runtime="/var/tmp/margine-os-runtime"
+declare -a ssh_args=()
+
+usage() {
+  cat <<'EOF'
+Usage:
+  apply-qemu-root-zfs-update-runtime-over-ssh [options]
+
+Refresh the installed update-all runtime inside a running QEMU root-on-ZFS
+guest. The helper mounts the host repository over 9p, copies it to a guest-local
+temporary directory, refreshes the installed global update runtime, reinstalls
+the user update-all wrapper, and runs a root-on-ZFS dry-run.
+
+Options:
+  --build-dir PATH       QEMU harness directory containing qemu-margine_ed25519
+  --identity-file PATH   SSH identity file (default: BUILD_DIR/qemu-margine_ed25519)
+  --known-hosts PATH     SSH known_hosts file (default: BUILD_DIR/known_hosts)
+  --user USER            SSH login user (default: MARGINE_QEMU_SSH_USER or margine)
+  --port PORT            Host forwarded SSH port (default: MARGINE_QEMU_SSH_PORT or 2222)
+  --prompt-sudo          Allow an interactive sudo password prompt over SSH
+  --timeout SECONDS      Wait time for SSH handshake (default: 120)
+  --help                 Show this help
+
+Example:
+  ./scripts/apply-qemu-root-zfs-update-runtime-over-ssh --user danielitivov --prompt-sudo
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+latest_root_zfs_build_dir() {
+  local candidate=""
+
+  candidate="$(
+    find "${repo_root}/build" -maxdepth 2 -type f -path "${repo_root}/build/qemu-root-zfs-*/qemu-margine_ed25519" -printf '%T@ %h\n' 2>/dev/null |
+      sort -nr |
+      awk 'NR == 1 { $1 = ""; sub(/^ /, ""); print; exit }'
+  )"
+
+  [[ -n "$candidate" ]] || die "unable to infer --build-dir; no build/qemu-root-zfs-* directory containing qemu-margine_ed25519 found"
+  printf '%s\n' "$candidate"
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --build-dir)
+        [[ $# -ge 2 ]] || die "missing value for --build-dir"
+        build_dir="$2"
+        shift 2
+        ;;
+      --identity-file)
+        [[ $# -ge 2 ]] || die "missing value for --identity-file"
+        identity_file="$2"
+        shift 2
+        ;;
+      --known-hosts)
+        [[ $# -ge 2 ]] || die "missing value for --known-hosts"
+        known_hosts="$2"
+        shift 2
+        ;;
+      --user)
+        [[ $# -ge 2 ]] || die "missing value for --user"
+        ssh_user="$2"
+        shift 2
+        ;;
+      --port)
+        [[ $# -ge 2 ]] || die "missing value for --port"
+        ssh_port="$2"
+        shift 2
+        ;;
+      --prompt-sudo)
+        prompt_sudo=1
+        shift
+        ;;
+      --timeout)
+        [[ $# -ge 2 ]] || die "missing value for --timeout"
+        timeout_seconds="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+init_defaults() {
+  build_dir="${build_dir:-$(latest_root_zfs_build_dir)}"
+  identity_file="${identity_file:-${build_dir}/qemu-margine_ed25519}"
+  known_hosts="${known_hosts:-${build_dir}/known_hosts}"
+
+  [[ -f "$identity_file" ]] || die "SSH identity file not found: $identity_file"
+  install -d -m 700 "$(dirname "$known_hosts")"
+
+  ssh_args=(
+    ssh
+    -p "$ssh_port"
+    -i "$identity_file"
+    -o StrictHostKeyChecking=accept-new
+    -o UserKnownHostsFile="$known_hosts"
+    -o IdentitiesOnly=yes
+    -o ServerAliveInterval=30
+    -o ServerAliveCountMax=3
+    "${ssh_user}@127.0.0.1"
+  )
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in awk find install sort ssh timeout; do
+    have_cmd "$cmd" || die "required command not found: $cmd"
+  done
+}
+
+wait_for_ssh() {
+  local deadline=$((SECONDS + timeout_seconds))
+  local destination=""
+  local -a probe_args=()
+
+  destination="${ssh_args[$((${#ssh_args[@]} - 1))]}"
+  probe_args=(
+    "${ssh_args[@]:0:$((${#ssh_args[@]} - 1))}"
+    -o BatchMode=yes
+    -o ConnectTimeout=2
+    -o ConnectionAttempts=1
+    "$destination"
+  )
+
+  log "Waiting for SSH handshake on 127.0.0.1:${ssh_port}"
+  while (( SECONDS < deadline )); do
+    if timeout 5 "${probe_args[@]}" true >/dev/null 2>&1; then
+      log "SSH handshake succeeded on 127.0.0.1:${ssh_port}"
+      return 0
+    fi
+    sleep 1
+  done
+
+  die "SSH handshake did not succeed on 127.0.0.1:${ssh_port} within ${timeout_seconds}s"
+}
+
+quote_remote() {
+  printf '%q' "$1"
+}
+
+remote_payload() {
+  local sudo_prefix="$1"
+
+  cat <<EOF
+set -euo pipefail
+
+remote_repo=$(quote_remote "$remote_repo")
+remote_runtime=$(quote_remote "$remote_runtime")
+legacy_tmp_runtime=/tmp/margine-os-runtime
+
+log() {
+  printf '%s\n' "\$*"
+}
+
+run_sudo() {
+  ${sudo_prefix} "\$@"
+}
+
+log '==> Mount host repository over 9p'
+run_sudo modprobe 9p 9pnet 9pnet_virtio
+run_sudo mkdir -p "\$remote_repo"
+if ! run_sudo mountpoint -q "\$remote_repo"; then
+  if ! run_sudo timeout 15s mount -v -t 9p -o trans=virtio,version=9p2000.L,msize=262144,ro margine "\$remote_repo"; then
+    log 'error: 9p repository mount failed; recent kernel messages follow'
+    run_sudo dmesg | tail -80 || true
+    exit 1
+  fi
+fi
+
+log '==> Copy repository to guest-local runtime directory'
+rm -rf "\$remote_runtime" "\$legacy_tmp_runtime"
+mkdir -p "\$remote_runtime"
+if ! command -v tar >/dev/null 2>&1; then
+  log 'error: tar is required in the guest to stage the runtime repository'
+  exit 1
+fi
+(
+  cd "\$remote_repo"
+  tar \
+    --exclude='./.git' \
+    --exclude='./.github' \
+    --exclude='./build' \
+    --exclude='./docs' \
+    --exclude='./*.iso' \
+    --exclude='./*.img' \
+    --exclude='./*.raw' \
+    --exclude='./*.qcow2' \
+    -cf - .
+) | (
+  cd "\$remote_runtime"
+  tar -xf -
+)
+
+log '==> Refresh installed global update runtime'
+run_sudo "\$remote_runtime/scripts/provision-user-app-config" --install-global-update-only
+
+log '==> Refresh user update-all wrapper'
+install -Dm755 "\$remote_runtime/files/home/.local/bin/update-all" "\$HOME/.local/bin/update-all"
+
+log '==> Run root-on-ZFS update-all dry-run'
+update-all --dry-run --no-aur --no-flatpak --no-fwupd |& tee "\$HOME/update-all-zfs-rollback-dryrun.log"
+
+log
+log "Dry-run log: \$HOME/update-all-zfs-rollback-dryrun.log"
+log '=== DONE ==='
+EOF
+}
+
+run_remote() {
+  local remote_command=""
+  local sudo_prefix=""
+  local -a tty_arg=()
+
+  if (( prompt_sudo )); then
+    sudo_prefix="sudo"
+    tty_arg=(-tt)
+    remote_command="sudo -v && $(remote_payload "$sudo_prefix")"
+  else
+    sudo_prefix="sudo -n"
+    remote_command="$(remote_payload "$sudo_prefix")"
+  fi
+
+  "${ssh_args[@]:0:1}" "${tty_arg[@]}" "${ssh_args[@]:1}" "$remote_command"
+}
+
+main() {
+  parse_args "$@"
+  ensure_prereqs
+  init_defaults
+
+  log "=== Apply QEMU root-on-ZFS update runtime ==="
+  log "Build dir: $build_dir"
+  log "SSH: ${ssh_user}@127.0.0.1:${ssh_port}"
+  wait_for_ssh
+  run_remote
+}
+
+main "$@"

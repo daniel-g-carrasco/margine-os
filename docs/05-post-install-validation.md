@@ -24,7 +24,11 @@ remembering every check family.
 The consolidated validator:
 
 - autodetects the installed `product` and `flavor` from the runtime state;
+- detects a root-on-ZFS runtime from `/etc/margine/install-layout.env` or the
+  mounted root filesystem;
 - validates against the real Arch or CachyOS baseline expected by that product;
+- runs the root-on-ZFS target validator against `/` in root mode when the system
+  booted from ZFS;
 - supports explicit overrides with `--product` and `--flavor`;
 - prints a concise `PASS / WARN / FAIL` report by default;
 - supports `--verbose` when the full validator output is needed;
@@ -88,6 +92,32 @@ Check:
 - root is mounted from the expected filesystem
 - `/.snapshots` exists and is mounted correctly when the layout expects it
 
+For a root-on-ZFS installation, replace the Btrfs/Snapper-oriented checks with:
+
+```bash
+cat /proc/cmdline
+findmnt /
+findmnt /home
+findmnt /games
+findmnt /boot
+sudo zpool status rpool
+sudo zpool get bootfs rpool
+sudo zfs get mountpoint,canmount rpool/ROOT/default
+sudo zfs list -o name,mountpoint,canmount rpool/ROOT/default rpool/home rpool/games
+sudo cryptsetup status cryptroot
+sudo /usr/local/lib/margine/scripts/validate-root-zfs-target --target-root / --mode boot-chain
+```
+
+Check:
+
+- `/` is mounted from `rpool/ROOT/default`;
+- `/home` and `/games` are mounted ZFS datasets;
+- `/boot` is the ESP and keeps restrictive mount options;
+- `bootfs` points to `rpool/ROOT/default`;
+- the root dataset resolves to logical `mountpoint=/` and `canmount=noauto`;
+- `cryptroot` is an open LUKS mapper, not an alternative encryption layer;
+- the root-on-ZFS validator reports `Root-on-ZFS target validation: OK`.
+
 ## 2. Boot artifacts and recovery
 
 ```bash
@@ -112,8 +142,8 @@ Check:
 - the `Memtest86+` entry exists under `/Diagnostics`
 - Secure Boot state is coherent
 
-Also verify that the installed update path can materialize snapshot recovery
-entries in `Limine` after a maintenance run:
+On Btrfs/Snapper installs, also verify that the installed update path can
+materialize snapshot recovery entries in `Limine` after a maintenance run:
 
 ```bash
 sudo snapper --no-dbus -c root list | tail -n 10
@@ -143,6 +173,65 @@ Check:
   `sbctl sign` for each copy, not only one path
 - when `memtest86+-efi` is installed, the dry-run also signs `Memtest86+`
 - `sbctl verify` is clean after a real `update-all` run
+
+On root-on-ZFS installs, `update-all` must show the dedicated ZFS path in
+dry-run mode:
+
+```bash
+update-all --dry-run --no-aur --no-flatpak --no-fwupd
+```
+
+Check:
+
+- the command prints `Margine root-on-ZFS update`;
+- the preflight calls `validate-root-zfs-target --target-root / --mode boot-chain`;
+- the snapshot phase calls `create-zfs-pre-update-snapshots --strict` for
+  `rpool/ROOT/default`;
+- the boot-environment phase calls `create-zfs-boot-environment` for the
+  created root snapshot;
+- `Publish ZFS rollback boot entry` calls `provision-initial-boot-chain-zfs`
+  before packages are touched, so the pre-update clone is already selectable if
+  the update aborts mid-transaction;
+- the final boot phase calls `provision-initial-boot-chain-zfs` again after
+  package updates;
+- the post-update phase calls the root-on-ZFS validator again;
+- no real package, snapshot, Flatpak, firmware or boot mutation occurs in
+  dry-run mode.
+
+After a real root-on-ZFS update, verify the snapshot and boot chain:
+
+```bash
+sudo zfs list -t snapshot -o name,creation | grep 'rpool/ROOT/default@margine-pre-update' | tail
+sudo zfs get -r org.margine:bootenv,origin rpool/ROOT | grep margine-pre-update | tail
+sudo grep -n 'Rollback\|root=ZFS=rpool/ROOT/margine-pre-update' /boot/EFI/BOOT/limine.conf
+sudo /usr/local/lib/margine/scripts/validate-root-zfs-target --target-root / --mode boot-chain
+sudo sbctl verify || true
+```
+
+Expected result:
+
+- the root snapshot exists;
+- a sibling clone such as `rpool/ROOT/margine-pre-update-YYYYMMDD-HHMMSS`
+  exists and has `org.margine:bootenv=pre-update`;
+- `limine.conf` contains a `/Rollback` section whose entry uses
+  `margine-recovery.efi` and `root=ZFS=<clone>`.
+
+Current limitation: rollback clone promotion, abandonment and pruning are still
+manual follow-up procedures. Booting a rollback candidate must not be treated as
+promoting it to the primary root dataset.
+
+If a previous unsupported update broke boot with `Failed to mount /sysroot`,
+boot the live ISO and run the recovery helper from the mounted repo:
+
+```bash
+sudo mkdir -p /root/margine-repo
+sudo mount -t 9p -o trans=virtio,version=9p2000.L margine /root/margine-repo
+sudo /root/margine-repo/scripts/repair-zfs-root-boot-chain --flavor cachyos --live-iso-recovery
+```
+
+The helper remounts the target, refreshes `/root/margine-os`, reruns the
+root-on-ZFS boot provisioner in chroot, validates `root=ZFS=...`, hostid,
+`zpool.cache`, UKIs and Limine, then detaches the live target.
 
 ## 3. Package presence
 
@@ -424,6 +513,11 @@ gsettings get org.gnome.desktop.interface icon-theme
 cat ~/.config/environment.d/10-qt-platformtheme.conf
 sed -n '1,80p' ~/.config/hypr/hyprqt6engine.conf
 sed -n '1,120p' ~/.config/margine/theme.env
+grep -n '@define-color headerbar_backdrop_color' ~/.config/gtk-4.0/gtk.css
+grep -n 'ADW_DEBUG_COLOR_SCHEME' ~/.local/bin/gtk-dark-exec
+grep -n 'gtk-dark-exec easyeffects' ~/.config/hypr/conf.d/20-autostart.conf ~/.config/waybar/config.jsonc
+grep -n 'gtk-dark-exec' ~/.local/share/applications/com.github.wwmm.easyeffects.desktop
+grep -n '"Value": "accent-color"' /usr/lib/thunderbird/distribution/policies.json
 gdbus call --session \
   --dest org.freedesktop.portal.Desktop \
   --object-path /org/freedesktop/portal/desktop \
@@ -434,6 +528,7 @@ gsettings get org.gnome.TextEditor style-variant
 gsettings get org.gnome.Loupe show-properties
 sed -n '1,120p' ~/.config/easyeffects/db/easyeffectsrc
 sed -n '1,40p' ~/.config/easyeffects/db/graphrc
+systemctl --user status xdg-desktop-portal.service xdg-desktop-portal-gnome.service --no-pager
 ```
 
 Check:
@@ -442,9 +537,13 @@ Check:
 - `hyprpaper` is running in the session
 - `~/.config/margine/theme.env` reflects the intended single source of truth for the visual baseline
 - GTK applications are on the intended dark theme
-- `accent-color` is set to the intended GNOME baseline (`yellow`)
+- `accent-color` is set to the intended GNOME/libadwaita baseline (`yellow`), so Firefox's managed libadwaita theme does not fall back to the unrelated orange accent
+- Thunderbird policy uses `accent-color`, keeping browser and mailer on the same named OS accent channel
+- GTK4 generated CSS defines backdrop colors; GTK/libadwaita windows such as Easy Effects must not flip to a light palette when unfocused
+- Easy Effects service mode, Waybar launcher, and Walker desktop entry launch through `gtk-dark-exec`
 - `font-name` is set to the intended GNOME baseline (`IBM Plex Sans 10`)
 - the Settings portal exposes `org.freedesktop.appearance accent-color`
+- `xdg-desktop-portal-gnome.service` is active or activatable, because it is the backend that exposes the `accent-color` portal key on Hyprland
 - GTK3 / legacy apps resolve to `adw-gtk3-dark`
 - icon theme resolves to `Adwaita` on the default preset
 - `~/.config/environment.d/10-qt-platformtheme.conf` pins `QT_QPA_PLATFORMTHEME=hyprqt6engine`
@@ -458,6 +557,7 @@ Manual checks:
 
 - after login, the intended wallpaper is actually visible
 - GTK / GNOME apps such as Nautilus, Calendar, Calculator, Loupe, Text Editor, and Firefox use the dark theme
+- Easy Effects remains dark when active and inactive; its spectrum/accent controls use the generated Margine GTK accent instead of stock Adwaita orange
 - GTK3 / legacy apps visually match `adw-gtk3-dark`
 - app icons resolve through stock `Adwaita` without obvious missing-icon
   regressions
@@ -498,6 +598,10 @@ Manual checks:
 - fingerprint prompt and password field must remain readable on both low- and high-resolution outputs
 
 ## 14. Snapper and rollback
+
+Skip this section on root-on-ZFS. The initial root-on-ZFS path deliberately skips
+the Btrfs Snapper baseline; use the root-on-ZFS checks above until Margine's ZFS
+pre-update snapshot and rollback boot-environment flow is implemented.
 
 ```bash
 snapper --no-dbus list-configs
@@ -584,6 +688,8 @@ grep -Rni 'cachyos' /etc/pacman.conf /etc/pacman.conf.d 2>/dev/null
 uname -r
 zramctl
 systemctl status systemd-zram-setup@zram0.service --no-pager || true
+cat /proc/sys/kernel/split_lock_mitigate 2>/dev/null || true
+sudo /usr/local/lib/margine/scripts/provision-gaming-split-lock --status
 ```
 
 Check:
@@ -591,6 +697,8 @@ Check:
 - the CachyOS kernel, keyring, mirrorlist, and settings packages are installed
 - CachyOS repositories are present in pacman configuration
 - zram is available if the product baseline expects it
+- the default split-lock state is mitigation active (`kernel.split_lock_mitigate=1`);
+  `0` is an explicit gaming override, not the Margine boot default
 - this verifies the presence of CachyOS artifacts and tunings; it does not by itself prove a performance uplift on the current workload
 
 ## 19. Logs to collect when debugging
@@ -611,18 +719,78 @@ If you want one compact block to paste after a first boot, use:
 ```bash
 cat /proc/cmdline
 findmnt /
-findmnt /.snapshots
+findmnt /.snapshots || true
 systemctl --failed --no-pager
 systemctl --user --failed
 nmcli general
 wpctl status
-snapper --no-dbus list-configs
-snapper --no-dbus -c root list
+snapper --no-dbus list-configs || true
+snapper --no-dbus -c root list || true
 hyprctl activeworkspace
 elephant listproviders
 grep -n '"Default": "DuckDuckGo"' /etc/firefox/policies/policies.json
 journalctl --user -b --no-pager | rg 'elephant|waybar|swaync|hyprpaper|walker' || true
 journalctl -b -p warning..alert --no-pager
+```
+
+For a root-on-ZFS first boot, use this additional compact block:
+
+```bash
+findmnt /
+findmnt /home
+findmnt /games
+findmnt /boot
+sudo zpool status rpool
+sudo zpool get bootfs rpool
+sudo zfs get mountpoint,canmount rpool/ROOT/default
+sudo cryptsetup status cryptroot
+sudo /usr/local/lib/margine/scripts/validate-root-zfs-target --target-root / --mode boot-chain
+sudo /usr/local/lib/margine/scripts/validate-host-health --root --product margine-cachyos --flavor cachyos --skip-tpm2
+/usr/local/lib/margine/scripts/validate-host-health --session --product margine-cachyos --flavor cachyos
+```
+
+For QEMU validation, prefer collecting the same evidence from the host over SSH
+so the complete output is saved as text:
+
+Inside the installed guest, run this from the normal user shell, not from an
+interactive `sudo -i` root shell, so `$USER` expands to the guest login user:
+
+```bash
+sudo modprobe 9p 9pnet 9pnet_virtio
+sudo mkdir -p /root/margine-repo
+sudo mountpoint -q /root/margine-repo || sudo mount -t 9p -o trans=virtio,version=9p2000.L,msize=262144 margine /root/margine-repo
+sudo /root/margine-repo/scripts/enable-qemu-validation-ssh --user "$USER"
+```
+
+If you are already inside `sudo -i`, pass the real guest username explicitly,
+for example `--user danielitivov`; in a root shell `$USER` is `root`.
+
+The SSH helper starts the validation idle inhibitor from a temporary local
+guest copy before the host collector is used. This avoids the broken ordering
+where SSH was needed to enable the guard that prevents SSH from being lost to
+idle or suspend. From the host, collect evidence:
+
+```bash
+cd /home/daniel/dev/margine-os-personal
+./scripts/collect-qemu-root-zfs-validation-logs --user USERNAME --prompt-sudo
+```
+
+The collector writes `guest-user.log`, `guest-root.log`, and `summary.txt` under
+`build/qemu-root-zfs-validation-logs/TIMESTAMP/`. It also runs
+`update-all --dry-run --no-aur --no-flatpak --no-fwupd`; on root-on-ZFS the
+expected result is the fail-closed message, not a real update. With
+`--prompt-sudo`, enter the guest user's sudo password in the host terminal when
+prompted; root output is still written to `guest-root.log`.
+
+Keep the validation VM awake while collecting logs. The inhibitor helper starts
+`margine-qemu-validation-inhibit.service` as either the installed persistent
+validation unit or a transient systemd inhibitor for sleep and idle, and starts
+the user's `keep-awake.service` when the graphical user bus is available. The
+collector records both states. After the validation run, disable the validation
+inhibitor inside the guest:
+
+```bash
+./scripts/enable-qemu-validation-inhibit-over-ssh --user USERNAME --disable --prompt-sudo
 ```
 
 For the private CachyOS product, also include:

@@ -1,0 +1,555 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+# shellcheck source=lib/product-manifests.sh
+source "${script_dir}/lib/product-manifests.sh"
+
+workdir="${repo_root}/build/qemu-root-zfs-validation"
+product="$(margine_default_product)"
+product_manifest=""
+product_name=""
+product_base_distribution=""
+product_visibility=""
+product_redistributable=""
+flavor=""
+disk_size="96G"
+guest_username="${MARGINE_QEMU_GUEST_USERNAME:-}"
+guest_real_name="${MARGINE_QEMU_GUEST_REAL_NAME:-}"
+guest_repo_mount_path="${MARGINE_QEMU_REPO_MOUNT_PATH:-/root/margine-repo}"
+guest_repo_dest_path="${MARGINE_TARGET_REPO_DEST:-/root/margine-os}"
+dry_run=0
+workdir_provided=0
+disk_size_provided=0
+declare -a passthrough_args=()
+declare -a extra_layers=()
+iso_structure_check_provided=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  prepare-qemu-root-zfs-validation [options]
+
+This prepares the QEMU/OVMF harness for the root-on-ZFS prototype. It reuses
+prepare-qemu-archiso-validation for ISO, OVMF, vTPM, SSH and launch scripts,
+then writes root-on-ZFS specific runbooks.
+
+Common options are passed through to prepare-qemu-archiso-validation:
+  --product NAME
+  --flavor NAME
+  --workdir PATH
+  --iso PATH
+  --disk PATH
+  --disk-size SIZE
+  --memory-mib N
+  --cpus N
+  --ssh-forward-port N
+  --guest-username NAME
+  --guest-real-name NAME
+  --with-vtpm | --no-vtpm
+  --extra-layer NAME
+  --download-iso
+  --iso-structure-check MODE
+  --run
+  --headless
+  --dry-run
+
+Defaults changed by this wrapper:
+  --workdir build/qemu-root-zfs-validation
+  --disk-size 96G
+  --iso-structure-check uefi
+EOF
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --product)
+        [[ $# -ge 2 ]] || die "missing value for --product"
+        product="${2,,}"
+        passthrough_args+=("$1" "$2")
+        shift 2
+        ;;
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="${2,,}"
+        passthrough_args+=("$1" "$2")
+        shift 2
+        ;;
+      --workdir)
+        [[ $# -ge 2 ]] || die "missing value for --workdir"
+        workdir="$2"
+        workdir_provided=1
+        passthrough_args+=("$1" "$2")
+        shift 2
+        ;;
+      --disk-size)
+        [[ $# -ge 2 ]] || die "missing value for --disk-size"
+        disk_size="$2"
+        disk_size_provided=1
+        passthrough_args+=("$1" "$2")
+        shift 2
+        ;;
+      --guest-username)
+        [[ $# -ge 2 ]] || die "missing value for --guest-username"
+        guest_username="$2"
+        passthrough_args+=("$1" "$2")
+        shift 2
+        ;;
+      --guest-real-name)
+        [[ $# -ge 2 ]] || die "missing value for --guest-real-name"
+        guest_real_name="$2"
+        passthrough_args+=("$1" "$2")
+        shift 2
+        ;;
+      --extra-layer)
+        [[ $# -ge 2 ]] || die "missing value for --extra-layer"
+        extra_layers+=("$2")
+        passthrough_args+=("$1" "$2")
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        passthrough_args+=("$1")
+        shift
+        ;;
+      --iso-structure-check)
+        [[ $# -ge 2 ]] || die "missing value for --iso-structure-check"
+        iso_structure_check_provided=1
+        passthrough_args+=("$1" "$2")
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      --iso|--disk|--memory-mib|--cpus|--ssh-forward-port|--zfs-lab-disk-size)
+        [[ $# -ge 2 ]] || die "missing value for $1"
+        passthrough_args+=("$1" "$2")
+        shift 2
+        ;;
+      --with-vtpm|--no-vtpm|--download-iso|--run|--headless)
+        passthrough_args+=("$1")
+        shift
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+
+  eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
+    || die "unsupported product/flavor combination"
+  guest_username="${guest_username:-$(margine_product_field "$product_manifest" "qemu_guest_username" "margine")}"
+  guest_real_name="${guest_real_name:-$(margine_product_field "$product_manifest" "qemu_guest_real_name" "Margine User")}"
+}
+
+absolute_workdir() {
+  if [[ "$workdir" = /* ]]; then
+    printf '%s\n' "$workdir"
+  else
+    printf '%s/%s\n' "$repo_root" "$workdir"
+  fi
+}
+
+run_base_harness() {
+  local -a args=()
+
+  (( workdir_provided )) || args+=(--workdir "$workdir")
+  (( disk_size_provided )) || args+=(--disk-size "$disk_size")
+  (( iso_structure_check_provided )) || args+=(--iso-structure-check uefi)
+  args+=("${passthrough_args[@]}")
+
+  "${script_dir}/prepare-qemu-archiso-validation" "${args[@]}"
+}
+
+write_root_zfs_guides() {
+  local abs_workdir=""
+  local guide_path=""
+  local checklist_path=""
+  local run_script_path=""
+  local run_installed_script_path=""
+  local extra_summary="none"
+
+  (( dry_run )) && return 0
+
+  abs_workdir="$(absolute_workdir)"
+  guide_path="${abs_workdir}/inside-live-iso.md"
+  checklist_path="${abs_workdir}/inside-installed-system.md"
+  run_script_path="${abs_workdir}/run-qemu.sh"
+  run_installed_script_path="${abs_workdir}/run-qemu-installed.sh"
+  if (( ${#extra_layers[@]} > 0 )); then
+    extra_summary="${extra_layers[*]}"
+  fi
+
+  cat >"$guide_path" <<EOF
+# Margine root-on-ZFS validation in QEMU
+
+This runbook is for the first root-on-ZFS prototype. It intentionally does not
+use the existing Btrfs installer path.
+
+Target product: \`${product}\`
+Target flavor: \`${flavor}\`
+Extra layers requested: \`${extra_summary}\`
+
+## 0. Host launch
+
+From the host:
+
+\`\`\`bash
+${run_script_path}
+\`\`\`
+
+Boot the Arch live ISO.
+
+## 1. Live ISO orientation
+
+\`\`\`bash
+timedatectl status
+ip addr
+lsblk
+cat /proc/cmdline
+\`\`\`
+
+Expected disk:
+
+\`\`\`text
+/dev/vda
+\`\`\`
+
+## 2. Mount the Margine repository
+
+Some live ISOs, including CachyOS desktop images, start from an unprivileged
+live user. If these commands ask for privileges, run the mount with \`sudo\`,
+then switch to a root shell once and continue the rest of this guide without
+repeating \`sudo\`:
+
+\`\`\`bash
+sudo mkdir -p ${guest_repo_mount_path}
+sudo mount -t 9p -o trans=virtio,version=9p2000.L margine ${guest_repo_mount_path}
+sudo -i
+cd /
+\`\`\`
+
+If the live shell is already root, use the direct form:
+
+\`\`\`bash
+mkdir -p ${guest_repo_mount_path}
+mount -t 9p -o trans=virtio,version=9p2000.L margine ${guest_repo_mount_path}
+ls ${guest_repo_mount_path}/scripts
+\`\`\`
+
+## 3. Gate 0: prove the live ISO can operate ZFS
+
+Root-on-ZFS cannot even start unless the live environment has:
+
+- \`zfs\`
+- \`zpool\`
+- a loadable \`zfs\` kernel module
+
+Run:
+
+\`\`\`bash
+command -v zfs
+command -v zpool
+modprobe zfs
+zpool version
+\`\`\`
+
+If this fails, try the explicit bootstrap helper:
+
+\`\`\`bash
+${guest_repo_mount_path}/scripts/bootstrap-live-zfs-tools --flavor ${flavor}
+command -v zfs
+command -v zpool
+modprobe zfs
+zpool version
+\`\`\`
+
+If the helper reports that the running live kernel is unsupported, stop. The
+next engineering task is a ZFS-capable install medium. Do not continue with the
+Btrfs installer as a workaround: that would invalidate the root-on-ZFS test.
+
+## 4. Provision root-on-ZFS storage
+
+This is destructive inside the VM:
+
+\`\`\`bash
+${guest_repo_mount_path}/scripts/provision-storage-zfs-root \\
+  --disk /dev/vda \\
+  --target-root /mnt \\
+  --pool-name rpool \\
+  --root-dataset ROOT/default \\
+  --yes-really-destroy-disk
+\`\`\`
+
+Minimal storage checks:
+
+\`\`\`bash
+findmnt /mnt
+findmnt /mnt/boot
+findmnt -no OPTIONS /mnt/boot
+zpool status rpool
+zfs list
+zpool get bootfs rpool
+zpool get altroot rpool
+zfs get mountpoint,canmount rpool/ROOT/default
+zfs list rpool/games
+\`\`\`
+
+Expected:
+
+- \`rpool/ROOT/default\` mounted as \`/mnt\`;
+- \`rpool/ROOT/default\` has \`canmount=noauto\`;
+- while the pool is imported in the live ISO with \`altroot=/mnt\`,
+  \`zfs get mountpoint rpool/ROOT/default\` may report \`/mnt\`; this is the
+  acceptable live altroot view of the logical root mountpoint \`/\`;
+- ESP mounted at \`/mnt/boot\` with restrictive VFAT permissions
+  (\`fmask=0077,dmask=0077\` or equivalent);
+- \`bootfs=rpool/ROOT/default\`;
+- \`rpool/games\` exists, mounts at \`/games\`, and stays outside default
+  automatic/pre-update snapshot policy.
+
+## 5. Bootstrap root-on-ZFS prototype
+
+First verify that the live environment is really reading the current mounted
+repository and that the critical install scripts are syntactically valid:
+
+\`\`\`bash
+${guest_repo_mount_path}/scripts/validate-live-install-sources --require-mounted-repo
+\`\`\`
+
+Run the guided root-on-ZFS-aware bootstrap path. It repeats the storage checks
+above, infers the root dataset from the pool bootfs, and then calls the generic
+bootstrap with the correct root-on-ZFS options. Do not use the generic Btrfs
+command directly: it will generate the wrong initramfs and kernel command line.
+
+\`\`\`bash
+${guest_repo_mount_path}/scripts/bootstrap-live-zfs-root-guided \\
+  --qemu-validation-inhibit \\
+  --yes
+\`\`\`
+
+The wrapper asks for hostname, administrative username and real name unless
+they are explicitly supplied with flags or MARGINE_INSTALL_* environment
+variables. Those values are not inferred from the product manifest.
+The \`--qemu-validation-inhibit\` flag is validation-only: it installs a
+first-boot systemd inhibitor in the target so the VM cannot suspend before SSH
+log collection is armed.
+
+If the installed system boots but the Hyprland session opens with a broken
+desktop, boot this live ISO again and mount the target with the root-on-ZFS
+resume helper:
+
+\`\`\`bash
+mkdir -p ${guest_repo_mount_path}
+mount -t 9p -o trans=virtio,version=9p2000.L margine ${guest_repo_mount_path}
+sudo ${guest_repo_mount_path}/scripts/mount-zfs-root-target \\
+  --repo-tag margine \\
+  --repo-mount-path ${guest_repo_mount_path}
+\`\`\`
+
+Then run the short desktop repair path:
+
+\`\`\`bash
+sudo ${guest_repo_mount_path}/scripts/repair-zfs-root-desktop-session --username <your-admin-user>
+\`\`\`
+
+The repair path remounts the root-on-ZFS target, reapplies the user desktop
+payload, reinstalls the Margine Hyprland session launcher, and ensures greetd
+waits for the ZFS \`/home\` dataset.
+
+Before leaving the live environment, close the target cleanly with the helper
+instead of manually unmounting each dataset:
+
+\`\`\`bash
+cd /
+sudo ${guest_repo_mount_path}/scripts/unmount-zfs-root-target
+\`\`\`
+
+If the helper reports a busy mount, use the printed process diagnostics to
+close the shell or process that still has a file open under \`/mnt\`. Do not run
+\`fuser -km /mnt\`: it is too broad for this workflow and can kill the live
+session. In a disposable live ISO recovery session, rerun the helper with
+\`--terminate-busy\`; add \`--kill-busy --lazy-unmount --force-export\` only as
+the final recovery path.
+
+Expected boot-chain work during the chroot phase:
+
+- ZFS package coupling from the 'zfs-root-stack' stage1 layer;
+- '/etc/hostid' generation;
+- '/etc/zfs/zpool.cache' creation for 'rpool';
+- root-on-ZFS mkinitcpio hooks;
+- UKI regeneration;
+- Limine config rendered for 'root=ZFS=rpool/ROOT/default'.
+
+## 6. Installed disk launcher
+
+After a successful install, use:
+
+\`\`\`bash
+${run_installed_script_path}
+\`\`\`
+EOF
+
+  cat >"$checklist_path" <<EOF
+# Installed root-on-ZFS validation checklist
+
+This checklist is intentionally stricter than the non-root ZFS lab checklist.
+
+Target product: \`${product}\`
+Target flavor: \`${flavor}\`
+
+## 1. Boot identity
+
+\`\`\`bash
+cat /proc/cmdline
+findmnt /
+findmnt /boot
+findmnt -no OPTIONS /boot
+zpool status rpool
+zfs list
+zpool get bootfs rpool
+zfs get mountpoint,canmount rpool/ROOT/default
+zfs list rpool/games
+\`\`\`
+
+Expected:
+
+- root is a ZFS dataset;
+- \`rpool\` is imported;
+- \`rpool/ROOT/default\` is the bootfs;
+- \`rpool/ROOT/default\` has \`mountpoint=/\` and \`canmount=noauto\`;
+- \`rpool/games\` exists for reinstallable game libraries and is not part of
+  automatic/pre-update snapshot policy;
+- \`/boot\` is the ESP and is mounted with restrictive VFAT permissions
+  (\`fmask=0077,dmask=0077\` or equivalent).
+
+## 2. Kernel/ZFS coupling
+
+\`\`\`bash
+uname -r
+modinfo zfs
+pacman -Q zfs-utils
+pacman -Q linux-cachyos-zfs || pacman -Q zfs-dkms || true
+\`\`\`
+
+Expected:
+
+- \`zfs\` module matches the running kernel;
+- userspace \`zfs-utils\` exists;
+- CachyOS uses a matching prebuilt ZFS module package when applicable.
+
+## 3. Boot artifacts
+
+\`\`\`bash
+ls -l /boot/EFI/BOOT
+ls -l /boot/EFI/Linux
+sbctl verify || true
+bootctl status || true
+\`\`\`
+
+Expected:
+
+- Limine primary path exists;
+- systemd-boot fallback exists;
+- primary/fallback/recovery UKIs exist;
+- Secure Boot verification is clean once keys are staged.
+
+## 4. Snapshot and rollback gates
+
+\`\`\`bash
+sudo zfs snapshot rpool/ROOT/default@margine-validation
+sudo zfs clone rpool/ROOT/default@margine-validation rpool/ROOT/rollback-validation
+zfs list rpool/ROOT/rollback-validation
+\`\`\`
+
+Expected:
+
+- root snapshot works;
+- clone boot environment can be created;
+- the next implementation must generate a temporary boot entry for that clone.
+
+## 5. update-all gates
+
+\`\`\`bash
+update-all --dry-run --no-aur --no-flatpak --no-fwupd
+zpool status -x
+zfs list -t snapshot
+\`\`\`
+
+Expected:
+
+- update-all detects root-on-ZFS and fails closed before any mutation;
+- no package, Flatpak, firmware, snapshot, UKI or Limine mutation happens;
+- the dedicated ZFS-safe update path remains a future gate.
+
+## 6. Host-side SSH log collection
+
+Inside the installed guest, mount the 9p repository if it is not already
+mounted and enable SSH with the generated validation key. Run this from the
+normal user shell, not from an interactive \`sudo -i\` root shell, so \`$USER\`
+expands to the guest login user:
+
+\`\`\`bash
+sudo modprobe 9p 9pnet 9pnet_virtio
+sudo mkdir -p ${guest_repo_mount_path}
+sudo mountpoint -q ${guest_repo_mount_path} || sudo mount -t 9p -o trans=virtio,version=9p2000.L,msize=262144 margine ${guest_repo_mount_path}
+sudo ${guest_repo_mount_path}/scripts/enable-qemu-validation-ssh --user "\$USER"
+\`\`\`
+
+If you are already inside \`sudo -i\`, pass the real guest username explicitly
+instead of \`--user "\$USER"\`.
+
+The SSH helper starts the validation idle inhibitor from a temporary local
+guest copy as part of the setup. Collect the validation output from the host:
+
+\`\`\`bash
+./scripts/collect-qemu-root-zfs-validation-logs --user USERNAME --prompt-sudo
+\`\`\`
+
+Expected:
+
+- text logs are written under \`build/qemu-root-zfs-validation-logs/\`;
+- root and user validation output is separated;
+- idle and suspend are inhibited during collection;
+- the user \`keep-awake.service\` and systemd inhibitor states are recorded;
+- the root-on-ZFS \`update-all\` fail-closed gate is recorded.
+
+After validation, disable the validation-only inhibitor inside the guest:
+
+\`\`\`bash
+./scripts/enable-qemu-validation-inhibit-over-ssh --user USERNAME --disable --prompt-sudo
+\`\`\`
+EOF
+}
+
+main() {
+  parse_args "$@"
+
+  log "=== Prepare QEMU root-on-ZFS validation ==="
+  log "Product: ${product} (${product_name})"
+  log "Flavor: ${flavor}"
+  (( dry_run )) && log "Mode: dry-run"
+
+  run_base_harness
+  write_root_zfs_guides
+
+  if ! (( dry_run )); then
+    log
+    log "Root-on-ZFS guide: $(absolute_workdir)/inside-live-iso.md"
+    log "Root-on-ZFS checklist: $(absolute_workdir)/inside-installed-system.md"
+  fi
+}
+
+main "$@"

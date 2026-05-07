@@ -18,6 +18,7 @@ product_visibility=""
 product_redistributable=""
 flavor=""
 aur_installer="${repo_root}/scripts/install-aur-packages"
+local_package_repo="${MARGINE_LOCAL_PACKAGE_REPO:-${repo_root}/local-pacman-repo}"
 declare -a requested_layers=()
 declare -a product_extra_layers=()
 declare -a detected_hardware_layers=()
@@ -34,6 +35,7 @@ default_layers=(
   desktop-integration
   apps-core
   apps-photo-audio-video
+  gaming-runtime-compat
   fonts
 )
 
@@ -49,6 +51,9 @@ Options:
   --layer NAME            Install only the specified layer; repeatable
   --include-aur           Include the optional AUR exceptions manifest
   --include-flatpak       Include the Flatpak manifest
+  --local-package-repo PATH
+                          Prefer prebuilt local package files from PATH
+                          before building AUR packages
   --list-layers           Show the available layers and exit
   --help                  Show this help
 EOF
@@ -129,6 +134,55 @@ run_privileged_cmd() {
   else
     run_cmd sudo "$@"
   fi
+}
+
+refresh_package_databases_for_retry() {
+  if (( dry_run )); then
+    printf '[dry-run] pacman -Syy --noconfirm\n'
+    return 0
+  fi
+
+  run_privileged_cmd pacman -Syy --noconfirm || warn "package database refresh failed before retry"
+}
+
+run_privileged_with_package_retry() {
+  local description="$1"
+  shift
+  local attempt=0
+  local max_attempts=3
+
+  for attempt in 1 2 3; do
+    if run_privileged_cmd "$@"; then
+      return 0
+    fi
+
+    warn "${description} failed (attempt ${attempt}/${max_attempts})"
+    (( attempt < max_attempts )) || break
+    refresh_package_databases_for_retry
+    sleep 2
+  done
+
+  die "${description} failed after ${max_attempts} attempts"
+}
+
+preflight_official_package_transaction() {
+  local -a packages=("$@")
+
+  (( ${#packages[@]} > 0 )) || return 0
+
+  log
+  log "Preflight official package transaction"
+  if (( dry_run )); then
+    printf '[dry-run] pacman -S --needed --asexplicit --noconfirm --print --print-format %%n (%s packages)\n' "${#packages[@]}"
+    return 0
+  fi
+
+  run_privileged_cmd \
+    pacman -S --needed --asexplicit --noconfirm --print --print-format '%n' "${packages[@]}" \
+    >/dev/null \
+    || die "official package transaction preflight failed; resolve manifest package conflicts or missing package targets"
+
+  log "Official package transaction preflight: OK"
 }
 
 have_cmd() {
@@ -233,6 +287,11 @@ parse_args() {
         include_flatpak=1
         shift
         ;;
+      --local-package-repo)
+        [[ $# -ge 2 ]] || die "missing value for --local-package-repo"
+        local_package_repo="$2"
+        shift 2
+        ;;
       --list-layers)
         list_layers_only=1
         shift
@@ -303,13 +362,16 @@ install_official_layers() {
   local -a packages=()
   local -A seen=()
   local layer=""
+  local manifest=""
   local package=""
 
   log "Selected official layers:"
   for layer in "${requested_layers[@]}"; do
-    if is_aur_layer "$layer"; then
+    manifest="$(margine_resolve_package_layer "$repo_root" "$flavor" "$layer" 2>/dev/null || true)"
+    if [[ -z "$manifest" ]]; then
       continue
     fi
+
     printf '  - %s\n' "$layer"
     while IFS= read -r package; do
       [[ -n "$package" ]] || continue
@@ -317,7 +379,7 @@ install_official_layers() {
         packages+=("$package")
         seen["$package"]=1
       fi
-    done < <(read_manifest_lines "$(margine_resolve_package_layer "$repo_root" "$flavor" "$layer")")
+    done < <(read_manifest_lines "$manifest")
   done
 
   if (( ${#packages[@]} == 0 )); then
@@ -328,19 +390,134 @@ install_official_layers() {
 
   log
   log "Resolved official packages: ${#packages[@]}"
-  run_privileged_cmd pacman -S --needed --asexplicit --noconfirm "${packages[@]}"
+  preflight_official_package_transaction "${packages[@]}"
+  run_privileged_with_package_retry \
+    "official package installation" \
+    pacman -S --needed --asexplicit --noconfirm "${packages[@]}"
+}
+
+local_package_repo_enabled() {
+  [[ -d "$local_package_repo" ]]
+}
+
+local_repo_package_files_for() {
+  local package="$1"
+  local file=""
+  local package_name=""
+  local package_info=""
+  local name=""
+  local -A latest_by_name=()
+
+  local_package_repo_enabled || return 0
+
+  while IFS= read -r -d '' file; do
+    package_info="$(pacman -Qp "$file" 2>/dev/null || true)"
+    [[ -n "$package_info" ]] || continue
+    package_name="${package_info%% *}"
+
+    case "$package_name" in
+      "$package"|"$package-debug")
+        latest_by_name["$package_name"]="$file"
+        ;;
+    esac
+  done < <(find "$local_package_repo" -maxdepth 1 -type f -name '*.pkg.tar*' -print0 2>/dev/null | sort -zV)
+
+  for name in "$package" "${package}-debug"; do
+    if [[ -n "${latest_by_name[$name]+x}" ]]; then
+      printf '%s\n' "${latest_by_name[$name]}"
+    fi
+  done
+}
+
+local_repo_package_available() {
+  local package="$1"
+  local first_match=""
+
+  first_match="$(local_repo_package_files_for "$package" | head -n 1 || true)"
+  [[ -n "$first_match" ]]
+}
+
+install_local_repo_package() {
+  local package="$1"
+  local package_file=""
+  local -a package_files=()
+
+  mapfile -t package_files < <(local_repo_package_files_for "$package")
+  (( ${#package_files[@]} > 0 )) || die "local package repo has no package files for ${package}: ${local_package_repo}"
+
+  log
+  log "Install prebuilt local package: ${package}"
+  for package_file in "${package_files[@]}"; do
+    printf '  - %s\n' "$package_file"
+  done
+
+  run_privileged_cmd pacman -U --needed --noconfirm "${package_files[@]}"
+}
+
+defer_local_override_package() {
+  local package="$1"
+
+  case "$package" in
+    walker)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+install_pending_aur_packages() {
+  local label="$1"
+  shift
+  local manifest_tmp=""
+  local -a pending_packages=("$@")
+
+  (( ${#pending_packages[@]} > 0 )) || return 0
+
+  manifest_tmp="$(mktemp)"
+  printf '%s\n' "${pending_packages[@]}" >"$manifest_tmp"
+
+  log
+  log "${label}"
+  run_privileged_cmd "$aur_installer" --manifest "$manifest_tmp"
+
+  rm -f "$manifest_tmp"
 }
 
 install_aur_manifest() {
   local manifest="$1"
   local label="$2"
+  local package=""
+  local -a pending_aur_packages=()
 
   [[ -f "$manifest" ]] || die "AUR manifest not found: $manifest"
   [[ -x "$aur_installer" ]] || die "AUR installer not executable: $aur_installer"
 
   log
   log "${label}"
-  run_privileged_cmd "$aur_installer" --manifest "$manifest"
+
+  while IFS= read -r package; do
+    [[ -n "$package" ]] || continue
+
+    if local_repo_package_available "$package"; then
+      install_pending_aur_packages "AUR packages not present in local repo" "${pending_aur_packages[@]}"
+      pending_aur_packages=()
+      install_local_repo_package "$package"
+      continue
+    fi
+
+    if defer_local_override_package "$package"; then
+      install_pending_aur_packages "AUR packages not present in local repo" "${pending_aur_packages[@]}"
+      pending_aur_packages=()
+      log "Defer local override package until first boot: ${package}"
+      continue
+    fi
+
+    pending_aur_packages+=("$package")
+  done < <(read_manifest_lines "$manifest")
+
+  install_pending_aur_packages "AUR packages not present in local repo" "${pending_aur_packages[@]}"
 }
 
 install_aur_layers() {

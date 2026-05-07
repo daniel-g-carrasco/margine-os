@@ -1,0 +1,6 @@
+# CachyOS root-on-ZFS boot support.
+# This must be available during the initial pacstrap phase, before chroot boot
+# artifact generation, so the running kernel has a matching prebuilt ZFS module.
+
+linux-cachyos-zfs
+zfs-utils

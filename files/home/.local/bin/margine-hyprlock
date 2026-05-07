@@ -25,7 +25,7 @@ base_config="${config_dir}/hypr/hyprlock.conf"
 theme_file="${config_dir}/margine/theme.env"
 dry_run_flag="--margine-hyprlock-dry-run"
 runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
-runtime_config="/tmp/margine-hyprlock.generated.conf"
+runtime_config="${runtime_dir}/margine-hyprlock.generated.conf"
 monitor_name=""
 monitor_width=""
 monitor_height=""
@@ -381,7 +381,7 @@ fi
 
 mkdir -p "$runtime_dir"
 if ! runtime_config="$(mktemp -p "$runtime_dir" margine-hyprlock.generated.XXXXXX.conf)"; then
-  runtime_config="/tmp/margine-hyprlock.generated.conf"
+  runtime_config="${runtime_dir}/margine-hyprlock.generated.conf"
 fi
 trap 'rm -f "$runtime_config"' EXIT
 

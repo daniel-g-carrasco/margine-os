@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dry_run=0
+snapshot=""
+target_dataset=""
+description="margine pre-update boot environment"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  create-zfs-boot-environment --snapshot DATASET@SNAPSHOT [options]
+
+Options:
+  --snapshot SNAPSHOT       Source ZFS snapshot, for example rpool/ROOT/default@margine-pre-update-...
+  --target-dataset DATASET  Clone dataset to create. Defaults to sibling named after the snapshot.
+  --description TEXT        Human description stored as a ZFS user property
+  --dry-run                 Show the plan without creating the clone
+  --help                    Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --snapshot)
+        [[ $# -ge 2 ]] || die "missing value for --snapshot"
+        snapshot="$2"
+        shift 2
+        ;;
+      --target-dataset)
+        [[ $# -ge 2 ]] || die "missing value for --target-dataset"
+        target_dataset="$2"
+        shift 2
+        ;;
+      --description)
+        [[ $# -ge 2 ]] || die "missing value for --description"
+        description="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+safe_dataset_suffix() {
+  local value="$1"
+
+  value="${value//[^[:alnum:]_.:-]/-}"
+  value="${value//:/-}"
+  printf '%s' "$value"
+}
+
+derive_target_dataset() {
+  local source_dataset=""
+  local source_parent=""
+  local snapname=""
+
+  [[ -n "$target_dataset" ]] && return 0
+  source_dataset="${snapshot%@*}"
+  source_parent="${source_dataset%/*}"
+  snapname="${snapshot##*@}"
+  target_dataset="${source_parent}/$(safe_dataset_suffix "$snapname")"
+}
+
+validate_inputs() {
+  [[ -n "$snapshot" ]] || die "--snapshot is required"
+  [[ "$snapshot" == *@* ]] || die "--snapshot must be a ZFS snapshot name"
+  [[ "$snapshot" == */* ]] || die "--snapshot must include a pool and dataset path"
+  derive_target_dataset
+  [[ "$target_dataset" == */* ]] || die "--target-dataset must include a pool and dataset path"
+  [[ -n "$description" ]] || die "--description must not be empty"
+
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "create-zfs-boot-environment must run as root"
+  command -v zfs >/dev/null 2>&1 || die "zfs command not found"
+  zfs list -H -t snapshot -o name "$snapshot" >/dev/null \
+    || die "source snapshot not found: ${snapshot}"
+}
+
+existing_target_matches_snapshot() {
+  local origin=""
+
+  zfs list -H -o name "$target_dataset" >/dev/null 2>&1 || return 1
+  origin="$(zfs get -H -o value origin "$target_dataset" 2>/dev/null || true)"
+  [[ "$origin" == "$snapshot" ]]
+}
+
+create_clone() {
+  local created_at=""
+
+  log "==> ZFS boot environment clone"
+  log "Snapshot: ${snapshot}"
+  log "Target: ${target_dataset}"
+
+  if (( dry_run )); then
+    printf '[dry-run] zfs clone -o mountpoint=/ -o canmount=noauto -o org.margine:bootenv=pre-update -o org.margine:origin-snapshot=%s -o org.margine:description=%s %s %s\n' \
+      "$snapshot" "$description" "$snapshot" "$target_dataset"
+    return 0
+  fi
+
+  if zfs list -H -o name "$target_dataset" >/dev/null 2>&1; then
+    existing_target_matches_snapshot \
+      || die "target dataset already exists with a different origin: ${target_dataset}"
+    log "Boot environment already exists: ${target_dataset}"
+    return 0
+  fi
+
+  created_at="$(date -Iseconds)"
+  zfs clone \
+    -o mountpoint=/ \
+    -o canmount=noauto \
+    -o org.margine:bootenv=pre-update \
+    -o "org.margine:origin-snapshot=${snapshot}" \
+    -o "org.margine:description=${description}" \
+    -o "org.margine:created=${created_at}" \
+    "$snapshot" "$target_dataset"
+
+  log "Created ZFS boot environment: ${target_dataset}"
+}
+
+main() {
+  parse_args "$@"
+  validate_inputs
+  create_clone
+}
+
+main "$@"

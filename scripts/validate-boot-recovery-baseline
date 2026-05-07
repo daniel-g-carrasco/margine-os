@@ -23,6 +23,7 @@ kernel_package=""
 kernel_headers_package=""
 base_system_manifest=""
 security_recovery_manifest=""
+storage_layout=""
 issue_count=0
 
 have_cmd() {
@@ -90,6 +91,27 @@ init_product_context() {
   security_recovery_manifest="$(margine_resolve_package_layer "$repo_root" "$flavor" "security-and-recovery" 2>/dev/null || true)"
 }
 
+init_storage_context() {
+  local root_fstype=""
+
+  if [[ -f /etc/margine/install-layout.env ]]; then
+    # shellcheck source=/dev/null
+    source /etc/margine/install-layout.env
+    storage_layout="${MARGINE_STORAGE_LAYOUT:-}"
+  fi
+
+  if [[ -z "$storage_layout" ]]; then
+    root_fstype="$(findmnt -nro FSTYPE --target / 2>/dev/null || true)"
+    [[ "$root_fstype" == "zfs" ]] && storage_layout="zfs-root"
+  fi
+
+  storage_layout="${storage_layout:-btrfs}"
+}
+
+root_zfs_runtime() {
+  [[ "$storage_layout" == "zfs-root" ]]
+}
+
 sbctl_bootstrap_ready() {
   [[ -f /var/lib/sbctl/keys/db/db.key ]] || [[ -f /var/lib/sbctl/keys/db/db.pem ]]
 }
@@ -149,6 +171,7 @@ product_context_section() {
   status_line "product name: ${product_name}"
   status_line "flavor: ${flavor}"
   status_line "base distribution: ${product_base_distribution}"
+  status_line "storage layout: ${storage_layout}"
 
   if [[ -n "$kernel_package" ]]; then
     if package_installed "$kernel_package"; then
@@ -187,6 +210,28 @@ product_context_section() {
       mark_issue
     fi
     status_line "CachyOS repositories configured: ${repos_present}"
+  fi
+}
+
+root_zfs_section() {
+  local validator="${script_dir}/validate-root-zfs-target"
+
+  root_zfs_runtime || return 0
+
+  section "Root-on-ZFS runtime"
+  status_line "validator: ${validator}"
+
+  if [[ ! -x "$validator" ]]; then
+    status_line "root-on-ZFS validator: missing"
+    mark_issue
+    return 0
+  fi
+
+  if "$validator" --target-root / --mode boot-chain; then
+    status_line "root-on-ZFS runtime validation: ok"
+  else
+    status_line "root-on-ZFS runtime validation: failed"
+    mark_issue
   fi
 }
 
@@ -310,6 +355,48 @@ diagnostics_section() {
   fi
 }
 
+mode_has_other_bits() {
+  local mode="$1"
+  local other=""
+
+  [[ "$mode" =~ ^[0-7]+$ ]] || return 1
+  other="${mode: -1}"
+  (( 8#$other != 0 ))
+}
+
+esp_random_seed_section() {
+  local seed_path="/boot/loader/random-seed"
+  local boot_mode="unknown"
+  local seed_mode="missing"
+  local mount_options="unknown"
+
+  section "ESP random seed permissions"
+
+  mount_options="$(findmnt -no OPTIONS /boot 2>/dev/null || true)"
+  boot_mode="$(stat -c '%a' /boot 2>/dev/null || true)"
+  if [[ -e "$seed_path" ]]; then
+    seed_mode="$(stat -c '%a' "$seed_path" 2>/dev/null || true)"
+  fi
+
+  status_line "/boot mount options: ${mount_options:-unknown}"
+  status_line "/boot mode: ${boot_mode:-unknown}"
+  status_line "random seed file: ${seed_path} (${seed_mode})"
+
+  if [[ ! -e "$seed_path" ]]; then
+    status_line "random seed permission baseline: missing"
+    mark_issue
+    return 0
+  fi
+
+  if mode_has_other_bits "$boot_mode" || mode_has_other_bits "$seed_mode"; then
+    status_line "random seed permission baseline: world-accessible"
+    status_line "expected remediation: mount ESP with non-world-accessible permissions, for example umask=0077"
+    mark_issue
+  else
+    status_line "random seed permission baseline: ok"
+  fi
+}
+
 boot_visuals_section() {
   local mkinitcpio_hooks=""
   local plymouth_theme="missing"
@@ -341,6 +428,15 @@ boot_visuals_section() {
 snapper_section() {
   local configs=""
   local root_list=""
+
+  if root_zfs_runtime; then
+    section "Root snapshot model"
+    status_line "storage layout: root-on-ZFS"
+    status_line "Snapper root baseline: skipped"
+    status_line "snapshot policy: Margine ZFS pre-update snapshots, not Btrfs Snapper"
+    status_line "/games policy: validated as dedicated ZFS dataset by root-on-ZFS runtime checks"
+    return 0
+  fi
 
   section "Snapper and recovery"
 
@@ -378,10 +474,13 @@ snapper_section() {
 main() {
   require_root
   init_product_context
+  init_storage_context
   product_context_section
+  root_zfs_section
   boot_section
   uki_section
   diagnostics_section
+  esp_random_seed_section
   boot_visuals_section
   snapper_section
 

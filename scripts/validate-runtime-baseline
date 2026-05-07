@@ -16,16 +16,19 @@ source "${script_dir}/lib/product-manifests.sh"
 
 home_dir="${HOME:-/home/$(id -un)}"
 product=""
+product_arg=""
 product_manifest=""
 product_name=""
 product_base_distribution=""
 flavor=""
+flavor_arg=""
 kernel_package=""
 kernel_headers_package=""
 aur_baseline_manifest=""
 base_system_manifest=""
 declare -a product_extra_layers=()
 declare -a product_extra_layer_manifests=()
+declare -a issues=()
 issue_count=0
 
 have_cmd() {
@@ -41,12 +44,51 @@ status_line() {
 }
 
 mark_issue() {
+  local message="${1:-}"
+
   issue_count=$((issue_count + 1))
+  if [[ -n "$message" ]]; then
+    issues+=("$message")
+  fi
 }
 
 die() {
   printf 'error: %s\n' "$*" >&2
   exit 1
+}
+
+usage() {
+  cat <<EOF
+Usage: validate-runtime-baseline [--product PRODUCT] [--flavor FLAVOR]
+
+Validates the current desktop runtime against the selected Margine product
+baseline. If omitted, product and flavor are detected from the installed
+runtime and repository defaults.
+EOF
+}
+
+parse_args() {
+  while (($#)); do
+    case "$1" in
+      --product)
+        [[ $# -ge 2 ]] || die "--product requires a value"
+        product_arg="$2"
+        shift 2
+        ;;
+      --flavor)
+        [[ $# -ge 2 ]] || die "--flavor requires a value"
+        flavor_arg="$2"
+        shift 2
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
 }
 
 read_manifest_lines() {
@@ -73,12 +115,13 @@ append_unique_item() {
   local var_name="$1"
   local candidate="$2"
   local existing=""
+  local -n target_array="$var_name"
 
   [[ -n "$candidate" ]] || return 0
-  eval "for existing in \"\${${var_name}[@]}\"; do
-    [[ \"\$existing\" == \"\$candidate\" ]] && return 0
-  done"
-  eval "${var_name}+=(\"\$candidate\")"
+  for existing in "${target_array[@]}"; do
+    [[ "$existing" == "$candidate" ]] && return 0
+  done
+  target_array+=("$candidate")
 }
 
 manifest_contains_package() {
@@ -105,8 +148,8 @@ init_product_context() {
   local layer=""
   local manifest=""
 
-  product="${MARGINE_VALIDATION_PRODUCT:-$(margine_detect_runtime_product "$repo_root")}"
-  flavor="${MARGINE_VALIDATION_FLAVOR:-$(margine_detect_runtime_flavor "$repo_root")}"
+  product="${product_arg:-${MARGINE_VALIDATION_PRODUCT:-$(margine_detect_runtime_product "$repo_root")}}"
+  flavor="${flavor_arg:-${MARGINE_VALIDATION_FLAVOR:-$(margine_detect_runtime_flavor "$repo_root")}}"
 
   eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
     || die "unsupported product/flavor combination"
@@ -286,7 +329,7 @@ session_env_section() {
     status_line "elephant startup mode: risk (enabled too early)"
     mark_issue
   else
-    status_line "elephant startup mode: on-demand ok"
+    status_line "elephant startup mode: static/session-managed ok"
   fi
 }
 
@@ -371,7 +414,6 @@ launcher_section() {
   local walker_path=""
   local elephant_path=""
   local fuzzel_path=""
-  local rofi_path=""
   local pkg=""
   local providers=""
   local -a expected_providers=(
@@ -393,7 +435,6 @@ launcher_section() {
   walker_path="$(command -v walker 2>/dev/null || true)"
   elephant_path="$(command -v elephant 2>/dev/null || true)"
   fuzzel_path="$(command -v fuzzel 2>/dev/null || true)"
-  rofi_path="$(command -v rofi 2>/dev/null || true)"
 
   if [[ -n "$aur_baseline_manifest" ]]; then
     while IFS= read -r pkg; do
@@ -408,13 +449,6 @@ launcher_section() {
   status_line "walker: ${walker_path:-missing}"
   status_line "elephant: ${elephant_path:-missing}"
   status_line "fuzzel: ${fuzzel_path:-missing}"
-  status_line "rofi: ${rofi_path:-missing}"
-  if package_installed rofi; then
-    status_line "package rofi: installed"
-  else
-    status_line "package rofi: missing"
-    mark_issue
-  fi
   if package_installed fuzzel; then
     status_line "package fuzzel: installed"
   else
@@ -445,15 +479,11 @@ launcher_section() {
     done
   fi
 
-  if [[ -n "$rofi_path" ]]; then
-    if [[ -n "$fuzzel_path" ]]; then
-      status_line "launcher baseline: rofi primary + fuzzel fallback"
-    else
-      status_line "launcher baseline: rofi only"
-      mark_issue
-    fi
+  if [[ -n "$walker_path" && -n "$elephant_path" && -n "$fuzzel_path" ]]; then
+    status_line "launcher baseline: walker primary + fuzzel fallback"
   elif [[ -n "$walker_path" && -n "$elephant_path" ]]; then
-    status_line "launcher baseline: walker+elephant"
+    status_line "launcher baseline: walker primary without fuzzel fallback"
+    mark_issue
   elif [[ -n "$fuzzel_path" ]]; then
     status_line "launcher baseline: fuzzel fallback only"
   else
@@ -640,6 +670,53 @@ process_priority_section() {
   [[ "$gamemode_detected" == "no" ]] || mark_issue
 }
 
+split_lock_section() {
+  local proc_path="/proc/sys/kernel/split_lock_mitigate"
+  local target="/etc/sysctl.d/99-margine-gaming-split-lock.conf"
+  local runtime_value="unsupported"
+  local persisted_value="not-set"
+  local sysctl_hits=""
+
+  section "Gaming split-lock policy"
+
+  if [[ ! -r "$proc_path" ]]; then
+    status_line "kernel.split_lock_mitigate: not exposed"
+    return 0
+  fi
+
+  runtime_value="$(cat "$proc_path" 2>/dev/null || true)"
+  if [[ -f "$target" ]]; then
+    persisted_value="$(sed -n 's/^[[:space:]]*kernel\.split_lock_mitigate[[:space:]]*=[[:space:]]*//p' "$target" | tail -n1 || true)"
+    [[ -n "$persisted_value" ]] || persisted_value="invalid"
+  fi
+
+  status_line "runtime kernel.split_lock_mitigate: ${runtime_value:-unknown}"
+  status_line "Margine persistent drop-in: ${target} (${persisted_value})"
+
+  sysctl_hits="$(grep -RHsnE '^[[:space:]]*kernel\.split_lock_mitigate[[:space:]]*=[[:space:]]*0([[:space:]]*(#.*)?)?$' \
+    /etc/sysctl.d /usr/lib/sysctl.d 2>/dev/null || true)"
+  if [[ -n "$sysctl_hits" ]]; then
+    status_line "split-lock disablement sysctl entries:"
+    printf '%s\n' "$sysctl_hits" | sed 's/^/  - /'
+  else
+    status_line "split-lock disablement sysctl entries: none"
+  fi
+
+  if [[ "$runtime_value" == "0" ]]; then
+    status_line "split-lock baseline: gaming override active"
+    mark_issue "kernel.split_lock_mitigate is 0; run provision-gaming-split-lock --disable to restore the default mitigation"
+  elif [[ "$runtime_value" == "1" ]]; then
+    status_line "split-lock baseline: mitigation active"
+  else
+    status_line "split-lock baseline: unknown runtime value"
+    mark_issue "kernel.split_lock_mitigate has unexpected value: ${runtime_value:-empty}"
+  fi
+
+  if [[ -f "$target" && "$persisted_value" != "1" ]]; then
+    mark_issue "Margine split-lock drop-in must persist kernel.split_lock_mitigate=1 by default"
+  fi
+}
+
 audio_section() {
   local default_sink=""
   local default_source=""
@@ -748,13 +825,16 @@ connectivity_section() {
   fi
 
   if have_cmd bluetoothctl; then
-    bt_powered="$(bluetoothctl show 2>/dev/null | sed -n 's/^[[:space:]]*Powered:[[:space:]]*//p' | tail -n1 || true)"
+    bt_powered="$(timeout 5s bluetoothctl show 2>/dev/null | sed -n 's/^[[:space:]]*Powered:[[:space:]]*//p' | tail -n1 || true)"
     status_line "bluetooth powered: ${bt_powered:-unknown}"
   fi
 }
 
 screenshot_section() {
   local binary=""
+  local path=""
+  local relpath=""
+  local -a hypr_config_paths=()
 
   section "Screenshots and Recording"
 
@@ -779,11 +859,27 @@ screenshot_section() {
 EOF
 
   if [[ -f "${home_dir}/.config/hypr/hyprland.conf" ]]; then
-    rg -n 'Print|screenrecord-toggle|screenshot-menu' "${home_dir}/.config/hypr/hyprland.conf" 2>/dev/null | sed 's/^/  - /'
+    hypr_config_paths+=("${home_dir}/.config/hypr/hyprland.conf")
+  fi
+  if [[ -d "${home_dir}/.config/hypr/conf.d" ]]; then
+    while IFS= read -r path; do
+      [[ -n "$path" ]] && hypr_config_paths+=("$path")
+    done < <(find "${home_dir}/.config/hypr/conf.d" -maxdepth 1 -type f -name '*.conf' | sort)
+  fi
+
+  if (( ${#hypr_config_paths[@]} > 0 )); then
+    if ! rg -n 'Print|screenrecord-toggle|screenshot-menu' "${hypr_config_paths[@]}" 2>/dev/null | sed 's/^/  - /'; then
+      status_line "screenshot bindings: missing"
+      mark_issue "screenshot bindings not found in Hyprland config"
+    fi
+  else
+    status_line "screenshot bindings: Hyprland config missing"
+    mark_issue "Hyprland config missing while checking screenshot bindings"
   fi
 }
 
 main() {
+  parse_args "$@"
   init_product_context
   product_context_section
   session_env_section
@@ -793,11 +889,24 @@ main() {
   ownership_section
   power_section
   process_priority_section
+  split_lock_section
   audio_section
   photo_section
   productivity_section
   connectivity_section
   screenshot_section
+
+  if (( issue_count > 0 )); then
+    section "Issues"
+    if (( ${#issues[@]} > 0 )); then
+      local issue=""
+      for issue in "${issues[@]}"; do
+        status_line "$issue"
+      done
+    else
+      status_line "${issue_count} issue(s) detected; review missing/suspect lines above"
+    fi
+  fi
 
   exit "$(( issue_count > 0 ))"
 }

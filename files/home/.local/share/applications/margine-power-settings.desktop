@@ -2,8 +2,8 @@
 Type=Application
 Name=Power Tools
 Comment=Open the power profile and battery tools
-Exec=/home/daniel/.local/bin/open-power-settings
-Icon=preferences-system-power
+Exec=sh -lc "exec \"\\$HOME/.local/bin/open-power-settings\""
+Icon=margine-power-settings
 Categories=Settings;HardwareSettings;
 Keywords=power;battery;profile;performance;
 Terminal=false

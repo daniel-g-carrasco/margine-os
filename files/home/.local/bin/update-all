@@ -9,6 +9,45 @@ fi
 
 runtime_product="${runtime_product,,}"
 
+env_file_value() {
+  local path="$1"
+  local key="$2"
+
+  [[ -r "$path" ]] || return 1
+
+  awk -F= -v key="$key" '
+    $1 == key {
+      value = substr($0, length(key) + 2)
+      gsub(/^"/, "", value)
+      gsub(/"$/, "", value)
+      print value
+      found = 1
+      exit
+    }
+    END {
+      exit found ? 0 : 1
+    }
+  ' "$path"
+}
+
+root_zfs_runtime() {
+  local layout=""
+  local root_fstype=""
+
+  layout="$(env_file_value /etc/margine/install-layout.env MARGINE_STORAGE_LAYOUT 2>/dev/null || true)"
+  [[ "$layout" == "zfs-root" ]] && return 0
+
+  root_fstype="$(findmnt -nro FSTYPE --target / 2>/dev/null || true)"
+  [[ "$root_fstype" == "zfs" ]]
+}
+
+zfs_capable_update_all() {
+  local candidate="$1"
+
+  [[ -x "$candidate" ]] || return 1
+  grep -Fq "run_root_zfs_update" "$candidate" 2>/dev/null
+}
+
 pick_repo_update_all() {
   case "${runtime_product}" in
     margine-cachyos)
@@ -39,15 +78,41 @@ pick_repo_update_all() {
 }
 
 if repo_update_all="$(pick_repo_update_all)"; then
-  exec "${repo_update_all}" "$@"
+  if root_zfs_runtime && ! zfs_capable_update_all "$repo_update_all"; then
+    printf 'warning: skipping stale root-on-ZFS update runtime: %s\n' "$repo_update_all" >&2
+  else
+    exec "${repo_update_all}" "$@"
+  fi
 fi
 
 if [[ -x /usr/local/lib/margine/scripts/update-all ]]; then
-  exec /usr/local/lib/margine/scripts/update-all "$@"
+  if root_zfs_runtime && ! zfs_capable_update_all /usr/local/lib/margine/scripts/update-all; then
+    printf 'warning: skipping stale installed root-on-ZFS update runtime: /usr/local/lib/margine/scripts/update-all\n' >&2
+  else
+    exec /usr/local/lib/margine/scripts/update-all "$@"
+  fi
 fi
 
 if [[ -x /usr/local/bin/update-all ]]; then
-  exec /usr/local/bin/update-all "$@"
+  if root_zfs_runtime; then
+    printf 'warning: skipping /usr/local/bin/update-all to avoid wrapper recursion on root-on-ZFS\n' >&2
+  else
+    exec /usr/local/bin/update-all "$@"
+  fi
+fi
+
+if root_zfs_runtime; then
+  cat >&2 <<'EOF'
+error: no ZFS-capable Margine update-all runtime found.
+
+Refresh the checked-out repository or the installed /usr/local/lib/margine
+runtime before updating a root-on-ZFS host.
+EOF
+  exit 1
+fi
+
+if [[ -n "${repo_update_all:-}" ]]; then
+  exec "${repo_update_all}" "$@"
 fi
 
 printf 'error: no Margine update-all runtime found\n' >&2

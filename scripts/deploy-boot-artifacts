@@ -19,12 +19,12 @@ Usage:
   deploy-boot-artifacts --esp-path PATH [options]
 
 Options:
-  --dry-run             Mostra i comandi senza eseguirli
+  --dry-run             Show commands without executing them
   --esp-path PATH       Mountpoint della EFI System Partition
   --backup-dir PATH     Dove salvare i backup dei file sovrascritti
   --limine-binary PATH  Binario EFI di Limine da installare come BOOTX64.EFI
-  --limine-config PATH  limine.conf gia' renderizzato da installare
-  --main-uki PATH       UKI principale da installare come margine-linux.efi
+  --limine-config PATH  Already rendered limine.conf to install
+  --main-uki PATH       Main UKI to install as margine-linux.efi
   --fallback-uki PATH   UKI fallback da installare come margine-linux-fallback.efi
   --recovery-uki PATH   UKI recovery da installare come margine-recovery.efi
   --help                Show this help
@@ -181,7 +181,7 @@ main() {
 
   if [[ -n "$main_uki" ]]; then
     log
-    log "==> UKI principale"
+    log "==> Main UKI"
     install_file "$main_uki" "${esp_path}/EFI/Linux/margine-linux.efi" 644
   fi
 
@@ -198,7 +198,7 @@ main() {
   fi
 
   log
-  log "=== Deploy completato ==="
+  log "=== Deploy complete ==="
 }
 
 main "$@"

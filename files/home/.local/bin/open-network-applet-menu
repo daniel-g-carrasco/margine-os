@@ -14,7 +14,8 @@ ensure_nm_applet() {
     return 1
   fi
 
-  nohup nm-applet >/tmp/nm-applet.log 2>&1 </dev/null &
+  local log_dir="${XDG_RUNTIME_DIR:-/tmp}"
+  nohup nm-applet >"${log_dir}/nm-applet.log" 2>&1 </dev/null &
 
   for _ in $(seq 1 20); do
     sleep 0.15

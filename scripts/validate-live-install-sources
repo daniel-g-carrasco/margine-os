@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "${script_dir}/.." && pwd)"
+require_mounted_repo=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  validate-live-install-sources [--require-mounted-repo]
+
+Lightweight live-ISO source sanity check. It intentionally avoids shellcheck so
+it can run inside minimal install media before destructive/bootstrap steps.
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --require-mounted-repo)
+        require_mounted_repo=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+check_repo_mount() {
+  if (( ! require_mounted_repo )); then
+    return 0
+  fi
+
+  command -v findmnt >/dev/null 2>&1 || die "findmnt is required for --require-mounted-repo"
+  findmnt --target "$repo_root" >/dev/null \
+    || die "repo source is not a mountpoint: ${repo_root}"
+}
+
+check_bash_syntax() {
+  local path=""
+  local -a critical_scripts=(
+    scripts/bootstrap-live-iso
+    scripts/bootstrap-live-zfs-root-guided
+    scripts/bootstrap-in-chroot
+    scripts/provision-storage
+    scripts/provision-storage-zfs-root
+    scripts/provision-initial-boot-chain
+    scripts/provision-initial-boot-chain-zfs
+  )
+
+  for path in "${critical_scripts[@]}"; do
+    [[ -f "${repo_root}/${path}" ]] || die "critical install script missing: ${path}"
+    bash -n "${repo_root}/${path}" || die "syntax check failed: ${path}"
+  done
+}
+
+check_errexit_footguns() {
+  if [[ -x "${repo_root}/scripts/check-bash-errexit-footguns" ]] \
+    && command -v python3 >/dev/null 2>&1; then
+    "${repo_root}/scripts/check-bash-errexit-footguns"
+  fi
+}
+
+main() {
+  parse_args "$@"
+
+  log "=== Validate live install sources ==="
+  log "Repository source: ${repo_root}"
+
+  check_repo_mount
+  check_bash_syntax
+  check_errexit_footguns
+
+  log "Live install sources: OK"
+}
+
+main "$@"

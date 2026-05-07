@@ -1,9 +1,13 @@
 /* Generated from ~/.config/margine/theme.env and derived from a Rewaita export */
 @define-color window_bg_color __BG__;
 @define-color window_fg_color __TEXT__;
+@define-color window_backdrop_color __BG__;
+@define-color window_backdrop_fg_color __TEXT__;
 
 @define-color view_bg_color __SURFACE_ALT__;
 @define-color view_fg_color __TEXT__;
+@define-color view_backdrop_color __SURFACE_ALT__;
+@define-color view_backdrop_fg_color __TEXT__;
 
 @define-color success_color #78e9ab;
 @define-color success_bg_color #26a269;
@@ -21,17 +25,27 @@
 @define-color error_bg_color #c01c28;
 @define-color error_fg_color #ffffff;
 
-@define-color headerbar_bg_color __BG__;
-@define-color headerbar_fg_color __MUTED__;
+@define-color headerbar_bg_color __HOVER__;
+@define-color headerbar_fg_color __TEXT__;
+@define-color headerbar_backdrop_color __HOVER__;
+@define-color headerbar_backdrop_fg_color __TEXT__;
+@define-color headerbar_border_color __BORDER__;
+@define-color headerbar_shade_color __BORDER__;
 
 @define-color popover_bg_color __SURFACE_ALT__;
 @define-color popover_fg_color __TEXT__;
+@define-color popover_backdrop_color __SURFACE_ALT__;
+@define-color popover_backdrop_fg_color __TEXT__;
 
 @define-color dialog_bg_color __SURFACE_ALT__;
 @define-color dialog_fg_color __TEXT__;
+@define-color dialog_backdrop_color __SURFACE_ALT__;
+@define-color dialog_backdrop_fg_color __TEXT__;
 
 @define-color card_bg_color __SURFACE__;
 @define-color card_fg_color __TEXT__;
+@define-color card_backdrop_color __SURFACE__;
+@define-color card_backdrop_fg_color __TEXT__;
 
 @define-color sidebar_bg_color __SURFACE_ALT__;
 @define-color sidebar_fg_color __TEXT__;
@@ -57,8 +71,31 @@
 @define-color dark_1 #77767b;
 
 @define-color accent_color __PRIMARY__;
-@define-color accent_bg_color __BG__;
+@define-color accent_bg_color __GTK4_ACCENT_BG__;
 @define-color accent_fg_color __TEXT__;
+@define-color shade_color rgba(0, 0, 0, 0.36);
+@define-color scrollbar_outline_color __BORDER__;
+
+window:backdrop,
+window:backdrop > contents {
+  background-color: @window_backdrop_color;
+  color: @window_backdrop_fg_color;
+}
+
+headerbar:backdrop,
+.titlebar:backdrop {
+  background-color: @headerbar_backdrop_color;
+  color: @headerbar_backdrop_fg_color;
+}
+
+window:backdrop list,
+window:backdrop listview,
+window:backdrop columnview,
+window:backdrop gridview,
+window:backdrop textview {
+  background-color: @view_backdrop_color;
+  color: @view_backdrop_fg_color;
+}
 
 toast {
   background-color: __BG__;
@@ -69,6 +106,3 @@ toggle:checked {
   background-color: __SURFACE__;
   color: __TEXT__;
 }
-
-/* Margine sharp borders */
-__SHARP_BORDERS__

@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+dry_run=0
+flavor="auto"
+repo_tier="auto"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  bootstrap-live-zfs-tools [options]
+
+Bootstrap ZFS tools in a live ISO when the running live kernel has a supported
+prebuilt ZFS module package.
+
+Options:
+  --flavor NAME       Target flavor hint: auto | arch | cachyos (default: auto)
+  --repo-tier TIER    CachyOS repo tier passed to provision-cachyos-repositories
+                      (default: auto)
+  --dry-run           Show the plan without executing it
+  --help              Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+refresh_package_databases_for_retry() {
+  if (( dry_run )); then
+    printf '[dry-run] pacman -Syy --noconfirm\n'
+    return 0
+  fi
+
+  pacman -Syy --noconfirm || warn "package database refresh failed before retry"
+}
+
+run_with_package_retry() {
+  local description="$1"
+  shift
+  local attempt=0
+  local max_attempts=3
+
+  for attempt in 1 2 3; do
+    if run_cmd "$@"; then
+      return 0
+    fi
+
+    warn "${description} failed (attempt ${attempt}/${max_attempts})"
+    (( attempt < max_attempts )) || break
+    refresh_package_databases_for_retry
+    sleep 2
+  done
+
+  die "${description} failed after ${max_attempts} attempts"
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="${2,,}"
+        shift 2
+        ;;
+      --repo-tier)
+        [[ $# -ge 2 ]] || die "missing value for --repo-tier"
+        repo_tier="${2,,}"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+
+  case "$flavor" in
+    auto|arch|cachyos) ;;
+    *)
+      die "unsupported --flavor: ${flavor}"
+      ;;
+  esac
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "bootstrap-live-zfs-tools must run as root"
+}
+
+detect_kernel_pkgbase() {
+  local kernel_release=""
+  local pkgbase_file=""
+
+  kernel_release="$(uname -r)"
+  pkgbase_file="/usr/lib/modules/${kernel_release}/pkgbase"
+  if [[ -r "$pkgbase_file" ]]; then
+    awk 'NF { print $1; exit }' "$pkgbase_file"
+    return 0
+  fi
+
+  printf 'unknown\n'
+}
+
+resolve_prebuilt_zfs_package() {
+  local pkgbase="$1"
+
+  case "$pkgbase" in
+    linux-cachyos*)
+      printf '%s-zfs\n' "$pkgbase"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in uname awk pacman modprobe; do
+    have_cmd "$cmd" || die "required command not found: $cmd"
+  done
+}
+
+already_ready() {
+  have_cmd zfs || return 1
+  have_cmd zpool || return 1
+
+  if (( dry_run )); then
+    return 1
+  fi
+
+  modprobe zfs >/dev/null 2>&1 || return 1
+  zpool version >/dev/null 2>&1 || return 1
+}
+
+bootstrap_cachyos_repositories_if_needed() {
+  local provisioner="${script_dir}/provision-cachyos-repositories"
+  local -a args=(--repo-tier "$repo_tier")
+
+  [[ -x "$provisioner" ]] || die "missing executable: $provisioner"
+  (( dry_run )) && args+=(--dry-run)
+  run_cmd "$provisioner" "${args[@]}"
+}
+
+install_zfs_packages() {
+  local pkgbase=""
+  local zfs_kernel_package=""
+  local kernel_release=""
+
+  kernel_release="$(uname -r)"
+  pkgbase="$(detect_kernel_pkgbase)"
+
+  if ! zfs_kernel_package="$(resolve_prebuilt_zfs_package "$pkgbase")"; then
+    cat >&2 <<EOF
+error: running live kernel is not supported for prebuilt ZFS bootstrap
+  kernel release: ${kernel_release}
+  kernel pkgbase: ${pkgbase}
+
+Root-on-ZFS provisioning needs zfs.ko for the *running live kernel*.
+The official Arch ISO usually boots an Arch kernel and does not ship a matching
+ZFS module. Use a CachyOS/Margine live ISO that boots linux-cachyos*, or build a
+custom ZFS-capable installer ISO.
+EOF
+    exit 1
+  fi
+
+  if [[ "$flavor" == "arch" ]]; then
+    die "arch flavor does not have a supported prebuilt live ZFS module path; use a ZFS-capable custom ISO"
+  fi
+
+  log
+  log "==> Bootstrap ZFS live packages"
+  log "Running kernel: ${kernel_release}"
+  log "Kernel pkgbase: ${pkgbase}"
+  log "ZFS module package: ${zfs_kernel_package}"
+
+  bootstrap_cachyos_repositories_if_needed
+  run_with_package_retry \
+    "ZFS live package installation" \
+    pacman -Sy --needed --noconfirm "$zfs_kernel_package" zfs-utils
+}
+
+validate_zfs_ready() {
+  log
+  log "==> Validate live ZFS"
+  run_cmd modprobe zfs
+  run_cmd command -v zfs
+  run_cmd command -v zpool
+  run_cmd zpool version
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  ensure_prereqs
+
+  log "=== Bootstrap live ZFS tools ==="
+  log "Flavor hint: ${flavor}"
+  (( dry_run )) && log "Mode: dry-run"
+
+  if already_ready; then
+    log "ZFS tools and module are already ready in this live environment."
+    exit 0
+  fi
+
+  install_zfs_packages
+  validate_zfs_ready
+
+  log
+  log "=== DONE ==="
+}
+
+main "$@"

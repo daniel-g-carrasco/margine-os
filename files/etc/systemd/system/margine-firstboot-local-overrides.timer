@@ -1,0 +1,13 @@
+[Unit]
+Description=Run Margine local package override build after first boot
+Documentation=file:/root/margine-os/docs/adr/0042-local-package-overrides.md
+
+[Timer]
+OnBootSec=3min
+AccuracySec=1min
+RandomizedDelaySec=30s
+Persistent=false
+Unit=margine-firstboot-local-overrides.service
+
+[Install]
+WantedBy=timers.target

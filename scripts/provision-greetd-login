@@ -4,6 +4,7 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
 template_source="${repo_root}/files/etc/greetd/config.toml.template"
+session_launcher_source="${repo_root}/files/usr/local/bin/margine-start-hyprland"
 
 dry_run=0
 username=""
@@ -87,6 +88,7 @@ require_root() {
 
 ensure_sources() {
   [[ -f "$template_source" ]] || die "template not found: $template_source"
+  [[ -f "$session_launcher_source" ]] || die "session launcher not found: $session_launcher_source"
 }
 
 render_config() {
@@ -96,7 +98,7 @@ render_config() {
     autologin-lock)
       initial_session_block=$(cat <<EOF
 [initial_session]
-command = "/usr/bin/start-hyprland"
+command = "/usr/local/bin/margine-start-hyprland"
 user = "${username}"
 EOF
 )
@@ -135,6 +137,18 @@ install_config() {
   install -d -m 755 /etc/greetd
   render_config >"$target"
   chmod 644 "$target"
+}
+
+install_session_launcher() {
+  log
+  log "==> Install Hyprland session launcher"
+
+  if (( dry_run )); then
+    printf '[dry-run] install -Dm755 %s /usr/local/bin/margine-start-hyprland\n' "$session_launcher_source"
+    return 0
+  fi
+
+  install -Dm755 "$session_launcher_source" /usr/local/bin/margine-start-hyprland
 }
 
 seed_tuigreet_remembered_user() {
@@ -181,6 +195,7 @@ main() {
   log "=== Provision greetd login path ==="
   (( dry_run )) && log "Mode: dry-run"
 
+  install_session_launcher
   install_config
   seed_tuigreet_remembered_user
   if (( enable_service_flag )); then

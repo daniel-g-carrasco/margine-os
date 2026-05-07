@@ -1,0 +1,5 @@
+//Pre-update @BOOT_ENV_LABEL@
+comment: @BOOT_ENV_COMMENT@
+protocol: efi
+path: ${EFI_LINUX}/margine-recovery.efi
+cmdline: cryptdevice=UUID=@LUKS_UUID@:@CRYPT_NAME@ root=ZFS=@ZFS_ROOT_DATASET@ rootfstype=zfs rw zfs_import_dir=/dev/ quiet

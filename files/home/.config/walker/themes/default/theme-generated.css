@@ -1,13 +1,13 @@
 /* Generated from ~/.config/margine/theme.env */
 * { font-family: "IBM Plex Sans", sans-serif; }
-@define-color window_bg_color rgba(18, 18, 18, 0.99);
-@define-color surface_bg_color rgba(26, 26, 26, 0.99);
-@define-color accent_bg_color #e6d9c4;
-@define-color border_color rgba(230, 217, 196, 0.58);
-@define-color theme_fg_color #e8e6e3;
-@define-color theme_fg_dim_color rgba(185, 181, 175, 0.92);
-@define-color error_bg_color #f38ba8;
-@define-color error_fg_color #e8e6e3;
+@define-color window_bg_color rgba(31, 31, 31, 0.99);
+@define-color surface_bg_color rgba(37, 37, 37, 0.99);
+@define-color accent_bg_color #f0e5d8;
+@define-color border_color rgba(240, 229, 216, 0.58);
+@define-color theme_fg_color #ffffff;
+@define-color theme_fg_dim_color rgba(214, 208, 201, 0.92);
+@define-color error_bg_color #ff938c;
+@define-color error_fg_color #ffffff;
 
 popover,
 .box-wrapper,

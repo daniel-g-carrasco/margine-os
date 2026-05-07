@@ -16,7 +16,7 @@ product_redistributable=""
 flavor=""
 target_root=""
 repo_source="${repo_root}"
-repo_dest="/root/margine-os"
+repo_dest="${MARGINE_TARGET_REPO_DEST:-/root/margine-os}"
 hostname=""
 username=""
 real_name=""
@@ -26,6 +26,10 @@ user_password_hash=""
 wifi_regdom="IT"
 greetd_login_mode="tuigreet-only"
 run_chroot=0
+qemu_validation_inhibit=0
+storage_layout="btrfs"
+zfs_root_dataset=""
+crypt_name="cryptroot"
 declare -a extra_layers=()
 
 stage1_layers=(
@@ -40,11 +44,12 @@ Usage:
   bootstrap-live-iso --target-root PATH [options]
 
 Options:
-  --product NAME          Product to bootstrap (default: margine-public)
+  --product NAME          Product to bootstrap (default: repository default product)
   --flavor NAME           Flavor to bootstrap (arch | cachyos)
   --target-root PATH      Target system mountpoint, for example /mnt
   --repo-source PATH      Local repo to copy into the target
-  --repo-dest PATH        Absolute destination inside the target (default: /root/margine-os)
+  --repo-dest PATH        Absolute destination inside the target
+                          (default: MARGINE_TARGET_REPO_DEST or root admin repo)
   --hostname NAME         Hostname to pass to the chroot phase
   --username NAME         Administrative user to create in the chroot phase
   --real-name NAME        User real name/comment
@@ -56,8 +61,16 @@ Options:
   --greetd-login-mode MODE
                          greetd mode: tuigreet-only | autologin-lock
                          (default: tuigreet-only)
+  --storage-layout NAME  Storage layout: btrfs | zfs-root (default: btrfs)
+  --zfs-root-dataset DS  Root ZFS dataset, for example rpool/ROOT/default
+  --crypt-name NAME      LUKS mapper name for boot generation
+                         (default: cryptroot)
   --extra-layer NAME      Extra manifest layer to install in phase 2; repeatable
   --run-chroot            Immediately start phase 2 via arch-chroot
+  --qemu-validation-inhibit
+                          Install a validation-only sleep/idle inhibitor in
+                          the target. Use only for disposable QEMU validation
+                          guests.
   --dry-run               Show the plan without executing it
   --help                  Show this help
 EOF
@@ -82,6 +95,35 @@ run_cmd() {
   else
     "$@"
   fi
+}
+
+refresh_package_databases_for_retry() {
+  if (( dry_run )); then
+    printf '[dry-run] pacman -Syy --noconfirm\n'
+    return 0
+  fi
+
+  pacman -Syy --noconfirm || warn "package database refresh failed before retry"
+}
+
+run_with_package_retry() {
+  local description="$1"
+  shift
+  local attempt=0
+  local max_attempts=3
+
+  for attempt in 1 2 3; do
+    if run_cmd "$@"; then
+      return 0
+    fi
+
+    warn "${description} failed (attempt ${attempt}/${max_attempts})"
+    (( attempt < max_attempts )) || break
+    refresh_package_databases_for_retry
+    sleep 2
+  done
+
+  die "${description} failed after ${max_attempts} attempts"
 }
 
 have_cmd() {
@@ -156,6 +198,21 @@ parse_args() {
         greetd_login_mode="$2"
         shift 2
         ;;
+      --storage-layout)
+        [[ $# -ge 2 ]] || die "missing value for --storage-layout"
+        storage_layout="${2,,}"
+        shift 2
+        ;;
+      --zfs-root-dataset)
+        [[ $# -ge 2 ]] || die "missing value for --zfs-root-dataset"
+        zfs_root_dataset="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        shift 2
+        ;;
       --extra-layer)
         [[ $# -ge 2 ]] || die "missing value for --extra-layer"
         extra_layers+=("$2")
@@ -163,6 +220,10 @@ parse_args() {
         ;;
       --run-chroot)
         run_chroot=1
+        shift
+        ;;
+      --qemu-validation-inhibit)
+        qemu_validation_inhibit=1
         shift
         ;;
       --dry-run)
@@ -181,12 +242,22 @@ parse_args() {
 
   eval "$(margine_emit_product_context "$repo_root" "$product" "$flavor")" \
     || die "unsupported product/flavor combination"
+
+  case "$storage_layout" in
+    btrfs) ;;
+    zfs-root)
+      stage1_layers+=(zfs-root-stack)
+      ;;
+    *)
+      die "unsupported --storage-layout: ${storage_layout}"
+      ;;
+  esac
 }
 
 ensure_prereqs() {
   local cmd=""
 
-  for cmd in pacstrap genfstab arch-chroot mountpoint rsync install grep; do
+  for cmd in pacstrap genfstab arch-chroot mountpoint rsync install grep awk; do
     if have_cmd "$cmd"; then
       continue
     fi
@@ -268,6 +339,19 @@ ensure_target_root() {
 ensure_repo_paths() {
   [[ -d "$repo_source" ]] || die "repo source not found: $repo_source"
   [[ "$repo_dest" = /* ]] || die "--repo-dest must be an absolute path inside the target"
+  [[ "$repo_dest" != "/" ]] || die "--repo-dest must not be /"
+
+  case "${repo_source}/" in
+    "${target_root}/"*)
+      die "--repo-source must live outside --target-root; refusing recursive target copy"
+      ;;
+  esac
+
+  case "${repo_dest}/" in
+    "${target_root}/"*)
+      die "--repo-dest must be a path as seen from the installed system, not below --target-root"
+      ;;
+  esac
 }
 
 validate_inputs() {
@@ -279,6 +363,12 @@ validate_inputs() {
       die "unsupported --greetd-login-mode: ${greetd_login_mode}"
       ;;
   esac
+
+  if [[ "$storage_layout" == "zfs-root" ]]; then
+    [[ -n "$zfs_root_dataset" ]] || die "--zfs-root-dataset is required with --storage-layout zfs-root"
+    [[ "$zfs_root_dataset" == */* ]] || die "--zfs-root-dataset must include the pool name, for example rpool/ROOT/default"
+    [[ -n "$crypt_name" ]] || die "--crypt-name must not be empty"
+  fi
 
   if (( ${#extra_layers[@]} > 0 )); then
     local layer=""
@@ -335,7 +425,7 @@ run_pacstrap_phase() {
   log "Included layers:"
   printf '  - %s\n' "${stage1_layers[@]}"
   log "Stage 1 packages: ${#packages[@]}"
-  run_cmd pacstrap -K "$target_root" "${packages[@]}"
+  run_with_package_retry "stage 1 pacstrap" pacstrap -K "$target_root" "${packages[@]}"
 }
 
 generate_fstab() {
@@ -347,22 +437,85 @@ generate_fstab() {
 
   if (( dry_run )); then
     printf '[dry-run] genfstab -U %s > %s\n' "$target_root" "$fstab_path"
+    printf '[dry-run] harden ESP /boot fstab options with umask=0077\n'
     return 0
   fi
 
   install -Dm644 /dev/null "$temp_fstab"
   genfstab -U "$target_root" > "$temp_fstab"
+  if [[ "$storage_layout" == "zfs-root" ]]; then
+    filter_zfs_fstab_entries "$temp_fstab"
+  fi
+  harden_esp_fstab_options "$temp_fstab"
   install -Dm644 "$temp_fstab" "$fstab_path"
   rm -f "$temp_fstab"
 }
 
+filter_zfs_fstab_entries() {
+  local fstab_path="$1"
+  local rewritten_fstab="${fstab_path}.no-zfs"
+
+  awk '
+    /^[[:space:]]*#/ || NF < 3 { print; next }
+    $3 == "zfs" { next }
+    { print }
+  ' "$fstab_path" > "$rewritten_fstab"
+
+  install -Dm644 "$rewritten_fstab" "$fstab_path"
+  rm -f "$rewritten_fstab"
+}
+
+harden_esp_fstab_options() {
+  local fstab_path="$1"
+  local rewritten_fstab="${fstab_path}.esp-hardened"
+
+  awk '
+    BEGIN { OFS = "\t" }
+    /^[[:space:]]*#/ || NF < 4 { print; next }
+    $2 == "/boot" && ($3 == "vfat" || $3 == "fat" || $3 == "msdos") {
+      option_count = split($4, options, ",")
+      hardened = ""
+      for (i = 1; i <= option_count; i++) {
+        if (options[i] == "") {
+          continue
+        }
+        if (options[i] ~ /^(fmask|dmask|umask)=/) {
+          continue
+        }
+        hardened = hardened (hardened == "" ? "" : ",") options[i]
+      }
+      $4 = hardened (hardened == "" ? "" : ",") "umask=0077"
+    }
+    { print }
+  ' "$fstab_path" > "$rewritten_fstab"
+
+  install -Dm644 "$rewritten_fstab" "$fstab_path"
+  rm -f "$rewritten_fstab"
+}
+
 copy_repo_into_target() {
   local destination="${target_root}${repo_dest}"
+  local -a rsync_args=(
+    -a
+    --delete
+    --delete-excluded
+    --exclude=/.git/
+    --exclude=/build/
+    --exclude=/dist/
+    --exclude=/target/
+    --exclude=/node_modules/
+    --exclude=/.cache/
+    --exclude='*.qcow2'
+    --exclude='*.iso'
+    --exclude='*.img'
+    --exclude='*.raw'
+    --exclude='*.vmdk'
+  )
 
   log
   log "==> Copy repo into target"
   run_cmd install -d "$destination"
-  run_cmd rsync -a "$repo_source/" "$destination/"
+  run_cmd rsync "${rsync_args[@]}" "$repo_source/" "$destination/"
 }
 
 persist_product_state() {
@@ -408,6 +561,12 @@ run_chroot_handoff() {
       args+=(--extra-layer "$layer")
     done
   fi
+  args+=(--storage-layout "$storage_layout")
+  (( qemu_validation_inhibit )) && args+=(--qemu-validation-inhibit)
+  if [[ "$storage_layout" == "zfs-root" ]]; then
+    args+=(--zfs-root-dataset "$zfs_root_dataset")
+    args+=(--crypt-name "$crypt_name")
+  fi
 
   log
   log "==> Run chroot handoff"
@@ -441,6 +600,14 @@ print_next_step() {
   if [[ -n "$greetd_login_mode" ]]; then
     command+=" --greetd-login-mode ${greetd_login_mode}"
   fi
+  command+=" --storage-layout ${storage_layout}"
+  if (( qemu_validation_inhibit )); then
+    command+=" --qemu-validation-inhibit"
+  fi
+  if [[ "$storage_layout" == "zfs-root" ]]; then
+    command+=" --zfs-root-dataset ${zfs_root_dataset}"
+    command+=" --crypt-name ${crypt_name}"
+  fi
 
   log
   log "Recommended next step:"
@@ -458,6 +625,7 @@ main() {
   log "=== Bootstrap live ISO Margine ==="
   log "Product: ${product} (${product_name})"
   log "Flavor: ${flavor}"
+  log "Storage layout: ${storage_layout}"
   if (( ${#extra_layers[@]} > 0 )); then
     log "Extra layers: ${extra_layers[*]}"
   fi

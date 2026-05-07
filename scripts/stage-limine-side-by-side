@@ -34,7 +34,7 @@ Options:
   --crypt-name NAME    Nome mapper LUKS; se omesso prova a rilevarlo
   --limine-tool PATH   Path esplicito al tool host `limine`
   --set-bootnext       Imposta la nuova entry come prossimo boot una sola volta
-  --dry-run            Mostra il piano senza eseguire modifiche
+  --dry-run            Show the plan without making changes
   --help               Show this help
 EOF
 }
@@ -285,7 +285,7 @@ create_or_reuse_entry() {
   bootnum="$(find_existing_bootnum "$entry_label" || true)"
   if [[ -n "$bootnum" ]]; then
     created_bootnum="$bootnum"
-    log "Voce EFI gia' presente: Boot${created_bootnum} (${entry_label})"
+    log "EFI entry already present: Boot${created_bootnum} (${entry_label})"
     return 0
   fi
 

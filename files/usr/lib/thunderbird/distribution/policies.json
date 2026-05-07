@@ -2,7 +2,7 @@
   "policies": {
     "Preferences": {
       "mail.appearance.accentColor": {
-        "Value": "orange",
+        "Value": "accent-color",
         "Status": "user"
       }
     }

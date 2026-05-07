@@ -2,8 +2,8 @@
 Type=Application
 Name=Log Out
 Comment=End the current Hyprland session
-Exec=/home/daniel/.local/bin/margine-session-control logout
-Icon=system-log-out
+Exec=sh -lc "exec \"\\$HOME/.local/bin/margine-session-control\" logout"
+Icon=margine-log-out
 Categories=System;
 Keywords=logout;session;hyprland;
 Terminal=false

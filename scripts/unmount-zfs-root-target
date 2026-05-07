@@ -1,0 +1,598 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+target_root="/mnt"
+crypt_name="cryptroot"
+pool_name="rpool"
+keep_crypto=0
+terminate_busy=0
+kill_busy=0
+lazy_unmount=0
+force_zfs_unmount=0
+force_export=0
+live_iso_recovery=0
+crypt_name_from_cli=0
+pool_name_from_cli=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  unmount-zfs-root-target [options]
+
+Cleanly unmounts a Margine root-on-ZFS target from a live ISO, exports the ZFS
+pool and closes the LUKS mapper. Use this before shutting down or rebooting the
+live environment after repairing or validating an installed target.
+
+Options:
+  --target-root PATH  Target mountpoint (default: /mnt)
+  --crypt-name NAME   LUKS mapper name (default: cryptroot)
+  --pool-name NAME    ZFS pool name (default: rpool)
+  --keep-crypto       Export ZFS but leave the LUKS mapper open
+  --terminate-busy    Send SIGTERM to non-current processes using target_root
+                      or retaining pool datasets in another mount namespace
+  --kill-busy         Send SIGKILL to remaining non-current busy processes
+  --force-zfs-unmount Use zfs unmount -f for remaining pool datasets
+  --lazy-unmount      Use lazy recursive unmount only as the final recovery pass
+  --force-export      Use zpool export -f as a final explicit recovery step
+  --live-iso-recovery Disposable live-ISO shortcut for the full recovery path:
+                      --terminate-busy --kill-busy --force-zfs-unmount
+                      --lazy-unmount --force-export
+  --help              Show this help
+
+Default mode is intentionally conservative: it never kills processes, never
+lazy-unmounts, and never force-exports a pool. If export fails, it prints direct
+process references under target_root and retained mount namespaces so the caller
+can decide whether to close a shell, rerun with --terminate-busy, or reboot the
+live environment.
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --target-root)
+        [[ $# -ge 2 ]] || die "missing value for --target-root"
+        target_root="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        crypt_name_from_cli=1
+        shift 2
+        ;;
+      --pool-name)
+        [[ $# -ge 2 ]] || die "missing value for --pool-name"
+        pool_name="$2"
+        pool_name_from_cli=1
+        shift 2
+        ;;
+      --keep-crypto)
+        keep_crypto=1
+        shift
+        ;;
+      --terminate-busy)
+        terminate_busy=1
+        shift
+        ;;
+      --kill-busy)
+        terminate_busy=1
+        kill_busy=1
+        shift
+        ;;
+      --lazy-unmount)
+        lazy_unmount=1
+        shift
+        ;;
+      --force-zfs-unmount)
+        force_zfs_unmount=1
+        shift
+        ;;
+      --force-export)
+        force_export=1
+        shift
+        ;;
+      --live-iso-recovery)
+        live_iso_recovery=1
+        terminate_busy=1
+        kill_busy=1
+        force_zfs_unmount=1
+        lazy_unmount=1
+        force_export=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+load_install_manifest_defaults() {
+  local target_manifest="${target_root%/}/etc/margine/install-layout.env"
+  local runtime_manifest="/run/margine-install/root-zfs.env"
+  local manifest_path=""
+
+  if [[ -f "$target_manifest" ]]; then
+    manifest_path="$target_manifest"
+  elif [[ -f "$runtime_manifest" ]]; then
+    manifest_path="$runtime_manifest"
+  else
+    return 0
+  fi
+
+  # shellcheck source=/dev/null
+  source "$manifest_path"
+  [[ "${MARGINE_STORAGE_LAYOUT:-}" == "zfs-root" ]] \
+    || die "install manifest is not root-on-ZFS: ${manifest_path}"
+
+  if (( crypt_name_from_cli == 0 )) && [[ -n "${MARGINE_LUKS_MAPPER:-}" ]]; then
+    crypt_name="$MARGINE_LUKS_MAPPER"
+  fi
+  if (( pool_name_from_cli == 0 )) && [[ -n "${MARGINE_ZFS_POOL:-}" ]]; then
+    pool_name="$MARGINE_ZFS_POOL"
+  fi
+}
+
+require_root() {
+  [[ "$(id -u)" -eq 0 ]] || die "unmount-zfs-root-target must run as root"
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in awk cryptsetup findmnt ps readlink sort sync umount zfs zpool; do
+    have_cmd "$cmd" || die "required command not found: $cmd"
+  done
+}
+
+validate_inputs() {
+  [[ "$target_root" = /* ]] || die "--target-root must be absolute"
+  [[ "$target_root" != "/" ]] || die "--target-root must not be /"
+}
+
+pool_imported() {
+  zpool list -H -o name "$pool_name" >/dev/null 2>&1
+}
+
+strip_deleted_suffix() {
+  local path="$1"
+  printf '%s\n' "${path% (deleted)}"
+}
+
+path_is_under_target() {
+  local path=""
+
+  path="$(strip_deleted_suffix "$1")"
+  [[ "$path" == "$target_root" || "$path" == "${target_root}/"* ]]
+}
+
+print_process_reference() {
+  local relation="$1"
+  local pid="$2"
+  local user="$3"
+  local command="$4"
+  local kind="$5"
+  local path="$6"
+
+  if [[ "$relation" == "current-shell" ]]; then
+    printf '# current shell/script process tree\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$user" "$command" "$kind" "$path"
+  else
+    printf '%s\t%s\t%s\t%s\t%s\n' "$pid" "$user" "$command" "$kind" "$path"
+  fi
+}
+
+self_or_parent_pid() {
+  local candidate="$1"
+  local current="$$"
+  local parent=""
+
+  while [[ -n "$current" && "$current" != "0" ]]; do
+    [[ "$candidate" == "$current" ]] && return 0
+    [[ -r "/proc/${current}/status" ]] || break
+    parent="$(awk '/^PPid:/ { print $2; exit }' "/proc/${current}/status" 2>/dev/null || true)"
+    [[ "$parent" == "$current" ]] && break
+    current="$parent"
+  done
+
+  return 1
+}
+
+scan_busy_processes() {
+  local proc=""
+  local pid=""
+  local entry=""
+  local link=""
+  local mapped_path=""
+  local command=""
+  local user=""
+  local relation=""
+  declare -A seen=()
+
+  for proc in /proc/[0-9]*; do
+    [[ -d "$proc" ]] || continue
+    pid="${proc##*/}"
+    relation="external"
+
+    if self_or_parent_pid "$pid"; then
+      relation="current-shell"
+    fi
+
+    for entry in "${proc}/cwd" "${proc}/root" "${proc}/exe" "${proc}"/fd/*; do
+      [[ -e "$entry" || -L "$entry" ]] || continue
+      link="$(readlink "$entry" 2>/dev/null || true)"
+      [[ -n "$link" ]] || continue
+
+      if path_is_under_target "$link"; then
+        [[ -n "${seen[$pid]:-}" ]] && continue
+        seen[$pid]=1
+        command="$(ps -p "$pid" -o comm= 2>/dev/null || true)"
+        user="$(ps -p "$pid" -o user= 2>/dev/null || true)"
+        print_process_reference "$relation" "$pid" "${user:-?}" "${command:-?}" "link" "$(strip_deleted_suffix "$link")"
+      fi
+    done
+
+    [[ -z "${seen[$pid]:-}" && -r "${proc}/maps" ]] || continue
+
+    while IFS= read -r mapped_path; do
+      [[ -n "$mapped_path" ]] || continue
+      if path_is_under_target "$mapped_path"; then
+        seen[$pid]=1
+        command="$(ps -p "$pid" -o comm= 2>/dev/null || true)"
+        user="$(ps -p "$pid" -o user= 2>/dev/null || true)"
+        print_process_reference "$relation" "$pid" "${user:-?}" "${command:-?}" "maps" "$(strip_deleted_suffix "$mapped_path")"
+        break
+      fi
+    done < <(
+      awk '
+        NF >= 6 {
+          path = $0
+          sub(/^[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]*/, "", path)
+          if (path ~ /^\//) {
+            print path
+          }
+        }
+      ' "${proc}/maps" 2>/dev/null
+    )
+  done
+}
+
+other_namespace_pool_mounts() {
+  local current_ns=""
+  local proc=""
+  local pid=""
+  local ns=""
+  local mountpoint=""
+  local source=""
+  local command=""
+  local user=""
+  declare -A seen_ns=()
+
+  [[ -e "/proc/$$/ns/mnt" ]] || return 0
+  current_ns="$(readlink "/proc/$$/ns/mnt" 2>/dev/null || true)"
+  [[ -n "$current_ns" ]] || return 0
+
+  for proc in /proc/[0-9]*; do
+    [[ -d "$proc" && -r "${proc}/mountinfo" && -e "${proc}/ns/mnt" ]] || continue
+    pid="${proc##*/}"
+    ns="$(readlink "${proc}/ns/mnt" 2>/dev/null || true)"
+    [[ -n "$ns" && "$ns" != "$current_ns" ]] || continue
+    [[ -z "${seen_ns[$ns]:-}" ]] || continue
+
+    while read -r source mountpoint; do
+      [[ -n "$source" && -n "$mountpoint" ]] || continue
+      seen_ns[$ns]=1
+      command="$(ps -p "$pid" -o comm= 2>/dev/null || true)"
+      user="$(ps -p "$pid" -o user= 2>/dev/null || true)"
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "${user:-?}" "${command:-?}" "$ns" "$source" "$mountpoint"
+      break
+    done < <(
+      awk -v pool="$pool_name" '
+        {
+          mountpoint = $5
+          for (i = 1; i <= NF; i++) {
+            if ($i == "-") {
+              fstype = $(i + 1)
+              source = $(i + 2)
+              if (fstype == "zfs" && (source == pool || index(source, pool "/") == 1)) {
+                print source, mountpoint
+              }
+              break
+            }
+          }
+        }
+      ' "${proc}/mountinfo" 2>/dev/null
+    )
+  done
+}
+
+diagnose_mount_namespaces() {
+  log
+  log "==> Other mount namespaces containing pool datasets"
+  log "PID	USER	COMMAND	NS	SOURCE	MOUNTPOINT"
+  other_namespace_pool_mounts || true
+}
+
+unmount_other_mount_namespaces() {
+  local -a records=()
+  local record=""
+  local pid=""
+  local user=""
+  local command=""
+  local ns=""
+  local source=""
+  local mountpoint=""
+
+  mapfile -t records < <(other_namespace_pool_mounts)
+  ((${#records[@]} > 0)) || return 0
+
+  log
+  log "==> Unmount retained mount namespaces"
+
+  have_cmd nsenter || {
+    log "  nsenter is not available; cannot unmount retained mount namespaces"
+    return 0
+  }
+
+  for record in "${records[@]}"; do
+    IFS=$'\t' read -r pid user command ns source mountpoint <<<"$record"
+    [[ -n "$pid" && -d "/proc/${pid}" ]] || continue
+    log "  pid=${pid} user=${user} command=${command} ns=${ns} source=${source} mountpoint=${mountpoint}"
+    if ! nsenter -t "$pid" -m -- umount -R "$target_root" 2>/dev/null; then
+      if (( lazy_unmount == 1 )); then
+        log "    normal namespace unmount failed; trying lazy namespace unmount by request"
+        nsenter -t "$pid" -m -- umount -R -l "$target_root" 2>/dev/null || true
+      else
+        log "    namespace unmount failed; rerun with --lazy-unmount only in a disposable live ISO"
+      fi
+    fi
+  done
+}
+
+unmount_target_tree() {
+  local allow_lazy="${1:-0}"
+  local unmounted_any=0
+
+  log
+  log "==> Unmount target tree"
+
+  sync
+  if findmnt -R "$target_root" >/dev/null 2>&1; then
+    if ! umount -R "$target_root"; then
+      if (( allow_lazy == 1 && lazy_unmount == 1 )); then
+        log "  normal recursive unmount failed; trying lazy recursive unmount by request"
+        umount -R -l "$target_root" || true
+      else
+        log "  normal recursive unmount failed; continuing to dataset unmount diagnostics"
+      fi
+    else
+      unmounted_any=1
+    fi
+  fi
+
+  while mountpoint -q "$target_root"; do
+    if umount "$target_root" 2>/dev/null; then
+      unmounted_any=1
+      continue
+    fi
+
+    if (( allow_lazy == 1 && lazy_unmount == 1 )); then
+      log "  final target mountpoint is still busy; trying lazy unmount by request"
+      umount -l "$target_root" || true
+    fi
+    break
+  done
+
+  if (( unmounted_any == 1 )); then
+    sync
+  fi
+
+  return 0
+}
+
+unmount_pool_datasets() {
+  local force="${1:-0}"
+  local dataset=""
+
+  log
+  log "==> Unmount remaining ZFS datasets"
+  (( force == 1 )) && log "  using zfs unmount -f by request"
+
+  pool_imported || {
+    log "  pool is not imported: ${pool_name}"
+    return 0
+  }
+
+  while read -r dataset; do
+    [[ -n "$dataset" ]] || continue
+    if (( force == 1 )); then
+      zfs unmount -f "$dataset" 2>/dev/null || true
+    else
+      zfs unmount "$dataset" 2>/dev/null || true
+    fi
+  done < <(zfs list -H -r -o name "$pool_name" 2>/dev/null | sort -r)
+}
+
+diagnose_busy_target() {
+  log
+  log "==> Busy target diagnostics"
+  findmnt -R "$target_root" || true
+  zfs mount | awk -v pool="${pool_name}" '$1 == pool || index($1, pool "/") == 1 { print }' || true
+
+  log
+  log "==> Processes referencing target root"
+  log "PID	USER	COMMAND	KIND	PATH"
+  scan_busy_processes || true
+  diagnose_mount_namespaces || true
+}
+
+busy_pids() {
+  {
+    scan_busy_processes | awk '$1 !~ /^#/ { print $1 }'
+    other_namespace_pool_mounts | awk '{ print $1 }'
+  } | sort -u
+}
+
+terminate_busy_processes() {
+  local -a pids=()
+  local -a remaining=()
+  local pid=""
+
+  mapfile -t pids < <(busy_pids | sort -u)
+  if ((${#pids[@]} == 0)); then
+    log "  no external busy target processes found"
+    return 0
+  fi
+
+  log
+  log "==> Terminate busy target processes"
+  log "  sending SIGTERM to: ${pids[*]}"
+  kill -TERM "${pids[@]}" 2>/dev/null || true
+  sleep 2
+
+  mapfile -t remaining < <(busy_pids | sort -u)
+  ((${#remaining[@]} > 0)) || return 0
+
+  if (( kill_busy == 1 )); then
+    log "  sending SIGKILL to remaining processes by request: ${remaining[*]}"
+    kill -KILL "${remaining[@]}" 2>/dev/null || true
+    sleep 1
+    return 0
+  fi
+
+  log "  remaining busy processes after SIGTERM: ${remaining[*]}"
+  log "  rerun with --kill-busy only if this is a disposable live-ISO recovery session"
+}
+
+export_pool() {
+  log
+  log "==> Export ZFS pool"
+
+  pool_imported || {
+    log "  pool already exported: ${pool_name}"
+    return 0
+  }
+
+  if zpool export "$pool_name"; then
+    return 0
+  fi
+
+  diagnose_busy_target
+
+  unmount_other_mount_namespaces
+  unmount_target_tree 0
+  unmount_pool_datasets 0
+  if zpool export "$pool_name"; then
+    return 0
+  fi
+  diagnose_busy_target
+
+  if (( terminate_busy == 1 )); then
+    terminate_busy_processes
+    unmount_other_mount_namespaces
+    unmount_target_tree 0
+    unmount_pool_datasets 0
+    if zpool export "$pool_name"; then
+      return 0
+    fi
+    diagnose_busy_target
+  fi
+
+  if (( force_zfs_unmount == 1 )); then
+    unmount_pool_datasets 1
+    if zpool export "$pool_name"; then
+      return 0
+    fi
+    diagnose_busy_target
+  fi
+
+  if (( lazy_unmount == 1 )); then
+    log
+    log "==> Final lazy target detach"
+    unmount_other_mount_namespaces
+    unmount_target_tree 1
+    unmount_pool_datasets "$force_zfs_unmount"
+    if zpool export "$pool_name"; then
+      return 0
+    fi
+    diagnose_busy_target
+  fi
+
+  if (( force_export == 1 )); then
+    log
+    log "==> Force export ZFS pool"
+    zpool export -f "$pool_name" \
+      || die "unable to force export ${pool_name}; reboot the live ISO before touching the target again"
+    return 0
+  fi
+
+  die "unable to export ${pool_name}; close listed external processes, rerun with --force-zfs-unmount for a busy ZFS mount, or use --lazy-unmount --force-export as the final live-ISO recovery path"
+}
+
+close_luks_mapper() {
+  log
+  log "==> Close LUKS mapper"
+
+  if (( keep_crypto == 1 )); then
+    log "  keeping mapper open by request: ${crypt_name}"
+    return 0
+  fi
+
+  if ! cryptsetup status "$crypt_name" >/dev/null 2>&1; then
+    log "  mapper already closed: ${crypt_name}"
+    return 0
+  fi
+
+  cryptsetup close "$crypt_name"
+}
+
+print_status() {
+  log
+  log "==> Final target status"
+  findmnt -R "$target_root" || true
+  zpool list "$pool_name" 2>/dev/null || true
+  cryptsetup status "$crypt_name" 2>/dev/null || true
+}
+
+main() {
+  parse_args "$@"
+  load_install_manifest_defaults
+  require_root
+  ensure_prereqs
+  validate_inputs
+  cd /
+
+  log "=== Unmount Margine root-on-ZFS target ==="
+  log "Pool: ${pool_name}"
+  log "Target root: ${target_root}"
+  log "LUKS mapper: ${crypt_name}"
+  (( live_iso_recovery == 1 )) && log "Recovery mode: live-ISO explicit recovery"
+
+  unmount_target_tree 0
+  unmount_pool_datasets 0
+  export_pool
+  close_luks_mapper
+  print_status
+
+  log
+  log "=== DONE ==="
+}
+
+main "$@"

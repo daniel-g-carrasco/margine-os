@@ -1,0 +1,4 @@
+# CachyOS gets the kernel module and userspace from official repositories.
+# `sanoid` remains AUR-only.
+
+sanoid

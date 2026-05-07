@@ -55,6 +55,11 @@ soft_failures=0
 boot_baseline_script=""
 sbctl_keys_dir="${SBCTL_KEYS_DIR:-/var/lib/sbctl/keys}"
 temp_outputs=()
+zfs_pool_name=""
+zfs_root_dataset=""
+zfs_crypt_name="cryptroot"
+zfs_pre_update_snapshot=""
+zfs_boot_environment_dataset=""
 
 declare -a limine_binary_targets=()
 
@@ -159,6 +164,77 @@ make_runtime_output_path() {
 
 have_cmd() {
   command -v "$1" >/dev/null 2>&1
+}
+
+env_file_value() {
+  local path="$1"
+  local key="$2"
+
+  [[ -r "$path" ]] || return 1
+
+  awk -F= -v key="$key" '
+    $1 == key {
+      value = substr($0, length(key) + 2)
+      gsub(/^"/, "", value)
+      gsub(/"$/, "", value)
+      print value
+      found = 1
+      exit
+    }
+    END {
+      exit found ? 0 : 1
+    }
+  ' "$path"
+}
+
+root_zfs_runtime() {
+  local layout=""
+  local root_fstype=""
+
+  layout="$(env_file_value /etc/margine/install-layout.env MARGINE_STORAGE_LAYOUT 2>/dev/null || true)"
+  [[ "$layout" == "zfs-root" ]] && return 0
+
+  root_fstype="$(findmnt -nro FSTYPE --target / 2>/dev/null || true)"
+  [[ "$root_fstype" == "zfs" ]]
+}
+
+block_unsupported_root_zfs_update() {
+  root_zfs_runtime || return 0
+
+  cat >&2 <<'EOF'
+error: this installed update-all runtime does not expose the root-on-ZFS path.
+
+Refusing to run a generic update path on a root-on-ZFS install. Refresh the
+installed Margine update runtime from the repository before updating this host.
+EOF
+  exit 1
+}
+
+resolve_local_aur_override_packages() {
+  local manifest="$1"
+  local package=""
+  local override_dir=""
+
+  [[ -f "$manifest" ]] || return 0
+
+  while IFS= read -r package; do
+    [[ -n "$package" ]] || continue
+    override_dir="${repo_root}/packaging/aur/${package}"
+    [[ -d "$override_dir" ]] || continue
+    printf '%s\n' "$package"
+  done < <(grep -hvE '^[[:space:]]*(#|$)' "$manifest")
+}
+
+rebuild_local_aur_overrides() {
+  local aur_installer="$1"
+  local manifest="$2"
+  local -a override_packages=()
+
+  [[ -x "$aur_installer" ]] || return 0
+  mapfile -t override_packages < <(resolve_local_aur_override_packages "$manifest")
+  (( ${#override_packages[@]} > 0 )) || return 0
+
+  run_optional "AUR local override rebuild" sudo "$aur_installer" --upgrade "${override_packages[@]}"
 }
 
 auto_detect_root_uuid() {
@@ -594,11 +670,221 @@ run_pre_update_snapshot() {
   (( dry_run )) && args=(--dry-run "${args[@]}")
 
   log
-  log "==> 0) Snapshot pre-update"
+  log "==> 0) Pre-update snapshot"
 
   if ! run_cmd "$snapshot_script" "${args[@]}"; then
-    warn "snapshot pre-update fallito"
+    warn "pre-update snapshot failed"
     soft_failures=1
+  fi
+}
+
+resolve_root_zfs_context() {
+  local layout_path="/etc/margine/install-layout.env"
+  local root_source=""
+
+  if [[ -r "$layout_path" ]]; then
+    zfs_root_dataset="$(env_file_value "$layout_path" MARGINE_ZFS_ROOT_DATASET 2>/dev/null || true)"
+    zfs_pool_name="$(env_file_value "$layout_path" MARGINE_ZFS_POOL 2>/dev/null || true)"
+    zfs_crypt_name="$(env_file_value "$layout_path" MARGINE_LUKS_MAPPER 2>/dev/null || true)"
+  fi
+
+  root_source="$(findmnt -nro SOURCE --target / 2>/dev/null || true)"
+  root_source="${root_source%%[*}"
+
+  if [[ -z "$zfs_root_dataset" && "$root_source" == */* ]]; then
+    zfs_root_dataset="$root_source"
+  fi
+  if [[ -z "$zfs_pool_name" && "$zfs_root_dataset" == */* ]]; then
+    zfs_pool_name="${zfs_root_dataset%%/*}"
+  fi
+  if [[ -z "$zfs_crypt_name" ]]; then
+    zfs_crypt_name="cryptroot"
+  fi
+
+  [[ -n "$zfs_root_dataset" ]] || die "unable to determine root ZFS dataset"
+  [[ "$zfs_root_dataset" == */* ]] || die "invalid root ZFS dataset: ${zfs_root_dataset}"
+  [[ -n "$zfs_pool_name" ]] || die "unable to determine root ZFS pool"
+  [[ -n "$zfs_crypt_name" ]] || die "unable to determine LUKS mapper name"
+}
+
+require_root_zfs_tools() {
+  local cmd=""
+
+  for cmd in findmnt zfs zpool; do
+    have_cmd "$cmd" || die "required root-on-ZFS command not found: $cmd"
+  done
+}
+
+run_root_zfs_preflight() {
+  local validator="${repo_root}/scripts/validate-root-zfs-target"
+  local capacity=""
+  local capacity_number=""
+
+  [[ -x "$validator" ]] || die "root-ZFS validator not executable: $validator"
+
+  log
+  log "==> 0) Root-on-ZFS preflight"
+  log "Pool: ${zfs_pool_name}"
+  log "Root dataset: ${zfs_root_dataset}"
+  log "LUKS mapper: ${zfs_crypt_name}"
+
+  require_root_zfs_tools
+  run_cmd sudo "$validator" --target-root / --mode boot-chain
+  run_cmd sudo zpool status -x "$zfs_pool_name"
+
+  if (( dry_run )); then
+    run_cmd sudo zpool list -H -o capacity "$zfs_pool_name"
+    return 0
+  fi
+
+  capacity="$(sudo zpool list -H -o capacity "$zfs_pool_name" | tr -d '[:space:]')"
+  capacity_number="${capacity%\%}"
+  [[ "$capacity_number" =~ ^[0-9]+$ ]] || die "unable to parse ZFS pool capacity: ${capacity}"
+  (( capacity_number < 85 )) || die "ZFS pool ${zfs_pool_name} is ${capacity} full; refusing update above 85%"
+  log "Pool capacity: ${capacity}"
+}
+
+run_root_zfs_pre_update_snapshot() {
+  local snapshot_script="${repo_root}/scripts/create-zfs-pre-update-snapshots"
+  local snapshot_output=""
+  local -a args=(
+    --strict
+    --datasets-file /dev/null
+    --dataset "$zfs_root_dataset"
+    --description "margine-pre-update"
+  )
+
+  if (( create_pre_update_snapshot == 0 )); then
+    warn "root-on-ZFS pre-update snapshot disabled by --no-pre-update-snap"
+    return 0
+  fi
+
+  [[ -x "$snapshot_script" ]] || die "ZFS pre-update snapshot helper not executable: $snapshot_script"
+  snapshot_output="$(make_runtime_output_path update-all-zfs-snapshots txt)"
+  args+=(--output "$snapshot_output")
+  (( dry_run )) && args=(--dry-run "${args[@]}")
+
+  log
+  log "==> 0a) ZFS pre-update snapshot"
+  run_cmd sudo "$snapshot_script" "${args[@]}"
+
+  if (( dry_run )); then
+    zfs_pre_update_snapshot="${zfs_root_dataset}@margine-pre-update-DRYRUN"
+    return 0
+  fi
+
+  zfs_pre_update_snapshot="$(
+    awk -v dataset="${zfs_root_dataset}" '
+      index($0, dataset "@") == 1 {
+        print
+        exit
+      }
+    ' "$snapshot_output"
+  )"
+  [[ -n "$zfs_pre_update_snapshot" ]] \
+    || die "ZFS snapshot helper did not report a root snapshot for ${zfs_root_dataset}"
+}
+
+run_root_zfs_boot_environment_clone() {
+  local clone_script="${repo_root}/scripts/create-zfs-boot-environment"
+  local root_parent="${zfs_root_dataset%/*}"
+  local snapshot_name=""
+  local -a args=()
+
+  [[ -n "$zfs_pre_update_snapshot" ]] || die "root-on-ZFS pre-update snapshot was not recorded"
+  [[ -x "$clone_script" ]] || die "ZFS boot environment helper not executable: $clone_script"
+
+  snapshot_name="${zfs_pre_update_snapshot##*@}"
+  zfs_boot_environment_dataset="${root_parent}/${snapshot_name}"
+  args=(
+    --snapshot "$zfs_pre_update_snapshot"
+    --target-dataset "$zfs_boot_environment_dataset"
+    --description "margine pre-update rollback environment"
+  )
+  (( dry_run )) && args=(--dry-run "${args[@]}")
+
+  log
+  log "==> 0b) ZFS boot environment"
+  run_cmd sudo "$clone_script" "${args[@]}"
+}
+
+run_root_zfs_boot_regeneration() {
+  local phase_label="${1:-5) Root-on-ZFS boot artifacts}"
+  local provisioner="${repo_root}/scripts/provision-initial-boot-chain-zfs"
+  local trust_script="${repo_root}/scripts/refresh-efi-trust"
+  local effective_esp_path="${esp_path:-/boot}"
+  local -a provision_args=(--product "$product" --flavor "$flavor" --esp-path "$effective_esp_path")
+  local -a trust_args=(--esp-path "$effective_esp_path")
+
+  (( use_boot )) || return 0
+  [[ -x "$provisioner" ]] || die "root-on-ZFS boot provisioner not executable: $provisioner"
+  (( dry_run )) && provision_args+=(--dry-run)
+
+  log
+  log "==> ${phase_label}"
+  run_cmd sudo "$provisioner" "${provision_args[@]}"
+
+  if (( refresh_trust )) && have_cmd sbctl && sbctl_bootstrap_ready; then
+    [[ -x "$trust_script" ]] || die "trust refresh script not executable: $trust_script"
+    if [[ -n "$limine_tool" ]]; then
+      trust_args+=(--limine-tool "$limine_tool")
+    fi
+    (( dry_run )) && trust_args=(--dry-run "${trust_args[@]}")
+
+    log
+    log "==> 5a) EFI trust refresh"
+    run_cmd sudo "$trust_script" "${trust_args[@]}"
+  else
+    log
+    log "EFI trust refresh skipped: sbctl is not initialized or --no-trust-refresh was used."
+  fi
+}
+
+run_root_zfs_post_validation() {
+  local validator="${repo_root}/scripts/validate-root-zfs-target"
+
+  log
+  log "==> 6) Root-on-ZFS post-update validation"
+  run_cmd sudo "$validator" --target-root / --mode boot-chain
+  run_final_verification
+}
+
+run_root_zfs_update() {
+  resolve_root_zfs_context
+
+  if (( use_boot == 0 && dry_run == 0 )); then
+    die "--no-boot is not supported for real root-on-ZFS updates"
+  fi
+  if (( create_pre_update_snapshot == 0 && dry_run == 0 )); then
+    die "--no-pre-update-snap is not supported for real root-on-ZFS updates"
+  fi
+
+  log "=== Margine root-on-ZFS update ==="
+  log "Product: ${product} (${product_name})"
+  log "Flavor: ${flavor}"
+  log "Base distribution: ${product_base_distribution}"
+  if (( dry_run )); then
+    log "Mode: dry-run"
+  fi
+
+  run_root_zfs_preflight
+  run_root_zfs_pre_update_snapshot
+  run_root_zfs_boot_environment_clone
+  run_root_zfs_boot_regeneration "0c) Publish ZFS rollback boot entry"
+  run_flavor_repo_provisioner
+  run_pacman_preflight_migrations
+  run_pacman_update
+  run_aur_update
+  run_flatpak_update
+  run_fwupd_update
+  run_root_zfs_boot_regeneration
+  run_root_zfs_post_validation
+
+  log
+  if (( soft_failures )); then
+    warn "root-on-ZFS update completed the core flow with warnings in optional layers"
+  else
+    log "=== DONE ==="
   fi
 }
 
@@ -611,14 +897,14 @@ run_flavor_repo_provisioner() {
   (( dry_run )) && args+=(--dry-run)
 
   log
-  log "==> 0b) CachyOS repositories"
+  log "==> 0d) CachyOS repositories"
   run_cmd sudo "$provisioner" "${args[@]}"
 }
 
 run_pacman_preflight_migrations() {
   if pacman -Q geocode-glib-common >/dev/null 2>&1 && pacman -Si geocode-glib >/dev/null 2>&1; then
     log
-    log "==> 0c) Pacman preflight"
+    log "==> 0e) Pacman preflight"
     log "Remove legacy geocode-glib-common before sysupgrade"
     run_cmd sudo pacman -Rdd --noconfirm geocode-glib-common
   fi
@@ -644,12 +930,14 @@ run_aur_update() {
 
   if have_cmd yay; then
     run_optional "AUR update via yay" yay -Syu "${yay_flags[@]}"
+    rebuild_local_aur_overrides "$aur_installer" "$aur_baseline_manifest"
   elif have_cmd paru; then
     run_optional "AUR update via paru" paru -Syu --noconfirm
+    rebuild_local_aur_overrides "$aur_installer" "$aur_baseline_manifest"
   elif [[ -x "$aur_installer" && -f "$aur_baseline_manifest" ]]; then
     run_optional "AUR baseline rebuild" sudo "$aur_installer" --manifest "$aur_baseline_manifest" --upgrade
   else
-    log "AUR helper non trovato, salto."
+    log "AUR helper not found; skipping."
   fi
 }
 
@@ -663,7 +951,7 @@ run_flatpak_update() {
     run_optional "flatpak update" flatpak update --assumeyes --noninteractive
     run_optional "flatpak uninstall --unused" flatpak uninstall --unused --assumeyes --noninteractive
   else
-    log "flatpak non trovato, salto."
+    log "flatpak not found; skipping."
   fi
 }
 
@@ -677,7 +965,7 @@ run_fwupd_update() {
     run_optional "fwupdmgr refresh" sudo fwupdmgr refresh --force
     run_optional "fwupdmgr update" sudo fwupdmgr update
   else
-    log "fwupdmgr non trovato, salto."
+    log "fwupdmgr not found; skipping."
   fi
 }
 
@@ -704,14 +992,14 @@ build_recovery_entries() {
   fi
 
   if ! run_cmd "${cmd[@]}" "${args[@]}"; then
-    warn "generazione entry recovery Snapper fallita"
+    warn "Snapper recovery entry generation failed"
     soft_failures=1
     recovery_entries_output=""
     return 0
   fi
 
   if [[ ! -s "$output_path" ]]; then
-    warn "nessuna entry recovery Snapper generata"
+    warn "no Snapper recovery entries were generated"
     soft_failures=1
     recovery_entries_output=""
     return 0
@@ -769,7 +1057,7 @@ install_rendered_limine_config() {
   fi
 
   if ! run_cmd sudo install -Dm644 "$rendered_limine_output" "$limine_output"; then
-    warn "installazione limine.conf fallita"
+    warn "limine.conf installation failed"
     soft_failures=1
     installed_limine_output=""
     return 0
@@ -848,7 +1136,7 @@ run_boot_regeneration() {
   (( use_boot )) || return 0
 
   log
-  log "==> 5) Artefatti di boot"
+  log "==> 5) Boot artifacts"
 
   boot_baseline_script="${repo_root}/scripts/provision-boot-baseline"
   if [[ -x "$boot_baseline_script" ]]; then
@@ -860,7 +1148,7 @@ run_boot_regeneration() {
   if have_cmd mkinitcpio; then
     run_cmd sudo mkinitcpio -P
   else
-    warn "mkinitcpio non trovato, salto rigenerazione UKI"
+    warn "mkinitcpio not found; skipping UKI regeneration"
     soft_failures=1
   fi
 
@@ -879,7 +1167,7 @@ run_boot_regeneration() {
       soft_failures=1
     fi
   else
-    log "UUID non forniti, salto rendering limine.conf."
+    log "UUIDs not provided; skipping limine.conf rendering."
   fi
 
   if (( deploy_boot )); then
@@ -887,23 +1175,23 @@ run_boot_regeneration() {
     if (( refresh_trust )); then
       refresh_trust_phase
     else
-      log "Trust refresh disabilitato, salto enroll-config e firma EFI."
+      log "Trust refresh disabled; skipping enroll-config and EFI signing."
     fi
   fi
 }
 
 run_final_verification() {
   log
-  log "==> 6) Verifiche finali"
+  log "==> 6) Final verification"
 
   if have_cmd sbctl; then
     if sbctl_bootstrap_ready; then
       run_cmd sudo sbctl verify
     else
-      log "sbctl presente ma non bootstrapato; salto verifica Secure Boot."
+      log "sbctl present but not bootstrapped; skipping Secure Boot verification."
     fi
   else
-    log "sbctl non trovato, salto verifica Secure Boot."
+    log "sbctl not found; skipping Secure Boot verification."
   fi
 }
 
@@ -913,6 +1201,11 @@ main() {
 
   if (( !use_boot && deploy_boot )); then
     die "--deploy-boot requires boot phase enabled"
+  fi
+
+  if root_zfs_runtime; then
+    run_root_zfs_update
+    return 0
   fi
 
   log "=== Margine update ==="
@@ -935,7 +1228,7 @@ main() {
 
   log
   if (( soft_failures )); then
-    warn "update-all ha completato il core con alcuni warning nei layer opzionali"
+    warn "update-all completed the core flow with warnings in optional layers"
   else
     log "=== DONE ==="
   fi

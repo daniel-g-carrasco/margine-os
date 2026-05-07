@@ -2,8 +2,8 @@
 Type=Application
 Name=Color Picker
 Comment=Pick a screen color and copy it to the clipboard
-Exec=/home/daniel/.local/bin/margine-color-picker
-Icon=color-select-symbolic
+Exec=sh -lc "exec \"\\$HOME/.local/bin/margine-color-picker\""
+Icon=margine-color-picker
 Terminal=false
 Categories=Graphics;Utility;
 Keywords=color;picker;hyprpicker;

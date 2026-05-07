@@ -1,0 +1,463 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+disk="/dev/vda"
+luks_part=""
+esp_part=""
+target_root="/mnt"
+crypt_name="cryptroot"
+pool_name="rpool"
+username=""
+repo_dest="/root/margine-os"
+leave_mounted=0
+luks_part_from_cli=0
+esp_part_from_cli=0
+crypt_name_from_cli=0
+pool_name_from_cli=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  repair-zfs-root-desktop-session --username NAME [options]
+
+Repairs a booted-but-broken Margine root-on-ZFS desktop from a live environment.
+It opens and mounts the installed system, refreshes the target repo copy without
+build artifacts, reapplies user desktop/runtime payloads, installs the Margine
+Hyprland session launcher, and orders greetd after /home.
+
+Options:
+  --username NAME       Administrative desktop user to repair
+  --disk PATH           Target disk used to infer partitions (default: /dev/vda)
+  --luks-part PATH      LUKS partition (default: disk partition 2)
+  --esp-part PATH       ESP partition (default: disk partition 1)
+  --target-root PATH    Target mountpoint (default: /mnt)
+  --crypt-name NAME     LUKS mapper name (default: cryptroot)
+  --pool-name NAME      ZFS pool name (default: rpool)
+  --repo-dest PATH      Repo path inside target (default: /root/margine-os)
+  --leave-mounted       Do not unmount/export/close after repair
+  --help                Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --username)
+        [[ $# -ge 2 ]] || die "missing value for --username"
+        username="$2"
+        shift 2
+        ;;
+      --disk)
+        [[ $# -ge 2 ]] || die "missing value for --disk"
+        disk="$2"
+        shift 2
+        ;;
+      --luks-part)
+        [[ $# -ge 2 ]] || die "missing value for --luks-part"
+        luks_part="$2"
+        luks_part_from_cli=1
+        shift 2
+        ;;
+      --esp-part)
+        [[ $# -ge 2 ]] || die "missing value for --esp-part"
+        esp_part="$2"
+        esp_part_from_cli=1
+        shift 2
+        ;;
+      --target-root)
+        [[ $# -ge 2 ]] || die "missing value for --target-root"
+        target_root="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
+        crypt_name_from_cli=1
+        shift 2
+        ;;
+      --pool-name)
+        [[ $# -ge 2 ]] || die "missing value for --pool-name"
+        pool_name="$2"
+        pool_name_from_cli=1
+        shift 2
+        ;;
+      --repo-dest)
+        [[ $# -ge 2 ]] || die "missing value for --repo-dest"
+        repo_dest="$2"
+        shift 2
+        ;;
+      --leave-mounted)
+        leave_mounted=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+load_runtime_manifest_defaults() {
+  local manifest_path="/run/margine-install/root-zfs.env"
+
+  [[ -f "$manifest_path" ]] || return 0
+
+  # shellcheck source=/dev/null
+  source "$manifest_path"
+  [[ "${MARGINE_STORAGE_LAYOUT:-}" == "zfs-root" ]] \
+    || die "runtime install manifest is not root-on-ZFS: ${manifest_path}"
+
+  if (( luks_part_from_cli == 0 )) && [[ -n "${MARGINE_LUKS_DEVICE:-}" ]]; then
+    luks_part="$MARGINE_LUKS_DEVICE"
+  fi
+  if (( esp_part_from_cli == 0 )) && [[ -n "${MARGINE_ESP_DEVICE:-}" ]]; then
+    esp_part="$MARGINE_ESP_DEVICE"
+  fi
+  if (( crypt_name_from_cli == 0 )) && [[ -n "${MARGINE_LUKS_MAPPER:-}" ]]; then
+    crypt_name="$MARGINE_LUKS_MAPPER"
+  fi
+  if (( pool_name_from_cli == 0 )) && [[ -n "${MARGINE_ZFS_POOL:-}" ]]; then
+    pool_name="$MARGINE_ZFS_POOL"
+  fi
+}
+
+require_root() {
+  [[ "$(id -u)" -eq 0 ]] || die "repair-zfs-root-desktop-session must run as root"
+}
+
+partition_path() {
+  local partition_number="$1"
+
+  if [[ "$disk" =~ [0-9]$ ]]; then
+    printf '%sp%s\n' "$disk" "$partition_number"
+  else
+    printf '%s%s\n' "$disk" "$partition_number"
+  fi
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in arch-chroot cryptsetup findmnt grep install mount mountpoint rsync sync umount zfs zpool; do
+    have_cmd "$cmd" || die "required command not found: $cmd"
+  done
+
+  [[ -x "${repo_root}/scripts/provision-user-runtime-tools" ]] || die "repo source is incomplete: ${repo_root}"
+  [[ -x "${repo_root}/scripts/provision-user-app-config" ]] || die "repo source is incomplete: ${repo_root}"
+  [[ -x "${repo_root}/scripts/provision-hyprland-desktop" ]] || die "repo source is incomplete: ${repo_root}"
+  [[ -x "${repo_root}/scripts/provision-greetd-login" ]] || die "repo source is incomplete: ${repo_root}"
+}
+
+validate_inputs() {
+  [[ -n "$username" ]] || die "--username is required"
+  [[ "$target_root" = /* ]] || die "--target-root must be absolute"
+  [[ "$target_root" != "/" ]] || die "--target-root must not be /"
+  [[ "$repo_dest" = /* ]] || die "--repo-dest must be absolute"
+  [[ "$repo_dest" != "/" ]] || die "--repo-dest must not be /"
+
+  luks_part="${luks_part:-$(partition_path 2)}"
+  esp_part="${esp_part:-$(partition_path 1)}"
+
+  [[ -b "$luks_part" ]] || die "LUKS partition is not a block device: $luks_part"
+  [[ -b "$esp_part" ]] || die "ESP partition is not a block device: $esp_part"
+}
+
+open_luks_mapper() {
+  log
+  log "==> Open LUKS mapper"
+
+  if cryptsetup status "$crypt_name" >/dev/null 2>&1; then
+    log "  mapper already open: ${crypt_name}"
+    return 0
+  fi
+
+  cryptsetup open "$luks_part" "$crypt_name"
+}
+
+import_pool() {
+  local altroot=""
+
+  log
+  log "==> Import ZFS pool"
+
+  install -d "$target_root"
+
+  if zpool list -H -o name "$pool_name" >/dev/null 2>&1; then
+    altroot="$(zpool get -H -o value altroot "$pool_name" 2>/dev/null || true)"
+    if [[ "$altroot" == "$target_root" ]]; then
+      log "  pool already imported with target altroot: ${pool_name}"
+      return 0
+    fi
+
+    log "  pool already imported without target altroot; reimporting: ${pool_name}"
+    unmount_pool_datasets
+    zpool export "$pool_name" \
+      || die "unable to export ${pool_name}; close shells/files under ${target_root} and retry"
+  fi
+
+  zpool import -N -f -R "$target_root" "$pool_name"
+}
+
+mount_target() {
+  local root_dataset=""
+
+  log
+  log "==> Mount target system"
+
+  root_dataset="$(zpool get -H -o value bootfs "$pool_name" 2>/dev/null || true)"
+  [[ -n "$root_dataset" && "$root_dataset" != "-" && "$root_dataset" != "none" ]] \
+    || die "unable to infer root dataset from ${pool_name} bootfs"
+
+  if ! mountpoint -q "$target_root"; then
+    zfs mount "$root_dataset"
+  fi
+
+  zfs mount -a
+  require_dataset_mount_if_present home "${target_root}/home"
+  mountpoint -q "$target_root" || die "target root is not mounted: $target_root"
+
+  if ! mountpoint -q "${target_root}/boot"; then
+    install -d "${target_root}/boot"
+    mount -o umask=0077 "$esp_part" "${target_root}/boot"
+  fi
+
+  log "  root dataset: ${root_dataset}"
+  log "  target root: ${target_root}"
+  log "  ESP: ${esp_part} -> ${target_root}/boot"
+}
+
+require_dataset_mount_if_present() {
+  local dataset_suffix="$1"
+  local expected_mount="$2"
+  local dataset="${pool_name}/${dataset_suffix}"
+
+  if ! zfs list -H -o name "$dataset" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  mountpoint -q "$expected_mount" \
+    || die "${dataset} exists but is not mounted at ${expected_mount}; check ZFS altroot import"
+}
+
+unmount_pool_datasets() {
+  local dataset=""
+
+  if mountpoint -q "$target_root"; then
+    umount -R "$target_root" || true
+  fi
+
+  while read -r dataset; do
+    [[ -n "$dataset" ]] || continue
+    zfs unmount "$dataset" 2>/dev/null || true
+  done < <(zfs list -H -r -o name "$pool_name" 2>/dev/null | sort -r)
+}
+
+bind_api_filesystems() {
+  local path=""
+
+  log
+  log "==> Bind live API filesystems"
+
+  for path in dev proc sys run; do
+    install -d "${target_root}/${path}"
+    if mountpoint -q "${target_root}/${path}"; then
+      continue
+    fi
+    mount --rbind "/${path}" "${target_root}/${path}"
+    mount --make-rslave "${target_root}/${path}"
+  done
+}
+
+copy_repo_into_target() {
+  local target_repo="${target_root}${repo_dest}"
+
+  log
+  log "==> Refresh target repo copy"
+
+  [[ "$repo_root" != "$target_root"* ]] \
+    || die "repo source must live outside target root; refusing recursive copy"
+  [[ "$target_repo" != "${target_root}/" ]] \
+    || die "target repo destination must not be target root"
+
+  install -d -m 755 "$target_repo"
+  rsync -a --delete \
+    --no-owner \
+    --no-group \
+    --exclude .git \
+    --exclude .github \
+    --exclude build \
+    --exclude dist \
+    --exclude target \
+    --exclude node_modules \
+    --exclude cache \
+    --exclude '*.qcow2' \
+    --exclude '*.raw' \
+    --exclude '*.img' \
+    --exclude '*.iso' \
+    "${repo_root}/" "${target_repo}/"
+  chown -R root:root "$target_repo"
+}
+
+ensure_target_user() {
+  arch-chroot "$target_root" id "$username" >/dev/null \
+    || die "target user does not exist: $username"
+}
+
+reapply_desktop_payloads() {
+  log
+  log "==> Reapply Margine desktop payloads"
+
+  ensure_target_user
+  arch-chroot "$target_root" "${repo_dest}/scripts/provision-user-runtime-tools" --username "$username"
+  arch-chroot "$target_root" "${repo_dest}/scripts/provision-user-app-config" --username "$username"
+  arch-chroot "$target_root" "${repo_dest}/scripts/provision-hyprland-desktop" --username "$username"
+  arch-chroot "$target_root" "${repo_dest}/scripts/provision-greetd-login" --username "$username" --login-mode tuigreet-only
+}
+
+install_zfs_greetd_ordering() {
+  local dropin_dir="${target_root}/etc/systemd/system/greetd.service.d"
+  local dropin_path="${dropin_dir}/10-margine-zfs-home.conf"
+
+  log
+  log "==> Ensure greetd waits for /home"
+
+  install -d -m 755 "$dropin_dir"
+  cat >"$dropin_path" <<'EOF'
+[Unit]
+Wants=zfs-mount.service
+After=zfs-mount.service
+RequiresMountsFor=/home
+EOF
+  chmod 644 "$dropin_path"
+}
+
+verify_target_session_payload() {
+  local home_dir=""
+
+  log
+  log "==> Verify target desktop payload"
+
+  home_dir="$(arch-chroot "$target_root" getent passwd "$username" | cut -d: -f6)"
+  [[ -n "$home_dir" ]] || die "could not resolve target home for: $username"
+
+  [[ -r "${target_root}${home_dir}/.config/hypr/hyprland.conf" ]] \
+    || die "target Hyprland config missing: ${home_dir}/.config/hypr/hyprland.conf"
+  [[ -x "${target_root}${home_dir}/.local/bin/margine-launcher-walker" ]] \
+    || die "target Walker launcher missing: ${home_dir}/.local/bin/margine-launcher-walker"
+  [[ -x "${target_root}/usr/local/bin/margine-start-hyprland" ]] \
+    || die "target Hyprland session launcher missing: /usr/local/bin/margine-start-hyprland"
+
+  if arch-chroot "$target_root" /usr/bin/bash -lc 'command -v Hyprland >/dev/null 2>&1'; then
+    arch-chroot "$target_root" env HOME="$home_dir" XDG_CONFIG_HOME="${home_dir}/.config" \
+      /usr/bin/bash -lc '
+        set -euo pipefail
+        runtime_dir="$(mktemp -d /tmp/margine-hyprland-verify.XXXXXX)"
+        chmod 700 "$runtime_dir"
+        trap '\''rm -rf "$runtime_dir"'\'' EXIT
+        XDG_RUNTIME_DIR="$runtime_dir" Hyprland --verify-config --i-am-really-stupid --config "$HOME/.config/hypr/hyprland.conf"
+      '
+  fi
+
+  findmnt "${target_root}/home" || true
+  findmnt "${target_root}/boot" || true
+}
+
+cleanup_mounts() {
+  local path=""
+  local dataset=""
+  local mountpoint=""
+
+  (( leave_mounted )) && return 0
+
+  log
+  log "==> Sync and unmount target"
+
+  sync
+  for path in run sys proc dev; do
+    if mountpoint -q "${target_root}/${path}"; then
+      umount -R "${target_root}/${path}" || warn "unable to unmount ${target_root}/${path}"
+    fi
+  done
+
+  if mountpoint -q "$target_root" && ! umount -R "$target_root"; then
+    warn "unable to unmount ${target_root}; inspect with: fuser -vm ${target_root}"
+    fuser -vm "$target_root" || true
+  fi
+
+  while read -r dataset mountpoint; do
+    [[ -n "$dataset" && -n "$mountpoint" ]] || continue
+    [[ "$mountpoint" != "-" && "$mountpoint" != "legacy" ]] || continue
+    mountpoint -q "$mountpoint" || continue
+    zfs unmount "$dataset" || umount "$mountpoint" || warn "unable to unmount ZFS dataset ${dataset} at ${mountpoint}"
+  done < <(
+    zfs list -H -r -o name,mountpoint "$pool_name" \
+      | awk '$2 != "-" && $2 != "legacy" { print length($2), $1, $2 }' \
+      | sort -rn \
+      | awk '{ print $2, $3 }'
+  )
+
+  sync
+  if ! zpool export "$pool_name"; then
+    warn "unable to export ${pool_name}; it may still be busy"
+    fuser -vm "$target_root" || true
+    zfs mount | awk -v pool="${pool_name}" '$1 == pool || index($1, pool "/") == 1 { print }' || true
+    return 0
+  fi
+
+  if cryptsetup status "$crypt_name" >/dev/null 2>&1; then
+    cryptsetup close "$crypt_name" || warn "unable to close mapper ${crypt_name}"
+  fi
+}
+
+main() {
+  parse_args "$@"
+  load_runtime_manifest_defaults
+  require_root
+  ensure_prereqs
+  validate_inputs
+
+  log "=== Repair Margine root-on-ZFS desktop session ==="
+  log "User: ${username}"
+  log "LUKS: ${luks_part} -> ${crypt_name}"
+  log "Pool: ${pool_name}"
+  log "Target root: ${target_root}"
+
+  open_luks_mapper
+  import_pool
+  mount_target
+  bind_api_filesystems
+  copy_repo_into_target
+  reapply_desktop_payloads
+  install_zfs_greetd_ordering
+  verify_target_session_payload
+  cleanup_mounts
+
+  log
+  log "=== DONE ==="
+}
+
+main "$@"

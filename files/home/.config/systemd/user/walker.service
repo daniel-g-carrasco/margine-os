@@ -1,0 +1,16 @@
+[Unit]
+Description=Walker launcher application service
+ConditionPathExists=/usr/bin/walker
+After=graphical-session.target elephant.service
+Requires=elephant.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+Environment=MARGINE_LAUNCHER_IMPORT_ENV=1
+ExecStart=%h/.local/bin/margine-launcher-walker --gapplication-service
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

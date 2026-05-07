@@ -70,6 +70,7 @@ if [[ "$preset_id" == "$current_id" ]]; then
 fi
 
 if "$apply_cmd" --preset "$preset_id" >"$log_file" 2>&1; then
+  sleep 0.35
   if command -v notify-send >/dev/null 2>&1; then
     notify-send -a Margine -i preferences-desktop-theme-global \
       'Theme applied' "Preset: $preset_id"

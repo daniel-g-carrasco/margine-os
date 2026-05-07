@@ -10,6 +10,8 @@ zfs_datasets_source="${repo_root}/files/etc/margine/zfs-pre-update-datasets.conf
 sanoid_conf_source="${repo_root}/files/etc/sanoid/sanoid.conf"
 margine_sanoid_service_source="${repo_root}/files/etc/systemd/system/margine-sanoid.service"
 margine_sanoid_timer_source="${repo_root}/files/etc/systemd/system/margine-sanoid.timer"
+zfs_sanoid_cycle_source="${repo_root}/files/usr/local/lib/margine/scripts/margine-sanoid-cycle"
+zfs_sanoid_datasets_ready_source="${repo_root}/files/usr/local/lib/margine/scripts/zfs-sanoid-datasets-ready"
 
 usage() {
   cat <<'EOF'
@@ -74,6 +76,8 @@ ensure_sources() {
   [[ -f "$sanoid_conf_source" ]] || die "missing required source: $sanoid_conf_source"
   [[ -f "$margine_sanoid_service_source" ]] || die "missing required source: $margine_sanoid_service_source"
   [[ -f "$margine_sanoid_timer_source" ]] || die "missing required source: $margine_sanoid_timer_source"
+  [[ -f "$zfs_sanoid_cycle_source" ]] || die "missing required source: $zfs_sanoid_cycle_source"
+  [[ -f "$zfs_sanoid_datasets_ready_source" ]] || die "missing required source: $zfs_sanoid_datasets_ready_source"
 }
 
 install_baseline_files() {
@@ -84,6 +88,8 @@ install_baseline_files() {
   run_cmd install -Dm644 "$sanoid_conf_source" /etc/sanoid/sanoid.conf
   run_cmd install -Dm644 "$margine_sanoid_service_source" /etc/systemd/system/margine-sanoid.service
   run_cmd install -Dm644 "$margine_sanoid_timer_source" /etc/systemd/system/margine-sanoid.timer
+  run_cmd install -Dm755 "$zfs_sanoid_cycle_source" /usr/local/lib/margine/scripts/margine-sanoid-cycle
+  run_cmd install -Dm755 "$zfs_sanoid_datasets_ready_source" /usr/local/lib/margine/scripts/zfs-sanoid-datasets-ready
 }
 
 enable_if_present() {

@@ -1,0 +1,1 @@
+quiet splash loglevel=3 rd.udev.log_level=3 vt.global_cursor_default=0 zswap.enabled=0 cryptdevice=UUID=__MARGINE_LUKS_UUID__:__MARGINE_CRYPT_NAME__ root=ZFS=__MARGINE_ZFS_ROOT_DATASET__ rootfstype=zfs rw zfs_import_dir=/dev/

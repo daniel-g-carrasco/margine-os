@@ -7,6 +7,7 @@ repo_root="$(cd "${script_dir}/.." && pwd)"
 dry_run=0
 username=""
 home_dir=""
+install_global_update_only=0
 
 declare -a home_payload=(
   ".config/Code/User/settings.json"
@@ -54,6 +55,8 @@ Usage:
 
 Options:
   --username NAME   Target user that will receive the app layer
+  --install-global-update-only
+                    Install only /usr/local/lib/margine and /usr/local/bin/update-all
   --dry-run         Show the plan without executing it
   --help            Show this help
 EOF
@@ -90,6 +93,10 @@ parse_args() {
         ;;
       --dry-run)
         dry_run=1
+        shift
+        ;;
+      --install-global-update-only)
+        install_global_update_only=1
         shift
         ;;
       --help|-h)
@@ -288,22 +295,69 @@ install_global_update_all() {
   [[ -f "$host_health_wrapper_source" ]] || die "required source not found: $host_health_wrapper_source"
 
   if (( dry_run )); then
-    printf '[dry-run] rsync -a --delete --exclude build --exclude .git --exclude docs --exclude .github %s/ %s/\n' "$repo_root" "$support_root"
+    printf '[dry-run] rsync -a --delete --no-owner --no-group --exclude build --exclude .git --exclude docs --exclude .github %s/ %s/\n' "$repo_root" "$support_root"
+    printf '[dry-run] chown -R root:root %s\n' "$support_root"
     printf '[dry-run] install wrapper /usr/local/bin/update-all -> %s/scripts/update-all\n' "$support_root"
     printf '[dry-run] install wrapper /usr/local/bin/margine-validate-host-health -> %s/scripts/validate-host-health\n' "$support_root"
     return 0
   fi
 
   rsync -a --delete \
+    --no-owner \
+    --no-group \
     --exclude build \
     --exclude .git \
     --exclude docs \
     --exclude .github \
     "${repo_root}/" "${support_root}/"
+  chown -R root:root "$support_root"
 
   install -Dm755 /dev/stdin /usr/local/bin/update-all <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+
+env_file_value() {
+  local path="$1"
+  local key="$2"
+
+  [[ -r "$path" ]] || return 1
+
+  awk -F= -v key="$key" '
+    $1 == key {
+      value = substr($0, length(key) + 2)
+      gsub(/^"/, "", value)
+      gsub(/"$/, "", value)
+      print value
+      found = 1
+      exit
+    }
+    END {
+      exit found ? 0 : 1
+    }
+  ' "$path"
+}
+
+root_zfs_runtime() {
+  local layout=""
+  local root_fstype=""
+
+  layout="$(env_file_value /etc/margine/install-layout.env MARGINE_STORAGE_LAYOUT 2>/dev/null || true)"
+  [[ "$layout" == "zfs-root" ]] && return 0
+
+  root_fstype="$(findmnt -nro FSTYPE --target / 2>/dev/null || true)"
+  [[ "$root_fstype" == "zfs" ]]
+}
+
+if root_zfs_runtime && ! grep -Fq "run_root_zfs_update" /usr/local/lib/margine/scripts/update-all 2>/dev/null; then
+  cat >&2 <<'MESSAGE'
+error: installed update-all runtime is not root-on-ZFS capable.
+
+Refresh /usr/local/lib/margine from a repository version that contains the
+dedicated root-on-ZFS update path before updating this host.
+MESSAGE
+  exit 1
+fi
+
 exec /usr/local/lib/margine/scripts/update-all "$@"
 EOF
 
@@ -342,6 +396,14 @@ cleanup_legacy_desktop_entries() {
 main() {
   parse_args "$@"
   require_root
+
+  if (( install_global_update_only )); then
+    install_global_update_all
+    log
+    log "Global update runtime installed."
+    return 0
+  fi
+
   [[ -n "$username" ]] || die "--username is required"
 
   resolve_home_dir

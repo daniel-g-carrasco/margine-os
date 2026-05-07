@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_path="${1:-/etc/sanoid/sanoid.conf}"
+dataset=""
+missing=0
+seen=0
+declare -a missing_datasets=()
+
+if [[ ! -r "$config_path" ]]; then
+  printf 'sanoid config is not readable: %s\n' "$config_path" >&2
+  exit 2
+fi
+
+while IFS= read -r dataset; do
+  [[ -n "$dataset" ]] || continue
+  seen=1
+
+  if ! zfs list -H -o name "$dataset" >/dev/null 2>&1; then
+    missing_datasets+=("$dataset")
+    missing=1
+  fi
+done < <(
+  awk '
+    /^\[[^]]+\][[:space:]]*$/ {
+      name = $0
+      sub(/^\[/, "", name)
+      sub(/\][[:space:]]*$/, "", name)
+      if (name !~ /^template_/) {
+        print name
+      }
+    }
+  ' "$config_path"
+)
+
+if (( seen == 0 )); then
+  printf 'no ZFS datasets configured in %s\n' "$config_path" >&2
+  exit 2
+fi
+
+if (( missing != 0 )); then
+  printf 'configured ZFS dataset(s) unavailable; skipping sanoid: %s\n' "${missing_datasets[*]}" >&2
+fi
+
+exit "$missing"

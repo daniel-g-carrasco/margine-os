@@ -10,8 +10,11 @@ home_dir=""
 
 declare -a home_payload=(
   ".config/systemd/user/elephant.service"
+  ".config/systemd/user/walker.service"
   ".config/systemd/user/hypr-refresh-rate.service"
   ".config/systemd/user/keep-awake.service"
+  ".config/systemd/user/margine-walker-healthcheck.service"
+  ".config/systemd/user/margine-walker-healthcheck.timer"
   ".config/systemd/user/margine-maintenance-check.service"
   ".config/systemd/user/margine-maintenance-check.timer"
   ".config/systemd/user/margine-notification-action-router.service"
@@ -23,6 +26,8 @@ declare -a home_payload=(
   ".local/bin/margine-launcher"
   ".local/bin/margine-launcher-service"
   ".local/bin/margine-launcher-walker"
+  ".local/bin/margine-elephant-service"
+  ".local/bin/margine-walker-healthcheck"
   ".local/bin/margine-bitwarden"
   ".local/bin/hypr-refresh-rate-watch"
   ".local/bin/margine-hyprlock"
@@ -138,6 +143,7 @@ enable_user_units() {
     margine-notification-action-router.service
   )
   local -a timers=(
+    margine-walker-healthcheck.timer
     margine-maintenance-check.timer
   )
 
@@ -172,12 +178,18 @@ enable_user_units() {
 }
 
 cleanup_legacy_units() {
-  local legacy_link="${home_dir}/.config/systemd/user/default.target.wants/elephant.service"
+  local legacy_link=""
+  local -a legacy_links=(
+    "${home_dir}/.config/systemd/user/default.target.wants/elephant.service"
+    "${home_dir}/.config/systemd/user/default.target.wants/walker.service"
+  )
 
   log
   log "==> Remove legacy eager-start user units"
 
-  run_cmd rm -f "$legacy_link"
+  for legacy_link in "${legacy_links[@]}"; do
+    run_cmd rm -f "$legacy_link"
+  done
 }
 
 fix_ownership() {

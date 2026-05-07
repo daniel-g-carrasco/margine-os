@@ -1,4 +1,4 @@
-# Optional gaming runtime compatibility stack for the public Arch product.
+# Default gaming runtime compatibility stack for the public Arch product.
 # This stays focused on official-repo compatibility packages, not launchers.
 alsa-plugins
 gamemode

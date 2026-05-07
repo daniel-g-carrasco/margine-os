@@ -131,7 +131,9 @@ parse_args() {
     esac
   done
 
-  (( stage_only && enroll_only )) && die "--stage-only and --enroll-only are mutually exclusive"
+  if (( stage_only && enroll_only )); then
+    die "--stage-only and --enroll-only are mutually exclusive"
+  fi
 }
 
 require_root() {

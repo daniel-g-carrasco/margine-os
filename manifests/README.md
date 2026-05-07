@@ -49,22 +49,27 @@ That layer is meant for:
 
 It is explicitly **not** a `root-on-ZFS` install path.
 
-## Optional gaming layers
+## Gaming layers
 
-The public Arch product now also exposes optional gaming layers under
-`packages/*.txt` and `aur/*.txt`:
+The public Arch product exposes gaming layers under `packages/*.txt` and
+`aur/*.txt`:
 
 - `gaming-runtime-compat`
 - `gaming-apps-launchers`
 
-These are optional install targets, not part of the default baseline, and they
-are intentionally split so compatibility packages do not automatically force
-launchers, overlays, or `gamescope`.
+`gaming-runtime-compat` is part of the default baseline. `gaming-apps-launchers`
+remains optional. They are intentionally split so compatibility packages do not
+automatically force launchers, overlays, or `gamescope`.
 
 When a layer exists under both `packages/` and `aur/` with the same name, they
 are treated as one operator-facing layer: official-repo packages are installed
 through the package manifest, and the AUR additions are installed through the
 matching AUR manifest.
+
+Before installing official-repo packages, `install-from-manifests` asks `pacman`
+to resolve the complete selected package transaction with `--print`. This does
+not install anything, but it catches missing package targets and repository
+conflicts before the real non-interactive install step.
 
 ## Product relationship
 

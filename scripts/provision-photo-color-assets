@@ -19,8 +19,8 @@ Usage:
   provision-photo-color-assets --username NAME [options]
 
 Options:
-  --username NAME   Utente target che ricevera' gli asset ICC
-  --dry-run         Mostra il piano senza eseguirlo
+  --username NAME   Target user that will receive ICC assets
+  --dry-run         Show the plan without executing it
   --help            Show this help
 EOF
 }
@@ -114,7 +114,7 @@ main() {
   fix_ownership
 
   log
-  log "Asset ICC installati."
+  log "ICC assets installed."
 }
 
 main "$@"

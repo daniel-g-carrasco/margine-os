@@ -23,6 +23,8 @@ if (( ${#bash_files[@]} > 0 )); then
   done
 fi
 
+"${script_dir}/check-bash-errexit-footguns"
+
 python3 - <<'PY'
 import pathlib, tomllib
 

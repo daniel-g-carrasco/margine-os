@@ -3,9 +3,21 @@
 set -euo pipefail
 
 exec kitty --class power-tools -e bash -lc '
+if ! command -v powerprofilesctl >/dev/null 2>&1; then
+  printf "Power Profiles daemon tools are not available.\\n"
+  printf "Install and enable power-profiles-daemon to change platform power profiles.\\n\\n"
+  if command -v upower >/dev/null 2>&1; then
+    upower -d
+    printf "\\n"
+  fi
+  printf "Press enter to close..."
+  read -r _
+  exit 0
+fi
+
 current=$(powerprofilesctl get 2>/dev/null || printf unknown)
-printf "Profilo corrente: %s\n\n" "$current"
-printf "1) power-saver\n2) balanced\n3) performance\n4) dettagli batteria\nq) esci\n> "
+printf "Current profile: %s\n\n" "$current"
+printf "1) power-saver\n2) balanced\n3) performance\n4) battery details\nq) quit\n> "
 read -r choice
 
 case "$choice" in
@@ -19,6 +31,6 @@ case "$choice" in
   q|Q) exit 0 ;;
 esac
 
-printf "\nPremi invio per chiudere..."
+printf "\nPress enter to close..."
 read -r _
 '

@@ -2,8 +2,8 @@
 Type=Application
 Name=Turn Off Displays
 Comment=Lock the session and turn off connected displays
-Exec=/home/daniel/.local/bin/margine-session-control display-off
-Icon=preferences-desktop-display
+Exec=sh -lc "exec \"\\$HOME/.local/bin/margine-session-control\" display-off"
+Icon=margine-display-off
 Categories=System;
 Keywords=display;screen;dpms;off;lock;
 Terminal=false

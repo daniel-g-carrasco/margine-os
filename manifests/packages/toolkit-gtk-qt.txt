@@ -1,7 +1,7 @@
-# Supporto toolkit e portal per app GTK e Qt su Hyprland.
-# Qui entrano solo i componenti che ha senso rendere espliciti.
-# Non duplico dipendenze transitive come `gtk3`, `gtk4` o `libadwaita`:
-# quelle arriveranno gia' dagli applicativi.
+# Toolkit and portal support for GTK and Qt apps on Hyprland.
+# Only components worth declaring explicitly belong here.
+# Transitive dependencies such as `gtk3`, `gtk4`, or `libadwaita` are not
+# duplicated here because they already arrive through applications.
 
 adwaita-icon-theme
 adwaita-icon-theme-legacy

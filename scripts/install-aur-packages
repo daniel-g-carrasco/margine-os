@@ -13,8 +13,11 @@ fi
 
 dry_run=0
 upgrade=0
+build_only=0
 build_user="aurbuilder"
 build_root="/var/cache/margine-aur"
+repo_output=""
+repo_name="margine-local"
 sudoers_path="/etc/sudoers.d/90-margine-aurbuilder"
 yay_flags=(--noconfirm --answerclean None --answerdiff None --answeredit None --removemake --cleanafter --sudoloop)
 declare -a manifests=()
@@ -40,6 +43,9 @@ Options:
   --manifest PATH        Read AUR packages from a manifest; repeatable
   --build-user NAME      Non-root user used for builds (default: aurbuilder)
   --upgrade              Rebuild already installed packages too
+  --repo-output PATH     Build package files into PATH as a local pacman repo
+  --repo-name NAME       Local pacman repo database name (default: margine-local)
+  --build-only           Build/stage packages without installing them
   --dry-run              Show the plan without executing it
   --help                 Show this help
 EOF
@@ -120,6 +126,22 @@ parse_args() {
         upgrade=1
         shift
         ;;
+      --repo-output)
+        [[ $# -ge 2 ]] || die "missing value for --repo-output"
+        repo_output="$2"
+        build_only=1
+        upgrade=1
+        shift 2
+        ;;
+      --repo-name)
+        [[ $# -ge 2 ]] || die "missing value for --repo-name"
+        repo_name="$2"
+        shift 2
+        ;;
+      --build-only)
+        build_only=1
+        shift
+        ;;
       --dry-run)
         dry_run=1
         shift
@@ -179,9 +201,62 @@ resolve_packages() {
 
 ensure_prereqs() {
   local cmd=""
-  for cmd in awk chown getent git groupadd groupmod makepkg pacman runuser sort sudo useradd usermod visudo; do
+  for cmd in awk chown find getent git groupadd groupmod makepkg pacman runuser sha256sum sort sudo useradd usermod visudo; do
     command -v "$cmd" >/dev/null 2>&1 || die "required command not found: $cmd"
   done
+
+  if [[ -n "$repo_output" ]]; then
+    command -v repo-add >/dev/null 2>&1 || die "required command not found: repo-add"
+    [[ "$repo_output" != "/" ]] || die "--repo-output cannot be /"
+    [[ -n "$repo_name" ]] || die "--repo-name cannot be empty"
+  fi
+}
+
+root_mount_source() {
+  findmnt -n -o SOURCE / 2>/dev/null || true
+}
+
+root_mount_fstype() {
+  findmnt -n -o FSTYPE / 2>/dev/null || true
+}
+
+running_from_live_root() {
+  local fstype=""
+  local source=""
+
+  [[ -d /run/archiso ]] || return 1
+
+  source="$(root_mount_source)"
+  fstype="$(root_mount_fstype)"
+  case "${source}:${fstype}" in
+    airootfs:*|overlay:*|*:overlay)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+refuse_live_root_builds() {
+  if [[ "${MARGINE_ALLOW_LIVE_AUR_BUILD:-0}" == "1" ]]; then
+    return 0
+  fi
+
+  if running_from_live_root; then
+    die "refusing to build AUR packages in the live ISO root; install AUR packages inside the installed target/chroot or after first boot. The live ISO must not be full-upgraded just to satisfy AUR build dependencies."
+  fi
+}
+
+guard_aur_dependency_install() {
+  local package="$1"
+  local pending_package=""
+
+  (( dry_run )) && return 0
+
+  pending_package="$(pacman -Quq 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$pending_package" ]]; then
+    die "repository upgrades are pending before installing AUR build dependencies for ${package}; run update-all or pacman -Syu in the installed system first. Refusing to perform a partial-upgrade dependency install (first pending package: ${pending_package})"
+  fi
 }
 
 collect_installed_packages() {
@@ -358,6 +433,62 @@ package_has_local_override() {
   local_override_dir "$1" >/dev/null
 }
 
+local_override_stamp_path() {
+  local package="$1"
+  printf '%s/stamps/%s.sha256\n' "$build_root" "$package"
+}
+
+local_override_state_hash() {
+  local package="$1"
+  local repo_dir="${build_root}/src/${package}"
+  local override_dir=""
+  local override_file=""
+  local upstream_rev=""
+  local rel=""
+  local digest=""
+
+  upstream_rev="$(run_as_build_user git -C "$repo_dir" rev-parse HEAD)"
+  override_dir="$(local_override_dir "$package" || true)"
+
+  {
+    printf 'aur-head %s\n' "$upstream_rev"
+
+    if [[ -n "$override_dir" ]]; then
+      while IFS= read -r -d '' override_file; do
+        rel="${override_file#"${override_dir}"/}"
+        digest="$(sha256sum "$override_file")"
+        digest="${digest%% *}"
+        printf 'override %s %s\n' "$digest" "$rel"
+      done < <(find "$override_dir" -type f ! -name README.md -print0 | sort -z)
+    fi
+  } | sha256sum | awk '{ print $1 }'
+}
+
+local_override_is_current() {
+  local package="$1"
+  local stamp_path=""
+  local current_hash=""
+  local recorded_hash=""
+
+  stamp_path="$(local_override_stamp_path "$package")"
+  [[ -f "$stamp_path" ]] || return 1
+
+  current_hash="$(local_override_state_hash "$package")"
+  recorded_hash="$(<"$stamp_path")"
+  [[ "$current_hash" == "$recorded_hash" ]]
+}
+
+write_local_override_stamp() {
+  local package="$1"
+  local stamp_path=""
+
+  (( dry_run )) && return 0
+
+  stamp_path="$(local_override_stamp_path "$package")"
+  install -d -m 755 "$(dirname "$stamp_path")"
+  local_override_state_hash "$package" >"$stamp_path"
+}
+
 refresh_repo() {
   local package="$1"
   local repo_dir="${build_root}/src/${package}"
@@ -379,6 +510,204 @@ refresh_repo() {
   fi
 
   run_as_build_user git clone "https://aur.archlinux.org/${package}.git" "$repo_dir"
+}
+
+apply_walker_local_override() {
+  local package="$1"
+  local repo_dir="${build_root}/src/${package}"
+  local patch_name="0001-discrete-result-list-scroll.patch"
+  local pkgbuild="${repo_dir}/PKGBUILD"
+
+  [[ "$package" == "walker" ]] || return 0
+  [[ -f "${repo_dir}/${patch_name}" ]] || return 0
+
+  if (( dry_run )); then
+    printf '[dry-run] wire %q into %q\n' "$patch_name" "$pkgbuild"
+    return 0
+  fi
+
+  [[ -f "$pkgbuild" ]] || die "walker local override cannot find PKGBUILD: ${pkgbuild}"
+
+  if grep -Fq -- "$patch_name" "$pkgbuild"; then
+    return 0
+  fi
+
+  log "==> Wire local AUR asset into PKGBUILD: ${package} (${patch_name})"
+  run_as_build_user bash -s -- "$pkgbuild" "$patch_name" <<'EOF'
+set -euo pipefail
+
+pkgbuild="$1"
+patch_name="$2"
+tmp="${pkgbuild}.margine"
+
+awk -v patch_name="$patch_name" '
+function emit_single_makedepends(line,    body) {
+  body = line
+  sub(/^[[:space:]]*makedepends=\(/, "", body)
+  sub(/\)[[:space:]]*$/, "", body)
+
+  print "makedepends=("
+  if (body !~ /^[[:space:]]*$/) {
+    print "  " body
+  }
+  if (index(body, "patch") == 0) {
+    print "  '\''patch'\''"
+  }
+  print ")"
+}
+
+function emit_single_source(line,    body) {
+  body = line
+  sub(/^[[:space:]]*source=\(/, "", body)
+  sub(/\)[[:space:]]*$/, "", body)
+
+  print "source=("
+  if (body !~ /^[[:space:]]*$/) {
+    print "  " body
+  }
+  print "  \"" patch_name "\""
+  print ")"
+}
+
+function emit_single_checksum(line,    body) {
+  body = line
+  sub(/^[[:space:]]*(sha[0-9]+|b2|md5)sums=\(/, "", body)
+  sub(/\)[[:space:]]*$/, "", body)
+
+  print checksum_array "=("
+  if (body !~ /^[[:space:]]*$/) {
+    print "  " body
+  }
+  print "  \"SKIP\""
+  print ")"
+}
+
+BEGIN {
+  in_source = 0
+  in_checksum = 0
+  in_makedepends = 0
+  source_done = 0
+  checksum_done = 0
+  makedepends_done = 0
+  makedepends_has_patch = 0
+  prepare_seen = 0
+  checksum_array = ""
+}
+
+/^[[:space:]]*prepare[[:space:]]*\(\)[[:space:]]*\{/ {
+  prepare_seen = 1
+}
+
+!makedepends_done && /^[[:space:]]*makedepends=\(/ {
+  if ($0 ~ /\)[[:space:]]*$/ && $0 !~ /^[[:space:]]*makedepends=\([[:space:]]*$/) {
+    emit_single_makedepends($0)
+    makedepends_done = 1
+    next
+  }
+
+  if (index($0, "patch") > 0) {
+    makedepends_has_patch = 1
+  }
+  print
+  in_makedepends = 1
+  next
+}
+
+in_makedepends {
+  if (index($0, "patch") > 0) {
+    makedepends_has_patch = 1
+  }
+  if ($0 ~ /^[[:space:]]*\)[[:space:]]*$/) {
+    if (!makedepends_has_patch) {
+      print "  '\''patch'\''"
+    }
+    print
+    in_makedepends = 0
+    makedepends_done = 1
+    next
+  }
+}
+
+!source_done && /^[[:space:]]*source=\(/ {
+  if ($0 ~ /\)[[:space:]]*$/ && $0 !~ /^[[:space:]]*source=\([[:space:]]*$/) {
+    emit_single_source($0)
+    source_done = 1
+    next
+  }
+
+  print
+  in_source = 1
+  next
+}
+
+in_source && /^[[:space:]]*\)[[:space:]]*$/ {
+  print "  \"" patch_name "\""
+  print
+  in_source = 0
+  source_done = 1
+  next
+}
+
+!checksum_done && /^[[:space:]]*(sha[0-9]+|b2|md5)sums=\(/ {
+  checksum_array = $0
+  sub(/^[[:space:]]*/, "", checksum_array)
+  sub(/=\(.*/, "", checksum_array)
+
+  if ($0 ~ /\)[[:space:]]*$/ && $0 !~ /^[[:space:]]*(sha[0-9]+|b2|md5)sums=\([[:space:]]*$/) {
+    emit_single_checksum($0)
+    checksum_done = 1
+    next
+  }
+
+  print
+  in_checksum = 1
+  next
+}
+
+in_checksum && /^[[:space:]]*\)[[:space:]]*$/ {
+  print "  \"SKIP\""
+  print
+  in_checksum = 0
+  checksum_done = 1
+  next
+}
+
+{
+  print
+}
+
+END {
+  if (in_source || in_checksum || in_makedepends) {
+    print "error: unterminated source, checksum or makedepends array in walker PKGBUILD" > "/dev/stderr"
+    exit 2
+  }
+  if (!makedepends_done) {
+    print "error: makedepends array not found in walker PKGBUILD" > "/dev/stderr"
+    exit 3
+  }
+  if (!source_done) {
+    print "error: source array not found in walker PKGBUILD" > "/dev/stderr"
+    exit 4
+  }
+  if (!checksum_done) {
+    print "error: checksum array not found in walker PKGBUILD" > "/dev/stderr"
+    exit 5
+  }
+  if (prepare_seen) {
+    print "error: walker PKGBUILD already defines prepare(); update install-aur-packages override logic" > "/dev/stderr"
+    exit 6
+  }
+
+  print ""
+  print "prepare() {"
+  print "  cd \"${srcdir}/${pkgname}-${pkgver}\""
+  print "  patch -Np1 -i \"${srcdir}/" patch_name "\""
+  print "}"
+}
+' "$pkgbuild" >"$tmp"
+
+mv "$tmp" "$pkgbuild"
+EOF
 }
 
 prepare_package_source() {
@@ -419,6 +748,8 @@ prepare_package_source() {
     stage_local_file_for_build_user "$override_file" "$dest_path"
   done
 
+  apply_walker_local_override "$package"
+
   for patch_file in "${patch_files[@]}"; do
     dest_path="${repo_dir}/$(basename "$patch_file")"
     log "==> Stage local AUR patch: ${package} ($(basename "$patch_file"))"
@@ -447,6 +778,9 @@ pkgbuild_dependencies() {
       sub(/[<>=].*/, "", dep)
       sub(/:.*/, "", dep)
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", dep)
+      if (dep == "cargo") {
+        dep = "rust"
+      }
       if (dep != "") {
         print dep
       }
@@ -466,6 +800,8 @@ install_pkgbuild_dependencies() {
     printf '[dry-run] pacman -S --needed --asdeps --noconfirm <PKGBUILD dependencies for %q>\n' "$package"
     return 0
   fi
+
+  guard_aur_dependency_install "$package"
 
   mapfile -t deps < <(pkgbuild_dependencies "$package")
   (( ${#deps[@]} > 0 )) || return 0
@@ -492,7 +828,14 @@ install_built_package_files() {
   local -a package_files=()
 
   if (( dry_run )); then
-    printf '[dry-run] pacman -U --noconfirm <built package files for %q>\n' "$package"
+    if [[ -n "$repo_output" ]]; then
+      printf '[dry-run] stage <built package files for %q> into %q and run repo-add -n %q\n' \
+        "$package" "$repo_output" "${repo_output}/${repo_name}.db.tar.gz"
+    elif (( build_only )); then
+      printf '[dry-run] build-only; leave <built package files for %q> in build cache\n' "$package"
+    else
+      printf '[dry-run] pacman -U --noconfirm <built package files for %q>\n' "$package"
+    fi
     return 0
   fi
 
@@ -503,7 +846,46 @@ install_built_package_files() {
     [[ -f "$package_file" ]] || die "built package file not found: ${package_file}"
   done
 
+  if [[ -n "$repo_output" ]]; then
+    stage_built_package_files_to_repo "$package" "${package_files[@]}"
+  fi
+
+  (( build_only )) && return 0
+
   run_cmd pacman -U --noconfirm "${package_files[@]}"
+}
+
+stage_built_package_files_to_repo() {
+  local package="$1"
+  shift
+  local package_file=""
+  local staged_name=""
+  local -a staged_names=()
+
+  (( $# > 0 )) || die "no built package files supplied for ${package}"
+
+  log "==> Stage built package files into local repo: ${package} (${repo_output})"
+
+  if (( dry_run )); then
+    printf '[dry-run] install -d -m 755 %q\n' "$repo_output"
+    for package_file in "$@"; do
+      printf '[dry-run] install -m644 %q %q\n' "$package_file" "${repo_output}/$(basename "$package_file")"
+    done
+    printf '[dry-run] repo-add -n %q <package files>\n' "${repo_output}/${repo_name}.db.tar.gz"
+    return 0
+  fi
+
+  install -d -m 755 "$repo_output"
+  for package_file in "$@"; do
+    staged_name="$(basename "$package_file")"
+    install -m644 "$package_file" "${repo_output}/${staged_name}"
+    staged_names+=("$staged_name")
+  done
+
+  (
+    cd "$repo_output"
+    repo-add -n "${repo_name}.db.tar.gz" "${staged_names[@]}"
+  )
 }
 
 build_local_override_package() {
@@ -558,12 +940,14 @@ install_packages() {
 
   log "Resolved AUR packages: ${#packages[@]}"
 
-  for package in "${packages[@]}"; do
-    if ! package_has_local_override "$package"; then
-      needs_yay=1
-      break
-    fi
-  done
+  if [[ -z "$repo_output" ]]; then
+    for package in "${packages[@]}"; do
+      if ! package_has_local_override "$package"; then
+        needs_yay=1
+        break
+      fi
+    done
+  fi
 
   (( needs_yay )) && bootstrap_yay
 
@@ -580,8 +964,24 @@ install_packages() {
 
     log
     if package_has_local_override "$package"; then
-      log "==> Build/install local AUR override: ${package}"
+      log "==> Prepare local AUR override: ${package}"
       prepare_package_source "$package"
+
+      if [[ -z "$repo_output" ]] \
+        && (( ! dry_run && upgrade )) \
+        && pacman -Q "$package" >/dev/null 2>&1 \
+        && local_override_is_current "$package"; then
+        log "==> Skip current local AUR override: ${package}"
+        continue
+      fi
+
+      log "==> Build/install local AUR override: ${package}"
+      build_local_override_package "$package"
+      (( build_only )) || write_local_override_stamp "$package"
+    elif [[ -n "$repo_output" ]]; then
+      log "==> Prepare AUR package for local repo: ${package}"
+      prepare_package_source "$package"
+      log "==> Build/stage AUR package: ${package}"
       build_local_override_package "$package"
     else
       log "==> Build/install AUR: ${package}"
@@ -596,6 +996,7 @@ main() {
   trap cleanup_build_user_sudoers EXIT
   resolve_packages
   ensure_prereqs
+  refuse_live_root_builds
   migrate_elephant_all
   ensure_build_user
   install_packages

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_path="${1:-/etc/sanoid/sanoid.conf}"
+ready_check="${MARGINE_ZFS_SANOID_READY_CHECK:-/usr/local/lib/margine/scripts/zfs-sanoid-datasets-ready}"
+sanoid_bin="${SANOID_BIN:-/usr/bin/sanoid}"
+
+if [[ ! -x "$ready_check" ]]; then
+  printf 'sanoid readiness check is not executable: %s\n' "$ready_check" >&2
+  exit 2
+fi
+
+set +e
+"$ready_check" "$config_path"
+status="$?"
+set -e
+
+case "$status" in
+  0)
+    exec "$sanoid_bin" --cron
+    ;;
+  1)
+    printf 'sanoid cycle skipped: configured ZFS datasets are not ready\n' >&2
+    exit 0
+    ;;
+  *)
+    printf 'sanoid cycle cannot run: readiness check failed with status %s\n' "$status" >&2
+    exit "$status"
+    ;;
+esac

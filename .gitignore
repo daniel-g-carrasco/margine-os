@@ -5,6 +5,9 @@
 *.bak
 *.orig
 *.rej
+*.py[cod]
+__pycache__/
 /.idea/
 /.vscode/
 /build/
+/local-pacman-repo/

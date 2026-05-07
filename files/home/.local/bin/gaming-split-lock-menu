@@ -11,12 +11,16 @@ clear_screen() {
 
 find_backend() {
   local candidate=""
+  local repo_root="${MARGINE_REPO_ROOT:-}"
   local -a candidates=(
     /usr/local/lib/margine/scripts/provision-gaming-split-lock
-    /root/margine-os/scripts/provision-gaming-split-lock
-    "$HOME/dev/margine-os-personal/scripts/provision-gaming-split-lock"
     "$HOME/dev/margine-os/scripts/provision-gaming-split-lock"
+    "$HOME/dev/margine-os-personal/scripts/provision-gaming-split-lock"
   )
+
+  if [[ -n "$repo_root" ]]; then
+    candidates=("${repo_root}/scripts/provision-gaming-split-lock" "${candidates[@]}")
+  fi
 
   for candidate in "${candidates[@]}"; do
     if [[ -x "$candidate" ]]; then

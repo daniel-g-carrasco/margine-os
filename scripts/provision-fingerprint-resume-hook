@@ -16,7 +16,7 @@ Usage:
   provision-fingerprint-resume-hook [options]
 
 Options:
-  --dry-run   Mostra il piano senza eseguirlo
+  --dry-run   Show the plan without executing it
   --help      Show this help
 EOF
 }
@@ -83,7 +83,7 @@ main() {
   run_cmd install -Dm644 "$fprintd_source" /etc/fprintd.conf
 
   log
-  log "Hook e baseline fingerprint installati."
+  log "Fingerprint hook and baseline installed."
 }
 
 main "$@"
