@@ -95,11 +95,27 @@ window#waybar {
 
 /* Right cluster: tray */
 
+#custom-tray-open,
+#custom-tray-close {
+  background: transparent;
+  color: @muted;
+  margin: 0;
+  min-width: 4px;
+  padding: 0 1px;
+  font-family: "IBM Plex Sans";
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#custom-tray-close {
+  margin-right: 3px;
+}
+
 #tray {
   background: transparent;
   color: @fg;
   margin: 0;
-  padding: 0 6px;
+  padding: 0 3px;
 }
 
 #tray > .passive {
@@ -180,7 +196,7 @@ window#waybar {
   background: transparent;
   color: @fg;
   margin: 0;
-  min-width: 50px;
+  min-width: 30px;
   padding: 0 6px;
 }
 

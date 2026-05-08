@@ -11,6 +11,10 @@ lid_source="${repo_root}/files/etc/systemd/logind.conf.d/lid.conf"
 lid_target="/etc/systemd/logind.conf.d/lid.conf"
 power_key_source="${repo_root}/files/etc/systemd/logind.conf.d/power-key.conf"
 power_key_target="/etc/systemd/logind.conf.d/power-key.conf"
+udev_power_source="${repo_root}/files/etc/udev/rules.d/90-margine-waybar-power.rules"
+udev_power_target="/etc/udev/rules.d/90-margine-waybar-power.rules"
+waybar_signal_source="${repo_root}/files/usr/local/bin/margine-waybar-signal"
+waybar_signal_target="/usr/local/bin/margine-waybar-signal"
 
 usage() {
   cat <<'EOF'
@@ -70,6 +74,8 @@ ensure_sources() {
   [[ -f "$state_source" ]] || die "required source file not found: $state_source"
   [[ -f "$lid_source" ]] || die "required source file not found: $lid_source"
   [[ -f "$power_key_source" ]] || die "required source file not found: $power_key_source"
+  [[ -f "$udev_power_source" ]] || die "required source file not found: $udev_power_source"
+  [[ -f "$waybar_signal_source" ]] || die "required source file not found: $waybar_signal_source"
 }
 
 install_state_file() {
@@ -88,6 +94,13 @@ install_power_key_policy() {
   log
   log "==> Install power-button policy"
   run_cmd install -Dm644 "$power_key_source" "$power_key_target"
+}
+
+install_waybar_power_refresh() {
+  log
+  log "==> Install Waybar power refresh hooks"
+  run_cmd install -Dm755 "$waybar_signal_source" "$waybar_signal_target"
+  run_cmd install -Dm644 "$udev_power_source" "$udev_power_target"
 }
 
 apply_live_policy_if_possible() {
@@ -131,6 +144,7 @@ main() {
   install_state_file
   install_lid_policy
   install_power_key_policy
+  install_waybar_power_refresh
   apply_live_policy_if_possible
   reload_logind_if_possible
 

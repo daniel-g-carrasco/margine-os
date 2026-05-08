@@ -4,13 +4,15 @@ set -euo pipefail
 session_ctl="${HOME}/.local/bin/margine-session-control"
 picker="${HOME}/.local/bin/margine-dmenu"
 
-cancel_entry="󰜺  Cancel"
-lock_entry="  Lock screen"
-display_off_entry="󰍹  Turn off displays"
-suspend_entry="⏾  Suspend"
-logout_entry="󰍃  Log out..."
-restart_entry="  Restart..."
-poweroff_entry="  Power off..."
+entry_gap="    "
+
+cancel_entry="󰜺${entry_gap}Cancel"
+lock_entry="${entry_gap}Lock screen"
+display_off_entry="󰍹${entry_gap}Turn off displays"
+suspend_entry="⏾${entry_gap}Suspend"
+logout_entry="󰍃${entry_gap}Log out..."
+restart_entry="${entry_gap}Restart..."
+poweroff_entry="${entry_gap}Power off..."
 
 die() {
   printf 'error: %s\n' "$*" >&2
@@ -94,13 +96,13 @@ main() {
       confirm_action "Suspend? " "Suspend" "$suspend_entry" && run_action suspend --confirmed
       ;;
     "$logout_entry")
-      confirm_action "Log out? " "Log out" "󰍃  Log out" && run_action logout --confirmed
+      confirm_action "Log out? " "Log out" "󰍃${entry_gap}Log out" && run_action logout --confirmed
       ;;
     "$restart_entry")
-      confirm_action "Restart? " "Restart" "  Restart" && run_action reboot --confirmed
+      confirm_action "Restart? " "Restart" "${entry_gap}Restart" && run_action reboot --confirmed
       ;;
     "$poweroff_entry")
-      confirm_action "Power off? " "Power off" "  Power off" && run_action poweroff --confirmed
+      confirm_action "Power off? " "Power off" "${entry_gap}Power off" && run_action poweroff --confirmed
       ;;
     *)
       notify_operator "Session action ignored" "Unknown session menu choice: ${choice}"

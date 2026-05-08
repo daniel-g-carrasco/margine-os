@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+waybar_signal=12
+
+if ! pgrep -x easyeffects >/dev/null 2>&1; then
+  gtk-dark-exec easyeffects --service-mode --hide-window >/dev/null 2>&1 &
+  sleep 0.5
+fi
+
+easyeffects --bypass-toggle >/dev/null 2>&1 || true
+pkill "-RTMIN+${waybar_signal}" -x waybar 2>/dev/null || true

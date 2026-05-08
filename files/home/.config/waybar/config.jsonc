@@ -31,7 +31,9 @@
     "clock"
   ],
   "modules-right": [
+    "custom/tray-open",
     "tray",
+    "custom/tray-close",
     "custom/recording",
     "custom/vpn",
     "custom/gaming-split-lock",
@@ -93,12 +95,28 @@
     "on-click": "gnome-calendar"
   },
 
+  // Right: visual tray brackets
+  "custom/tray-open": {
+    "format": "{}",
+    "exec": "printf '['",
+    "interval": 3600,
+    "tooltip": false
+  },
+
+  "custom/tray-close": {
+    "format": "{}",
+    "exec": "printf ']'",
+    "interval": 3600,
+    "tooltip": false
+  },
+
   // Right: network summary
   "custom/network": {
     "format": "{}",
     "return-type": "json",
     "exec": "~/.local/bin/network-status",
-    "interval": 5,
+    "interval": 2,
+    "signal": 10,
     "on-click": "~/.local/bin/open-network-settings",
     "on-click-middle": "~/.local/bin/open-network-tui --nmtui",
     "escape": true
@@ -156,8 +174,10 @@
     "format": "{}",
     "return-type": "json",
     "exec": "~/.local/bin/easyeffects-status",
-    "interval": 5,
+    "interval": 2,
+    "signal": 12,
     "on-click": "~/.local/bin/gtk-dark-exec easyeffects",
+    "on-click-right": "~/.local/bin/easyeffects-toggle",
     "escape": true
   },
 
@@ -166,7 +186,8 @@
     "format": "{}",
     "return-type": "json",
     "exec": "~/.local/bin/keep-awake-status",
-    "interval": 2,
+    "interval": 1,
+    "signal": 9,
     "on-click": "~/.local/bin/keep-awake-toggle",
     "escape": true
   },
@@ -197,7 +218,8 @@
     "return-type": "json",
     "exec-if": "upower -e 2>/dev/null | grep -q BAT",
     "exec": "~/.local/bin/battery-status",
-    "interval": 10,
+    "interval": 2,
+    "signal": 11,
     "on-click": "~/.local/bin/open-power-settings",
     "escape": true
   },

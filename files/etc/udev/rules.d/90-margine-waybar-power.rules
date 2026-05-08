@@ -1,0 +1,1 @@
+SUBSYSTEM=="power_supply", RUN+="/usr/local/bin/margine-waybar-signal 11"

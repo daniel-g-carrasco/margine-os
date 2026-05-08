@@ -49,6 +49,7 @@ declare -a home_payload=(
   ".local/bin/annotate-screenshot"
   ".local/bin/battery-status"
   ".local/bin/brightness-osd"
+  ".local/bin/easyeffects-toggle"
   ".local/bin/easyeffects-status"
   ".local/bin/gaming-split-lock-status"
   ".local/bin/gaming-split-lock-menu"

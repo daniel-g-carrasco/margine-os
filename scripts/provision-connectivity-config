@@ -8,8 +8,10 @@ dry_run=0
 wifi_regdom="IT"
 
 nm_backend_source="${repo_root}/files/etc/NetworkManager/conf.d/10-wifi-backend.conf"
+nm_dispatcher_source="${repo_root}/files/etc/NetworkManager/dispatcher.d/90-margine-waybar-network"
 iwd_main_source="${repo_root}/files/etc/iwd/main.conf"
 regdom_template_source="${repo_root}/files/etc/modprobe.d/cfg80211-regdom.conf.template"
+waybar_signal_source="${repo_root}/files/usr/local/bin/margine-waybar-signal"
 
 usage() {
   cat <<'EOF'
@@ -76,8 +78,10 @@ ensure_sources() {
 
   for source in \
     "$nm_backend_source" \
+    "$nm_dispatcher_source" \
     "$iwd_main_source" \
-    "$regdom_template_source"; do
+    "$regdom_template_source" \
+    "$waybar_signal_source"; do
     [[ -f "$source" ]] || die "required source file not found: $source"
   done
 }
@@ -96,6 +100,22 @@ install_nm_backend() {
   run_cmd install -Dm644 \
     "$nm_backend_source" \
     /etc/NetworkManager/conf.d/10-wifi-backend.conf
+}
+
+install_waybar_signal_helper() {
+  log
+  log "==> Install Waybar signal helper"
+  run_cmd install -Dm755 \
+    "$waybar_signal_source" \
+    /usr/local/bin/margine-waybar-signal
+}
+
+install_nm_dispatcher() {
+  log
+  log "==> Install NetworkManager Waybar refresh dispatcher"
+  run_cmd install -Dm755 \
+    "$nm_dispatcher_source" \
+    /etc/NetworkManager/dispatcher.d/90-margine-waybar-network
 }
 
 install_iwd_main() {
@@ -131,7 +151,9 @@ main() {
   log "=== Provision connectivity baseline ==="
   (( dry_run )) && log "Modalita': dry-run"
 
+  install_waybar_signal_helper
   install_nm_backend
+  install_nm_dispatcher
   install_iwd_main
   install_regdom
 

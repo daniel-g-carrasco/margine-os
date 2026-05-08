@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+signal="${1:-}"
+
+[[ "$signal" =~ ^[0-9]+$ ]] || exit 0
+
+pkill "-RTMIN+${signal}" -x waybar 2>/dev/null || true

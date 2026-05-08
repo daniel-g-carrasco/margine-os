@@ -18,6 +18,32 @@ read_upower_field() {
   '
 }
 
+json_escape() {
+  local value="${1:-}"
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  value=${value//$'\n'/\\n}
+  printf '%s' "$value"
+}
+
+ac_connected() {
+  local supply=""
+  local type=""
+  local online=""
+
+  for supply in /sys/class/power_supply/*; do
+    [[ -d "$supply" ]] || continue
+    [[ -r "$supply/type" && -r "$supply/online" ]] || continue
+
+    type="$(<"$supply/type")"
+    online="$(<"$supply/online")"
+    [[ "$type" == "Battery" ]] && continue
+    [[ "$online" == "1" ]] && return 0
+  done
+
+  return 1
+}
+
 battery_icon() {
   local capacity="$1"
   if (( capacity <= 10 )); then
@@ -46,7 +72,12 @@ time_to_full="$(read_upower_field time\ to\ full)"
 
 percentage="${percentage:-0%}"
 capacity="${percentage%%%}"
+capacity="${capacity%.*}"
 capacity="${capacity:-0}"
+plugged=0
+if ac_connected; then
+  plugged=1
+fi
 
 class="normal"
 if (( capacity <= 15 )); then
@@ -55,7 +86,7 @@ elif (( capacity <= 30 )); then
   class="warning"
 elif [[ "$state" == "charging" ]]; then
   class="charging"
-elif [[ "$state" == "fully-charged" || "$state" == "pending-charge" ]]; then
+elif (( plugged )) || [[ "$state" == "fully-charged" || "$state" == "pending-charge" ]]; then
   class="plugged"
 fi
 
@@ -69,8 +100,13 @@ case "$state" in
     eta_line="Connected to power"
     ;;
   *)
-    text="$(battery_icon "$capacity") ${capacity}%"
-    eta_line="Remaining runtime: ${time_to_empty:-n/a}"
+    if (( plugged )); then
+      text="󰚥 ${capacity}%"
+      eta_line="Connected to power; battery reports ${state:-unknown}"
+    else
+      text="$(battery_icon "$capacity") ${capacity}%"
+      eta_line="Remaining runtime: ${time_to_empty:-n/a}"
+    fi
     ;;
 esac
 
@@ -92,6 +128,10 @@ case "$state" in
   *) state_label="Unknown" ;;
 esac
 
-tooltip="Power Profile: ${profile_label}\\nState: ${state_label}\\nDraw: ${rate:-n/a}\\n${eta_line}"
+if (( plugged )); then
+  state_label="${state_label} / Plugged In"
+fi
 
-printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$text" "$tooltip" "$class"
+tooltip="Power Profile: ${profile_label}"$'\n'"State: ${state_label}"$'\n'"Draw: ${rate:-n/a}"$'\n'"${eta_line}"
+
+printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$text" "$(json_escape "$tooltip")" "$class"

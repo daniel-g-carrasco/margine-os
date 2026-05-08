@@ -4,5 +4,7 @@ set -euo pipefail
 
 export GTK_THEME="${GTK_THEME:-Adwaita:dark}"
 export ADW_DEBUG_COLOR_SCHEME="${ADW_DEBUG_COLOR_SCHEME:-prefer-dark}"
+export QT_QPA_PLATFORMTHEME=qt6ct
+export QT_STYLE_OVERRIDE=Fusion
 
 exec "$@"

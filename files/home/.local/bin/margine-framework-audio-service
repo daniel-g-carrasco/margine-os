@@ -221,12 +221,22 @@ main() {
     exit 0
   fi
 
+  if command -v gtk-dark-exec >/dev/null 2>&1; then
+    easyeffects_launcher=(gtk-dark-exec easyeffects --service-mode --hide-window)
+  elif [[ -x "${HOME}/.local/bin/gtk-dark-exec" ]]; then
+    easyeffects_launcher=("${HOME}/.local/bin/gtk-dark-exec" easyeffects --service-mode --hide-window)
+  else
+    easyeffects_launcher=(easyeffects --service-mode --hide-window)
+  fi
+
   if (( dry_run )); then
-    printf '[dry-run] easyeffects --service-mode --hide-window\n'
+    printf '[dry-run]'
+    printf ' %q' "${easyeffects_launcher[@]}"
+    printf '\n'
     exit 0
   fi
 
-  exec easyeffects --service-mode --hide-window
+  exec "${easyeffects_launcher[@]}"
 }
 
 main "$@"

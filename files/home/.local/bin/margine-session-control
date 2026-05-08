@@ -29,6 +29,8 @@ have_cmd() {
   command -v "$1" >/dev/null 2>&1
 }
 
+entry_gap="    "
+
 notify_operator() {
   local title="$1"
   local body="$2"
@@ -47,7 +49,7 @@ choose_confirmation() {
   [[ -x "$picker" ]] || return 1
 
   choice="$(
-    printf '%s\n' "󰜺  Cancel" "$confirm_entry" |
+    printf '%s\n' "󰜺${entry_gap}Cancel" "$confirm_entry" |
       "$picker" \
         --prompt "$prompt" \
         --placeholder "Confirm action" \
@@ -69,22 +71,22 @@ confirm_session_action() {
   case "$action" in
     suspend)
       prompt="Suspend? "
-      confirm_entry="⏾  Suspend"
+      confirm_entry="⏾${entry_gap}Suspend"
       terminal_prompt="Suspend session"
       ;;
     logout)
       prompt="Log out? "
-      confirm_entry="󰍃  Log out"
+      confirm_entry="󰍃${entry_gap}Log out"
       terminal_prompt="Log out"
       ;;
     reboot)
       prompt="Restart? "
-      confirm_entry="  Restart"
+      confirm_entry="${entry_gap}Restart"
       terminal_prompt="Restart system"
       ;;
     poweroff)
       prompt="Power off? "
-      confirm_entry="  Power off"
+      confirm_entry="${entry_gap}Power off"
       terminal_prompt="Power off system"
       ;;
     *)

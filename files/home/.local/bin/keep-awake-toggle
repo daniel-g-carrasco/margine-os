@@ -2,9 +2,12 @@
 set -euo pipefail
 
 unit="keep-awake.service"
+waybar_signal=9
 
 if systemctl --user --quiet is-active "$unit"; then
   systemctl --user stop "$unit"
 else
   systemctl --user start "$unit"
 fi
+
+pkill "-RTMIN+${waybar_signal}" -x waybar 2>/dev/null || true
