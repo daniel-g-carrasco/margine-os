@@ -85,6 +85,9 @@ The current baseline is grouped intentionally.
 ### Safety
 
 - destructive actions must be explicit
+- logout, restart, power off, and suspend must pass through
+  `margine-session-control` confirmation when launched directly from Walker or
+  another `.desktop` consumer
 - kernel/security-affecting toggles must not be one-click actions from Waybar
 - terminal tools are preferred when the operator needs context before acting
 
@@ -138,9 +141,12 @@ while direct session actions remain direct launchers.
 
 `Session Actions` is intentionally not backed by `wlogout` or `hyprshutdown`.
 The menu is implemented by `margine-session-actions-menu` through
-`margine-dmenu`, which uses Fuzzel first and Walker only as fallback. The first
-entry is `Cancel`, and logout/restart/poweroff require a second explicit picker
-confirmation.
+`margine-dmenu`, which uses Fuzzel first and Walker only as fallback. The menu
+labels include stable glyph icons so the Fuzzel path remains visually scannable.
+The first entry is `Cancel`; suspend, logout, restart, and power off require a
+second explicit picker confirmation. The same protection also lives in
+`margine-session-control`, so direct Walker desktop entries cannot end the
+session without confirmation.
 
 ## How to modify launchers safely
 

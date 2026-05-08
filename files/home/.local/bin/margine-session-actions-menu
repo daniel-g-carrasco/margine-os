@@ -4,6 +4,14 @@ set -euo pipefail
 session_ctl="${HOME}/.local/bin/margine-session-control"
 picker="${HOME}/.local/bin/margine-dmenu"
 
+cancel_entry="󰜺  Cancel"
+lock_entry="  Lock screen"
+display_off_entry="󰍹  Turn off displays"
+suspend_entry="⏾  Suspend"
+logout_entry="󰍃  Log out..."
+restart_entry="  Restart..."
+poweroff_entry="  Power off..."
+
 die() {
   printf 'error: %s\n' "$*" >&2
   exit 1
@@ -37,21 +45,23 @@ choose() {
 confirm_action() {
   local prompt="$1"
   local confirm_label="$2"
+  local confirm_entry="$3"
   local choice=""
 
   choice="$(
     choose "$prompt" 2 \
-      "Cancel" \
-      "$confirm_label"
+      "$cancel_entry" \
+      "$confirm_entry"
   )"
 
-  [[ "$choice" == "$confirm_label" ]]
+  [[ "$choice" == "$confirm_entry" ]]
 }
 
 run_action() {
   local action="$1"
+  shift || true
 
-  exec "$session_ctl" "$action"
+  exec "$session_ctl" "$@" "$action"
 }
 
 main() {
@@ -61,36 +71,36 @@ main() {
 
   choice="$(
     choose "Session> " 7 \
-      "Cancel" \
-      "Lock screen" \
-      "Turn off displays" \
-      "Suspend" \
-      "Log out..." \
-      "Restart..." \
-      "Power off..."
+      "$cancel_entry" \
+      "$lock_entry" \
+      "$display_off_entry" \
+      "$suspend_entry" \
+      "$logout_entry" \
+      "$restart_entry" \
+      "$poweroff_entry"
   )"
 
   case "$choice" in
-    "Cancel"|"")
+    "$cancel_entry"|"")
       exit 0
       ;;
-    "Lock screen")
+    "$lock_entry")
       run_action lock
       ;;
-    "Turn off displays")
+    "$display_off_entry")
       run_action display-off
       ;;
-    "Suspend")
-      run_action suspend
+    "$suspend_entry")
+      confirm_action "Suspend? " "Suspend" "$suspend_entry" && run_action suspend --confirmed
       ;;
-    "Log out...")
-      confirm_action "Log out? " "Log out" && run_action logout
+    "$logout_entry")
+      confirm_action "Log out? " "Log out" "󰍃  Log out" && run_action logout --confirmed
       ;;
-    "Restart...")
-      confirm_action "Restart? " "Restart" && run_action reboot
+    "$restart_entry")
+      confirm_action "Restart? " "Restart" "  Restart" && run_action reboot --confirmed
       ;;
-    "Power off...")
-      confirm_action "Power off? " "Power off" && run_action poweroff
+    "$poweroff_entry")
+      confirm_action "Power off? " "Power off" "  Power off" && run_action poweroff --confirmed
       ;;
     *)
       notify_operator "Session action ignored" "Unknown session menu choice: ${choice}"

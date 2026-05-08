@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  margine-session-control <action>
+  margine-session-control [--confirmed] <action>
 
 Actions:
   lock
@@ -14,6 +14,9 @@ Actions:
   reboot
   poweroff
   menu
+
+Options:
+  --confirmed  Skip the interactive confirmation for session-ending actions.
 EOF
 }
 
@@ -33,6 +36,76 @@ notify_operator() {
   if have_cmd notify-send; then
     notify-send "$title" "$body" || true
   fi
+}
+
+choose_confirmation() {
+  local prompt="$1"
+  local confirm_entry="$2"
+  local picker="${HOME}/.local/bin/margine-dmenu"
+  local choice=""
+
+  [[ -x "$picker" ]] || return 1
+
+  choice="$(
+    printf '%s\n' "󰜺  Cancel" "$confirm_entry" |
+      "$picker" \
+        --prompt "$prompt" \
+        --placeholder "Confirm action" \
+        --lines 2 \
+        --width 34 \
+        2>/dev/null || true
+  )"
+
+  [[ "$choice" == "$confirm_entry" ]]
+}
+
+confirm_session_action() {
+  local action="$1"
+  local prompt=""
+  local confirm_entry=""
+  local terminal_prompt=""
+  local reply=""
+
+  case "$action" in
+    suspend)
+      prompt="Suspend? "
+      confirm_entry="⏾  Suspend"
+      terminal_prompt="Suspend session"
+      ;;
+    logout)
+      prompt="Log out? "
+      confirm_entry="󰍃  Log out"
+      terminal_prompt="Log out"
+      ;;
+    reboot)
+      prompt="Restart? "
+      confirm_entry="  Restart"
+      terminal_prompt="Restart system"
+      ;;
+    poweroff)
+      prompt="Power off? "
+      confirm_entry="  Power off"
+      terminal_prompt="Power off system"
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  if [[ -n "${WAYLAND_DISPLAY:-}" || -n "${DISPLAY:-}" ]]; then
+    choose_confirmation "$prompt" "$confirm_entry" && return 0
+    notify_operator "Session action cancelled" "$terminal_prompt was not confirmed."
+    return 1
+  fi
+
+  if [[ -t 0 && -t 1 ]]; then
+    read -rp "${terminal_prompt}? Type yes to continue: " reply || return 1
+    [[ "$reply" == "yes" ]]
+    return
+  fi
+
+  notify_operator "Session action cancelled" "$terminal_prompt requires confirmation."
+  return 1
 }
 
 lock_screen() {
@@ -96,6 +169,31 @@ open_menu() {
 
 main() {
   local action="${1:-}"
+  local confirmed=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --confirmed)
+        confirmed=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      --*)
+        die "unknown option: $1"
+        ;;
+      *)
+        action="$1"
+        shift
+        ;;
+    esac
+  done
+
+  if [[ "$confirmed" -ne 1 ]]; then
+    confirm_session_action "$action" || exit 0
+  fi
 
   case "$action" in
     lock) lock_screen ;;
