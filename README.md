@@ -1,100 +1,85 @@
-# Margine OS
+<p align="center">
+  <img src="files/usr/share/margine/branding/margine-logo-wide.png" alt="Margine" width="520">
+</p>
 
-`Margine` is a reproducible Linux desktop project built around:
+<p align="center">
+  A reproducible Linux desktop blueprint for a fast Hyprland workstation with
+  deliberate packages, recoverable updates, and inspectable operations.
+</p>
 
-- Arch-style rolling maintenance
-- Hyprland as the primary desktop
-- Framework Laptop 13 AMD as the reference hardware
-- photography / media-friendly workstation defaults
-- real rollback, boot recovery, and reinstallability
+<p align="center">
+  <a href="docs/09-installation-guide.md">Install</a>
+  ·
+  <a href="docs/05-post-install-validation.md">Validate</a>
+  ·
+  <a href="docs/07-snapshot-recovery-behavior.md">Recover</a>
+  ·
+  <a href="docs/adr">ADRs</a>
+</p>
 
-This repository is the **public and redistributable** side of the project.
+## Why Margine
 
-## What this repository is
+Margine is not a frozen distro spin and not a dotfiles dump. It is a versioned
+system definition: manifests decide what is installed, provisioners explain how
+it reaches the machine, validators prove the result, and recovery paths stay
+part of the normal workflow.
 
-`Margine` is not a frozen distro fork.
-It is a versioned system definition with:
+The current public product targets an Arch-based Hyprland desktop. The same
+shared machinery also supports private products without mixing personal or
+non-redistributable state into this public repository.
 
-- curated package manifests
-- operational install and maintenance scripts
-- versioned user and system configuration
-- boot chain and recovery logic
-- documentation for why each layer exists
+## What You Get
 
-The project starts from a readable repository, not from a monolithic custom ISO.
+| Area | Margine baseline |
+| --- | --- |
+| Desktop | Hyprland-first Wayland session, Walker launcher, Fuzzel fallback, tuned window rules |
+| Updates | `update-all` orchestration with explicit official/AUR/Flatpak boundaries |
+| Recovery | Limine boot entries, UKIs, diagnostics, rollback-oriented update flow |
+| Storage | Btrfs/Snapper baseline plus active root-on-ZFS validation work |
+| Hardware | Framework Laptop 13 AMD as reference hardware, with generic paths kept explicit |
+| Gaming | Compatibility runtime by default; launchers and heavier app choices stay optional |
+| Operations | Shell scripts, ADRs, runbooks, and validation gates instead of hidden installer magic |
+| Identity | Margine logo, Plymouth theme, boot splash assets, and `margine-fetch` terminal branding |
 
-## Public vs private model
+## Architecture At A Glance
 
-`Margine` now uses a product model:
+```mermaid
+flowchart LR
+  repo[Repository] --> manifests[Package manifests]
+  repo --> files[Versioned files]
+  repo --> scripts[Provisioners]
+  manifests --> install[Installed system]
+  files --> install
+  scripts --> install
+  install --> validate[Validation gates]
+  validate --> update[update-all]
+  update --> rollback[Recovery / rollback]
+  rollback --> validate
+```
 
-- public repository: `margine-os`
-- future private sister repository: `margine-os-personal`
+## Products
 
-The public repository contains:
+This repository contains the redistributable side of Margine:
 
-- shared logic
-- public documentation
-- redistributable products
-- flavor overlays that remain safe to publish
+- [`margine-public`](products/margine-public.toml): Arch base, Limine boot,
+  shared Hyprland desktop, public package policy.
 
-The private repository is expected to carry:
+The private/personal line lives in a sister repository and imports shared logic
+from here while keeping private manifests and CachyOS-specific experiments out
+of the public tree.
 
-- private-only product manifests
-- personal upstream integrations
-- non-public experiments such as a true CachyOS-based personal build
+## Repository Map
 
-See [products/README.md](products/README.md) and
-[docs/03-products-and-repositories.md](docs/03-products-and-repositories.md).
+- [`products/`](products): product definitions and install targets
+- [`manifests/`](manifests): package layers and flavor overlays
+- [`files/`](files): files installed into `/etc`, `/usr`, and user homes
+- [`scripts/`](scripts): install, update, repair, branding, and validation tools
+- [`docs/adr/`](docs/adr): architectural decisions
+- [`docs/runbooks/`](docs/runbooks): operational procedures
+- [`docs/learning/`](docs/learning): research notes and design learning
+- [`inventory/`](inventory): hardware and machine observations
 
-## Core principles
-
-- `Official repos first`: use AUR only when there is a clear reason.
-- `Intent, not dump`: manifests describe the target system, not the current machine.
-- `Readable operations`: scripts must stay understandable and auditable.
-- `Rollback by design`: snapshots, recovery entries, and boot tooling are part of the architecture.
-- `Hyprland-first`: the primary desktop path is Wayland / Hyprland.
-- `Framework-aware`: hardware assumptions should stay explicit.
-- `Public/private boundary`: public and personal products must not be mixed accidentally.
-
-## Repository structure
-
-- [`docs/`](docs): architecture notes, ADRs, roadmap, and status
-- [`products/`](products): product manifests and templates
-- [`manifests/`](manifests): shared package layers and flavor overlays
-- [`scripts/`](scripts): installation, provisioning, validation, and update logic
-- [`files/`](files): versioned files installed into `/etc`, `/usr`, and `$HOME`
-- [`inventory/`](inventory): hardware notes and machine-specific observations
-
-## Current public product
-
-- [`margine-public`](products/margine-public.toml)
-
-It currently targets:
-
-- Arch as the public base
-- `limine` as the bootloader
-- `linux` as the default kernel package
-- the shared `arch` flavor overlay
-
-## Current project baseline
-
-The public baseline already includes:
-
-- `Limine + UKI + Btrfs + Snapper`
-- offline `Memtest86+` diagnostics wired into `Limine`
-- staged recovery paths and boot artifact deployment
-- reproducible install/bootstrap scripts
-- versioned Hyprland desktop behavior
-- explicit package, AUR, and Flatpak layers
-- flavor-aware manifests
-- product-aware scaffolding for future public/private split
-
-Secure Boot bootstrap tooling is versioned, but still requires an explicit
-post-install firmware-aware step.
-TPM2 auto-unlock is part of the architectural direction and is now versioned as
-a staged post-install workflow, not as an installer-side magic step.
-
-## Quick start
+## Quick Start
 
 Prepare a QEMU validation VM:
 
@@ -102,34 +87,48 @@ Prepare a QEMU validation VM:
 ./scripts/prepare-qemu-archiso-validation --product margine-public --download-iso
 ```
 
-Run a real live-ISO install flow:
+Run the live installer from a mounted repo:
 
 ```bash
 ./scripts/install-live-iso-guided --product margine-public
 ```
 
-Apply updates on an installed system:
+Update an installed Margine system:
 
 ```bash
 update-all
 ```
 
-Post-install validation checklist:
+Refresh branding in an installed QEMU guest over SSH:
 
-- [docs/05-post-install-validation.md](docs/05-post-install-validation.md)
-- [docs/06-host-sync-workflow.md](docs/06-host-sync-workflow.md)
-- [docs/07-snapshot-recovery-behavior.md](docs/07-snapshot-recovery-behavior.md)
-- [docs/08-permanent-rollback-from-snapshot.md](docs/08-permanent-rollback-from-snapshot.md)
-- [docs/09-installation-guide.md](docs/09-installation-guide.md)
-- [docs/10-ssh-access.md](docs/10-ssh-access.md)
-- [docs/11-boot-security-and-tpm2.md](docs/11-boot-security-and-tpm2.md)
-- [docs/12-post-install-layer-realignment.md](docs/12-post-install-layer-realignment.md)
+```bash
+./scripts/apply-qemu-branding-assets-over-ssh --user USERNAME --prompt-sudo
+```
 
-## Current direction
+## Validation
 
-Near-term work:
+Before treating installation changes as safe, run:
 
-1. formalize the public/private repository split cleanly
-2. keep the public product redistributable and well documented
-3. continue validating recovery, boot, and reinstall paths
-4. evolve future private products without contaminating the public repo
+```bash
+./scripts/validate-installation-pipeline
+./scripts/check-shell-and-manifests
+./scripts/check-bash-errexit-footguns
+git diff --check
+```
+
+Installed-system validation starts from:
+
+- [Post-install validation](docs/05-post-install-validation.md)
+- [Host sync workflow](docs/06-host-sync-workflow.md)
+- [Snapshot recovery behavior](docs/07-snapshot-recovery-behavior.md)
+- [Permanent rollback from snapshot](docs/08-permanent-rollback-from-snapshot.md)
+- [Boot security and TPM2](docs/11-boot-security-and-tpm2.md)
+- [Branding assets](docs/runbooks/margine-branding-assets.md)
+- [Root-on-ZFS update rollback](docs/runbooks/root-on-zfs-update-rollback.md)
+
+## Status
+
+Margine is in active system-integration work. The public Arch product is the
+redistributable baseline; root-on-ZFS, CachyOS personal integration, and deeper
+rollback automation are being validated through the product model and mirrored
+only when the generic behavior belongs in public.

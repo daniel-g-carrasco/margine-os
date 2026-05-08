@@ -129,6 +129,7 @@ check_bash_syntax() {
     scripts/provision-storage-zfs-root
     scripts/provision-initial-boot-chain
     scripts/provision-initial-boot-chain-zfs
+    scripts/provision-branding-assets
     scripts/create-zfs-boot-environment
     scripts/generate-zfs-boot-environment-entries
     scripts/validate-root-zfs-target
@@ -139,10 +140,15 @@ check_bash_syntax() {
     scripts/enable-qemu-validation-ssh
     scripts/enable-qemu-validation-inhibit
     scripts/enable-qemu-validation-inhibit-over-ssh
+    scripts/apply-qemu-branding-assets-over-ssh
     scripts/collect-qemu-root-zfs-validation-logs
     scripts/prepare-qemu-archiso-validation
     scripts/prepare-qemu-root-zfs-validation
+    files/home/.local/bin/margine-session-actions-menu
+    files/home/.local/bin/margine-session-control
+    files/home/.local/bin/open-session-actions-menu
     files/usr/local/bin/margine-build-local-overrides
+    files/home/.local/bin/margine-fetch
   )
 
   log
@@ -291,6 +297,18 @@ check_identity_defaults() {
   require_literal files/home/.config/hypr/conf.d/70-rules.conf 'name = float-file-dialogs' "Hyprland floats file chooser dialogs"
   require_literal files/home/.config/hypr/conf.d/70-rules.conf 'name = float-network-editor' "Hyprland floats NetworkManager GTK editor"
   require_literal files/home/.config/hypr/conf.d/70-rules.conf 'name = float-virtual-machine-viewers' "Hyprland floats virtual machine viewers"
+  require_literal files/home/.config/hypr/conf.d/60-binds.conf 'bindd = $mainMod, ESCAPE, Open session actions menu, exec, ~/.local/bin/open-session-actions-menu' "Super+Escape opens the safe Margine session actions menu"
+  require_absent_literal files/home/.config/hypr/conf.d/60-binds.conf "wlogout" "Super+Escape does not launch wlogout"
+  require_absent_literal files/home/.config/hypr/conf.d/60-binds.conf "hyprctl dispatch exit" "Super+Escape cannot fall through to Hyprland session exit"
+  require_literal files/home/.local/bin/margine-session-actions-menu '"Cancel"' "session actions menu exposes an explicit cancel action"
+  require_literal files/home/.local/bin/margine-session-actions-menu 'confirm_action "Log out? " "Log out"' "session actions menu confirms logout"
+  require_literal files/home/.local/bin/margine-session-actions-menu 'confirm_action "Restart? " "Restart"' "session actions menu confirms restart"
+  require_literal files/home/.local/bin/margine-session-actions-menu 'confirm_action "Power off? " "Power off"' "session actions menu confirms power off"
+  require_literal files/home/.local/bin/margine-session-control 'local menu="${HOME}/.local/bin/open-session-actions-menu"' "session control menu action uses the Margine safe menu"
+  require_absent_literal files/home/.local/bin/margine-session-control "wlogout" "session control no longer depends on wlogout"
+  require_absent_literal files/home/.local/bin/margine-session-control "hyprshutdown" "session control no longer depends on hyprshutdown"
+  require_absent_file files/home/.config/wlogout/layout "legacy wlogout layout is not shipped"
+  require_absent_literal manifests/packages/aur-baseline.txt "wlogout" "wlogout is not part of the baseline AUR layer"
   require_literal scripts/render-theme-artifacts '"MinSize=8"' "theme renderer declares scalable icon minimum sizes"
   require_literal scripts/render-theme-artifacts '"MaxSize=512"' "theme renderer declares scalable icon maximum sizes"
   require_literal files/home/.local/share/icons/Margine-Adwaita/index.theme "[scalable/places]" "Margine icon overlay declares scalable place icons"
@@ -426,6 +444,8 @@ check_root_zfs_path() {
   require_literal scripts/validate-root-zfs-target 'FILES=(/etc/hostid /etc/zfs/zpool.cache)' "root-ZFS validator checks initramfs embedded ZFS files"
   require_literal scripts/validate-root-zfs-target '@ZFS_BOOT_ENVIRONMENT_ENTRIES@' "root-ZFS validator rejects unrendered Limine boot-environment placeholders"
   require_literal scripts/validate-root-zfs-target 'org.margine:bootenv' "root-ZFS validator scans marked rollback boot environments"
+  require_literal scripts/validate-root-zfs-target 'mounted_root_dataset' "root-ZFS validator tracks the active mounted root dataset"
+  require_literal scripts/validate-root-zfs-target 'running rollback root' "root-ZFS validator accepts active rollback boot environments"
   require_literal scripts/validate-root-zfs-target 'root=ZFS=${boot_environment_dataset}' "root-ZFS validator checks rollback clone Limine entries"
   require_literal scripts/validate-root-zfs-target '/Rollback' "root-ZFS validator checks rollback menu when clones exist"
 
@@ -489,6 +509,7 @@ check_root_zfs_path() {
   require_file files/etc/systemd/system/margine-qemu-validation-inhibit.service "QEMU validation persistent inhibitor unit exists"
   require_literal files/etc/systemd/system/margine-qemu-validation-inhibit.service "ConditionPathExists=/etc/margine/qemu-validation-inhibit.enabled" "QEMU validation inhibitor is gated by an explicit marker"
   require_literal files/etc/systemd/system/margine-qemu-validation-inhibit.service "systemd-inhibit --what=sleep:idle" "QEMU validation persistent unit blocks sleep and idle"
+  require_literal files/etc/systemd/system/margine-qemu-validation-inhibit.service '"--why=QEMU validation in progress"' "QEMU validation persistent unit quotes systemd-inhibit reason"
   require_literal scripts/bootstrap-live-zfs-root-guided "--qemu-validation-inhibit" "ZFS guided bootstrap exposes validation-only QEMU inhibitor flag"
   require_literal scripts/bootstrap-live-iso "--qemu-validation-inhibit" "live bootstrap forwards validation-only QEMU inhibitor flag"
   require_literal scripts/bootstrap-in-chroot "install_qemu_validation_inhibit" "chroot bootstrap can install validation-only QEMU inhibitor"
@@ -500,8 +521,15 @@ check_root_zfs_path() {
   require_literal scripts/enable-qemu-validation-inhibit "run_user_systemctl" "QEMU idle inhibition helper uses the active user systemd bus when available"
   require_literal scripts/enable-qemu-validation-inhibit-over-ssh "Copies the guest-side idle inhibitor helper" "QEMU idle inhibition SSH helper avoids direct 9p execution"
   require_literal scripts/enable-qemu-validation-inhibit-over-ssh "base64 <" "QEMU idle inhibition SSH helper uploads the guest helper over SSH"
+  require_literal scripts/enable-qemu-validation-inhibit-over-ssh "Install persistent validation inhibitor unit" "QEMU idle inhibition SSH helper repairs old validation VMs"
+  require_literal scripts/enable-qemu-validation-inhibit-over-ssh "margine-qemu-validation-inhibit.service" "QEMU idle inhibition SSH helper installs the persistent inhibitor unit"
   require_literal scripts/enable-qemu-validation-inhibit-over-ssh "--prompt-sudo" "QEMU idle inhibition SSH helper supports interactive sudo"
   require_literal scripts/enable-qemu-validation-inhibit-over-ssh "SSH handshake succeeded" "QEMU idle inhibition SSH helper waits for a real SSH handshake"
+  require_literal scripts/apply-qemu-root-zfs-update-runtime-over-ssh "Upload filtered repository snapshot over SSH" "QEMU root-ZFS runtime refresh avoids guest 9p mounts"
+  require_literal scripts/apply-qemu-root-zfs-update-runtime-over-ssh "--exclude='./build'" "QEMU root-ZFS runtime refresh excludes build artifacts"
+  require_literal scripts/apply-qemu-branding-assets-over-ssh "Upload filtered repository snapshot over SSH" "QEMU branding refresh avoids guest 9p mounts"
+  require_literal scripts/apply-qemu-branding-assets-over-ssh "provision-branding-assets" "QEMU branding refresh applies Margine logo assets"
+  require_literal scripts/apply-qemu-branding-assets-over-ssh "provision-initial-boot-chain-zfs" "QEMU branding refresh uses the root-on-ZFS boot-chain provisioner when needed"
   require_literal scripts/collect-qemu-root-zfs-validation-logs "validate-root-zfs-target --target-root / --mode boot-chain" "QEMU root-ZFS log collector runs the installed root validator"
   require_literal scripts/collect-qemu-root-zfs-validation-logs "update-all --dry-run --no-aur --no-flatpak --no-fwupd" "QEMU root-ZFS log collector captures the update-all root-ZFS dry-run"
   require_literal scripts/collect-qemu-root-zfs-validation-logs "idle inhibitor status" "QEMU root-ZFS log collector records user idle-inhibitor state"
@@ -521,6 +549,32 @@ check_root_zfs_path() {
   require_absent_literal files/etc/margine/zfs-pre-update-datasets.conf "rpool/games" "root games dataset is excluded from pre-update snapshots"
   require_absent_literal files/etc/sanoid/sanoid.conf "[tank/games]" "games dataset is excluded from non-root automatic sanoid snapshots"
   require_absent_literal files/etc/sanoid/sanoid.conf "[rpool/games]" "root games dataset is excluded from automatic sanoid snapshots"
+}
+
+check_branding_assets() {
+  log
+  log "==> Margine branding assets"
+  require_file files/usr/share/margine/branding/margine-logo.png "wide Margine logo asset exists"
+  require_file files/usr/share/margine/branding/margine-logo-wide.png "compact wide Margine logo asset exists"
+  require_file files/usr/share/margine/branding/margine-logo-square.png "square Margine logo asset exists"
+  require_file files/usr/share/margine/branding/ascii-logo.txt "terminal Margine ASCII logo asset exists"
+  require_file files/usr/share/margine/boot/margine-splash.bmp "UKI splash bitmap asset exists"
+  require_file files/usr/share/plymouth/themes/margine/watermark.png "Plymouth Margine watermark asset exists"
+  require_file files/usr/share/icons/hicolor/512x512/apps/margine.png "hicolor Margine app icon exists"
+  require_file files/usr/share/icons/hicolor/256x256/apps/margine.png "hicolor Margine small app icon exists"
+  require_file files/usr/share/pixmaps/margine-logo.png "pixmaps Margine logo exists"
+  require_file files/usr/share/pixmaps/margine.png "pixmaps Margine icon exists"
+  require_file files/home/.config/fastfetch/config.jsonc "fastfetch user config exists"
+  require_file files/home/.config/fastfetch/margine-ascii.txt "fastfetch user ASCII logo exists"
+  require_executable files/home/.local/bin/margine-fetch "margine-fetch wrapper is executable"
+  require_literal files/usr/share/plymouth/themes/margine/margine.plymouth "ImageDir=/usr/share/plymouth/themes/margine" "Plymouth theme loads Margine-owned runtime assets"
+  require_literal scripts/provision-branding-assets "usr/share/margine/branding/margine-logo.png" "branding provisioner installs system logo asset"
+  require_literal scripts/provision-branding-assets "usr/share/plymouth/themes/margine/watermark.png" "branding provisioner installs Plymouth watermark"
+  require_literal scripts/provision-branding-assets "gtk-update-icon-cache" "branding provisioner refreshes hicolor icon cache"
+  require_literal scripts/provision-boot-baseline "provision-branding-assets" "boot baseline delegates branding asset installation"
+  require_literal scripts/provision-user-app-config '".config/fastfetch"' "user app config installs fastfetch branding"
+  require_literal scripts/provision-user-app-config '".local/bin/margine-fetch"' "user app config installs margine-fetch wrapper"
+  require_literal manifests/packages/coding-system-tools.txt "fastfetch" "default tooling includes fastfetch for terminal system identity"
 }
 
 check_guides_and_qemu() {
@@ -553,6 +607,7 @@ main() {
   check_live_package_retry_policy
   check_local_aur_overrides
   check_root_zfs_path
+  check_branding_assets
   check_guides_and_qemu
 
   log

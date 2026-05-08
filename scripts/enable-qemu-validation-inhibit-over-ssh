@@ -14,6 +14,7 @@ mode="enable"
 prompt_sudo=0
 timeout_seconds="${MARGINE_QEMU_SSH_TIMEOUT:-120}"
 remote_script="/tmp/margine-enable-qemu-validation-inhibit"
+remote_unit="/tmp/margine-qemu-validation-inhibit.service"
 declare -a ssh_args=()
 
 usage() {
@@ -22,9 +23,11 @@ Usage:
   enable-qemu-validation-inhibit-over-ssh [options]
 
 Copies the guest-side idle inhibitor helper into a running QEMU root-on-ZFS
-guest over SSH and executes it from the guest's local filesystem. This avoids
-running operational validation helpers directly from the QEMU 9p repository
-mount, which can block before the helper can print diagnostics.
+guest over SSH and executes it from the guest's local filesystem. Enable mode
+also installs the persistent validation inhibitor unit, so older validation VMs
+can be repaired without touching the 9p repository mount. This avoids running
+operational validation helpers directly from the QEMU 9p repository mount,
+which can block before the helper can print diagnostics.
 
 Options:
   --build-dir PATH       QEMU harness directory containing qemu-margine_ed25519
@@ -145,6 +148,8 @@ init_defaults() {
 
   [[ -f "${script_dir}/enable-qemu-validation-inhibit" ]] ||
     die "guest helper not found: ${script_dir}/enable-qemu-validation-inhibit"
+  [[ -f "${repo_root}/files/etc/systemd/system/margine-qemu-validation-inhibit.service" ]] ||
+    die "guest inhibitor unit not found: ${repo_root}/files/etc/systemd/system/margine-qemu-validation-inhibit.service"
   [[ -f "$identity_file" ]] || die "SSH identity file not found: $identity_file"
 
   install -d -m 700 "$(dirname "$known_hosts")"
@@ -206,6 +211,14 @@ upload_helper() {
     "${ssh_args[@]}" "umask 077; base64 -d > $(quote_remote "$remote_script"); chmod 700 $(quote_remote "$remote_script")"
 }
 
+upload_unit() {
+  [[ "$mode" == "enable" ]] || return 0
+
+  log "==> Upload persistent guest inhibitor unit to ${remote_unit}"
+  base64 <"${repo_root}/files/etc/systemd/system/margine-qemu-validation-inhibit.service" |
+    "${ssh_args[@]}" "umask 077; base64 -d > $(quote_remote "$remote_unit"); chmod 600 $(quote_remote "$remote_unit")"
+}
+
 run_remote_helper() {
   local remote_user=""
   local remote_mode=""
@@ -225,7 +238,12 @@ run_remote_helper() {
 
   remote_command=$(
     cat <<EOF
-trap 'rm -f $(quote_remote "$remote_script")' EXIT
+trap 'rm -f $(quote_remote "$remote_script") $(quote_remote "$remote_unit")' EXIT
+if [[ $(quote_remote "$mode") == "enable" ]]; then
+  echo '==> Install persistent validation inhibitor unit'
+  ${sudo_prefix} install -Dm644 $(quote_remote "$remote_unit") /etc/systemd/system/margine-qemu-validation-inhibit.service
+  ${sudo_prefix} systemctl daemon-reload
+fi
 echo '==> Running local guest inhibitor helper'
 ${sudo_prefix} $(quote_remote "$remote_script") --user ${remote_user} ${remote_mode}
 EOF
@@ -249,6 +267,7 @@ main() {
 
   wait_for_ssh
   upload_helper
+  upload_unit
   run_remote_helper
 
   log

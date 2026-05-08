@@ -12,8 +12,7 @@ mkinitcpio_conf_source="${repo_root}/files/etc/mkinitcpio.conf"
 linux_preset_source="${repo_root}/files/etc/mkinitcpio.d/linux.preset"
 vconsole_source="${repo_root}/files/etc/vconsole.conf"
 plymouth_conf_source="${repo_root}/files/etc/plymouth/plymouthd.conf"
-plymouth_theme_source="${repo_root}/files/usr/share/plymouth/themes/margine/margine.plymouth"
-uki_splash_source="${repo_root}/files/usr/share/margine/boot/margine-splash.bmp"
+branding_provisioner_source="${repo_root}/scripts/provision-branding-assets"
 
 usage() {
   cat <<'EOF'
@@ -104,8 +103,7 @@ ensure_sources() {
   ensure_source_exists "$linux_preset_source" "linux preset"
   ensure_source_exists "$vconsole_source" "vconsole baseline"
   ensure_source_exists "$plymouth_conf_source" "plymouth config"
-  ensure_source_exists "$plymouth_theme_source" "plymouth theme"
-  ensure_source_exists "$uki_splash_source" "UKI splash bitmap"
+  ensure_source_exists "$branding_provisioner_source" "branding provisioner"
 }
 
 main() {
@@ -119,8 +117,14 @@ main() {
   run_cmd install -Dm644 "$linux_preset_source" /etc/mkinitcpio.d/linux.preset
   run_cmd install -Dm644 "$vconsole_source" /etc/vconsole.conf
   run_cmd install -Dm644 "$plymouth_conf_source" /etc/plymouth/plymouthd.conf
-  run_cmd install -Dm644 "$plymouth_theme_source" /usr/share/plymouth/themes/margine/margine.plymouth
-  run_cmd install -Dm644 "$uki_splash_source" /usr/share/margine/boot/margine-splash.bmp
+
+  log
+  log "==> Install boot branding assets"
+  if (( dry_run )); then
+    run_cmd "$branding_provisioner_source" --dry-run
+  else
+    run_cmd "$branding_provisioner_source"
+  fi
 }
 
 main "$@"

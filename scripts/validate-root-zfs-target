@@ -7,6 +7,7 @@ zfs_root_dataset=""
 crypt_name=""
 mode="storage"
 dry_run=0
+mounted_root_dataset=""
 
 usage() {
   cat <<'EOF'
@@ -75,6 +76,40 @@ strip_pool_altroot() {
   else
     printf '%s\n' "$path"
   fi
+}
+
+validate_root_source() {
+  local root_source="$1"
+  local root_parent=""
+  local marker=""
+  local origin=""
+  local cmdline=""
+
+  mounted_root_dataset="$root_source"
+
+  if [[ "$root_source" == "$zfs_root_dataset" ]]; then
+    return 0
+  fi
+
+  if [[ "$mode" == "boot-chain" && "$target_root" == "/" ]]; then
+    root_parent="${zfs_root_dataset%/*}"
+    if [[ "$root_source" == "${root_parent}/"* ]]; then
+      marker="$(zfs get -H -o value org.margine:bootenv "$root_source" 2>/dev/null || true)"
+      origin="$(zfs get -H -o value origin "$root_source" 2>/dev/null || true)"
+      cmdline="$(cat /proc/cmdline 2>/dev/null || true)"
+
+      [[ "$marker" == "pre-update" ]] \
+        || die "target root source mismatch: expected ${zfs_root_dataset}, got unmarked boot environment ${root_source}"
+      [[ "$origin" == "${zfs_root_dataset}@"* ]] \
+        || die "target root source mismatch: ${root_source} is marked as rollback but has unexpected origin ${origin:-none}"
+      grep -Fq "root=ZFS=${root_source}" <<<"$cmdline" \
+        || die "running rollback root ${root_source} is not the active kernel root=ZFS target"
+
+      return 0
+    fi
+  fi
+
+  die "target root source mismatch: expected ${zfs_root_dataset}, got ${root_source}"
 }
 
 parse_args() {
@@ -208,8 +243,7 @@ check_storage_mounts() {
 
   mountpoint -q "$target_root" || die "target root is not mounted: ${target_root}"
   root_source="$(findmnt -nro SOURCE --target "$target_root")"
-  [[ "$root_source" == "$zfs_root_dataset" ]] \
-    || die "target root source mismatch: expected ${zfs_root_dataset}, got ${root_source}"
+  validate_root_source "$root_source"
 
   boot_path="$(target_path /boot)"
   mountpoint -q "$boot_path" || die "ESP is not mounted: ${boot_path}"
@@ -234,6 +268,11 @@ check_zfs_state() {
   local mountpoint_path=""
   local logical_mountpoint_path=""
   local expected_mount=""
+  local active_mountpoint=""
+  local active_logical_mountpoint=""
+  local active_canmount=""
+  local active_marker=""
+  local active_origin=""
 
   log
   log "==> Validate ZFS pool and datasets"
@@ -261,6 +300,23 @@ check_zfs_state() {
   [[ "$root_canmount" == "noauto" ]] \
     || die "root ZFS dataset must use canmount=noauto; current value: ${root_canmount}"
 
+  if [[ -n "$mounted_root_dataset" && "$mounted_root_dataset" != "$zfs_root_dataset" ]]; then
+    zfs list "$mounted_root_dataset" >/dev/null || die "mounted boot environment dataset not found: ${mounted_root_dataset}"
+    active_mountpoint="$(zfs get -H -o value mountpoint "$mounted_root_dataset")"
+    active_logical_mountpoint="$(strip_pool_altroot "$active_mountpoint" "$pool_altroot")"
+    [[ "$active_logical_mountpoint" == "/" ]] \
+      || die "mounted boot environment must resolve to logical mountpoint=/; current value: ${active_mountpoint}; pool altroot: ${pool_altroot:-none}"
+    active_canmount="$(zfs get -H -o value canmount "$mounted_root_dataset")"
+    [[ "$active_canmount" == "noauto" ]] \
+      || die "mounted boot environment must use canmount=noauto; current value: ${active_canmount}"
+    active_marker="$(zfs get -H -o value org.margine:bootenv "$mounted_root_dataset" 2>/dev/null || true)"
+    active_origin="$(zfs get -H -o value origin "$mounted_root_dataset" 2>/dev/null || true)"
+    [[ "$active_marker" == "pre-update" ]] \
+      || die "mounted boot environment is not marked as a pre-update rollback clone: ${mounted_root_dataset}"
+    [[ "$active_origin" == "${zfs_root_dataset}@"* ]] \
+      || die "mounted boot environment has unexpected origin: ${active_origin:-none}"
+  fi
+
   for dataset in "${pool_name}/home" "${pool_name}/games"; do
     zfs list -H -o name "$dataset" >/dev/null 2>&1 || continue
     mountpoint_path="$(zfs get -H -o value mountpoint "$dataset")"
@@ -274,6 +330,9 @@ check_zfs_state() {
   log "  pool: ${pool_name}"
   log "  bootfs: ${bootfs}"
   log "  root dataset: mountpoint=${root_mountpoint}, logical-mountpoint=${logical_root_mountpoint}, canmount=${root_canmount}, altroot=${pool_altroot:-none}"
+  if [[ -n "$mounted_root_dataset" && "$mounted_root_dataset" != "$zfs_root_dataset" ]]; then
+    log "  active boot environment: ${mounted_root_dataset}, origin=${active_origin}, marker=${active_marker}"
+  fi
 }
 
 check_luks_mapper() {

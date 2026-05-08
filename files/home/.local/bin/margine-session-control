@@ -84,18 +84,14 @@ poweroff_system() {
 }
 
 open_menu() {
-  if have_cmd wlogout; then
-    exec wlogout
-  fi
+  local menu="${HOME}/.local/bin/open-session-actions-menu"
 
-  if have_cmd hyprshutdown; then
-    exec hyprshutdown
-  fi
+  [[ -x "$menu" ]] || {
+    notify_operator "Session menu unavailable" "Missing Margine session actions menu."
+    die "session actions menu not found: $menu"
+  }
 
-  notify_operator \
-    "Power menu unavailable" \
-    "Neither wlogout nor hyprshutdown is installed. Use the direct power launchers or install a power-menu backend."
-  die "power-menu backend not found: install wlogout or hyprshutdown"
+  exec "$menu"
 }
 
 main() {

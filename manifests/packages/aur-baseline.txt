@@ -12,4 +12,3 @@ hyprqt6engine
 morewaita-icon-theme
 ttf-ms-fonts
 walker
-wlogout

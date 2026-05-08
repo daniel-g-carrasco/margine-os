@@ -12,6 +12,7 @@ btop
 curl
 eza
 fd
+fastfetch
 grep
 htop
 inetutils

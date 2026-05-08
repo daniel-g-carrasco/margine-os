@@ -26,7 +26,7 @@ These are installed through:
 
 - `scripts/provision-user-app-config`
 
-### 2. Action backends and terminal wrappers
+### 2. Action backends and picker wrappers
 
 The commands launched by those entries live under:
 
@@ -40,7 +40,7 @@ This includes:
 
 - session actions such as lock, logout, reboot, power off, and display off
 - terminal control tools such as host-health and split-lock control
-- wrappers that open those tools in a themed terminal window
+- wrappers that open lightweight picker menus for direct session choices
 
 ### 3. Icons
 
@@ -107,7 +107,7 @@ This is why:
 
 - `Gaming Split-Lock Control` opens a terminal tool
 - `Host Health Check` opens a terminal tool
-- `Session Actions` opens a terminal tool
+- `Session Actions` opens the Margine picker menu
 
 while direct session actions remain direct launchers.
 
@@ -135,6 +135,12 @@ while direct session actions remain direct launchers.
 - `Gaming Split-Lock Control` -> `~/.local/bin/open-gaming-split-lock-menu`
 - `Advanced Network Configuration` -> `gtk-dark-exec nm-connection-editor`
 - `Plasma Network Management (Test)` -> `~/.local/bin/open-plasma-network-management`
+
+`Session Actions` is intentionally not backed by `wlogout` or `hyprshutdown`.
+The menu is implemented by `margine-session-actions-menu` through
+`margine-dmenu`, which uses Fuzzel first and Walker only as fallback. The first
+entry is `Cancel`, and logout/restart/poweroff require a second explicit picker
+confirmation.
 
 ## How to modify launchers safely
 

@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+username=""
+home_dir=""
+
+declare -a system_assets=(
+  "usr/share/margine/branding/ascii-logo.txt"
+  "usr/share/margine/branding/margine-logo.png"
+  "usr/share/margine/branding/margine-logo-square.png"
+  "usr/share/margine/branding/margine-logo-wide.png"
+  "usr/share/margine/boot/margine-splash.bmp"
+  "usr/share/plymouth/themes/margine/margine.plymouth"
+  "usr/share/plymouth/themes/margine/watermark.png"
+  "usr/share/pixmaps/margine-logo.png"
+  "usr/share/pixmaps/margine.png"
+  "usr/share/icons/hicolor/256x256/apps/margine.png"
+  "usr/share/icons/hicolor/512x512/apps/margine.png"
+)
+
+declare -a user_assets=(
+  ".config/fastfetch/config.jsonc"
+  ".config/fastfetch/margine-ascii.txt"
+  ".local/bin/margine-fetch"
+)
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-branding-assets [options]
+
+Options:
+  --username NAME  Also install user-level fastfetch branding for NAME
+  --dry-run        Show the plan without making changes
+  --help           Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --username)
+        [[ $# -ge 2 ]] || die "missing value for --username"
+        username="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-branding-assets must run as root"
+}
+
+resolve_home_dir() {
+  home_dir="$(getent passwd "$username" | cut -d: -f6)"
+  [[ -n "$home_dir" ]] || die "could not resolve home for user: $username"
+}
+
+install_file_asset() {
+  local source="$1"
+  local target="$2"
+  local mode="$3"
+
+  [[ -f "$source" ]] || die "required source not found: $source"
+  run_cmd install -Dm"${mode}" "$source" "$target"
+}
+
+install_system_assets() {
+  local rel=""
+  local source=""
+
+  log "==> Install Margine system branding assets"
+
+  for rel in "${system_assets[@]}"; do
+    source="${repo_root}/files/${rel}"
+    install_file_asset "$source" "/${rel}" 644
+  done
+}
+
+install_plymouth_spinner_runtime_assets() {
+  local spinner_source_dir="/usr/share/plymouth/themes/spinner"
+  local theme_target_dir="/usr/share/plymouth/themes/margine"
+  local file=""
+  local rel=""
+
+  log
+  log "==> Stage Plymouth spinner runtime assets"
+
+  if [[ ! -d "$spinner_source_dir" ]]; then
+    warn "Plymouth spinner theme not found; Margine watermark is installed, but spinner frames were not copied"
+    return 0
+  fi
+
+  while IFS= read -r -d '' file; do
+    rel="${file#"${spinner_source_dir}"/}"
+    [[ "$rel" == *.plymouth ]] && continue
+    [[ "$rel" == "watermark.png" ]] && continue
+    run_cmd install -Dm644 "$file" "${theme_target_dir}/${rel}"
+  done < <(find "$spinner_source_dir" -maxdepth 1 -type f -print0 | sort -z)
+}
+
+install_user_assets() {
+  local rel=""
+  local source=""
+  local target=""
+  local mode=""
+
+  [[ -n "$username" ]] || return 0
+
+  resolve_home_dir
+
+  log
+  log "==> Install Margine user branding assets"
+
+  for rel in "${user_assets[@]}"; do
+    source="${repo_root}/files/home/${rel}"
+    target="${home_dir}/${rel}"
+    mode=644
+    [[ "$rel" == .local/bin/* ]] && mode=755
+    install_file_asset "$source" "$target" "$mode"
+  done
+
+  run_cmd chown -R "${username}:${username}" \
+    "${home_dir}/.config/fastfetch" \
+    "${home_dir}/.local/bin/margine-fetch"
+}
+
+refresh_icon_cache() {
+  log
+  log "==> Refresh icon cache"
+
+  if ! command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    warn "gtk-update-icon-cache not found; skipping hicolor cache refresh"
+    return 0
+  fi
+
+  run_cmd gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor
+}
+
+main() {
+  parse_args "$@"
+  require_root
+
+  install_system_assets
+  install_plymouth_spinner_runtime_assets
+  install_user_assets
+  refresh_icon_cache
+
+  log
+  log "Margine branding assets installed."
+}
+
+main "$@"

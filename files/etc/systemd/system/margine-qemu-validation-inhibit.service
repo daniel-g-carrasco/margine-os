@@ -4,7 +4,7 @@ ConditionPathExists=/etc/margine/qemu-validation-inhibit.enabled
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/systemd-inhibit --what=sleep:idle --who=Margine-QEMU-validation --why=QEMU validation in progress --mode=block /usr/bin/sleep infinity
+ExecStart=/usr/bin/systemd-inhibit --what=sleep:idle --who=Margine-QEMU-validation "--why=QEMU validation in progress" --mode=block /usr/bin/sleep infinity
 Restart=always
 RestartSec=5s
 

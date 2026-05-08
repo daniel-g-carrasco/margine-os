@@ -415,11 +415,15 @@ boot_visuals_section() {
   status_line "/etc/plymouth/plymouthd.conf: $( [[ -f /etc/plymouth/plymouthd.conf ]] && echo yes || echo no )"
   status_line "current theme: ${plymouth_theme}"
   status_line "Margine UKI splash: $( [[ -f /usr/share/margine/boot/margine-splash.bmp ]] && echo yes || echo no )"
+  status_line "Margine branding logo: $( [[ -f /usr/share/margine/branding/margine-logo.png ]] && echo yes || echo no )"
+  status_line "Margine Plymouth watermark: $( [[ -f /usr/share/plymouth/themes/margine/watermark.png ]] && echo yes || echo no )"
   status_line "kernel cmdline contains splash: $( [[ -r /etc/kernel/cmdline ]] && rg -q '(^| )splash( |$)' /etc/kernel/cmdline && echo yes || echo no )"
 
   [[ " ${mkinitcpio_hooks} " == *" plymouth "* ]] || mark_issue
   [[ -f /etc/plymouth/plymouthd.conf ]] || mark_issue
   [[ -f /usr/share/margine/boot/margine-splash.bmp ]] || mark_issue
+  [[ -f /usr/share/margine/branding/margine-logo.png ]] || mark_issue
+  [[ -f /usr/share/plymouth/themes/margine/watermark.png ]] || mark_issue
   if [[ ! -r /etc/kernel/cmdline ]] || ! rg -q '(^| )splash( |$)' /etc/kernel/cmdline; then
     mark_issue
   fi

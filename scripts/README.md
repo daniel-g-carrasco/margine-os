@@ -118,9 +118,16 @@ Operational scripts:
   terminal while root output is also saved to the log file.
 - `apply-qemu-root-zfs-update-runtime-over-ssh`: host-side repair helper for an
   installed QEMU root-on-ZFS guest that needs the current repository copy of the
-  installed `update-all` runtime. It mounts the 9p repository, stages a filtered
-  copy under guest-local `/var/tmp`, refreshes the global updater, reinstalls the
-  user wrapper, and writes `~/update-all-zfs-rollback-dryrun.log`.
+  installed `update-all` runtime. It uploads a filtered repository snapshot over
+  SSH into guest-local `/var/tmp`, refreshes the global updater, reinstalls the
+  user wrapper, and writes `~/update-all-zfs-rollback-dryrun.log`. This path
+  avoids guest-side 9p mounts because a stuck kernel 9p mount can become
+  unkillable during validation.
+- `apply-qemu-branding-assets-over-ssh`: host-side helper for pushing the
+  current Margine logo/Plymouth/fastfetch assets into an installed QEMU guest.
+  It uploads a filtered repository snapshot over SSH, applies
+  `provision-branding-assets`, and refreshes either the root-on-ZFS boot chain
+  or the generic `mkinitcpio` path according to the guest install manifest.
 - `enable-qemu-validation-ssh`: guest-side helper that installs the generated
   QEMU validation public key from `build/qemu-root-zfs-*/qemu-margine_ed25519.pub`
   into the selected user's `authorized_keys`, enables the SSH server, and
@@ -132,10 +139,11 @@ Operational scripts:
   sleep and idle, and starts the user's `keep-awake.service` when a graphical
   user bus is available. Disable it with `--disable` after collecting logs.
 - `enable-qemu-validation-inhibit-over-ssh`: host-side wrapper that uploads
-  `enable-qemu-validation-inhibit` to `/tmp` in the installed QEMU guest and
-  runs it from the guest's local filesystem. Use this for post-install VM
-  validation instead of executing the inhibitor directly from the 9p repository
-  mount.
+  `enable-qemu-validation-inhibit` to `/tmp` in the installed QEMU guest, repairs
+  the persistent `margine-qemu-validation-inhibit.service` unit in enable mode,
+  and runs the helper from the guest's local filesystem. Use this for
+  post-install VM validation instead of executing the inhibitor directly from
+  the 9p repository mount.
 - `repair-zfs-root-boot-chain`: live-ISO helper for a root-on-ZFS target whose
   storage is intact but whose boot artifacts are suspect. It mounts the target,
   refreshes `/root/margine-os`, reruns `provision-initial-boot-chain-zfs` in
@@ -169,7 +177,12 @@ Operational scripts:
 - `provision-initial-boot-chain`: closes the bootstrap by installing the
   initial `mkinitcpio + UKI + Limine` boot chain on the target system.
 - `provision-boot-baseline`: installs the local boot baseline files
-  (`mkinitcpio`, `vconsole`, `plymouth`, UKI splash) before regeneration.
+  (`mkinitcpio`, `vconsole`, `plymouth`, UKI splash and Margine branding
+  assets) before regeneration.
+- `provision-branding-assets`: installs the Margine system logo set
+  (`/usr/share/margine/branding`, Plymouth watermark, UKI splash bitmap,
+  hicolor/pixmaps icons) and, when given `--username`, the user `fastfetch`
+  ASCII-logo wrapper.
 - `stage-limine-side-by-side`: stages `Limine` as a separate EFI application,
   with config at the ESP root and a dedicated UEFI entry, without replacing the
   current bootloader.

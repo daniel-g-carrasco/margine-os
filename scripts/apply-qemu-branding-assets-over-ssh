@@ -9,34 +9,40 @@ identity_file=""
 known_hosts=""
 ssh_user="${MARGINE_QEMU_SSH_USER:-margine}"
 ssh_port="${MARGINE_QEMU_SSH_PORT:-2222}"
+target_user=""
+product="${MARGINE_PRODUCT:-}"
+flavor="${MARGINE_FLAVOR:-}"
 prompt_sudo=0
 timeout_seconds="${MARGINE_QEMU_SSH_TIMEOUT:-120}"
-remote_repo="/root/margine-repo"
-remote_runtime="/var/tmp/margine-os-runtime"
+remote_runtime="/var/tmp/margine-os-branding-runtime"
 declare -a ssh_args=()
 
 usage() {
   cat <<'EOF'
 Usage:
-  apply-qemu-root-zfs-update-runtime-over-ssh [options]
+  apply-qemu-branding-assets-over-ssh [options]
 
-Refresh the installed update-all runtime inside a running QEMU root-on-ZFS
-guest. The helper uploads a filtered repository snapshot over SSH to a
-guest-local temporary directory, refreshes the installed global update runtime,
-reinstalls the user update-all wrapper, and runs a root-on-ZFS dry-run.
+Apply the current repository branding assets inside a running QEMU guest over
+SSH. The helper uploads a filtered repository snapshot to guest-local storage,
+installs Margine logo/Plymouth/fastfetch assets, and refreshes the boot chain.
+On root-on-ZFS guests it uses provision-initial-boot-chain-zfs instead of the
+generic mkinitcpio-only path.
 
 Options:
   --build-dir PATH       QEMU harness directory containing qemu-margine_ed25519
   --identity-file PATH   SSH identity file (default: BUILD_DIR/qemu-margine_ed25519)
   --known-hosts PATH     SSH known_hosts file (default: BUILD_DIR/known_hosts)
   --user USER            SSH login user (default: MARGINE_QEMU_SSH_USER or margine)
+  --target-user USER     User that receives margine-fetch assets (default: --user)
+  --product NAME         Target product (default: inferred from repository)
+  --flavor NAME          Target flavor (default: inferred from product)
   --port PORT            Host forwarded SSH port (default: MARGINE_QEMU_SSH_PORT or 2222)
   --prompt-sudo          Allow an interactive sudo password prompt over SSH
   --timeout SECONDS      Wait time for SSH handshake (default: 120)
   --help                 Show this help
 
 Example:
-  ./scripts/apply-qemu-root-zfs-update-runtime-over-ssh --user danielitivov --prompt-sudo
+  ./scripts/apply-qemu-branding-assets-over-ssh --user danielitivov --prompt-sudo
 EOF
 }
 
@@ -89,6 +95,21 @@ parse_args() {
         ssh_user="$2"
         shift 2
         ;;
+      --target-user)
+        [[ $# -ge 2 ]] || die "missing value for --target-user"
+        target_user="$2"
+        shift 2
+        ;;
+      --product)
+        [[ $# -ge 2 ]] || die "missing value for --product"
+        product="$2"
+        shift 2
+        ;;
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="$2"
+        shift 2
+        ;;
       --port)
         [[ $# -ge 2 ]] || die "missing value for --port"
         ssh_port="$2"
@@ -112,6 +133,29 @@ parse_args() {
         ;;
     esac
   done
+}
+
+infer_product_defaults() {
+  if [[ -z "$product" ]]; then
+    if [[ -f "${repo_root}/products/margine-cachyos.toml" ]]; then
+      product="margine-cachyos"
+    else
+      product="margine-public"
+    fi
+  fi
+
+  if [[ -z "$flavor" ]]; then
+    case "$product" in
+      margine-cachyos)
+        flavor="cachyos"
+        ;;
+      *)
+        flavor="arch"
+        ;;
+    esac
+  fi
+
+  target_user="${target_user:-$ssh_user}"
 }
 
 init_defaults() {
@@ -138,7 +182,7 @@ init_defaults() {
 ensure_prereqs() {
   local cmd=""
 
-  for cmd in awk find install sort ssh timeout; do
+  for cmd in awk find install sort ssh tar timeout; do
     have_cmd "$cmd" || die "required command not found: $cmd"
   done
 }
@@ -174,29 +218,18 @@ quote_remote() {
 }
 
 remote_prepare_payload() {
-  local sudo_prefix="$1"
-
   cat <<EOF
 set -euo pipefail
 
 remote_runtime=$(quote_remote "$remote_runtime")
-legacy_tmp_runtime=/tmp/margine-os-runtime
 
-log() {
-  printf '%s\n' "\$*"
-}
-
-run_sudo() {
-  ${sudo_prefix} "\$@"
-}
-
-log '==> Prepare guest-local runtime directory'
-rm -rf "\$remote_runtime" "\$legacy_tmp_runtime"
+printf '%s\n' '==> Prepare guest-local branding runtime directory'
+rm -rf "\$remote_runtime"
 mkdir -p "\$remote_runtime"
-if ! command -v tar >/dev/null 2>&1; then
-  log 'error: tar is required in the guest to stage the runtime repository'
+command -v tar >/dev/null 2>&1 || {
+  printf '%s\n' 'error: tar is required in the guest to stage the runtime repository' >&2
   exit 1
-fi
+}
 EOF
 }
 
@@ -207,27 +240,45 @@ remote_apply_payload() {
 set -euo pipefail
 
 remote_runtime=$(quote_remote "$remote_runtime")
-
-log() {
-  printf '%s\n' "\$*"
-}
+target_user=$(quote_remote "$target_user")
+product=$(quote_remote "$product")
+flavor=$(quote_remote "$flavor")
 
 run_sudo() {
   ${sudo_prefix} "\$@"
 }
 
-log '==> Refresh installed global update runtime'
-run_sudo "\$remote_runtime/scripts/provision-user-app-config" --install-global-update-only
+is_root_zfs=0
+if [[ -r /etc/margine/install-layout.env ]]; then
+  # shellcheck disable=SC1091
+  source /etc/margine/install-layout.env
+  if [[ "\${MARGINE_STORAGE_LAYOUT:-}" == "zfs-root" ]]; then
+    is_root_zfs=1
+  fi
+fi
 
-log '==> Refresh user update-all wrapper'
-install -Dm755 "\$remote_runtime/files/home/.local/bin/update-all" "\$HOME/.local/bin/update-all"
+printf '%s\n' '==> Install Margine branding assets'
+run_sudo "\$remote_runtime/scripts/provision-branding-assets" --username "\$target_user"
 
-log '==> Run root-on-ZFS update-all dry-run'
-update-all --dry-run --no-aur --no-flatpak --no-fwupd |& tee "\$HOME/update-all-zfs-rollback-dryrun.log"
+if (( is_root_zfs )); then
+  printf '%s\n' '==> Refresh root-on-ZFS boot chain'
+  run_sudo "\$remote_runtime/scripts/provision-initial-boot-chain-zfs" --product "\$product" --flavor "\$flavor"
+else
+  printf '%s\n' '==> Refresh generic boot baseline'
+  run_sudo "\$remote_runtime/scripts/provision-boot-baseline" --product "\$product" --flavor "\$flavor"
+  if command -v mkinitcpio >/dev/null 2>&1; then
+    run_sudo mkinitcpio -P
+  else
+    printf '%s\n' 'warning: mkinitcpio not found; boot image regeneration skipped' >&2
+  fi
+fi
 
-log
-log "Dry-run log: \$HOME/update-all-zfs-rollback-dryrun.log"
-log '=== DONE ==='
+printf '%s\n' '==> Validate installed boot branding'
+if [[ -x "\$remote_runtime/scripts/validate-boot-recovery-baseline" ]]; then
+  run_sudo "\$remote_runtime/scripts/validate-boot-recovery-baseline" || true
+fi
+
+printf '%s\n' '=== DONE ==='
 EOF
 }
 
@@ -244,14 +295,11 @@ run_remote_command() {
 
 run_remote_prepare() {
   local remote_command=""
-  local sudo_prefix=""
 
   if (( prompt_sudo )); then
-    sudo_prefix="sudo"
-    remote_command="sudo -v && $(remote_prepare_payload "$sudo_prefix")"
+    remote_command="sudo -v && $(remote_prepare_payload)"
   else
-    sudo_prefix="sudo -n"
-    remote_command="$(remote_prepare_payload "$sudo_prefix")"
+    remote_command="$(remote_prepare_payload)"
   fi
 
   run_remote_command "$remote_command"
@@ -297,11 +345,15 @@ run_remote_apply() {
 main() {
   parse_args "$@"
   ensure_prereqs
+  infer_product_defaults
   init_defaults
 
-  log "=== Apply QEMU root-on-ZFS update runtime ==="
+  log "=== Apply QEMU branding assets ==="
   log "Build dir: $build_dir"
   log "SSH: ${ssh_user}@127.0.0.1:${ssh_port}"
+  log "Target user: $target_user"
+  log "Product: $product"
+  log "Flavor: $flavor"
   wait_for_ssh
   run_remote_prepare
   upload_runtime_repository
