@@ -38,7 +38,7 @@ comment: Auto-generated entries for snapshots and maintenance.
 //Manual recovery
 protocol: efi
 path: ${EFI_LINUX}/margine-recovery.efi
-cmdline: root=UUID=@ROOT_UUID@ rd.luks.name=@LUKS_UUID@=cryptroot rootfstype=btrfs rootflags=subvol=@ rw quiet
+cmdline: root=UUID=@ROOT_UUID@ rd.luks.name=@LUKS_UUID@=@CRYPT_NAME@ rootfstype=btrfs rootflags=subvol=@ rw quiet
 
 # BEGIN MARGINE GENERATED RECOVERY ENTRIES
 # END MARGINE GENERATED RECOVERY ENTRIES

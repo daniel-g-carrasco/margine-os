@@ -4,11 +4,16 @@
 # - `yay` first, because the AUR is managed through it after bootstrap;
 # - `elephant-all` before `walker`, because Walker depends on Elephant
 #   and its official providers being present.
+# - `ttf-ioskeley-mono` supplies the terminal/code/compact font families;
+#   Iosevka Etoile/Aile remain in the official font layer for UI/fallback.
+# - `wayland-scroll-factor` owns the Hyprland scroll tuning frontend.
 
 yay
 elephant-all
 adwaita-colors-icon-theme
 hyprqt6engine
 morewaita-icon-theme
+ttf-ioskeley-mono
 ttf-ms-fonts
 walker
+wayland-scroll-factor

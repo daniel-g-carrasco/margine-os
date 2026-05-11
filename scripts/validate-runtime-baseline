@@ -443,7 +443,7 @@ launcher_section() {
   fi
 
   if (( ${#aur_baseline_packages[@]} == 0 )); then
-    aur_baseline_packages=(yay elephant-all ttf-ms-fonts walker)
+    aur_baseline_packages=(yay elephant-all ttf-ioskeley-mono ttf-ms-fonts walker)
   fi
 
   status_line "walker: ${walker_path:-missing}"
@@ -612,10 +612,12 @@ power_section() {
   status_line "hyprlock PAM present: $( [[ -f /etc/pam.d/hyprlock ]] && echo yes || echo no )"
   [[ -f /etc/pam.d/hyprlock ]] || mark_issue
   if [[ -f /etc/pam.d/hyprlock ]]; then
-    local login_includes
+    local login_includes hyprlock_fprint
     login_includes="$(rg -c '^[[:space:]]*auth[[:space:]]+include[[:space:]]+login$' /etc/pam.d/hyprlock 2>/dev/null || true)"
+    hyprlock_fprint="$(rg -c 'pam_fprintd\.so' /etc/pam.d/hyprlock 2>/dev/null || true)"
     status_line "hyprlock PAM login includes: ${login_includes:-0}"
-    if [[ "${login_includes:-0}" != "1" ]]; then
+    status_line "hyprlock PAM fingerprint modules: ${hyprlock_fprint:-0}"
+    if [[ "${login_includes:-0}" != "1" || "${hyprlock_fprint:-0}" != "0" ]]; then
       status_line "hyprlock PAM sanity: suspect"
       mark_issue
     else

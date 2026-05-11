@@ -3,12 +3,21 @@
 set -euo pipefail
 
 rfkill unblock bluetooth >/dev/null 2>&1 || true
+theme_file="${XDG_CONFIG_HOME:-$HOME/.config}/margine/theme.env"
+terminal_font_family="Iosevka Term Slab"
+
+if [[ -r "$theme_file" ]]; then
+  # shellcheck disable=SC1090
+  source "$theme_file"
+  terminal_font_name="${MARGINE_THEME_TERMINAL_FONT_NAME:-Iosevka Term Slab 11}"
+  terminal_font_family="$(printf '%s\n' "$terminal_font_name" | sed -E 's/[[:space:]][0-9]+([.][0-9]+)?$//')"
+fi
 
 kitty_bluetooth_window=(
   kitty
   --class bluetooth-tui
   --title Bluetooth
-  --override font_family="IBM Plex Mono"
+  --override font_family="$terminal_font_family"
   --override font_size=12.0
   --override window_padding_width=14
   --override background="#121212"

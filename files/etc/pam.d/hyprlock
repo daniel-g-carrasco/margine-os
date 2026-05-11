@@ -1,5 +1,7 @@
-# PAM configuration file for hyprlock
-# the 'login' configuration file (see /etc/pam.d/login)
+# PAM configuration file for hyprlock.
+#
+# Fingerprint unlock is handled by hyprlock's native auth.fingerprint block.
+# Keep PAM password-only so password fallback does not wait on pam_fprintd or
+# compete with hyprlock for the fprintd device.
 
-auth        sufficient  pam_fprintd.so
 auth        include     login

@@ -27,6 +27,7 @@ Snapshot entries:
 - point to the shared recovery `UKI`
 - boot the selected Btrfs snapshot with `rootflags=subvol=...`
 - use `systemd.unit=graphical.target`
+- mask `boot.mount`
 - boot in `ro`, not `rw`
 
 `Manual recovery` remains a separate lower-level entry.
@@ -71,6 +72,18 @@ The following remains true:
 - the `ESP` is outside the Btrfs snapshot boundary
 - after a rollback, the boot pipeline may still need to be re-synchronized
 - a bootable snapshot exists to recover and decide, not to perform magic
+
+Snapshot entries deliberately mask `boot.mount`. The selected root snapshot may
+contain an old `/etc/fstab`, old kernel modules, or old boot assumptions, while
+`/boot` is the live ESP from the current system. A read-only snapshot recovery
+session does not need to mount the ESP, and failing to mount it must not drop the
+machine into emergency mode.
+
+The recovery UKI should also carry basic pointer input modules for laptops,
+notably `i2c_hid_acpi`, `i2c_hid`, and `hid_multitouch`. Old snapshots may not
+have `/usr/lib/modules/<current-kernel>` available after root switch. Keyboard
+input can still work from the initramfs while an I2C touchpad disappears if its
+driver needs to be loaded later from the old snapshot root.
 
 ## Expected behavior
 

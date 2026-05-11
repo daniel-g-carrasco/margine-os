@@ -6,6 +6,15 @@ rfkill unblock wifi >/dev/null 2>&1 || true
 
 force_tui=0
 prefer_nmtui=0
+theme_file="${XDG_CONFIG_HOME:-$HOME/.config}/margine/theme.env"
+terminal_font_family="Iosevka Term Slab"
+
+if [[ -r "$theme_file" ]]; then
+  # shellcheck disable=SC1090
+  source "$theme_file"
+  terminal_font_name="${MARGINE_THEME_TERMINAL_FONT_NAME:-Iosevka Term Slab 11}"
+  terminal_font_family="$(printf '%s\n' "$terminal_font_name" | sed -E 's/[[:space:]][0-9]+([.][0-9]+)?$//')"
+fi
 
 if [[ "${1:-}" == "--force-tui" ]]; then
   force_tui=1
@@ -40,7 +49,7 @@ kitty_network_window=(
   kitty
   --class network-tui
   --title Network
-  --override font_family="IBM Plex Mono"
+  --override font_family="$terminal_font_family"
   --override font_size=12.0
   --override window_padding_width=14
   --override background="#121212"

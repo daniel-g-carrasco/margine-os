@@ -188,12 +188,14 @@ render_limine_config() {
     "$generator" \
       --root-uuid "$root_uuid" \
       --luks-uuid "$luks_uuid" \
+      --crypt-name "$crypt_name" \
       --output "$rendered_limine_conf"
     printf '[dry-run] render %s\n' "$rendered_limine_conf"
   else
     "$generator" \
       --root-uuid "$root_uuid" \
       --luks-uuid "$luks_uuid" \
+      --crypt-name "$crypt_name" \
       --output "$rendered_limine_conf"
   fi
 }

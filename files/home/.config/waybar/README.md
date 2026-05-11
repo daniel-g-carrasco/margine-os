@@ -31,7 +31,7 @@ This directory owns the top bar for the Hyprland desktop.
 - Center:
   `clock`
 - Right:
-  `tray`, recording, VPN, split-lock, network, bluetooth, keep-awake, EasyEffects, audio, battery, notifications
+  `tray`, recording, VPN, split-lock, network, bluetooth, keep-awake, audio, battery, notifications
 
 ## Common edit recipes
 
@@ -74,10 +74,9 @@ The `custom/network` module deliberately exposes two different entry points:
 - left click: `~/.local/bin/open-network-settings`
 - middle click: `~/.local/bin/open-network-tui --nmtui`
 
-`--nmtui` matters because the generic network wrapper can otherwise choose
-`impala` or `nm-connection-editor` depending on device state. The middle click
-path is reserved for operators who explicitly want the older `nmtui` terminal
-UI.
+The left-click path opens `nm-connection-editor` through the GTK dark wrapper
+when available. The middle-click path is reserved for operators who explicitly
+want the older `nmtui` terminal UI.
 
 ### Change colors, spacing, or typography
 

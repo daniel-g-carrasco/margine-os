@@ -19,11 +19,19 @@ Snapshot entries in `Margine` boot:
 - `margine-recovery.efi`
 - a specific `Snapper` root snapshot
 - in `ro`
+- without mounting the live ESP at `/boot`
 
 This is a safer inspection path.
 
 It is not designed to mutate the system in place and replace the normal `@`
 root subvolume automatically.
+
+The boot entry generation applies to old snapshots too, because the generated
+`Limine` command line points at an existing snapshot. It does **not** rewrite
+the contents of old snapshots. Their old `/etc/fstab`, packages and module
+state remain exactly as they were. For that reason snapshot entries mask
+`boot.mount`: `/boot` is the current ESP outside the Btrfs snapshot and is not
+required for a temporary read-only recovery session.
 
 ## Temporary recovery vs permanent rollback
 
@@ -95,6 +103,27 @@ You should see:
 
 - root mounted from `@snapshots/<N>/snapshot`
 - `ro`
+- `systemd.mask=boot.mount` in `/proc/cmdline`
+
+If an old snapshot drops into emergency mode with `Failed to mount /boot`, the
+boot menu was generated before the `boot.mount` mask was added. Boot `Primary`
+or a live ISO, regenerate the host boot baseline, then retry the snapshot entry.
+
+If an old snapshot boots but the touchpad does not work, first assume an input
+module gap rather than a failed rollback. The Framework touchpad is an I2C HID
+device; keyboard input may be available from the initramfs while the touchpad
+driver would otherwise need matching modules from the old read-only snapshot
+root. The Margine mkinitcpio baseline includes `i2c_hid_acpi`, `i2c_hid`, and
+`hid_multitouch` to keep this recovery path usable after UKIs are regenerated.
+
+If an old snapshot boots with no touchpad, missing Wi-Fi, missing dock/display
+support, or a long `/dev/zram0` wait, treat it as a kernel/userspace coherence
+failure in the temporary Btrfs recovery path. The host boot menu is using the
+current ESP and current UKIs to inspect an old read-only root snapshot; old
+userspace, old module trees, old generated units and the current kernel are not
+a guaranteed boot environment. Do not use that failure mode as a production
+requirement for Margine root-on-ZFS. The ZFS update path must instead publish a
+coherent rollback clone with its matching frozen UKI.
 
 ## Step 2. Use a writable maintenance environment
 
@@ -113,8 +142,9 @@ This is the current manual model.
 Example outline from a live ISO:
 
 ```bash
-cryptsetup open /dev/<root-device> cryptroot
-mount -o subvol=/ /dev/mapper/cryptroot /mnt
+crypt_name=root
+cryptsetup open /dev/<root-device> "$crypt_name"
+mount -o subvol=/ "/dev/mapper/${crypt_name}" /mnt
 
 # move the current system root out of the way
 mv /mnt/@ /mnt/@rollback-old-$(date +%F-%H%M%S)
@@ -127,7 +157,7 @@ After that:
 
 ```bash
 umount /mnt
-cryptsetup close cryptroot
+cryptsetup close "$crypt_name"
 reboot
 ```
 
@@ -142,6 +172,12 @@ sudo /home/daniel/dev/margine-os/scripts/provision-host-root-baseline
 ```
 
 This re-checks:
+
+- the currently active LUKS mapper name (`root` on Daniel's Arch/Btrfs host,
+  `cryptroot` on the current Margine VM defaults);
+- the Btrfs root UUID;
+- the LUKS container UUID;
+- the generated Limine primary, manual recovery and snapshot recovery cmdlines.
 
 - fingerprint baseline
 - snapper baseline

@@ -28,11 +28,14 @@ normalize_file_for_compare() {
   case "$rel" in
     .config/easyeffects/db/easyeffectsrc)
       sed \
+        -e '/^lastLoadedOutputPreset=/d' \
         -e '/^mostUsedPresets=/d' \
         -e '/^usedPresets=/d' \
         -e '/^outputDevice=/d' \
         -e '/^inputDevice=/d' \
         -e '/^plugins=/d' \
+        -e '/^height=/d' \
+        -e '/^width=/d' \
         -- "$src" >"$out"
       ;;
     *)

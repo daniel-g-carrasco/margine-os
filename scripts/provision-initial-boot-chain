@@ -287,6 +287,7 @@ render_limine_config() {
   run_cmd "$generate_limine_script" \
     --root-uuid "$root_uuid" \
     --luks-uuid "$luks_uuid" \
+    --crypt-name "$crypt_name" \
     --output "$rendered_limine_conf"
 }
 

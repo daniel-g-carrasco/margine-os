@@ -1,0 +1,549 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+target_root="/"
+pool_name=""
+zfs_root_dataset=""
+esp_path="/boot"
+keep=3
+destroy=0
+dry_run=0
+republish=1
+product=""
+flavor=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  prune-zfs-rollback-boot-environments [options]
+
+Plans or prunes Margine root-on-ZFS pre-update rollback boot environments.
+By default this is a read-only plan. Destructive pruning requires --destroy.
+
+Options:
+  --target-root PATH       Mounted target root (default: /)
+  --pool-name NAME         ZFS pool name; inferred when possible
+  --zfs-root-dataset DS    Primary root dataset, for example rpool/ROOT/default
+  --esp-path PATH          ESP mount path as seen from target root (default: /boot)
+  --keep N                 Keep the newest N rollback boot environments (default: 3)
+  --product NAME           Product passed to provision-initial-boot-chain-zfs
+  --flavor NAME            Flavor passed to provision-initial-boot-chain-zfs
+  --destroy                Apply the pruning plan
+  --dry-run                Show commands without executing destructive actions
+  --no-republish           Do not regenerate Limine after pruning
+  --help                   Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+target_path() {
+  local relative="${1#/}"
+
+  if [[ "$target_root" == "/" ]]; then
+    printf '/%s\n' "$relative"
+  else
+    printf '%s/%s\n' "${target_root%/}" "$relative"
+  fi
+}
+
+env_file_value() {
+  local path="$1"
+  local key="$2"
+
+  awk -F= -v key="$key" '
+    $1 == key {
+      value = $0
+      sub(/^[^=]*=/, "", value)
+      gsub(/^"/, "", value)
+      gsub(/"$/, "", value)
+      print value
+      exit
+    }
+  ' "$path"
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --target-root)
+        [[ $# -ge 2 ]] || die "missing value for --target-root"
+        target_root="$2"
+        shift 2
+        ;;
+      --pool-name)
+        [[ $# -ge 2 ]] || die "missing value for --pool-name"
+        pool_name="$2"
+        shift 2
+        ;;
+      --zfs-root-dataset)
+        [[ $# -ge 2 ]] || die "missing value for --zfs-root-dataset"
+        zfs_root_dataset="$2"
+        shift 2
+        ;;
+      --esp-path)
+        [[ $# -ge 2 ]] || die "missing value for --esp-path"
+        esp_path="$2"
+        shift 2
+        ;;
+      --keep)
+        [[ $# -ge 2 ]] || die "missing value for --keep"
+        keep="$2"
+        shift 2
+        ;;
+      --product)
+        [[ $# -ge 2 ]] || die "missing value for --product"
+        product="$2"
+        shift 2
+        ;;
+      --flavor)
+        [[ $# -ge 2 ]] || die "missing value for --flavor"
+        flavor="$2"
+        shift 2
+        ;;
+      --destroy)
+        destroy=1
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --no-republish)
+        republish=0
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+zfs_value() {
+  local property="$1"
+  local dataset="$2"
+  local value=""
+
+  value="$(zfs get -H -o value "$property" "$dataset" 2>/dev/null || true)"
+  [[ "$value" != "-" ]] || value=""
+  printf '%s\n' "$value"
+}
+
+mounted_root_source() {
+  local source=""
+
+  source="$(findmnt -nro SOURCE --target "$target_root" 2>/dev/null || true)"
+  source="${source%%[*}"
+  printf '%s\n' "$source"
+}
+
+load_manifest_defaults() {
+  local manifest_path=""
+
+  manifest_path="$(target_path /etc/margine/install-layout.env)"
+  [[ -r "$manifest_path" ]] || return 0
+
+  if [[ -z "$zfs_root_dataset" ]]; then
+    zfs_root_dataset="$(env_file_value "$manifest_path" MARGINE_ZFS_ROOT_DATASET 2>/dev/null || true)"
+  fi
+  if [[ -z "$pool_name" ]]; then
+    pool_name="$(env_file_value "$manifest_path" MARGINE_ZFS_POOL 2>/dev/null || true)"
+  fi
+}
+
+infer_defaults() {
+  local root_source=""
+  local bootfs=""
+
+  load_manifest_defaults
+
+  root_source="$(mounted_root_source)"
+
+  if [[ -z "$pool_name" && "$zfs_root_dataset" == */* ]]; then
+    pool_name="${zfs_root_dataset%%/*}"
+  fi
+  if [[ -z "$pool_name" && "$root_source" == */* ]]; then
+    pool_name="${root_source%%/*}"
+  fi
+  if [[ -z "$zfs_root_dataset" && -n "$pool_name" ]]; then
+    bootfs="$(zpool get -H -o value bootfs "$pool_name" 2>/dev/null || true)"
+    if [[ "$bootfs" != "-" && "$bootfs" != "none" ]]; then
+      zfs_root_dataset="$bootfs"
+    fi
+  fi
+}
+
+validate_inputs() {
+  [[ "$keep" =~ ^[0-9]+$ ]] || die "--keep must be a positive integer"
+  (( keep >= 1 )) || die "--keep must keep at least one rollback boot environment"
+  [[ -n "$zfs_root_dataset" ]] || die "primary root dataset could not be inferred; pass --zfs-root-dataset"
+  [[ "$zfs_root_dataset" == */* ]] || die "--zfs-root-dataset must include a pool name"
+  [[ -n "$pool_name" ]] || pool_name="${zfs_root_dataset%%/*}"
+  [[ "$zfs_root_dataset" == "${pool_name}/"* ]] \
+    || die "root dataset ${zfs_root_dataset} is not inside pool ${pool_name}"
+
+  if (( destroy && dry_run == 0 )); then
+    [[ "$(id -u)" -eq 0 ]] || die "destructive pruning must run as root"
+  fi
+  have_cmd zfs || die "zfs command not found"
+  have_cmd zpool || die "zpool command not found"
+}
+
+rollback_uki_path() {
+  local dataset="$1"
+  local path=""
+  local value=""
+
+  path="$(zfs_value org.margine:rollback-uki-path "$dataset")"
+  if [[ -n "$path" ]]; then
+    printf '%s\n' "$path"
+    return 0
+  fi
+
+  value="$(zfs_value org.margine:rollback-uki "$dataset")"
+  case "$value" in
+    boot\(\):/*)
+      printf '%s%s\n' "${esp_path%/}" "${value#boot():}"
+      ;;
+    /*)
+      printf '%s\n' "$value"
+      ;;
+    *)
+      printf '\n'
+      ;;
+  esac
+}
+
+safe_rollback_uki_path() {
+  local path="$1"
+  local rollback_dir="${esp_path%/}/EFI/Linux/margine-rollback/"
+
+  [[ -n "$path" ]] || return 1
+  [[ "$path" == "$rollback_dir"*.efi ]] || return 1
+  [[ "$path" != *".."* ]] || return 1
+}
+
+collect_candidates() {
+  local root_parent="${zfs_root_dataset%/*}"
+  local dataset=""
+  local marker=""
+  local origin=""
+  local prop_origin=""
+  local creation=""
+  local mounted=""
+  local uki_path=""
+
+  while IFS= read -r dataset; do
+    [[ -n "$dataset" ]] || continue
+    [[ "$dataset" != "$root_parent" ]] || continue
+    [[ "$dataset" != "$zfs_root_dataset" ]] || continue
+
+    marker="$(zfs_value org.margine:bootenv "$dataset")"
+    [[ "$marker" == "pre-update" ]] || continue
+
+    origin="$(zfs_value origin "$dataset")"
+    prop_origin="$(zfs_value org.margine:origin-snapshot "$dataset")"
+    if [[ "$origin" != "${zfs_root_dataset}@"* && "$prop_origin" != "${zfs_root_dataset}@"* ]]; then
+      warn "skipping ${dataset}; origin is not a snapshot of ${zfs_root_dataset}"
+      continue
+    fi
+    [[ -n "$origin" ]] || origin="$prop_origin"
+
+    creation="$(zfs get -H -p -o value creation "$dataset" 2>/dev/null || true)"
+    [[ "$creation" =~ ^[0-9]+$ ]] || creation=0
+    mounted="$(zfs_value mounted "$dataset")"
+    uki_path="$(rollback_uki_path "$dataset")"
+
+    printf '%s\t%s\t%s\t%s\t%s\n' "$creation" "$dataset" "$origin" "$mounted" "$uki_path"
+  done < <(zfs list -H -r -o name "$root_parent" 2>/dev/null || true) |
+    sort -t$'\t' -k1,1nr -k2,2
+}
+
+find_helper() {
+  local name="$1"
+  local local_path="${script_dir}/${name}"
+  local installed_path="/usr/local/lib/margine/scripts/${name}"
+
+  if [[ -x "$local_path" ]]; then
+    printf '%s\n' "$local_path"
+  elif [[ -x "$installed_path" ]]; then
+    printf '%s\n' "$installed_path"
+  else
+    printf '\n'
+  fi
+}
+
+validate_before_destroy() {
+  local active_root=""
+  local bootfs=""
+  local root_validator=""
+  local rollback_validator=""
+  local newest_dataset="${1:-}"
+
+  (( destroy )) || return 0
+
+  active_root="$(mounted_root_source)"
+  [[ "$active_root" == "$zfs_root_dataset" ]] \
+    || die "destructive pruning must run from the primary root (${zfs_root_dataset}); active root is ${active_root:-unknown}"
+
+  bootfs="$(zpool get -H -o value bootfs "$pool_name" 2>/dev/null || true)"
+  [[ "$bootfs" == "$zfs_root_dataset" ]] \
+    || die "pool bootfs must remain ${zfs_root_dataset}; current value: ${bootfs:-unknown}"
+
+  root_validator="$(find_helper validate-root-zfs-target)"
+  if [[ -n "$root_validator" ]]; then
+    log
+    log "==> Validate primary root-on-ZFS target before pruning"
+    run_cmd "$root_validator" --target-root "$target_root" --mode boot-chain
+  else
+    warn "validate-root-zfs-target not found; continuing with built-in guards only"
+  fi
+
+  [[ -n "$newest_dataset" ]] || return 0
+
+  rollback_validator="$(find_helper validate-zfs-rollback-boot-environment)"
+  [[ -n "$rollback_validator" ]] \
+    || die "validate-zfs-rollback-boot-environment is required before destructive pruning"
+
+  log
+  log "==> Validate newest published rollback before pruning"
+  run_cmd "$rollback_validator" \
+    --mode published \
+    --target-root "$target_root" \
+    --pool-name "$pool_name" \
+    --zfs-root-dataset "$zfs_root_dataset" \
+    --dataset "$newest_dataset" \
+    --esp-path "$esp_path"
+}
+
+build_plan() {
+  local -n input_rows="$1"
+  local -n output_rows="$2"
+  local active_root=""
+  local kept=0
+  local row=""
+  local creation=""
+  local dataset=""
+  local origin=""
+  local mounted=""
+  local uki_path=""
+  local action=""
+
+  active_root="$(mounted_root_source)"
+  output_rows=()
+
+  for row in "${input_rows[@]}"; do
+    IFS=$'\t' read -r creation dataset origin mounted uki_path <<<"$row"
+    action="prune"
+
+    if [[ "$dataset" == "$active_root" ]]; then
+      action="skip-active-root"
+    elif [[ "$mounted" == "yes" ]]; then
+      action="skip-mounted"
+    elif (( kept < keep )); then
+      action="keep"
+      kept=$((kept + 1))
+    fi
+
+    output_rows+=("${action}"$'\t'"${creation}"$'\t'"${dataset}"$'\t'"${origin}"$'\t'"${mounted}"$'\t'"${uki_path}")
+  done
+}
+
+print_plan() {
+  local -n plan_rows="$1"
+  local row=""
+  local action=""
+  local creation=""
+  local dataset=""
+  local origin=""
+  local mounted=""
+  local uki_path=""
+  local timestamp=""
+
+  log
+  log "==> ZFS rollback retention plan"
+  log "Pool: ${pool_name}"
+  log "Primary root: ${zfs_root_dataset}"
+  log "Keep newest: ${keep}"
+
+  if ((${#plan_rows[@]} == 0)); then
+    log "No marked rollback boot environments found."
+    return 0
+  fi
+
+  printf '%-16s %-25s %s\n' "ACTION" "CREATED" "DATASET"
+  for row in "${plan_rows[@]}"; do
+    IFS=$'\t' read -r action creation dataset origin mounted uki_path <<<"$row"
+    if [[ "$creation" =~ ^[0-9]+$ && "$creation" -gt 0 ]]; then
+      timestamp="$(date -d "@${creation}" '+%Y-%m-%d %H:%M:%S %z' 2>/dev/null || printf '%s' "$creation")"
+    else
+      timestamp="unknown"
+    fi
+    printf '%-16s %-25s %s\n' "$action" "$timestamp" "$dataset"
+    printf '  origin: %s\n' "$origin"
+    if [[ -n "$uki_path" ]]; then
+      printf '  frozen UKI: %s\n' "$uki_path"
+    else
+      printf '  frozen UKI: missing\n'
+    fi
+    if [[ "$mounted" == "yes" ]]; then
+      printf '  note: mounted rollback clones are never pruned by this helper\n'
+    fi
+  done
+}
+
+prune_plan() {
+  local -n plan_rows="$1"
+  local row=""
+  local action=""
+  local creation=""
+  local dataset=""
+  local origin=""
+  local mounted=""
+  local uki_path=""
+  local pruned_count=0
+  local -a pruned_ukis=()
+
+  if (( destroy == 0 )); then
+    log
+    log "Read-only plan complete. Re-run with --destroy to apply it."
+    return 0
+  fi
+
+  for row in "${plan_rows[@]}"; do
+    IFS=$'\t' read -r action creation dataset origin mounted uki_path <<<"$row"
+    [[ "$action" == "prune" ]] || continue
+
+    log
+    log "==> Prune rollback boot environment"
+    log "Dataset: ${dataset}"
+    log "Origin snapshot: ${origin}"
+
+    [[ "$origin" == "${zfs_root_dataset}@"* ]] \
+      || die "refusing to destroy unexpected origin snapshot for ${dataset}: ${origin}"
+
+    run_cmd zfs destroy "$dataset"
+
+    if ! run_cmd zfs destroy "$origin"; then
+      warn "could not destroy origin snapshot ${origin}; it may still have dependents"
+    fi
+
+    if safe_rollback_uki_path "$uki_path"; then
+      pruned_ukis+=("$uki_path")
+    elif [[ -n "$uki_path" ]]; then
+      warn "not removing unsafe rollback UKI path for ${dataset}: ${uki_path}"
+    fi
+
+    pruned_count=$((pruned_count + 1))
+  done
+
+  if (( pruned_count == 0 )); then
+    log
+    log "No rollback boot environments matched the prune action."
+    return 0
+  fi
+
+  republish_boot_chain
+  if (( republish )); then
+    remove_pruned_ukis pruned_ukis
+  elif ((${#pruned_ukis[@]} > 0)); then
+    warn "not removing frozen rollback UKIs because --no-republish leaves Limine unchanged"
+  fi
+
+  log
+  log "Pruned rollback boot environments: ${pruned_count}"
+}
+
+republish_boot_chain() {
+  local provisioner=""
+  local -a args=()
+
+  (( republish )) || return 0
+
+  provisioner="$(find_helper provision-initial-boot-chain-zfs)"
+  [[ -n "$provisioner" ]] || die "provision-initial-boot-chain-zfs not found; cannot refresh Limine"
+
+  log
+  log "==> Republish root-on-ZFS boot entries"
+  args=(--esp-path "$esp_path" --zfs-root-dataset "$zfs_root_dataset" --skip-uki-build)
+  [[ -z "$product" ]] || args+=(--product "$product")
+  [[ -z "$flavor" ]] || args+=(--flavor "$flavor")
+  (( dry_run )) && args+=(--dry-run)
+  run_cmd "$provisioner" "${args[@]}"
+}
+
+remove_pruned_ukis() {
+  local -n paths="$1"
+  local path=""
+
+  ((${#paths[@]} > 0)) || return 0
+
+  log
+  log "==> Remove frozen rollback UKIs for pruned entries"
+  for path in "${paths[@]}"; do
+    if [[ -e "$path" || "$dry_run" -eq 1 ]]; then
+      run_cmd rm -f "$path"
+    fi
+  done
+}
+
+main() {
+  local -a candidates=()
+  local -a plan=()
+  local newest_creation=""
+  local newest_dataset=""
+  local newest_origin=""
+  local newest_mounted=""
+  local newest_uki_path=""
+
+  parse_args "$@"
+  infer_defaults
+  validate_inputs
+
+  log "=== Prune Margine root-on-ZFS rollback boot environments ==="
+  mapfile -t candidates < <(collect_candidates)
+  build_plan candidates plan
+  print_plan plan
+
+  if ((${#candidates[@]} > 0)); then
+    IFS=$'\t' read -r newest_creation newest_dataset newest_origin newest_mounted newest_uki_path <<<"${candidates[0]}"
+  fi
+
+  validate_before_destroy "$newest_dataset"
+  prune_plan plan
+
+  log
+  log "=== DONE ==="
+}
+
+main "$@"

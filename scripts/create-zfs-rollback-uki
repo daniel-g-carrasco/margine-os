@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dry_run=0
+dataset=""
+esp_path="/boot"
+source_uki="/boot/EFI/Linux/margine-recovery.efi"
+sbctl_keys_dir="${SBCTL_KEYS_DIR:-/var/lib/sbctl/keys}"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  create-zfs-rollback-uki --dataset DATASET [options]
+
+Options:
+  --dataset DATASET   Marked ZFS rollback boot environment dataset
+  --esp-path PATH     Mounted ESP path (default: /boot)
+  --source-uki PATH   Source recovery UKI to freeze for this rollback
+                      (default: /boot/EFI/Linux/margine-recovery.efi)
+  --dry-run           Show the plan without copying or signing
+  --help              Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] %s\n' "$*"
+  else
+    "$@"
+  fi
+}
+
+safe_name() {
+  local value="$1"
+
+  value="${value//[^[:alnum:]_.:-]/-}"
+  value="${value//:/-}"
+  printf '%s' "$value"
+}
+
+sbctl_bootstrap_ready() {
+  [[ -f "${sbctl_keys_dir}/db/db.key" ]] || [[ -f "${sbctl_keys_dir}/db/db.pem" ]]
+}
+
+sbctl_file_is_enrolled() {
+  local path="$1"
+
+  python3 - "$path" <<'PY'
+import json
+import pathlib
+import sys
+
+target = pathlib.Path(sys.argv[1]).resolve()
+db_path = pathlib.Path("/var/lib/sbctl/files.json")
+try:
+    data = json.loads(db_path.read_text())
+except FileNotFoundError:
+    sys.exit(1)
+
+for entry in data:
+    file_path = pathlib.Path(entry.get("file", "")).resolve()
+    if file_path == target:
+        sys.exit(0)
+sys.exit(1)
+PY
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dataset)
+        [[ $# -ge 2 ]] || die "missing value for --dataset"
+        dataset="$2"
+        shift 2
+        ;;
+      --esp-path)
+        [[ $# -ge 2 ]] || die "missing value for --esp-path"
+        esp_path="$2"
+        shift 2
+        ;;
+      --source-uki)
+        [[ $# -ge 2 ]] || die "missing value for --source-uki"
+        source_uki="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+validate_inputs() {
+  [[ -n "$dataset" ]] || die "--dataset is required"
+  [[ "$dataset" == */* ]] || die "--dataset must include pool and dataset path"
+  [[ -n "$esp_path" ]] || die "--esp-path must not be empty"
+  [[ -n "$source_uki" ]] || die "--source-uki must not be empty"
+
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "create-zfs-rollback-uki must run as root"
+  command -v zfs >/dev/null 2>&1 || die "zfs command not found"
+  zfs list -H -o name "$dataset" >/dev/null \
+    || die "rollback boot environment dataset not found: ${dataset}"
+  [[ -f "$source_uki" ]] || die "source UKI not found: ${source_uki}"
+}
+
+sign_uki_if_possible() {
+  local path="$1"
+  local -a sign_args=()
+
+  command -v sbctl >/dev/null 2>&1 || {
+    warn "sbctl not found; rollback UKI copied but not signed: ${path}"
+    return 0
+  }
+  sbctl_bootstrap_ready || {
+    warn "sbctl keys are not initialized; rollback UKI copied but not signed: ${path}"
+    return 0
+  }
+  command -v python3 >/dev/null 2>&1 || die "python3 required to inspect sbctl enrollment"
+
+  if sbctl_file_is_enrolled "$path"; then
+    sign_args=("$path")
+  else
+    sign_args=(--save "$path")
+  fi
+  run_cmd sbctl sign "${sign_args[@]}"
+}
+
+main() {
+  local safe_dataset=""
+  local target_path=""
+  local limine_path=""
+  local created_at=""
+
+  parse_args "$@"
+  validate_inputs
+
+  safe_dataset="$(safe_name "$dataset")"
+  target_path="${esp_path%/}/EFI/Linux/margine-rollback/${safe_dataset}.efi"
+  limine_path="boot():/EFI/Linux/margine-rollback/${safe_dataset}.efi"
+  created_at="$(date -Iseconds)"
+
+  log "==> Freeze ZFS rollback UKI"
+  log "Dataset: ${dataset}"
+  log "Source UKI: ${source_uki}"
+  log "Target UKI: ${target_path}"
+  log "Limine path: ${limine_path}"
+
+  run_cmd install -Dm755 "$source_uki" "$target_path"
+  sign_uki_if_possible "$target_path"
+
+  run_cmd zfs set \
+    "org.margine:rollback-uki=${limine_path}" \
+    "org.margine:rollback-uki-path=${target_path}" \
+    "org.margine:rollback-uki-source=${source_uki}" \
+    "org.margine:rollback-uki-created=${created_at}" \
+    "$dataset"
+}
+
+main "$@"

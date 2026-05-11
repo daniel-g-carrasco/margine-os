@@ -132,6 +132,8 @@ check_bash_syntax() {
     scripts/provision-branding-assets
     scripts/create-zfs-boot-environment
     scripts/generate-zfs-boot-environment-entries
+    scripts/prune-zfs-rollback-boot-environments
+    scripts/validate-zfs-rollback-boot-environment
     scripts/validate-root-zfs-target
     scripts/validate-boot-recovery-baseline
     scripts/validate-runtime-baseline
@@ -142,11 +144,17 @@ check_bash_syntax() {
     scripts/enable-qemu-validation-inhibit-over-ssh
     scripts/apply-qemu-branding-assets-over-ssh
     scripts/collect-qemu-root-zfs-validation-logs
+    scripts/qemu-root-zfs-rollback-canary-over-ssh
     scripts/prepare-qemu-archiso-validation
     scripts/prepare-qemu-root-zfs-validation
     files/home/.local/bin/margine-session-actions-menu
     files/home/.local/bin/margine-session-control
     files/home/.local/bin/open-session-actions-menu
+    files/home/.local/bin/open-bluetooth-tui
+    files/home/.local/bin/open-gaming-split-lock-menu
+    files/home/.local/bin/open-host-health-menu
+    files/home/.local/bin/open-network-settings
+    files/home/.local/bin/open-network-tui
     files/usr/local/bin/margine-build-local-overrides
     files/home/.local/bin/margine-fetch
   )
@@ -155,6 +163,9 @@ check_bash_syntax() {
   log "==> Shell syntax and executability"
   require_executable scripts/check-bash-errexit-footguns "errexit footgun checker is executable"
   require_literal scripts/check-shell-and-manifests "check-bash-errexit-footguns" "shell/manifest checks run errexit footgun checker"
+  require_literal scripts/check-host-baseline-sync 'lastLoadedOutputPreset=' "host sync ignores EasyEffects selected runtime preset"
+  require_literal scripts/check-host-baseline-sync 'height=' "host sync ignores EasyEffects runtime window height"
+  require_literal scripts/check-host-baseline-sync 'width=' "host sync ignores EasyEffects runtime window width"
 
   for path in "${scripts[@]}"; do
     require_executable "$path" "$path is executable"
@@ -239,6 +250,7 @@ check_identity_defaults() {
   require_literal files/etc/greetd/config.toml.template "/usr/local/bin/margine-start-hyprland" "tuigreet launches Margine Hyprland wrapper"
   require_file files/usr/local/bin/margine-start-hyprland "Margine Hyprland session wrapper exists"
   require_literal files/usr/local/bin/margine-start-hyprland '--config "$config_path"' "Hyprland session wrapper pins the user config path"
+  require_literal files/usr/local/bin/margine-start-hyprland 'hyprland-session.log' "Hyprland session wrapper keeps compositor logs off the login VT"
   require_literal scripts/provision-greetd-login 'install -Dm755 "$session_launcher_source" /usr/local/bin/margine-start-hyprland' "greetd provisioner installs session wrapper"
   require_literal scripts/bootstrap-in-chroot "validate_graphical_session_baseline" "bootstrap validates graphical session baseline before completing"
   require_literal scripts/bootstrap-in-chroot "Hyprland config missing after bootstrap" "bootstrap fails if Hyprland config is missing"
@@ -293,6 +305,9 @@ check_identity_defaults() {
   require_literal files/home/.local/bin/margine-launcher-service 'systemctl --user start walker.service' "Hyprland session bootstrap warms Walker after environment import"
   require_literal files/home/.local/bin/margine-launcher-service 'margine-walker-healthcheck" --repair' "Hyprland session bootstrap validates Walker immediately after warming it"
   require_literal files/home/.config/hypr/conf.d/20-autostart.conf 'exec-once = $menusvc' "Hyprland starts the launcher service after session environment import"
+  require_literal files/home/.config/hypr/conf.d/20-autostart.conf "wsf apply" "Hyprland reapplies WSF scroll tuning at session startup"
+  require_literal files/home/.config/hypr/conf.d/50-input.conf "Touchpad scroll speed is managed by Wayland Scroll Factor" "Hyprland input config documents WSF as the scroll tuning control"
+  require_literal files/home/.config/hypr/conf.d/50-input.conf "# scroll_factor = 0.3" "Hyprland static touchpad scroll factor remains commented"
   require_literal files/home/.config/hypr/conf.d/70-rules.conf 'name = float-modal-dialogs' "Hyprland floats modal toolkit dialogs"
   require_literal files/home/.config/hypr/conf.d/70-rules.conf 'name = float-file-dialogs' "Hyprland floats file chooser dialogs"
   require_literal files/home/.config/hypr/conf.d/70-rules.conf 'name = float-network-editor' "Hyprland floats NetworkManager GTK editor"
@@ -333,13 +348,13 @@ check_identity_defaults() {
   require_literal files/home/.local/bin/margine-import-session-environment "xdg-desktop-portal-gnome.service" "session environment import starts GNOME Settings portal backend"
   require_literal files/home/.local/bin/margine-import-session-environment "restart xdg-desktop-portal.service" "session environment import restarts portal after Hyprland env import"
   require_literal files/home/.config/hypr/conf.d/20-autostart.conf "gtk-dark-exec easyeffects --service-mode --hide-window" "EasyEffects service-mode launch is forced through the dark GTK wrapper"
-  require_literal files/home/.config/waybar/config.jsonc "gtk-dark-exec easyeffects" "Waybar opens EasyEffects through the dark GTK wrapper"
-  require_literal files/home/.config/waybar/config.jsonc '"on-click-right": "~/.local/bin/easyeffects-toggle"' "Waybar exposes a non-quitting EasyEffects bypass toggle"
+  require_absent_literal files/home/.config/waybar/config.jsonc '"custom/easyeffects"' "Waybar no longer keeps a persistent EasyEffects status item"
   require_file files/home/.local/bin/easyeffects-toggle "EasyEffects toggle helper exists"
   require_literal files/home/.local/bin/easyeffects-toggle "easyeffects --bypass-toggle" "EasyEffects toggle uses bypass instead of killing the service"
   require_literal files/home/.config/waybar/config.jsonc '"signal": 9' "Waybar keep-awake module accepts immediate refresh signals"
   require_literal files/home/.local/bin/keep-awake-toggle 'pkill "-RTMIN+${waybar_signal}" -x waybar' "keep-awake toggle refreshes Waybar immediately"
   require_literal files/home/.config/waybar/config.jsonc '"signal": 10' "Waybar network module accepts NetworkManager refresh signals"
+  require_literal files/home/.local/bin/open-network-settings "nm-connection-editor" "Waybar network click opens the GTK NetworkManager editor by default"
   require_literal files/home/.config/waybar/config.jsonc '"custom/tray-open"' "Waybar visually brackets the tray opening edge"
   require_literal files/home/.config/waybar/config.jsonc '"custom/tray-close"' "Waybar visually brackets the tray closing edge"
   require_literal files/home/.local/bin/network-status 'text="$wifi_icon_connected"' "Wi-Fi status keeps signal strength in the tooltip instead of the bar"
@@ -353,11 +368,56 @@ check_identity_defaults() {
   require_file files/home/.local/share/applications/com.github.wwmm.easyeffects.desktop "EasyEffects desktop override exists"
   require_literal files/home/.local/share/applications/com.github.wwmm.easyeffects.desktop 'Exec=sh -lc "exec \"\\$HOME/.local/bin/gtk-dark-exec\" easyeffects --service-mode"' "Walker opens EasyEffects through the dark wrapper in service mode"
   require_literal files/home/.local/bin/margine-framework-audio-service "gtk-dark-exec" "Framework audio service starts EasyEffects through the dark wrapper when available"
+  require_literal manifests/packages/fonts.txt "ttc-iosevka-etoile" "Default font baseline installs Iosevka Etoile for UI text"
+  require_literal manifests/packages/fonts.txt "ttc-iosevka-aile" "Default font baseline installs Iosevka Aile as a neutral fallback"
+  require_literal manifests/packages/aur-baseline.txt "ttf-ioskeley-mono" "AUR baseline installs Ioskeley Mono for terminal/code/compact text"
+  require_literal manifests/packages/aur-baseline.txt "wayland-scroll-factor" "AUR baseline installs Wayland Scroll Factor for Hyprland scroll tuning"
+  require_absent_file packaging/aur/wayland-scroll-factor-git "WSF uses the published AUR package, not a Margine local recipe"
+  require_absent_literal files/usr/local/bin/margine-build-local-overrides "wayland-scroll-factor-git" "first-boot local override builder does not build WSF"
+  require_literal files/home/.config/margine/theme.env "MARGINE_THEME_FONT_NAME='Iosevka Etoile 10'" "UI font is centralized in theme.env"
+  require_literal files/home/.config/margine/theme.env "MARGINE_THEME_TERMINAL_FONT_NAME='Ioskeley Mono 11'" "terminal font is centralized in theme.env"
+  require_literal files/home/.config/margine/theme.env "MARGINE_THEME_CODE_FONT_NAME='Ioskeley Mono 11'" "code font is centralized in theme.env"
+  require_literal files/home/.config/margine/theme.env "MARGINE_THEME_COMPACT_FONT_NAME='Ioskeley Mono Condensed 10'" "compact UI font is centralized in theme.env"
+  require_literal files/home/.config/margine/theme.env "MARGINE_THEME_WAYBAR_FONT_NAME='Ioskeley Mono 10'" "Waybar font is centralized in theme.env"
+  require_literal files/home/.config/margine/theme.env "MARGINE_THEME_WAYBAR_COMPACT_FONT_NAME='Ioskeley Mono Condensed 10'" "Waybar compact font is centralized in theme.env"
+  require_literal files/home/.config/margine/theme.env "MARGINE_THEME_LAUNCHER_FONT_NAME='Ioskeley Mono 10'" "launcher font uses the normal Ioskeley family"
+  require_literal files/home/.config/margine/theme.env "MARGINE_THEME_HYPRLOCK_FONT_UI='Ioskeley Mono 10'" "hyprlock UI font uses Ioskeley"
+  require_literal scripts/render-theme-artifacts "MARGINE_THEME_TERMINAL_FONT_NAME" "theme renderer consumes the centralized terminal font"
+  require_literal scripts/render-theme-artifacts "MARGINE_THEME_COMPACT_FONT_NAME" "theme renderer consumes the centralized compact font"
+  require_literal scripts/render-theme-artifacts "MARGINE_THEME_WAYBAR_FONT_NAME" "theme renderer consumes the centralized Waybar font"
+  require_literal files/home/.config/waybar/theme-generated.css "window#waybar #window *" "Waybar active window title label uses the compact font family"
+  require_absent_literal files/home/.config/waybar/theme-generated.css "#workspaces button label" "Waybar workspace numbers do not inherit the compact title font"
+  require_literal files/home/.config/swaync/theme-generated.css ".notification-content .body" "SwayNC notification content uses the compact font family"
+  require_absent_literal files/home/.config/waybar/style.css "IBM Plex Sans" "Waybar typography no longer hardcodes the old UI font"
+  require_absent_literal files/home/.config/swaync/style.css "IBM Plex Sans" "SwayNC typography no longer hardcodes the old UI font"
+  require_absent_literal files/home/.config/kitty/kitty.conf "font_family IBM Plex Mono" "Kitty font is supplied by generated theme data"
+  require_literal files/home/.local/bin/margine-apply-desktop-defaults "monospace-font-name" "GNOME monospace defaults inherit the centralized terminal font"
+  require_literal files/home/.config/Code/User/settings.json '"editor.fontFamily":' "VS Code editor font is pinned to the code font family"
+  require_literal files/home/.config/Code/User/settings.json '"terminal.integrated.fontFamily":' "VS Code terminal font is pinned to the terminal font family"
+  require_literal files/home/.local/bin/open-network-tui "MARGINE_THEME_TERMINAL_FONT_NAME" "network TUI inherits the centralized terminal font"
+  require_literal files/home/.local/bin/open-bluetooth-tui "MARGINE_THEME_TERMINAL_FONT_NAME" "bluetooth TUI inherits the centralized terminal font"
+  require_literal files/home/.local/bin/open-gaming-split-lock-menu "MARGINE_THEME_TERMINAL_FONT_NAME" "split-lock TUI inherits the centralized terminal font"
+  require_literal files/home/.local/bin/open-host-health-menu "MARGINE_THEME_TERMINAL_FONT_NAME" "host-health TUI inherits the centralized terminal font"
   require_literal files/home/.local/bin/margine-launcher-walker 'rm -f "$walker_socket"' "Walker launcher removes stale sockets before fresh launch"
   require_literal files/home/.local/bin/margine-launcher-walker 'margine-walker-healthcheck" --repair' "Walker hotkey path repairs stale launcher state before socket reuse"
   require_literal files/home/.config/systemd/user/margine-walker-healthcheck.service 'ExecStart=%h/.local/bin/margine-walker-healthcheck --repair' "Walker healthcheck runs in repair mode"
   require_literal scripts/provision-user-runtime-tools 'margine-walker-healthcheck.timer' "runtime provisioning enables Walker health monitoring"
   require_literal scripts/provision-user-runtime-tools 'default.target.wants/walker.service' "runtime provisioning removes legacy eager Walker enablement"
+
+  require_literal files/etc/mkinitcpio.conf "i2c_hid_acpi" "initramfs includes I2C HID touchpad support for old snapshot recovery"
+  require_literal files/etc/mkinitcpio.conf "hid_multitouch" "initramfs includes multitouch support for old snapshot recovery"
+  require_literal files/etc/kernel/cmdline.template "rd.luks.name=__MARGINE_LUKS_UUID__=__MARGINE_CRYPT_NAME__" "Btrfs kernel cmdline uses the detected LUKS mapper name"
+  require_literal files/esp/EFI/BOOT/limine.conf.template "rd.luks.name=@LUKS_UUID@=@CRYPT_NAME@" "Btrfs Limine template uses the detected LUKS mapper name"
+  require_literal files/esp/EFI/BOOT/recovery-snapshot-entry.template "rd.luks.name=@LUKS_UUID@=@CRYPT_NAME@" "Btrfs snapshot recovery entries use the detected LUKS mapper name"
+  require_literal files/esp/EFI/BOOT/recovery-snapshot-entry.template "systemd.mask=boot.mount" "Btrfs snapshot recovery entries do not mount the live ESP"
+  require_literal scripts/generate-limine-config "--crypt-name NAME" "Btrfs Limine generator accepts a dynamic LUKS mapper name"
+  require_literal scripts/generate-limine-config 's/@CRYPT_NAME@/' "Btrfs Limine generator renders the LUKS mapper placeholder"
+  require_literal scripts/generate-snapper-recovery-entries "--crypt-name NAME" "Snapper recovery generator accepts a dynamic LUKS mapper name"
+  require_literal scripts/generate-snapper-recovery-entries 's/@CRYPT_NAME@/' "Snapper recovery generator renders the LUKS mapper placeholder"
+  require_literal scripts/provision-host-root-baseline '--crypt-name "$crypt_name"' "host boot baseline passes the detected mapper to Limine generators"
+  require_literal scripts/provision-initial-boot-chain '--crypt-name "$crypt_name"' "initial boot chain passes the detected mapper to Limine generation"
+  require_literal scripts/stage-limine-side-by-side '--crypt-name "$crypt_name"' "side-by-side Limine staging passes the detected mapper"
+  require_literal scripts/update-all '--crypt-name "$crypt_name"' "update-all passes the detected mapper to Btrfs recovery generators"
 }
 
 check_default_runtime_layers() {
@@ -414,6 +474,7 @@ check_local_aur_overrides() {
   require_literal scripts/install-from-manifests "Install prebuilt local package" "manifest installer can install prebuilt local packages"
   require_literal scripts/install-from-manifests "defer_local_override_package" "manifest installer can defer local override packages"
   require_literal scripts/install-from-manifests "Defer local override package until first boot" "manifest installer defers unbuilt local overrides to first boot"
+  require_absent_literal scripts/install-from-manifests "wayland-scroll-factor-git" "manifest installer does not defer WSF as a local package"
   require_literal scripts/build-local-package-repo "gaming-runtime-compat" "local package repo builder includes default gaming runtime compatibility AUR layer"
   require_literal scripts/build-local-package-repo "install-aur-packages" "local package repo builder delegates package builds to the hardened AUR installer"
   require_literal .gitignore "/local-pacman-repo/" "local package repo artifacts are ignored by git"
@@ -486,7 +547,7 @@ check_root_zfs_path() {
   require_literal files/esp/EFI/BOOT/limine.zfs.conf.template "@ZFS_BOOT_ENVIRONMENT_ENTRIES@" "ZFS Limine template includes boot-environment entry slot"
   require_file files/esp/EFI/BOOT/zfs-boot-environment-entry.template "ZFS boot environment Limine entry template exists"
   require_literal files/esp/EFI/BOOT/zfs-boot-environment-entry.template "root=ZFS=@ZFS_ROOT_DATASET@" "ZFS boot environment entries boot a selected clone"
-  require_literal files/esp/EFI/BOOT/zfs-boot-environment-entry.template "margine-recovery.efi" "ZFS boot environment entries use cmdline-capable recovery UKI"
+  require_literal files/esp/EFI/BOOT/zfs-boot-environment-entry.template "@BOOT_ENV_UKI_PATH@" "ZFS boot environment entries use a rendered rollback UKI path"
 
   require_literal scripts/provision-initial-boot-chain-zfs 'zpool set cachefile=/etc/zfs/zpool.cache "$pool_name"' "ZFS boot chain persists zpool cachefile"
   require_literal scripts/provision-initial-boot-chain-zfs '[[ -s /etc/zfs/zpool.cache ]]' "ZFS boot chain verifies zpool cachefile creation"
@@ -500,9 +561,30 @@ check_root_zfs_path() {
   require_literal scripts/provision-initial-boot-chain-zfs "ZFS kernel module missing for installed kernel" "ZFS boot chain fails when kernel ZFS module is missing"
   require_literal scripts/provision-initial-boot-chain-zfs 'generate-zfs-boot-environment-entries' "ZFS boot chain renders bootable rollback entries"
   require_literal scripts/provision-initial-boot-chain-zfs '@ZFS_BOOT_ENVIRONMENT_ENTRIES@' "ZFS boot chain replaces boot-environment entry slot"
+  require_literal scripts/provision-initial-boot-chain-zfs '--skip-uki-build' "ZFS boot chain can republish Limine without overwriting frozen rollback UKIs"
   require_literal scripts/create-zfs-boot-environment 'zfs clone' "ZFS boot environment helper creates clone datasets"
   require_literal scripts/create-zfs-boot-environment 'org.margine:bootenv=pre-update' "ZFS boot environment helper marks rollback clones"
+  require_file scripts/create-zfs-rollback-uki "ZFS rollback UKI freezer exists"
+  require_literal scripts/create-zfs-rollback-uki "org.margine:rollback-uki=" "ZFS rollback UKI freezer records the clone-specific UKI path"
+  require_executable scripts/prune-zfs-rollback-boot-environments "ZFS rollback pruning helper is executable"
+  require_literal scripts/prune-zfs-rollback-boot-environments "--destroy" "ZFS rollback pruning helper requires explicit destructive apply"
+  require_literal scripts/prune-zfs-rollback-boot-environments "--keep N" "ZFS rollback pruning helper exposes retention count"
+  require_literal scripts/prune-zfs-rollback-boot-environments "org.margine:bootenv" "ZFS rollback pruning helper filters marked rollback clones"
+  require_literal scripts/prune-zfs-rollback-boot-environments "destructive pruning must run from the primary root" "ZFS rollback pruning helper refuses active rollback pruning"
+  require_literal scripts/prune-zfs-rollback-boot-environments "pool bootfs must remain" "ZFS rollback pruning helper checks bootfs before destroying"
+  require_literal scripts/prune-zfs-rollback-boot-environments "validate-zfs-rollback-boot-environment" "ZFS rollback pruning helper validates published rollback before destroying"
+  require_literal scripts/prune-zfs-rollback-boot-environments 'zfs destroy "$dataset"' "ZFS rollback pruning helper destroys clone before snapshot"
+  require_literal scripts/prune-zfs-rollback-boot-environments 'zfs destroy "$origin"' "ZFS rollback pruning helper removes source snapshot after clone"
+  require_literal scripts/prune-zfs-rollback-boot-environments "margine-rollback" "ZFS rollback pruning helper only removes frozen rollback UKIs from the rollback directory"
+  require_literal scripts/prune-zfs-rollback-boot-environments "provision-initial-boot-chain-zfs" "ZFS rollback pruning helper republishes Limine after pruning"
+  require_literal scripts/prune-zfs-rollback-boot-environments "not removing frozen rollback UKIs because --no-republish leaves Limine unchanged" "ZFS rollback pruning helper preserves frozen UKIs when Limine is not republished"
+  require_executable scripts/validate-zfs-rollback-boot-environment "ZFS rollback boot-environment validator is executable"
+  require_literal scripts/validate-zfs-rollback-boot-environment "--mode NAME" "ZFS rollback validator exposes published and active modes"
+  require_literal scripts/validate-zfs-rollback-boot-environment "org.margine:rollback-uki" "ZFS rollback validator requires clone-specific frozen UKIs"
+  require_literal scripts/validate-zfs-rollback-boot-environment "root=ZFS=\${rollback_dataset}" "ZFS rollback validator checks active rollback root cmdline"
+  require_literal scripts/validate-zfs-rollback-boot-environment "pool bootfs must remain" "ZFS rollback validator rejects bootfs drift"
   require_literal scripts/generate-zfs-boot-environment-entries 'org.margine:bootenv' "ZFS boot environment entry generator filters marked clones"
+  require_literal scripts/generate-zfs-boot-environment-entries 'org.margine:rollback-uki' "ZFS boot environment entry generator reads clone-specific UKI paths"
   require_literal scripts/generate-zfs-boot-environment-entries '/Rollback' "ZFS boot environment entry generator renders Rollback menu"
   require_literal scripts/provision-boot-baseline "--product NAME" "boot baseline accepts product context used by ZFS boot provisioning"
   require_literal scripts/provision-boot-baseline "--flavor NAME" "boot baseline accepts flavor context used by ZFS boot provisioning"
@@ -513,6 +595,9 @@ check_root_zfs_path() {
   require_literal scripts/update-all "run_root_zfs_update" "update-all has a dedicated root-on-ZFS maintenance path"
   require_literal scripts/update-all "create-zfs-pre-update-snapshots" "update-all creates a ZFS pre-update snapshot on root-on-ZFS"
   require_literal scripts/update-all "create-zfs-boot-environment" "update-all creates a bootable root-on-ZFS rollback clone"
+  require_literal scripts/update-all "create-zfs-rollback-uki" "update-all freezes a matching rollback UKI before package mutation"
+  require_literal scripts/update-all "validate-zfs-rollback-boot-environment" "update-all validates the rollback clone before package mutation"
+  require_literal scripts/update-all "Validate ZFS rollback boot environment" "update-all has an explicit rollback publication validation gate"
   require_literal scripts/update-all "zfs_pre_update_snapshot" "update-all records the root-on-ZFS snapshot used for rollback"
   require_literal scripts/update-all "Publish ZFS rollback boot entry" "update-all publishes rollback entry before package mutation"
   require_literal scripts/update-all "provision-initial-boot-chain-zfs" "update-all regenerates the root-on-ZFS boot chain"
@@ -555,6 +640,7 @@ check_root_zfs_path() {
   require_literal scripts/apply-qemu-branding-assets-over-ssh "provision-branding-assets" "QEMU branding refresh applies Margine logo assets"
   require_literal scripts/apply-qemu-branding-assets-over-ssh "provision-initial-boot-chain-zfs" "QEMU branding refresh uses the root-on-ZFS boot-chain provisioner when needed"
   require_literal scripts/collect-qemu-root-zfs-validation-logs "validate-root-zfs-target --target-root / --mode boot-chain" "QEMU root-ZFS log collector runs the installed root validator"
+  require_literal scripts/collect-qemu-root-zfs-validation-logs "validate-zfs-rollback-boot-environment --mode active" "QEMU root-ZFS log collector can validate an active rollback boot"
   require_literal scripts/collect-qemu-root-zfs-validation-logs "update-all --dry-run --no-aur --no-flatpak --no-fwupd" "QEMU root-ZFS log collector captures the update-all root-ZFS dry-run"
   require_literal scripts/collect-qemu-root-zfs-validation-logs "idle inhibitor status" "QEMU root-ZFS log collector records user idle-inhibitor state"
   require_literal scripts/collect-qemu-root-zfs-validation-logs "margine-qemu-validation-inhibit.service" "QEMU root-ZFS log collector records system idle-inhibitor state"
@@ -567,6 +653,15 @@ check_root_zfs_path() {
   require_literal scripts/collect-qemu-root-zfs-validation-logs 'SYSTEMD_PAGER=cat' "QEMU root-ZFS log collector disables remote pagers"
   require_literal scripts/collect-qemu-root-zfs-validation-logs 'bootctl --no-pager status' "QEMU root-ZFS log collector prevents bootctl from opening a pager"
   require_literal scripts/collect-qemu-root-zfs-validation-logs 'qemu-root-zfs-*/qemu-margine_ed25519' "QEMU root-ZFS log collector infers only build directories that contain the SSH identity"
+  require_executable scripts/qemu-root-zfs-rollback-canary-over-ssh "QEMU root-ZFS rollback canary helper is executable"
+  require_literal scripts/qemu-root-zfs-rollback-canary-over-ssh "--verify-rollback" "QEMU root-ZFS canary helper validates after booting a rollback entry"
+  require_literal scripts/qemu-root-zfs-rollback-canary-over-ssh "--cleanup" "QEMU root-ZFS canary helper removes validation canary files after the test"
+  require_literal scripts/qemu-root-zfs-rollback-canary-over-ssh "root-created-after-update.txt" "QEMU root-ZFS canary helper checks that post-update root files disappear in rollback"
+  require_literal scripts/qemu-root-zfs-rollback-canary-over-ssh "home-created-after-update.txt" "QEMU root-ZFS canary helper checks that home dataset changes survive rollback"
+  require_literal scripts/qemu-root-zfs-rollback-canary-over-ssh "games-created-after-update.txt" "QEMU root-ZFS canary helper checks that games dataset changes survive rollback"
+  require_literal scripts/qemu-root-zfs-rollback-canary-over-ssh "validate-zfs-rollback-boot-environment --mode active" "QEMU root-ZFS canary helper runs active rollback validation"
+  require_literal scripts/qemu-root-zfs-rollback-canary-over-ssh "rollback canary cleanup: OK" "QEMU root-ZFS canary helper confirms cleanup completion"
+  require_literal docs/runbooks/root-on-zfs-update-rollback.md "Canary rollback test in QEMU" "root-ZFS rollback runbook documents canary validation"
   require_literal scripts/mount-zfs-root-target 'load_runtime_manifest_defaults' "ZFS mount helper reads runtime install state when present"
   require_literal scripts/unmount-zfs-root-target 'load_install_manifest_defaults' "ZFS unmount helper reads install state when present"
   require_absent_literal files/etc/margine/zfs-pre-update-datasets.conf "tank/games" "games dataset is excluded from non-root pre-update snapshots"

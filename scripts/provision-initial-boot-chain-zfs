@@ -12,6 +12,7 @@ crypt_name="cryptroot"
 zfs_root_dataset=""
 crypt_name_from_cli=0
 zfs_root_dataset_from_cli=0
+skip_uki_build=0
 boot_environment_entry_limit=8
 product="$(margine_detect_runtime_product "$repo_root")"
 product_manifest=""
@@ -49,6 +50,7 @@ Options:
   --zfs-root-dataset DS   Root ZFS dataset, for example rpool/ROOT/default
   --boot-environment-limit N
                          Maximum root-on-ZFS rollback entries to render (default: 8)
+  --skip-uki-build       Re-render and deploy Limine without rebuilding UKIs
   --dry-run               Show the plan without executing it
   --help                  Show this help
 EOF
@@ -113,6 +115,10 @@ parse_args() {
         [[ $# -ge 2 ]] || die "missing value for --boot-environment-limit"
         boot_environment_entry_limit="$2"
         shift 2
+        ;;
+      --skip-uki-build)
+        skip_uki_build=1
+        shift
         ;;
       --dry-run)
         dry_run=1
@@ -377,6 +383,10 @@ ensure_esp_layout() {
 build_ukis() {
   log
   log "==> Build UKI set"
+  if (( skip_uki_build )); then
+    log "skip: reusing existing UKIs"
+    return 0
+  fi
   run_cmd mkinitcpio -P
 }
 

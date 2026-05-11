@@ -84,10 +84,23 @@ For `v1`, the minimum generator inputs are:
 
 - `ROOT_UUID`
 - `LUKS_UUID`
+- LUKS mapper name
 
 Optional input:
 
 - external file with recovery entries ready
+
+The mapper name is intentionally an input, not a constant. Daniel's current
+Arch/Btrfs host unlocks the root mapper as `root`; current Margine installer
+defaults may use `cryptroot`. Generated primary, manual recovery and snapshot
+recovery cmdlines must preserve the detected mapper name, otherwise initrd can
+unlock LUKS under one name and then fail the Btrfs `/sysroot` mount with a
+stale `rd.luks.name=...=cryptroot` command line.
+
+Generated Btrfs snapshot recovery entries must also mask `boot.mount`. The
+snapshot root is old and read-only, while `/boot` is the current ESP outside the
+Btrfs snapshot boundary. Snapshot recovery exists to inspect or recover an old
+root state, not to mount or mutate the live boot partition.
 
 ## What the generator does NOT do in the first version
 

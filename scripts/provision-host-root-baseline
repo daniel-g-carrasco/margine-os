@@ -224,6 +224,7 @@ render_limine_assets() {
   run_cmd "$recovery_generator" \
     --root-uuid "$root_uuid" \
     --luks-uuid "$luks_uuid" \
+    --crypt-name "$crypt_name" \
     --snapper-config "$snapper_config" \
     --snapshots-subvolume "$snapshots_subvolume" \
     --limit "$recovery_entry_limit" \
@@ -232,6 +233,7 @@ render_limine_assets() {
   run_cmd "$limine_generator" \
     --root-uuid "$root_uuid" \
     --luks-uuid "$luks_uuid" \
+    --crypt-name "$crypt_name" \
     --recovery-entries "$recovery_entries_output" \
     --output "$limine_output"
 }

@@ -148,6 +148,7 @@ materialize snapshot recovery entries in `Limine` after a maintenance run:
 ```bash
 sudo snapper --no-dbus -c root list | tail -n 10
 grep -n '^/Recovery\\|^//Snapshot' "$limine_conf"
+grep -n 'systemd.mask=boot.mount' "$limine_conf"
 ```
 
 Check:
@@ -156,6 +157,11 @@ Check:
 - `limine.conf` contains `//Snapshot ...` entries under `/Recovery`
 - the generated recovery menu follows the current Snapper state instead of
   staying stale after updates
+- every generated Btrfs recovery entry uses the active LUKS mapper name from
+  `/dev/mapper/<name>`; Daniel's Arch/Btrfs host uses `root`, while Margine VM
+  defaults may use `cryptroot`
+- every generated Btrfs recovery entry masks `boot.mount`, because `/boot` is
+  the live ESP outside the read-only snapshot boundary
 
 For the installed trust-refresh path, also verify:
 
@@ -192,6 +198,10 @@ Check:
 - `Publish ZFS rollback boot entry` calls `provision-initial-boot-chain-zfs`
   before packages are touched, so the pre-update clone is already selectable if
   the update aborts mid-transaction;
+- `Validate ZFS rollback boot environment` calls
+  `validate-zfs-rollback-boot-environment --mode published` before packages are
+  touched, proving that the clone, frozen rollback UKI and Limine entry are a
+  coherent boot pair;
 - the final boot phase calls `provision-initial-boot-chain-zfs` again after
   package updates;
 - the post-update phase calls the root-on-ZFS validator again;
@@ -202,8 +212,9 @@ After a real root-on-ZFS update, verify the snapshot and boot chain:
 
 ```bash
 sudo zfs list -t snapshot -o name,creation | grep 'rpool/ROOT/default@margine-pre-update' | tail
-sudo zfs get -r org.margine:bootenv,origin rpool/ROOT | grep margine-pre-update | tail
-sudo grep -n 'Rollback\|root=ZFS=rpool/ROOT/margine-pre-update' /boot/EFI/BOOT/limine.conf
+sudo zfs get -r org.margine:bootenv,org.margine:rollback-uki,origin rpool/ROOT | grep margine-pre-update | tail
+sudo grep -n 'Rollback\|root=ZFS=rpool/ROOT/margine-pre-update\|margine-rollback' /boot/EFI/BOOT/limine.conf
+sudo /usr/local/lib/margine/scripts/validate-zfs-rollback-boot-environment --mode published --target-root /
 sudo /usr/local/lib/margine/scripts/validate-root-zfs-target --target-root / --mode boot-chain
 sudo sbctl verify || true
 ```
@@ -214,7 +225,24 @@ Expected result:
 - a sibling clone such as `rpool/ROOT/margine-pre-update-YYYYMMDD-HHMMSS`
   exists and has `org.margine:bootenv=pre-update`;
 - `limine.conf` contains a `/Rollback` section whose entry uses
-  `margine-recovery.efi` and `root=ZFS=<clone>`.
+  `root=ZFS=<clone>` and a clone-specific
+  `EFI/Linux/margine-rollback/<clone>.efi` UKI;
+- the dedicated rollback validator reports
+  `ZFS rollback boot environment validation: OK`.
+
+After selecting that rollback entry in Limine, verify the actual recovered boot:
+
+```bash
+findmnt /
+cat /proc/cmdline
+sudo /usr/local/lib/margine/scripts/validate-zfs-rollback-boot-environment --mode active --target-root /
+```
+
+Expected result:
+
+- `/` is mounted from `rpool/ROOT/margine-pre-update-...`;
+- `/proc/cmdline` contains `root=ZFS=rpool/ROOT/margine-pre-update-...`;
+- the active rollback validator reports OK.
 
 Current limitation: rollback clone promotion, abandonment and pruning are still
 manual follow-up procedures. Booting a rollback candidate must not be treated as
@@ -260,14 +288,14 @@ Check:
 Also verify the launcher AUR baseline explicitly:
 
 ```bash
-pacman -Q yay elephant-all ttf-ms-fonts walker
+pacman -Q yay elephant-all ttf-ms-fonts walker wayland-scroll-factor
 elephant listproviders
 ls ~/.local/share/icons/hicolor/256x256/apps/duckduckgo.png
 ```
 
 Check:
 
-- all baseline AUR launcher packages are installed
+- all baseline AUR desktop packages are installed
 - `elephant` exposes `calc`, `websearch`, `windows`, and `runner`
 - the DuckDuckGo icon asset exists for the Walker websearch entry
 
@@ -334,7 +362,7 @@ Manual checks:
 - briefly pressing the physical power button must not power off the machine, including from `hyprlock`
 - intentionally holding the physical power button must still power off through the OS path
 - when `greetd` is the chosen login path, logout must return to `tuigreet`
-- on supported fingerprint hardware, both `tuigreet` and `hyprlock` must keep password fallback and allow fingerprint unlock when enrolled
+- on supported fingerprint hardware, both `tuigreet` and `hyprlock` must keep password fallback and allow fingerprint unlock when enrolled; `hyprlock` uses its native `auth.fingerprint` path, so `/etc/pam.d/hyprlock` must remain password-only and must not include `pam_fprintd.so`
 
 ## 6. Networking
 
@@ -368,7 +396,7 @@ Check:
 ## 8. Desktop stack
 
 ```bash
-which walker elephant fuzzel grim slurp wl-copy waybar swaync-client hyprlock hyprpaper
+which walker elephant fuzzel grim slurp wl-copy waybar swaync-client hyprlock hyprpaper wsf
 ls ~/.local/bin/{battery-status,network-status,notification-status,keep-awake-daemon,keep-awake-status,keep-awake-toggle,easyeffects-status,screenshot-menu,open-network-tui,open-network-settings,open-bluetooth-tui}
 hyprctl version
 hyprctl monitors
@@ -796,7 +824,7 @@ inhibitor inside the guest:
 For the private CachyOS product, also include:
 
 ```bash
-pacman -Q linux-cachyos linux-cachyos-headers cachyos-keyring cachyos-mirrorlist cachyos-settings hyprland waybar swaync hyprlock walker elephant-all yay ttf-ms-fonts firefox chromium loupe gnome-text-editor showtime decibels easyeffects
+pacman -Q linux-cachyos linux-cachyos-headers cachyos-keyring cachyos-mirrorlist cachyos-settings hyprland waybar swaync hyprlock walker elephant-all yay ttf-ms-fonts wayland-scroll-factor firefox chromium loupe gnome-text-editor showtime decibels easyeffects
 elephant listproviders
 xdg-mime query default image/png
 xdg-mime query default text/plain

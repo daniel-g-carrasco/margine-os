@@ -4,11 +4,11 @@
 Accepted.
 
 ## Context
-Some Margine defaults need small local package patches, currently the patched
-Walker scroll behavior. Building those packages inside a graphical live ISO is
-fragile: it can trigger build dependency churn, partial-upgrade conflicts,
-memory pressure and non-reproducible failures before the installed system even
-boots.
+Some Margine defaults need local package sources or small local package patches:
+currently the patched Walker scroll behavior. Building those packages inside a
+graphical live ISO is fragile: it can trigger build dependency churn,
+partial-upgrade conflicts, memory pressure and non-reproducible failures before
+the installed system even boots.
 
 ## Decision
 Margine supports two paths:

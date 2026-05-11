@@ -1,4 +1,6 @@
 /* Generated from ~/.config/margine/theme.env */
+* { font-family: "Iosevka Etoile", "Iosevka Aile", sans-serif; }
+.notification-content .summary, .notification-content .body, .notification-content .time, .notification-content .summary *, .notification-content .body *, .notification-content .time * { font-family: "Ioskeley Mono Condensed", "Iosevka Etoile", "Iosevka Aile", sans-serif; }
 @define-color bg #1f1f1f;
 @define-color fg #ffffff;
 @define-color muted #d6d0c9;

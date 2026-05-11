@@ -1,4 +1,7 @@
 /* Generated from ~/.config/margine/theme.env */
+window#waybar * { font-family: "Ioskeley Mono", "Iosevka Aile", monospace; }
+window#waybar #window { font-family: "Ioskeley Mono Condensed", "Ioskeley Mono", "Iosevka Aile", monospace; }
+window#waybar #window * { font-family: "Ioskeley Mono Condensed", "Ioskeley Mono", "Iosevka Aile", monospace; }
 @define-color fg #ffffff;
 @define-color muted #d6d0c9;
 @define-color bg #1f1f1f;

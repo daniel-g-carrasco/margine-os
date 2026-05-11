@@ -1,0 +1,449 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mode="published"
+target_root="/"
+pool_name=""
+zfs_root_dataset=""
+rollback_dataset=""
+expected_snapshot=""
+esp_path="/boot"
+limine_config=""
+dry_run=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  validate-zfs-rollback-boot-environment [options]
+
+Validates a Margine root-on-ZFS rollback boot environment. In published mode it
+checks that a pre-update clone is complete, paired with a frozen rollback UKI,
+and rendered in Limine before package mutation starts. In active mode it also
+checks that the current boot is actually running from the selected clone.
+
+Options:
+  --mode NAME              published | active (default: published)
+  --target-root PATH       Mounted target root (default: /)
+  --pool-name NAME         ZFS pool name; inferred when possible
+  --zfs-root-dataset DS    Primary root dataset, for example rpool/ROOT/default
+  --dataset DS             Rollback clone dataset to validate
+  --snapshot SNAPSHOT      Expected origin snapshot for --dataset
+  --esp-path PATH          ESP mount path as seen from target root (default: /boot)
+  --limine-config PATH     Limine config path as seen from target root
+  --dry-run                Show checks without executing them
+  --help                   Show this help
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+target_path() {
+  local relative="${1#/}"
+
+  if [[ "$target_root" == "/" ]]; then
+    printf '/%s\n' "$relative"
+  else
+    printf '%s/%s\n' "${target_root%/}" "$relative"
+  fi
+}
+
+env_file_value() {
+  local path="$1"
+  local key="$2"
+
+  awk -F= -v key="$key" '
+    $1 == key {
+      value = $0
+      sub(/^[^=]*=/, "", value)
+      gsub(/^"/, "", value)
+      gsub(/"$/, "", value)
+      print value
+      exit
+    }
+  ' "$path"
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --mode)
+        [[ $# -ge 2 ]] || die "missing value for --mode"
+        mode="$2"
+        shift 2
+        ;;
+      --target-root)
+        [[ $# -ge 2 ]] || die "missing value for --target-root"
+        target_root="$2"
+        shift 2
+        ;;
+      --pool-name)
+        [[ $# -ge 2 ]] || die "missing value for --pool-name"
+        pool_name="$2"
+        shift 2
+        ;;
+      --zfs-root-dataset)
+        [[ $# -ge 2 ]] || die "missing value for --zfs-root-dataset"
+        zfs_root_dataset="$2"
+        shift 2
+        ;;
+      --dataset)
+        [[ $# -ge 2 ]] || die "missing value for --dataset"
+        rollback_dataset="$2"
+        shift 2
+        ;;
+      --snapshot)
+        [[ $# -ge 2 ]] || die "missing value for --snapshot"
+        expected_snapshot="$2"
+        shift 2
+        ;;
+      --esp-path)
+        [[ $# -ge 2 ]] || die "missing value for --esp-path"
+        esp_path="$2"
+        shift 2
+        ;;
+      --limine-config)
+        [[ $# -ge 2 ]] || die "missing value for --limine-config"
+        limine_config="$2"
+        shift 2
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+load_manifest_defaults() {
+  local manifest_path=""
+
+  manifest_path="$(target_path /etc/margine/install-layout.env)"
+  [[ -r "$manifest_path" ]] || return 0
+
+  if [[ -z "$zfs_root_dataset" ]]; then
+    zfs_root_dataset="$(env_file_value "$manifest_path" MARGINE_ZFS_ROOT_DATASET 2>/dev/null || true)"
+  fi
+  if [[ -z "$pool_name" ]]; then
+    pool_name="$(env_file_value "$manifest_path" MARGINE_ZFS_POOL 2>/dev/null || true)"
+  fi
+}
+
+mounted_root_source() {
+  local source=""
+
+  source="$(findmnt -nro SOURCE --target "$target_root" 2>/dev/null || true)"
+  source="${source%%[*}"
+  printf '%s\n' "$source"
+}
+
+zfs_value() {
+  local property="$1"
+  local dataset="$2"
+  local value=""
+
+  value="$(zfs get -H -o value "$property" "$dataset" 2>/dev/null || true)"
+  [[ "$value" != "-" ]] || value=""
+  printf '%s\n' "$value"
+}
+
+infer_pool_and_primary_root() {
+  local root_source=""
+  local bootfs=""
+  local cmdline_root=""
+
+  root_source="$(mounted_root_source)"
+
+  if [[ -z "$rollback_dataset" && "$mode" == "active" && "$root_source" == */* ]]; then
+    if [[ "$(zfs_value org.margine:bootenv "$root_source")" == "pre-update" ]]; then
+      rollback_dataset="$root_source"
+    fi
+  fi
+
+  if [[ -z "$pool_name" && "$zfs_root_dataset" == */* ]]; then
+    pool_name="${zfs_root_dataset%%/*}"
+  fi
+  if [[ -z "$pool_name" && "$rollback_dataset" == */* ]]; then
+    pool_name="${rollback_dataset%%/*}"
+  fi
+  if [[ -z "$pool_name" && "$root_source" == */* ]]; then
+    pool_name="${root_source%%/*}"
+  fi
+
+  if [[ -z "$zfs_root_dataset" && -n "$pool_name" ]]; then
+    bootfs="$(zpool get -H -o value bootfs "$pool_name" 2>/dev/null || true)"
+    if [[ "$bootfs" != "-" && "$bootfs" != "none" ]]; then
+      zfs_root_dataset="$bootfs"
+    fi
+  fi
+
+  if [[ -z "$zfs_root_dataset" && -n "$rollback_dataset" ]]; then
+    cmdline_root="$(zfs_value origin "$rollback_dataset")"
+    [[ "$cmdline_root" == *@* ]] && zfs_root_dataset="${cmdline_root%@*}"
+  fi
+
+  if [[ -z "$zfs_root_dataset" ]]; then
+    cmdline_root="$(sed -n 's/.*root=ZFS=\([^ ]*\).*/\1/p' /proc/cmdline 2>/dev/null || true)"
+    if [[ -n "$cmdline_root" && "$(zfs_value org.margine:bootenv "$cmdline_root")" != "pre-update" ]]; then
+      zfs_root_dataset="$cmdline_root"
+    fi
+  fi
+
+  if [[ -z "$pool_name" && "$zfs_root_dataset" == */* ]]; then
+    pool_name="${zfs_root_dataset%%/*}"
+  fi
+}
+
+latest_marked_rollback_dataset() {
+  local root_parent="$1"
+  local dataset=""
+  local marker=""
+  local origin=""
+  local creation=""
+
+  while IFS= read -r dataset; do
+    [[ -n "$dataset" ]] || continue
+    [[ "$dataset" == "$root_parent" ]] && continue
+    [[ "$dataset" == "$zfs_root_dataset" ]] && continue
+
+    marker="$(zfs_value org.margine:bootenv "$dataset")"
+    [[ "$marker" == "pre-update" ]] || continue
+    origin="$(zfs_value origin "$dataset")"
+    [[ "$origin" == "${zfs_root_dataset}@"* ]] || continue
+    creation="$(zfs get -H -p -o value creation "$dataset" 2>/dev/null || true)"
+    [[ "$creation" =~ ^[0-9]+$ ]] || creation=0
+    printf '%s\t%s\n' "$creation" "$dataset"
+  done < <(zfs list -H -r -o name "$root_parent" 2>/dev/null || true) |
+    sort -t$'\t' -k1,1nr |
+    awk -F'\t' 'NR == 1 { print $2 }'
+}
+
+infer_rollback_dataset() {
+  local root_parent=""
+
+  [[ -n "$rollback_dataset" ]] && return 0
+  [[ -n "$zfs_root_dataset" ]] || return 0
+
+  root_parent="${zfs_root_dataset%/*}"
+  rollback_dataset="$(latest_marked_rollback_dataset "$root_parent")"
+}
+
+resolve_limine_config() {
+  local candidate=""
+
+  [[ -n "$limine_config" ]] && return 0
+
+  candidate="$(target_path "${esp_path%/}/EFI/BOOT/limine.conf")"
+  if [[ -f "$candidate" || "$dry_run" -eq 1 ]]; then
+    limine_config="$candidate"
+    return 0
+  fi
+
+  candidate="$(target_path "${esp_path%/}/limine.conf")"
+  if [[ -f "$candidate" ]]; then
+    limine_config="$candidate"
+    return 0
+  fi
+
+  limine_config="$(target_path "${esp_path%/}/EFI/BOOT/limine.conf")"
+}
+
+resolve_uki_file() {
+  local limine_path="$1"
+  local efi_linux_prefix='${EFI_LINUX}/'
+  local efi_linux_tail=""
+
+  if [[ "$limine_path" == boot\(\):/EFI/Linux/* ]]; then
+    target_path "${esp_path%/}${limine_path#boot():}"
+  elif [[ "$limine_path" == "$efi_linux_prefix"* ]]; then
+    efi_linux_tail="${limine_path#"$efi_linux_prefix"}"
+    target_path "${esp_path%/}/EFI/Linux/${efi_linux_tail}"
+  elif [[ "$limine_path" == /boot/* ]]; then
+    target_path "$limine_path"
+  elif [[ "$limine_path" == /EFI/Linux/* ]]; then
+    target_path "${esp_path%/}${limine_path}"
+  else
+    printf '%s\n' ""
+  fi
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in awk findmnt grep sort zfs zpool; do
+    have_cmd "$cmd" || die "required command not found: $cmd"
+  done
+}
+
+validate_inputs() {
+  [[ "$mode" == "published" || "$mode" == "active" ]] \
+    || die "--mode must be published or active"
+  [[ -n "$target_root" ]] || die "--target-root must not be empty"
+  [[ -n "$esp_path" ]] || die "--esp-path must not be empty"
+
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ -n "$pool_name" ]] || die "unable to determine ZFS pool"
+  [[ -n "$zfs_root_dataset" ]] || die "unable to determine primary root dataset"
+  [[ "$zfs_root_dataset" == "${pool_name}/"* ]] \
+    || die "primary root dataset ${zfs_root_dataset} is not below pool ${pool_name}"
+  [[ -n "$rollback_dataset" ]] || die "unable to determine rollback boot environment dataset"
+  [[ "$rollback_dataset" == "${zfs_root_dataset%/*}/"* ]] \
+    || die "rollback dataset ${rollback_dataset} is not a sibling below ${zfs_root_dataset%/*}"
+  [[ "$rollback_dataset" != "$zfs_root_dataset" ]] \
+    || die "rollback dataset must not be the primary root dataset"
+  [[ -n "$limine_config" ]] || die "unable to determine Limine config path"
+}
+
+validate_published_rollback() {
+  local marker=""
+  local origin=""
+  local origin_prop=""
+  local mountpoint=""
+  local canmount=""
+  local rollback_uki_path=""
+  local rollback_uki_file=""
+  local bootfs=""
+
+  if (( dry_run )); then
+    printf '[dry-run] verify rollback dataset, origin snapshot, frozen UKI and Limine entry for %s\n' "${rollback_dataset:-<latest-marked-rollback>}"
+    return 0
+  fi
+
+  zfs list -H -o name "$zfs_root_dataset" >/dev/null \
+    || die "primary root dataset not found: ${zfs_root_dataset}"
+  zfs list -H -o name "$rollback_dataset" >/dev/null \
+    || die "rollback dataset not found: ${rollback_dataset}"
+
+  bootfs="$(zpool get -H -o value bootfs "$pool_name" 2>/dev/null || true)"
+  [[ "$bootfs" == "$zfs_root_dataset" ]] \
+    || die "pool bootfs must remain ${zfs_root_dataset}, current value: ${bootfs:-none}"
+
+  marker="$(zfs_value org.margine:bootenv "$rollback_dataset")"
+  [[ "$marker" == "pre-update" ]] \
+    || die "rollback dataset is not marked org.margine:bootenv=pre-update: ${rollback_dataset}"
+
+  origin="$(zfs_value origin "$rollback_dataset")"
+  [[ "$origin" == "${zfs_root_dataset}@"* ]] \
+    || die "rollback origin must point to ${zfs_root_dataset}@..., current value: ${origin:-none}"
+  if [[ -n "$expected_snapshot" ]]; then
+    [[ "$origin" == "$expected_snapshot" ]] \
+      || die "rollback origin mismatch: expected ${expected_snapshot}, got ${origin}"
+  fi
+  zfs list -H -t snapshot -o name "$origin" >/dev/null \
+    || die "rollback origin snapshot missing: ${origin}"
+
+  origin_prop="$(zfs_value org.margine:origin-snapshot "$rollback_dataset")"
+  [[ -z "$origin_prop" || "$origin_prop" == "$origin" ]] \
+    || die "org.margine:origin-snapshot mismatch for ${rollback_dataset}: ${origin_prop}"
+
+  mountpoint="$(zfs_value mountpoint "$rollback_dataset")"
+  canmount="$(zfs_value canmount "$rollback_dataset")"
+  [[ "$mountpoint" == "/" ]] \
+    || die "rollback dataset must use mountpoint=/, current value: ${mountpoint:-none}"
+  [[ "$canmount" == "noauto" ]] \
+    || die "rollback dataset must use canmount=noauto, current value: ${canmount:-none}"
+
+  rollback_uki_path="$(zfs_value org.margine:rollback-uki "$rollback_dataset")"
+  [[ -n "$rollback_uki_path" ]] \
+    || die "rollback dataset missing frozen UKI property org.margine:rollback-uki"
+  rollback_uki_file="$(resolve_uki_file "$rollback_uki_path")"
+  [[ -n "$rollback_uki_file" ]] \
+    || die "unable to resolve rollback UKI path for ${rollback_dataset}: ${rollback_uki_path}"
+  [[ -s "$rollback_uki_file" ]] \
+    || die "frozen rollback UKI missing or empty: ${rollback_uki_file}"
+
+  [[ -f "$limine_config" ]] || die "Limine config missing: ${limine_config}"
+  grep -Fq '/Rollback' "$limine_config" \
+    || die "Limine config has no /Rollback menu: ${limine_config}"
+  grep -Fq "root=ZFS=${rollback_dataset}" "$limine_config" \
+    || die "Limine config missing root=ZFS=${rollback_dataset}: ${limine_config}"
+  grep -Fq "path: ${rollback_uki_path}" "$limine_config" \
+    || die "Limine config missing frozen rollback UKI ${rollback_uki_path}: ${limine_config}"
+  if grep -Fq '@ZFS_BOOT_ENVIRONMENT_ENTRIES@' "$limine_config"; then
+    die "Limine config still contains unrendered rollback entry placeholder: ${limine_config}"
+  fi
+
+  log "  primary root: ${zfs_root_dataset}"
+  log "  rollback dataset: ${rollback_dataset}"
+  log "  origin snapshot: ${origin}"
+  log "  frozen UKI: ${rollback_uki_file}"
+  log "  Limine config: ${limine_config}"
+}
+
+validate_active_rollback() {
+  local root_source=""
+  local cmdline=""
+
+  [[ "$mode" == "active" ]] || return 0
+
+  if (( dry_run )); then
+    printf '[dry-run] verify active / and /proc/cmdline are booted from %s\n' "${rollback_dataset:-<rollback-dataset>}"
+    return 0
+  fi
+
+  root_source="$(mounted_root_source)"
+  [[ "$root_source" == "$rollback_dataset" ]] \
+    || die "active root mismatch: expected ${rollback_dataset}, got ${root_source:-none}"
+
+  cmdline="$(cat /proc/cmdline 2>/dev/null || true)"
+  grep -Fq "root=ZFS=${rollback_dataset}" <<<"$cmdline" \
+    || die "kernel cmdline does not target active rollback dataset ${rollback_dataset}"
+
+  log "  active root: ${root_source}"
+  log "  active cmdline: root=ZFS=${rollback_dataset}"
+}
+
+main() {
+  parse_args "$@"
+
+  if (( dry_run )); then
+    log "=== Validate ZFS rollback boot environment ==="
+    log "Mode: ${mode}"
+    log "Execution mode: dry-run"
+    validate_published_rollback
+    validate_active_rollback
+    log
+    log "ZFS rollback boot environment validation: OK"
+    return 0
+  fi
+
+  ensure_prereqs
+  load_manifest_defaults
+  infer_pool_and_primary_root
+  infer_rollback_dataset
+  resolve_limine_config
+  validate_inputs
+
+  log "=== Validate ZFS rollback boot environment ==="
+  log "Mode: ${mode}"
+  log "Target root: ${target_root}"
+  log "Pool: ${pool_name}"
+
+  validate_published_rollback
+  validate_active_rollback
+
+  log
+  log "ZFS rollback boot environment validation: OK"
+}
+
+main "$@"

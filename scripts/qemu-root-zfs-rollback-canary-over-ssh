@@ -1,0 +1,591 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "${script_dir}/.." && pwd)"
+
+build_dir=""
+identity_file=""
+known_hosts=""
+ssh_user="${MARGINE_QEMU_SSH_USER:-margine}"
+ssh_port="${MARGINE_QEMU_SSH_PORT:-2222}"
+target_user=""
+phase="status"
+prompt_sudo=0
+timeout_seconds="${MARGINE_QEMU_SSH_TIMEOUT:-120}"
+remote_script="/tmp/margine-qemu-root-zfs-rollback-canary"
+declare -a ssh_args=()
+
+usage() {
+  cat <<'EOF'
+Usage:
+  qemu-root-zfs-rollback-canary-over-ssh [options]
+
+Creates and verifies explicit root-on-ZFS rollback canaries inside a running
+QEMU Margine root-on-ZFS guest.
+
+Phases:
+  --seed             Create root-dataset canaries before running update-all
+  --mutate           Mutate/delete/create canaries after update-all on primary
+  --verify-rollback  Verify canaries after booting a Limine rollback entry
+  --cleanup          Remove canary files from the active root, /home, and /games
+  --status           Print current canary and root state (default)
+
+Options:
+  --build-dir PATH       QEMU harness directory containing qemu-margine_ed25519
+  --identity-file PATH   SSH identity file (default: BUILD_DIR/qemu-margine_ed25519)
+  --known-hosts PATH     SSH known_hosts file (default: BUILD_DIR/known_hosts)
+  --user USER            SSH login user and guest user for /home canaries
+  --port PORT            Host forwarded SSH port (default: MARGINE_QEMU_SSH_PORT or 2222)
+  --prompt-sudo          Allow an interactive sudo password prompt over SSH
+  --timeout SECONDS      Wait time for SSH handshake (default: 120)
+  --help                 Show this help
+
+Expected sequence:
+  1. --seed on the primary root before the real update-all run
+  2. run update-all normally
+  3. --mutate on the updated primary root
+  4. reboot and select the new Limine /Rollback entry
+  5. --verify-rollback after logging into the rollback boot
+  6. reboot to Primary, then --cleanup
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+latest_root_zfs_build_dir() {
+  local candidate=""
+
+  candidate="$(
+    find "${repo_root}/build" -maxdepth 2 -type f -path "${repo_root}/build/qemu-root-zfs-*/qemu-margine_ed25519" -printf '%T@ %h\n' 2>/dev/null |
+      sort -nr |
+      awk 'NR == 1 { $1 = ""; sub(/^ /, ""); print; exit }'
+  )"
+
+  [[ -n "$candidate" ]] || die "unable to infer --build-dir; no build/qemu-root-zfs-* directory containing qemu-margine_ed25519 found"
+  printf '%s\n' "$candidate"
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --build-dir)
+        [[ $# -ge 2 ]] || die "missing value for --build-dir"
+        build_dir="$2"
+        shift 2
+        ;;
+      --identity-file)
+        [[ $# -ge 2 ]] || die "missing value for --identity-file"
+        identity_file="$2"
+        shift 2
+        ;;
+      --known-hosts)
+        [[ $# -ge 2 ]] || die "missing value for --known-hosts"
+        known_hosts="$2"
+        shift 2
+        ;;
+      --user)
+        [[ $# -ge 2 ]] || die "missing value for --user"
+        ssh_user="$2"
+        target_user="$2"
+        shift 2
+        ;;
+      --port)
+        [[ $# -ge 2 ]] || die "missing value for --port"
+        ssh_port="$2"
+        shift 2
+        ;;
+      --seed)
+        phase="seed"
+        shift
+        ;;
+      --mutate)
+        phase="mutate"
+        shift
+        ;;
+      --verify-rollback)
+        phase="verify-rollback"
+        shift
+        ;;
+      --cleanup)
+        phase="cleanup"
+        shift
+        ;;
+      --status)
+        phase="status"
+        shift
+        ;;
+      --prompt-sudo)
+        prompt_sudo=1
+        shift
+        ;;
+      --timeout)
+        [[ $# -ge 2 ]] || die "missing value for --timeout"
+        timeout_seconds="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+init_defaults() {
+  build_dir="${build_dir:-$(latest_root_zfs_build_dir)}"
+  identity_file="${identity_file:-${build_dir}/qemu-margine_ed25519}"
+  known_hosts="${known_hosts:-${build_dir}/known_hosts}"
+  target_user="${target_user:-$ssh_user}"
+
+  [[ -f "$identity_file" ]] || die "SSH identity file not found: $identity_file"
+  install -d -m 700 "$(dirname "$known_hosts")"
+
+  ssh_args=(
+    ssh
+    -p "$ssh_port"
+    -i "$identity_file"
+    -o StrictHostKeyChecking=accept-new
+    -o UserKnownHostsFile="$known_hosts"
+    -o IdentitiesOnly=yes
+    -o ServerAliveInterval=30
+    -o ServerAliveCountMax=3
+    "${ssh_user}@127.0.0.1"
+  )
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in awk base64 find install sort ssh timeout; do
+    have_cmd "$cmd" || die "required command not found: $cmd"
+  done
+}
+
+wait_for_ssh() {
+  local deadline=$((SECONDS + timeout_seconds))
+  local destination=""
+  local -a probe_args=()
+
+  destination="${ssh_args[$((${#ssh_args[@]} - 1))]}"
+  probe_args=(
+    "${ssh_args[@]:0:$((${#ssh_args[@]} - 1))}"
+    -o BatchMode=yes
+    -o ConnectTimeout=2
+    -o ConnectionAttempts=1
+    "$destination"
+  )
+
+  log "Waiting for SSH handshake on 127.0.0.1:${ssh_port}"
+  while (( SECONDS < deadline )); do
+    if timeout 5 "${probe_args[@]}" true >/dev/null 2>&1; then
+      log "SSH handshake succeeded on 127.0.0.1:${ssh_port}"
+      return 0
+    fi
+    sleep 1
+  done
+
+  die "SSH handshake did not succeed on 127.0.0.1:${ssh_port} within ${timeout_seconds}s"
+}
+
+quote_remote() {
+  printf '%q' "$1"
+}
+
+guest_script() {
+  cat <<'GUEST'
+#!/usr/bin/env bash
+set -euo pipefail
+
+phase="status"
+target_user=""
+canary_dir="/etc/margine/zfs-rollback-canary"
+manifest_path="${canary_dir}/manifest.env"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  margine-qemu-root-zfs-rollback-canary --phase PHASE --user USER
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+env_file_value() {
+  local path="$1"
+  local key="$2"
+
+  awk -F= -v key="$key" '
+    $1 == key {
+      value = $0
+      sub(/^[^=]*=/, "", value)
+      gsub(/^'\''/, "", value)
+      gsub(/'\''$/, "", value)
+      gsub(/^"/, "", value)
+      gsub(/"$/, "", value)
+      print value
+      exit
+    }
+  ' "$path"
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --phase)
+        [[ $# -ge 2 ]] || die "missing value for --phase"
+        phase="$2"
+        shift 2
+        ;;
+      --user)
+        [[ $# -ge 2 ]] || die "missing value for --user"
+        target_user="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+root_source() {
+  local source=""
+
+  source="$(findmnt -nro SOURCE --target / 2>/dev/null || true)"
+  source="${source%%[*}"
+  printf '%s\n' "$source"
+}
+
+primary_root_dataset() {
+  local manifest="/etc/margine/install-layout.env"
+  local dataset=""
+
+  if [[ -r "$manifest" ]]; then
+    dataset="$(env_file_value "$manifest" MARGINE_ZFS_ROOT_DATASET 2>/dev/null || true)"
+  fi
+  printf '%s\n' "${dataset:-rpool/ROOT/default}"
+}
+
+home_canary_dir() {
+  printf '/home/%s/.local/state/margine/zfs-rollback-canary\n' "$target_user"
+}
+
+games_canary_dir() {
+  printf '/games/.margine-zfs-rollback-canary\n'
+}
+
+require_root() {
+  [[ "$(id -u)" -eq 0 ]] || die "must run as root"
+}
+
+require_user() {
+  [[ -n "$target_user" ]] || die "--user is required"
+  id "$target_user" >/dev/null 2>&1 || die "guest user does not exist: $target_user"
+}
+
+require_primary_root() {
+  local expected=""
+  local current=""
+
+  expected="$(primary_root_dataset)"
+  current="$(root_source)"
+  [[ "$current" == "$expected" ]] \
+    || die "phase ${phase} must run on primary root ${expected}; current root is ${current:-unknown}"
+}
+
+load_manifest() {
+  [[ -r "$manifest_path" ]] || die "canary manifest missing: ${manifest_path}; run --seed first"
+
+  CANARY_ID="$(env_file_value "$manifest_path" CANARY_ID)"
+  PRIMARY_ROOT_DATASET="$(env_file_value "$manifest_path" PRIMARY_ROOT_DATASET)"
+  ROOT_BEFORE_CONTENT="$(env_file_value "$manifest_path" ROOT_BEFORE_CONTENT)"
+  ROOT_DELETE_CONTENT="$(env_file_value "$manifest_path" ROOT_DELETE_CONTENT)"
+}
+
+write_manifest() {
+  local canary_id="$1"
+  local primary_dataset="$2"
+  local before_content="$3"
+  local delete_content="$4"
+
+  install -d -m 755 "$canary_dir"
+  cat >"$manifest_path" <<EOF
+CANARY_ID='${canary_id}'
+PRIMARY_ROOT_DATASET='${primary_dataset}'
+ROOT_BEFORE_CONTENT='${before_content}'
+ROOT_DELETE_CONTENT='${delete_content}'
+EOF
+}
+
+phase_seed() {
+  local canary_id=""
+  local primary_dataset=""
+  local before_content=""
+  local delete_content=""
+
+  require_primary_root
+
+  canary_id="$(date '+%Y%m%d-%H%M%S')-$$"
+  primary_dataset="$(primary_root_dataset)"
+  before_content="root-before-${canary_id}"
+  delete_content="root-delete-before-${canary_id}"
+
+  write_manifest "$canary_id" "$primary_dataset" "$before_content" "$delete_content"
+  printf '%s\n' "$before_content" >"${canary_dir}/root-modified-after-update.txt"
+  printf '%s\n' "$delete_content" >"${canary_dir}/root-deleted-after-update.txt"
+  rm -f "${canary_dir}/root-created-after-update.txt"
+  sync
+
+  log "seeded rollback canary:"
+  log "  id: ${canary_id}"
+  log "  root dataset: ${primary_dataset}"
+  log "  manifest: ${manifest_path}"
+}
+
+phase_mutate() {
+  local home_dir=""
+  local games_dir=""
+  local group_name=""
+
+  load_manifest
+  require_primary_root
+  require_user
+
+  printf 'root-after-%s\n' "$CANARY_ID" >"${canary_dir}/root-modified-after-update.txt"
+  rm -f "${canary_dir}/root-deleted-after-update.txt"
+  printf 'root-created-after-%s\n' "$CANARY_ID" >"${canary_dir}/root-created-after-update.txt"
+
+  home_dir="$(home_canary_dir)"
+  group_name="$(id -gn "$target_user")"
+  install -d -o "$target_user" -g "$group_name" -m 755 "$home_dir"
+  printf 'home-created-after-%s\n' "$CANARY_ID" >"${home_dir}/home-created-after-update.txt"
+  chown "$target_user:$group_name" "${home_dir}/home-created-after-update.txt"
+
+  games_dir="$(games_canary_dir)"
+  if findmnt --target /games >/dev/null 2>&1; then
+    install -d -m 755 "$games_dir"
+    printf 'games-created-after-%s\n' "$CANARY_ID" >"${games_dir}/games-created-after-update.txt"
+  else
+    log "warning: /games is not mounted; skipping /games persistence canary"
+  fi
+  sync
+
+  log "mutated rollback canary after update:"
+  log "  id: ${CANARY_ID}"
+  log "  root changed/deleted/created under ${canary_dir}"
+  log "  home persistence canary: ${home_dir}/home-created-after-update.txt"
+  if [[ -d "$games_dir" ]]; then
+    log "  games persistence canary: ${games_dir}/games-created-after-update.txt"
+  fi
+}
+
+assert_file_content() {
+  local path="$1"
+  local expected="$2"
+  local actual=""
+
+  [[ -f "$path" ]] || die "missing expected file: $path"
+  actual="$(<"$path")"
+  [[ "$actual" == "$expected" ]] \
+    || die "unexpected content in ${path}: expected '${expected}', got '${actual}'"
+}
+
+phase_verify_rollback() {
+  local current=""
+  local marker=""
+  local cmdline=""
+  local home_dir=""
+  local games_dir=""
+
+  load_manifest
+  require_user
+
+  current="$(root_source)"
+  [[ "$current" != "$PRIMARY_ROOT_DATASET" ]] \
+    || die "current boot is still primary root ${PRIMARY_ROOT_DATASET}; select the Limine rollback entry first"
+
+  marker="$(zfs get -H -o value org.margine:bootenv "$current" 2>/dev/null || true)"
+  [[ "$marker" == "pre-update" ]] \
+    || die "current root ${current} is not marked as a Margine pre-update rollback clone"
+
+  cmdline="$(tr ' ' '\n' </proc/cmdline | grep -F "root=ZFS=${current}" || true)"
+  [[ -n "$cmdline" ]] || die "/proc/cmdline does not boot root=ZFS=${current}"
+
+  assert_file_content "${canary_dir}/root-modified-after-update.txt" "$ROOT_BEFORE_CONTENT"
+  assert_file_content "${canary_dir}/root-deleted-after-update.txt" "$ROOT_DELETE_CONTENT"
+  [[ ! -e "${canary_dir}/root-created-after-update.txt" ]] \
+    || die "root-created-after-update.txt exists in rollback clone; root dataset did not roll back"
+
+  home_dir="$(home_canary_dir)"
+  [[ -f "${home_dir}/home-created-after-update.txt" ]] \
+    || die "home persistence canary missing; /home unexpectedly rolled back or was not mounted"
+
+  games_dir="$(games_canary_dir)"
+  if findmnt --target /games >/dev/null 2>&1; then
+    [[ -f "${games_dir}/games-created-after-update.txt" ]] \
+      || die "games persistence canary missing; /games unexpectedly rolled back or was not mounted"
+  fi
+
+  if [[ -x /usr/local/lib/margine/scripts/validate-zfs-rollback-boot-environment ]]; then
+    /usr/local/lib/margine/scripts/validate-zfs-rollback-boot-environment --mode active --target-root /
+  fi
+
+  log "rollback canary validation: OK"
+  log "  active root: ${current}"
+  log "  root canaries reverted to pre-update state"
+  log "  /home canary persisted across rollback"
+  if findmnt --target /games >/dev/null 2>&1; then
+    log "  /games canary persisted across rollback"
+  fi
+}
+
+phase_cleanup() {
+  local home_dir=""
+  local games_dir=""
+
+  require_user
+
+  home_dir="$(home_canary_dir)"
+  games_dir="$(games_canary_dir)"
+
+  rm -rf -- "$canary_dir"
+  rm -rf -- "$home_dir"
+  rm -rf -- "$games_dir"
+  sync
+
+  log "rollback canary cleanup: OK"
+  log "  removed from active root: ${canary_dir}"
+  log "  removed from /home dataset: ${home_dir}"
+  log "  removed from /games dataset: ${games_dir}"
+}
+
+phase_status() {
+  local current=""
+
+  current="$(root_source)"
+  log "current root: ${current:-unknown}"
+  if [[ -r "$manifest_path" ]]; then
+    log "canary manifest:"
+    sed 's/^/  /' "$manifest_path"
+  else
+    log "canary manifest: missing"
+  fi
+  findmnt / /home /games 2>/dev/null || true
+  if [[ -d "$canary_dir" ]]; then
+    find "$canary_dir" -maxdepth 1 -type f -printf 'root-canary: %p\n' | sort
+  fi
+  if [[ -n "$target_user" && -d "$(home_canary_dir)" ]]; then
+    find "$(home_canary_dir)" -maxdepth 1 -type f -printf 'home-canary: %p\n' | sort
+  fi
+  if [[ -d "$(games_canary_dir)" ]]; then
+    find "$(games_canary_dir)" -maxdepth 1 -type f -printf 'games-canary: %p\n' | sort
+  fi
+}
+
+main() {
+  parse_args "$@"
+  require_root
+
+  case "$phase" in
+    seed)
+      phase_seed
+      ;;
+    mutate)
+      phase_mutate
+      ;;
+    verify-rollback)
+      phase_verify_rollback
+      ;;
+    cleanup)
+      phase_cleanup
+      ;;
+    status)
+      phase_status
+      ;;
+    *)
+      die "unknown phase: $phase"
+      ;;
+  esac
+}
+
+main "$@"
+GUEST
+}
+
+upload_guest_script() {
+  log "==> Upload rollback canary helper to ${remote_script}"
+  guest_script |
+    base64 |
+    "${ssh_args[@]}" "umask 077; base64 -d > $(quote_remote "$remote_script"); chmod 700 $(quote_remote "$remote_script")"
+}
+
+run_guest_phase() {
+  local sudo_prefix=""
+  local tty_arg=()
+  local remote_command=""
+
+  if (( prompt_sudo )); then
+    sudo_prefix="sudo -v && sudo"
+    tty_arg=(-tt)
+  else
+    sudo_prefix="sudo -n"
+  fi
+
+  remote_command=$(
+    cat <<EOF
+trap 'rm -f $(quote_remote "$remote_script")' EXIT
+${sudo_prefix} $(quote_remote "$remote_script") --phase $(quote_remote "$phase") --user $(quote_remote "$target_user")
+EOF
+  )
+
+  log "==> Run rollback canary phase: ${phase}"
+  "${ssh_args[@]:0:1}" "${tty_arg[@]}" "${ssh_args[@]:1}" "$remote_command"
+}
+
+main() {
+  parse_args "$@"
+  ensure_prereqs
+  init_defaults
+
+  log "=== QEMU root-on-ZFS rollback canary ==="
+  log "Build dir: $build_dir"
+  log "SSH: ${ssh_user}@127.0.0.1:${ssh_port}"
+  log "Target user: ${target_user}"
+  log "Phase: ${phase}"
+  log
+
+  wait_for_ssh
+  upload_guest_script
+  run_guest_phase
+
+  log
+  log "=== DONE ==="
+}
+
+main "$@"

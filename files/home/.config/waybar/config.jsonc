@@ -40,7 +40,6 @@
     "custom/network",
     "bluetooth",
     "custom/keepawake",
-    "custom/easyeffects",
     "pulseaudio",
     "custom/battery",
     "custom/notification-count",
@@ -169,18 +168,6 @@
     "on-click": "~/.local/bin/open-bluetooth-tui"
   },
 
-  // Right: EasyEffects state
-  "custom/easyeffects": {
-    "format": "{}",
-    "return-type": "json",
-    "exec": "~/.local/bin/easyeffects-status",
-    "interval": 2,
-    "signal": 12,
-    "on-click": "~/.local/bin/gtk-dark-exec easyeffects",
-    "on-click-right": "~/.local/bin/easyeffects-toggle",
-    "escape": true
-  },
-
   // Right: inhibit sleep / keep-awake state
   "custom/keepawake": {
     "format": "{}",
@@ -195,7 +182,7 @@
   // Right: output volume
   "pulseaudio": {
     "scroll-step": 5,
-    "format": "{icon}  {volume}%",
+    "format": "{icon} {volume}%",
     "format-bluetooth": "󰂯 {volume}%",
     "format-muted": "󰖁",
     "format-icons": {

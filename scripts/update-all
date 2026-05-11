@@ -808,8 +808,32 @@ run_root_zfs_boot_environment_clone() {
   run_cmd sudo "$clone_script" "${args[@]}"
 }
 
+run_root_zfs_freeze_rollback_uki() {
+  local rollback_uki_script="${repo_root}/scripts/create-zfs-rollback-uki"
+  local effective_esp_path="${esp_path:-/boot}"
+  local source_uki="${effective_esp_path%/}/EFI/Linux/margine-recovery.efi"
+  local -a args=()
+
+  [[ -n "$zfs_boot_environment_dataset" ]] \
+    || die "root-on-ZFS rollback boot environment was not recorded"
+  [[ -x "$rollback_uki_script" ]] \
+    || die "ZFS rollback UKI helper not executable: $rollback_uki_script"
+
+  args=(
+    --dataset "$zfs_boot_environment_dataset"
+    --esp-path "$effective_esp_path"
+    --source-uki "$source_uki"
+  )
+  (( dry_run )) && args=(--dry-run "${args[@]}")
+
+  log
+  log "==> 0c.1) Freeze ZFS rollback UKI"
+  run_cmd sudo "$rollback_uki_script" "${args[@]}"
+}
+
 run_root_zfs_boot_regeneration() {
   local phase_label="${1:-5) Root-on-ZFS boot artifacts}"
+  local skip_uki_build="${2:-0}"
   local provisioner="${repo_root}/scripts/provision-initial-boot-chain-zfs"
   local trust_script="${repo_root}/scripts/refresh-efi-trust"
   local effective_esp_path="${esp_path:-/boot}"
@@ -818,6 +842,7 @@ run_root_zfs_boot_regeneration() {
 
   (( use_boot )) || return 0
   [[ -x "$provisioner" ]] || die "root-on-ZFS boot provisioner not executable: $provisioner"
+  (( skip_uki_build )) && provision_args+=(--skip-uki-build)
   (( dry_run )) && provision_args+=(--dry-run)
 
   log
@@ -838,6 +863,31 @@ run_root_zfs_boot_regeneration() {
     log
     log "EFI trust refresh skipped: sbctl is not initialized or --no-trust-refresh was used."
   fi
+}
+
+run_root_zfs_rollback_publication_validation() {
+  local validator="${repo_root}/scripts/validate-zfs-rollback-boot-environment"
+  local effective_esp_path="${esp_path:-/boot}"
+  local -a args=(
+    --mode published
+    --pool-name "$zfs_pool_name"
+    --zfs-root-dataset "$zfs_root_dataset"
+    --dataset "$zfs_boot_environment_dataset"
+    --snapshot "$zfs_pre_update_snapshot"
+    --esp-path "$effective_esp_path"
+  )
+
+  [[ -n "$zfs_boot_environment_dataset" ]] \
+    || die "root-on-ZFS rollback boot environment was not recorded"
+  [[ -n "$zfs_pre_update_snapshot" ]] \
+    || die "root-on-ZFS pre-update snapshot was not recorded"
+  [[ -x "$validator" ]] \
+    || die "ZFS rollback boot-environment validator not executable: $validator"
+  (( dry_run )) && args=(--dry-run "${args[@]}")
+
+  log
+  log "==> 0c.3) Validate ZFS rollback boot environment"
+  run_cmd sudo "$validator" "${args[@]}"
 }
 
 run_root_zfs_post_validation() {
@@ -870,7 +920,10 @@ run_root_zfs_update() {
   run_root_zfs_preflight
   run_root_zfs_pre_update_snapshot
   run_root_zfs_boot_environment_clone
-  run_root_zfs_boot_regeneration "0c) Publish ZFS rollback boot entry"
+  run_root_zfs_boot_regeneration "0c) Build pre-update ZFS boot artifacts"
+  run_root_zfs_freeze_rollback_uki
+  run_root_zfs_boot_regeneration "0c.2) Publish ZFS rollback boot entry" 1
+  run_root_zfs_rollback_publication_validation
   run_flavor_repo_provisioner
   run_pacman_preflight_migrations
   run_pacman_update
@@ -975,6 +1028,7 @@ build_recovery_entries() {
   local args=(
     --root-uuid "$root_uuid"
     --luks-uuid "$luks_uuid"
+    --crypt-name "$crypt_name"
     --snapper-config "$snapper_config"
     --snapshots-subvolume "$snapshots_subvolume"
     --limit "$recovery_entry_limit"
@@ -1036,6 +1090,7 @@ render_limine_config() {
   args=(
     --root-uuid "$root_uuid"
     --luks-uuid "$luks_uuid"
+    --crypt-name "$crypt_name"
     --output "$output_path"
   )
 

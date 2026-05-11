@@ -123,6 +123,19 @@ Operational scripts:
   user wrapper, and writes `~/update-all-zfs-rollback-dryrun.log`. This path
   avoids guest-side 9p mounts because a stuck kernel 9p mount can become
   unkillable during validation.
+- `qemu-root-zfs-rollback-canary-over-ssh`: host-side VM validation helper for
+  the root-on-ZFS rollback flow. It seeds root-dataset canaries before
+  `update-all`, mutates root plus `/home` and `/games` canaries after the
+  update, then verifies from a Limine rollback boot that the root dataset was
+  restored while independent datasets persisted. After returning to the primary
+  boot, run its `--cleanup` phase to remove the validation canary files from the
+  active root, `/home`, and `/games`.
+- `prune-zfs-rollback-boot-environments`: installed-system retention helper for
+  root-on-ZFS rollback clones. It prints a read-only pruning plan by default,
+  requires `--destroy` before deleting anything, refuses destructive pruning
+  from an active rollback root, destroys clone-before-origin-snapshot, removes
+  only frozen rollback UKIs under `EFI/Linux/margine-rollback`, and republishes
+  Limine after pruning.
 - `apply-qemu-branding-assets-over-ssh`: host-side helper for pushing the
   current Margine logo/Plymouth/fastfetch assets into an installed QEMU guest.
   It uploads a filtered repository snapshot over SSH, applies

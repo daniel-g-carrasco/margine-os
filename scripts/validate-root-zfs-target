@@ -386,6 +386,10 @@ check_boot_chain_artifacts() {
   local root_parent=""
   local boot_environment_dataset=""
   local boot_environment_marker=""
+  local efi_linux_prefix='${EFI_LINUX}/'
+  local rollback_uki_path=""
+  local rollback_uki_file=""
+  local rollback_uki_tail=""
   local boot_environment_count=0
 
   [[ "$mode" == "boot-chain" ]] || return 0
@@ -450,6 +454,22 @@ check_boot_chain_artifacts() {
     boot_environment_count=$((boot_environment_count + 1))
     grep -Fq "root=ZFS=${boot_environment_dataset}" "$limine_path" \
       || die "Limine config missing rollback entry for ${boot_environment_dataset}: ${limine_path}"
+    rollback_uki_path="$(zfs get -H -o value org.margine:rollback-uki "$boot_environment_dataset" 2>/dev/null || true)"
+    if [[ -n "$rollback_uki_path" && "$rollback_uki_path" != "-" ]]; then
+      grep -Fq "path: ${rollback_uki_path}" "$limine_path" \
+        || die "Limine config missing frozen rollback UKI ${rollback_uki_path} for ${boot_environment_dataset}: ${limine_path}"
+      rollback_uki_file=""
+      if [[ "$rollback_uki_path" == boot\(\):/EFI/Linux/* ]]; then
+        rollback_uki_file="$(target_path "/boot${rollback_uki_path#boot():}")"
+      elif [[ "$rollback_uki_path" == "$efi_linux_prefix"* ]]; then
+        rollback_uki_tail="${rollback_uki_path#"$efi_linux_prefix"}"
+        rollback_uki_file="$(target_path "/boot/EFI/Linux/${rollback_uki_tail}")"
+      fi
+      if [[ -n "$rollback_uki_file" ]]; then
+        [[ -f "$rollback_uki_file" ]] \
+          || die "frozen rollback UKI missing for ${boot_environment_dataset}: ${rollback_uki_file}"
+      fi
+    fi
   done < <(zfs list -H -r -o name "$root_parent" 2>/dev/null || true)
 
   if (( boot_environment_count > 0 )); then

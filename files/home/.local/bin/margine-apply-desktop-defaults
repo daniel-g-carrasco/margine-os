@@ -9,7 +9,7 @@ theme_file="${HOME}/.config/margine/theme.env"
 # - GTK4/libadwaita apps stay on Adwaita dark behavior
 # - GTK3/legacy apps use `adw-gtk3-dark` for closer visual parity
 # - the global icon theme comes from `MARGINE_THEME_ICON_THEME`
-# - the default UI font is `IBM Plex Sans 10`
+# - default UI and monospace fonts come from `theme.env`
 # - accent color is kept explicit in gsettings even if not every app surfaces it
 
 command -v gsettings >/dev/null 2>&1 || exit 0
@@ -21,6 +21,7 @@ source "$theme_file"
 gsettings set org.gnome.desktop.interface color-scheme "${MARGINE_THEME_COLOR_SCHEME}" >/dev/null 2>&1 || true
 gsettings set org.gnome.desktop.interface accent-color "${MARGINE_THEME_ACCENT_COLOR}" >/dev/null 2>&1 || true
 gsettings set org.gnome.desktop.interface font-name "${MARGINE_THEME_FONT_NAME}" >/dev/null 2>&1 || true
+gsettings set org.gnome.desktop.interface monospace-font-name "${MARGINE_THEME_TERMINAL_FONT_NAME:-${MARGINE_THEME_FONT_NAME}}" >/dev/null 2>&1 || true
 gsettings set org.gnome.desktop.interface gtk-theme "${MARGINE_THEME_GSETTINGS_GTK_THEME}" >/dev/null 2>&1 || true
 gsettings set org.gnome.desktop.interface icon-theme "${MARGINE_THEME_ICON_THEME}" >/dev/null 2>&1 || true
 

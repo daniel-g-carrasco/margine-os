@@ -6,6 +6,7 @@ repo_root="$(cd "${script_dir}/.." && pwd)"
 
 root_uuid=""
 luks_uuid=""
+crypt_name="cryptroot"
 snapper_config="root"
 snapshots_subvolume="@snapshots"
 limit=12
@@ -20,6 +21,7 @@ Usage:
 Options:
   --root-uuid UUID            UUID del filesystem root Btrfs
   --luks-uuid UUID            UUID del contenitore LUKS2
+  --crypt-name NAME           Nome mapper LUKS2 (default: cryptroot)
   --snapper-config NAME       Config Snapper da interrogare (default: root)
   --snapshots-subvolume PATH  Subvolume che contiene gli snapshot (default: @snapshots)
   --limit N                   Numero massimo di snapshot da esporre (default: 12)
@@ -49,6 +51,11 @@ parse_args() {
       --luks-uuid)
         [[ $# -ge 2 ]] || die "missing value for --luks-uuid"
         luks_uuid="$2"
+        shift 2
+        ;;
+      --crypt-name)
+        [[ $# -ge 2 ]] || die "missing value for --crypt-name"
+        crypt_name="$2"
         shift 2
         ;;
       --snapper-config)
@@ -224,6 +231,7 @@ render_entries() {
       -e "s/@SNAPSHOT_SUBVOLUME@/$(escape_sed_replacement "$snapshot_subvolume")/g" \
       -e "s/@ROOT_UUID@/$(escape_sed_replacement "$root_uuid")/g" \
       -e "s/@LUKS_UUID@/$(escape_sed_replacement "$luks_uuid")/g" \
+      -e "s/@CRYPT_NAME@/$(escape_sed_replacement "$crypt_name")/g" \
       "$entry_template"
     printf '\n'
   done
@@ -236,6 +244,7 @@ main() {
 
   [[ -n "$root_uuid" ]] || die "--root-uuid is required"
   [[ -n "$luks_uuid" ]] || die "--luks-uuid is required"
+  [[ -n "$crypt_name" ]] || die "--crypt-name must not be empty"
   [[ -f "$entry_template" ]] || die "template not found: $entry_template"
   [[ "$limit" =~ ^[0-9]+$ ]] || die "--limit must be a non-negative integer"
 

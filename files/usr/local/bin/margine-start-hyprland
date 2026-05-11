@@ -11,8 +11,49 @@ if [[ ! -r "$config_path" ]]; then
   exit 78
 fi
 
+state_root="${XDG_STATE_HOME:-${HOME}/.local/state}"
+log_dir="${state_root}/margine"
+log_path="${log_dir}/hyprland-session.log"
+mkdir -p "$log_dir"
+
+find_wsf_hyprland_shim() {
+  local candidates=()
+  local candidate
+
+  if [[ -n "${WSF_HYPRLAND_SHIM:-}" ]]; then
+    candidates+=("$WSF_HYPRLAND_SHIM")
+  fi
+
+  if command -v wsf-hyprland >/dev/null 2>&1; then
+    candidates+=("$(command -v wsf-hyprland)")
+  fi
+
+  candidates+=(
+    "${HOME}/.local/bin/wsf-hyprland"
+    "/usr/local/bin/wsf-hyprland"
+    "/usr/bin/wsf-hyprland"
+  )
+
+  for candidate in "${candidates[@]}"; do
+    [[ -x "$candidate" ]] || continue
+    printf '%s\n' "$candidate"
+    return 0
+  done
+
+  return 1
+}
+
+wsf_hyprland_shim="$(find_wsf_hyprland_shim || true)"
+
 if command -v start-hyprland >/dev/null 2>&1; then
-  exec start-hyprland -- --config "$config_path"
+  if [[ -n "$wsf_hyprland_shim" ]]; then
+    exec start-hyprland --path "$wsf_hyprland_shim" -- --config "$config_path" >>"$log_path" 2>&1
+  fi
+  exec start-hyprland -- --config "$config_path" >>"$log_path" 2>&1
 fi
 
-exec Hyprland --config "$config_path"
+if [[ -n "$wsf_hyprland_shim" ]]; then
+  exec "$wsf_hyprland_shim" --config "$config_path" >>"$log_path" 2>&1
+fi
+
+exec Hyprland --config "$config_path" >>"$log_path" 2>&1

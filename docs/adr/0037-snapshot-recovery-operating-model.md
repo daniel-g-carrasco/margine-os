@@ -41,6 +41,7 @@ Snapshot entries are therefore:
 - read-only
 - graphical
 - recovery-oriented
+- isolated from the live ESP mount by masking `boot.mount`
 
 They are not self-promoting rollback entries.
 

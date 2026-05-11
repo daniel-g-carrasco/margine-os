@@ -191,9 +191,30 @@ chain before returning.
 The first rollback implementation creates bootable clone candidates under the
 root boot-environment parent, for example `rpool/ROOT/margine-pre-update-*`.
 Limine entries boot those clones through the cmdline-capable recovery UKI using
-`root=ZFS=<clone>`. Clone promotion, clone abandonment, retention pruning and
-multi-dataset transactional rollback remain explicit follow-up work; they must
-not be implied by merely booting a rollback candidate.
+`root=ZFS=<clone>`. Clone promotion, clone abandonment, automatic retention
+pruning and multi-dataset transactional rollback remain explicit follow-up work;
+they must not be implied by merely booting a rollback candidate. Operator-driven
+retention uses `prune-zfs-rollback-boot-environments`, which plans by default,
+requires `--destroy` for deletion, refuses to prune from an active rollback
+root, destroys clone-before-origin-snapshot, and republishes Limine after
+pruning.
+
+Rollback clones must not depend on the mutable shared recovery UKI after package
+mutation. `update-all` freezes a clone-specific rollback UKI before the package
+transaction and records its Limine path on the clone with
+`org.margine:rollback-uki`. This prevents the Btrfs-host class of failure where
+an old root is booted with a newer kernel/UKI and then loses late-loaded
+hardware modules.
+
+The rollback publication is a hard validation gate, not a best-effort log.
+Before package mutation, `update-all` must run the dedicated rollback validator
+against the just-created clone. The validator must prove that the clone exists,
+has the expected primary-root snapshot origin, keeps `mountpoint=/` and
+`canmount=noauto`, owns a frozen clone-specific UKI on the ESP, and has a Limine
+entry that boots `root=ZFS=<clone>` through that frozen UKI. After a rollback
+entry is selected, the same validator in active mode must prove that `/` and
+`/proc/cmdline` both point at the selected clone while pool `bootfs` remains on
+the primary root.
 
 Preflight must check:
 
@@ -208,6 +229,7 @@ target kernel/ZFS module compatibility
 zfs-utils availability
 pre-update snapshot creation
 pre-update boot-environment clone creation
+published rollback boot-environment validation
 post-update root-on-ZFS validator
 ```
 

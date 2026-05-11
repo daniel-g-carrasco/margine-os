@@ -67,6 +67,8 @@ Reason:
 
 - `Margine` uses `walker` as preferred launcher;
 - `walker` requires `elephant`;
+- `wayland-scroll-factor` owns the user-facing scroll speed control used by
+  the Hyprland baseline;
 - without these packages the installed desktop would be inconsistent with the
   declared baseline.
 

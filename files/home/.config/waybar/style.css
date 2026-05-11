@@ -21,7 +21,6 @@
   border: none;
   border-radius: 0;
   box-shadow: none;
-  font-family: "IBM Plex Sans Condensed";
   font-size: 14px;
   font-weight: 500;
   min-height: 0;
@@ -48,13 +47,12 @@ window#waybar {
   color: @muted;
   margin: 3px 3px 3px 0;
   min-width: 14px;
-  padding: 0 7px 1px 7px;
+  padding: 0 7px;
   transition: color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
 }
 
 #workspaces button label {
-  font-family: "IBM Plex Sans Condensed";
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -102,7 +100,6 @@ window#waybar {
   margin: 0;
   min-width: 4px;
   padding: 0 1px;
-  font-family: "IBM Plex Sans";
   font-size: 14px;
   font-weight: 600;
 }
@@ -141,7 +138,7 @@ window#waybar {
   margin: 0;
   min-width: 30px;
   padding: 0 8px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -161,8 +158,7 @@ window#waybar {
   margin: 0;
   min-width: 28px;
   padding: 0 6px;
-  font-family: "IBM Plex Sans";
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -218,7 +214,7 @@ window#waybar {
   margin: 0;
   min-width: 30px;
   padding: 0 8px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -228,30 +224,6 @@ window#waybar {
 
 #custom-keepawake.inactive {
   color: @muted;
-}
-
-/* Right cluster: EasyEffects */
-
-#custom-easyeffects {
-  background: transparent;
-  color: @fg;
-  margin: 0;
-  min-width: 30px;
-  padding: 0 8px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-#custom-easyeffects.active {
-  color: @accent;
-}
-
-#custom-easyeffects.inactive {
-  color: @muted;
-}
-
-#custom-easyeffects.bypassed {
-  color: @warning;
 }
 
 /* Right cluster: audio */
@@ -274,7 +246,7 @@ window#waybar {
   background: transparent;
   color: @fg;
   margin: 0;
-  min-width: 56px;
+  min-width: 50px;
   padding: 0 6px;
 }
 
@@ -295,8 +267,7 @@ window#waybar {
   margin-right: 0;
   min-width: 25px;
   padding: 0 0 0 0;
-  font-family: "IBM Plex Sans";
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -314,7 +285,6 @@ window#waybar {
   margin-left: -3px;
   min-width: 15px;
   padding: 0 15px 0 0px;
-  font-family: "IBM Plex Sans Condensed";
   font-size: 15px;
   font-weight: 500;
 }
@@ -350,7 +320,6 @@ tooltip {
 
 tooltip label {
   color: @fg;
-  font-family: "IBM Plex Sans Condensed";
   font-size: 13px;
   font-weight: 500;
 }
@@ -367,7 +336,6 @@ menu {
 
 menuitem {
   color: @fg;
-  font-family: "IBM Plex Sans Condensed";
   font-size: 13px;
   font-weight: 500;
   margin: 0;

@@ -266,7 +266,22 @@ font_family_name = font_family(font_name)
 font_size_match = re.match(r"^.*\s+([0-9]+(?:\.[0-9]+)?)$", font_name.strip())
 font_size_value = font_size_match.group(1) if font_size_match else "10"
 font_size_int = str(round(float(font_size_value)))
-font_fixed_name = os.environ.get("MARGINE_THEME_HYPRLOCK_FONT_MONO", "monospace")
+terminal_font_name = os.environ.get("MARGINE_THEME_TERMINAL_FONT_NAME", os.environ.get("MARGINE_THEME_HYPRLOCK_FONT_MONO", "monospace"))
+terminal_font_family_name = font_family(terminal_font_name)
+terminal_font_size_match = re.match(r"^.*\s+([0-9]+(?:\.[0-9]+)?)$", terminal_font_name.strip())
+terminal_font_size_value = terminal_font_size_match.group(1) if terminal_font_size_match else font_size_int
+terminal_font_size_int = str(round(float(terminal_font_size_value)))
+code_font_name = os.environ.get("MARGINE_THEME_CODE_FONT_NAME", terminal_font_name)
+code_font_family_name = font_family(code_font_name)
+compact_font_name = os.environ.get("MARGINE_THEME_COMPACT_FONT_NAME", font_name)
+compact_font_family_name = font_family(compact_font_name)
+fallback_font_name = os.environ.get("MARGINE_THEME_FALLBACK_FONT_NAME", font_name)
+fallback_font_family_name = font_family(fallback_font_name)
+waybar_font_name = os.environ.get("MARGINE_THEME_WAYBAR_FONT_NAME", terminal_font_name)
+waybar_font_family_name = font_family(waybar_font_name)
+waybar_compact_font_name = os.environ.get("MARGINE_THEME_WAYBAR_COMPACT_FONT_NAME", compact_font_name)
+waybar_compact_font_family_name = font_family(waybar_compact_font_name)
+font_fixed_name = terminal_font_name
 font_fixed_family_name = font_family(font_fixed_name)
 font_fixed_size_match = re.match(r"^.*\s+([0-9]+(?:\.[0-9]+)?)$", font_fixed_name.strip())
 font_fixed_size_value = font_fixed_size_match.group(1) if font_fixed_size_match else font_size_int
@@ -292,6 +307,7 @@ launcher_font_size_float = float(fuzzel_font_size)
 fuzzel_font_fallbacks = ",".join(
     [
         fuzzel_font,
+        fontconfig_font(fallback_font_name),
         f"JetBrainsMono Nerd Font:size={fuzzel_font_size}",
         f"Font Awesome 7 Free Solid:size={fuzzel_font_size}",
     ]
@@ -598,7 +614,7 @@ hyprqt6engine_theme.write_text(
             f"    font = {font_family_name}",
             f"    font_size = {font_size_int}",
             f"    font_fixed = {font_fixed_family_name}",
-            f"    font_fixed_size = {font_fixed_size_int}",
+            f"    font_fixed_size = {terminal_font_size_int}",
             "}",
             "",
             "misc {",
@@ -616,6 +632,9 @@ waybar_theme.write_text(
     "\n".join(
         [
             "/* Generated from ~/.config/margine/theme.env */",
+            f"window#waybar * {{ font-family: \"{waybar_font_family_name}\", \"{fallback_font_family_name}\", monospace; }}",
+            f"window#waybar #window {{ font-family: \"{waybar_compact_font_family_name}\", \"{waybar_font_family_name}\", \"{fallback_font_family_name}\", monospace; }}",
+            f"window#waybar #window * {{ font-family: \"{waybar_compact_font_family_name}\", \"{waybar_font_family_name}\", \"{fallback_font_family_name}\", monospace; }}",
             f"@define-color fg {text};",
             f"@define-color muted {muted};",
             f"@define-color bg {bg};",
@@ -636,6 +655,12 @@ swaync_theme.write_text(
     "\n".join(
         [
             "/* Generated from ~/.config/margine/theme.env */",
+            f"* {{ font-family: \"{font_family_name}\", \"{fallback_font_family_name}\", sans-serif; }}",
+            (
+                ".notification-content .summary, .notification-content .body, .notification-content .time, "
+                f".notification-content .summary *, .notification-content .body *, .notification-content .time * "
+                f"{{ font-family: \"{compact_font_family_name}\", \"{font_family_name}\", \"{fallback_font_family_name}\", sans-serif; }}"
+            ),
             f"@define-color bg {bg};",
             f"@define-color fg {text};",
             f"@define-color muted {muted};",
@@ -696,6 +721,7 @@ walker_theme.write_text(
         [
             "/* Generated from ~/.config/margine/theme.env */",
             f"* {{ font-family: \"{launcher_font_family}\", sans-serif; }}",
+            f".preview-content.archlinuxpkgs, .preview-content.dnfpackages {{ font-family: \"{code_font_family_name}\", \"{terminal_font_family_name}\", monospace; }}",
             f"@define-color window_bg_color {rgba_css(bg, 0.995)};",
             f"@define-color surface_bg_color {rgba_css(surface, 0.995)};",
             f"@define-color accent_bg_color {secondary};",
@@ -800,6 +826,10 @@ kitty_theme.write_text(
     "\n".join(
         [
             "# Generated from ~/.config/margine/theme.env",
+            f"font_family {terminal_font_family_name}",
+            "bold_font auto",
+            "italic_font auto",
+            "bold_italic_font auto",
             f"foreground {text}",
             f"background {bg}",
             f"selection_foreground {bg}",
@@ -827,10 +857,10 @@ hyprtoolkit_theme.write_text(
             f"accent = {qt_argb(primary, 1.0)}",
             f"accent_secondary = {qt_argb(secondary, 1.0)}",
             "",
-            "font_family = Atkinson Hyperlegible Next",
-            "font_family_monospace = IBM Plex Mono",
-            "font_size = 12",
-            "small_font_size = 10",
+            f"font_family = {font_family_name}",
+            f"font_family_monospace = {terminal_font_family_name}",
+            f"font_size = {font_size_int}",
+            f"small_font_size = {max(8, int(font_size_int) - 1)}",
             "h1_size = 18",
             "h2_size = 15",
             "h3_size = 13",

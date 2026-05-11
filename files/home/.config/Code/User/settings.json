@@ -1,4 +1,6 @@
 {
+  "editor.fontFamily": "'Ioskeley Mono', 'Iosevka Aile', monospace",
+  "terminal.integrated.fontFamily": "Ioskeley Mono",
   "workbench.startupEditor": "none",
   "window.titleBarStyle": "native"
 }

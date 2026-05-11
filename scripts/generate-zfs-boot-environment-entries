@@ -126,6 +126,7 @@ collect_boot_environments() {
   local origin=""
   local creation=""
   local description=""
+  local rollback_uki_path=""
 
   zfs list -H -r -o name "$root_parent" 2>/dev/null |
     while IFS= read -r dataset; do
@@ -143,8 +144,11 @@ collect_boot_environments() {
 
       description="$(zfs get -H -o value org.margine:description "$dataset" 2>/dev/null || true)"
       [[ "$description" != "-" ]] || description=""
+      rollback_uki_path="$(zfs get -H -o value org.margine:rollback-uki "$dataset" 2>/dev/null || true)"
+      [[ -n "$rollback_uki_path" && "$rollback_uki_path" != "-" ]] \
+        || rollback_uki_path='${EFI_LINUX}/margine-recovery.efi'
 
-      printf '%s\t%s\t%s\t%s\n' "$creation" "$dataset" "$origin" "$description"
+      printf '%s\t%s\t%s\t%s\t%s\n' "$creation" "$dataset" "$origin" "$description" "$rollback_uki_path"
     done |
     sort -t$'\t' -k1,1nr |
     head -n "$limit"
@@ -155,6 +159,7 @@ render_entry() {
   local dataset="$2"
   local origin="$3"
   local description="$4"
+  local rollback_uki_path="$5"
   local label=""
   local comment=""
 
@@ -172,6 +177,7 @@ render_entry() {
     -e "s|@LUKS_UUID@|$(escape_sed_replacement "$luks_uuid")|g" \
     -e "s|@CRYPT_NAME@|$(escape_sed_replacement "$crypt_name")|g" \
     -e "s|@ZFS_ROOT_DATASET@|$(escape_sed_replacement "$dataset")|g" \
+    -e "s|@BOOT_ENV_UKI_PATH@|$(escape_sed_replacement "$rollback_uki_path")|g" \
     "$entry_template"
 }
 
@@ -181,8 +187,9 @@ render_entries() {
   local dataset=""
   local origin=""
   local description=""
+  local rollback_uki_path=""
 
-  while IFS=$'\t' read -r creation dataset origin description; do
+  while IFS=$'\t' read -r creation dataset origin description rollback_uki_path; do
     [[ -n "$dataset" ]] || continue
     if (( rendered_any == 0 )); then
       cat <<'EOF'
@@ -192,7 +199,7 @@ comment: Bootable root-on-ZFS clones created before updates.
 EOF
       rendered_any=1
     fi
-    render_entry "$creation" "$dataset" "$origin" "$description"
+    render_entry "$creation" "$dataset" "$origin" "$description" "$rollback_uki_path"
     printf '\n\n'
   done
 }

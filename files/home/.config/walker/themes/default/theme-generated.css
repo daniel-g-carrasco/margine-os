@@ -1,5 +1,6 @@
 /* Generated from ~/.config/margine/theme.env */
-* { font-family: "IBM Plex Sans", sans-serif; }
+* { font-family: "Ioskeley Mono", sans-serif; }
+.preview-content.archlinuxpkgs, .preview-content.dnfpackages { font-family: "Ioskeley Mono", "Ioskeley Mono", monospace; }
 @define-color window_bg_color rgba(31, 31, 31, 0.99);
 @define-color surface_bg_color rgba(37, 37, 37, 0.99);
 @define-color accent_bg_color #f0e5d8;
