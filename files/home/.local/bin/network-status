@@ -58,7 +58,30 @@ build_common_tooltip() {
 }
 
 nmcli_cmd() {
-  nmcli --wait 1 "$@"
+  local output=""
+  local attempt=0
+
+  for attempt in 1 2; do
+    if output="$(nmcli --wait 2 "$@" 2>/dev/null)"; then
+      printf '%s\n' "$output"
+      return 0
+    fi
+    sleep 0.1
+  done
+
+  return 1
+}
+
+first_kernel_wifi_device() {
+  local path=""
+
+  for path in /sys/class/net/*/wireless; do
+    [[ -e "$path" ]] || continue
+    basename "$(dirname "$path")"
+    return 0
+  done
+
+  return 1
 }
 
 if ! command -v nmcli >/dev/null 2>&1; then
@@ -73,29 +96,39 @@ if [[ "$running" != "running" ]]; then
   exit 0
 fi
 
-connectivity="$(nmcli_cmd -t -g CONNECTIVITY general status 2>/dev/null || printf 'unknown')"
-wifi_enabled="$(nmcli_cmd -t -g WIFI general status 2>/dev/null || printf 'disabled')"
-device_status="$(nmcli_cmd -t -f DEVICE,TYPE,STATE,CONNECTION device status 2>/dev/null || true)"
+connectivity="$(nmcli_cmd -t -g CONNECTIVITY general status || printf 'unknown')"
+wifi_enabled="$(nmcli_cmd -t -g WIFI general status || printf 'disabled')"
+device_status="$(nmcli_cmd -t -f DEVICE,TYPE,STATE,CONNECTION device status || true)"
+active_wifi_connection="$(nmcli_cmd -t -f NAME,DEVICE,TYPE connection show --active | awk -F: '$3 == "802-11-wireless" {print; exit}' || true)"
 wifi_row="$(printf '%s\n' "$device_status" | awk -F: '$2 == "wifi" && $3 == "connected" {print; exit}')"
 if [[ -z "$wifi_row" ]]; then
   wifi_row="$(printf '%s\n' "$device_status" | awk -F: '$2 == "wifi" {print; exit}')"
 fi
 wifi_device="$(printf '%s\n' "$wifi_row" | awk -F: '{print $1}')"
+active_connection_name="$(printf '%s\n' "$active_wifi_connection" | awk -F: '{print $1}')"
+active_wifi_device="$(printf '%s\n' "$active_wifi_connection" | awk -F: '{print $2}')"
+
+if [[ -z "$wifi_device" && -n "$active_wifi_device" ]]; then
+  wifi_device="$active_wifi_device"
+fi
+if [[ -z "$wifi_device" ]]; then
+  wifi_device="$(first_kernel_wifi_device || true)"
+fi
 
 if [[ -n "$wifi_device" ]]; then
-  state="$(nmcli_cmd -t -g GENERAL.STATE,GENERAL.CONNECTION device show "$wifi_device" 2>/dev/null || true)"
+  state="$(nmcli_cmd -t -g GENERAL.STATE,GENERAL.CONNECTION device show "$wifi_device" || true)"
   device_state="$(printf '%s\n' "$state" | sed -n '1p')"
   connection_name="$(printf '%s\n' "$state" | sed -n '2p')"
 
-  if [[ "$device_state" == 100* ]]; then
-    signal="$(nmcli_cmd -t -f IN-USE,SIGNAL dev wifi list ifname "$wifi_device" --rescan no 2>/dev/null | awk -F: '$1 == "*" {print $2; exit}')"
+  if [[ "$device_state" == 100* || ( -n "$active_wifi_connection" && "$active_wifi_device" == "$wifi_device" ) ]]; then
+    signal="$(nmcli_cmd -t -f IN-USE,SIGNAL dev wifi list ifname "$wifi_device" --rescan no | awk -F: '$1 == "*" {print $2; exit}' || true)"
     signal="${signal:-?}"
     class="connected"
     if [[ "$connectivity" != "full" && "$connectivity" != "unknown" ]]; then
       class="limited"
     fi
     text="$wifi_icon_connected"
-    tooltip="$(build_common_tooltip "$wifi_device" "Wi-Fi" "${connection_name:-Connected}" "${signal}%")"
+    tooltip="$(build_common_tooltip "$wifi_device" "Wi-Fi" "${connection_name:-${active_connection_name:-Connected}}" "${signal}%")"
     tooltip="${tooltip}\\nConnectivity: $(json_escape "$connectivity")"
   elif [[ "$wifi_enabled" == "enabled" ]]; then
     class="disconnected"

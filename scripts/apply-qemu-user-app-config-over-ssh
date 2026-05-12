@@ -1,0 +1,360 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "${script_dir}/.." && pwd)"
+
+build_dir=""
+identity_file=""
+known_hosts=""
+ssh_user="${MARGINE_QEMU_SSH_USER:-margine}"
+ssh_port="${MARGINE_QEMU_SSH_PORT:-2222}"
+target_user=""
+prompt_sudo=0
+timeout_seconds="${MARGINE_QEMU_SSH_TIMEOUT:-120}"
+remote_runtime="/var/tmp/margine-os-user-app-runtime"
+declare -a ssh_args=()
+
+usage() {
+  cat <<'EOF'
+Usage:
+  apply-qemu-user-app-config-over-ssh [options]
+
+Apply the current repository user desktop/application configuration inside a
+running QEMU guest over SSH. The helper uploads a filtered repository snapshot
+to guest-local storage, runs the user runtime and app config provisioners, and
+refreshes live session defaults where possible.
+
+Options:
+  --build-dir PATH       QEMU harness directory containing qemu-margine_ed25519
+  --identity-file PATH   SSH identity file (default: BUILD_DIR/qemu-margine_ed25519)
+  --known-hosts PATH     SSH known_hosts file (default: BUILD_DIR/known_hosts)
+  --user USER            SSH login user (default: MARGINE_QEMU_SSH_USER or margine)
+  --target-user USER     User receiving the config payload (default: --user)
+  --port PORT            Host forwarded SSH port (default: MARGINE_QEMU_SSH_PORT or 2222)
+  --prompt-sudo          Allow an interactive sudo password prompt over SSH
+  --timeout SECONDS      Wait time for SSH handshake (default: 120)
+  --help                 Show this help
+
+Example:
+  ./scripts/apply-qemu-user-app-config-over-ssh --user danielitivov --prompt-sudo
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+latest_root_zfs_build_dir() {
+  local candidate=""
+
+  candidate="$(
+    find "${repo_root}/build" -maxdepth 2 -type f -path "${repo_root}/build/qemu-root-zfs-*/qemu-margine_ed25519" -printf '%T@ %h\n' 2>/dev/null |
+      sort -nr |
+      awk 'NR == 1 { $1 = ""; sub(/^ /, ""); print; exit }'
+  )"
+
+  [[ -n "$candidate" ]] || die "unable to infer --build-dir; no build/qemu-root-zfs-* directory containing qemu-margine_ed25519 found"
+  printf '%s\n' "$candidate"
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --build-dir)
+        [[ $# -ge 2 ]] || die "missing value for --build-dir"
+        build_dir="$2"
+        shift 2
+        ;;
+      --identity-file)
+        [[ $# -ge 2 ]] || die "missing value for --identity-file"
+        identity_file="$2"
+        shift 2
+        ;;
+      --known-hosts)
+        [[ $# -ge 2 ]] || die "missing value for --known-hosts"
+        known_hosts="$2"
+        shift 2
+        ;;
+      --user)
+        [[ $# -ge 2 ]] || die "missing value for --user"
+        ssh_user="$2"
+        shift 2
+        ;;
+      --target-user)
+        [[ $# -ge 2 ]] || die "missing value for --target-user"
+        target_user="$2"
+        shift 2
+        ;;
+      --port)
+        [[ $# -ge 2 ]] || die "missing value for --port"
+        ssh_port="$2"
+        shift 2
+        ;;
+      --prompt-sudo)
+        prompt_sudo=1
+        shift
+        ;;
+      --timeout)
+        [[ $# -ge 2 ]] || die "missing value for --timeout"
+        timeout_seconds="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+init_defaults() {
+  target_user="${target_user:-$ssh_user}"
+  build_dir="${build_dir:-$(latest_root_zfs_build_dir)}"
+  identity_file="${identity_file:-${build_dir}/qemu-margine_ed25519}"
+  known_hosts="${known_hosts:-${build_dir}/known_hosts}"
+
+  [[ -f "$identity_file" ]] || die "SSH identity file not found: $identity_file"
+  install -d -m 700 "$(dirname "$known_hosts")"
+
+  ssh_args=(
+    ssh
+    -p "$ssh_port"
+    -i "$identity_file"
+    -o StrictHostKeyChecking=accept-new
+    -o UserKnownHostsFile="$known_hosts"
+    -o IdentitiesOnly=yes
+    -o ServerAliveInterval=30
+    -o ServerAliveCountMax=3
+    "${ssh_user}@127.0.0.1"
+  )
+}
+
+ensure_prereqs() {
+  local cmd=""
+
+  for cmd in awk find install sort ssh tar timeout; do
+    have_cmd "$cmd" || die "required command not found: $cmd"
+  done
+}
+
+wait_for_ssh() {
+  local deadline=$((SECONDS + timeout_seconds))
+  local destination=""
+  local -a probe_args=()
+
+  destination="${ssh_args[$((${#ssh_args[@]} - 1))]}"
+  probe_args=(
+    "${ssh_args[@]:0:$((${#ssh_args[@]} - 1))}"
+    -o BatchMode=yes
+    -o ConnectTimeout=2
+    -o ConnectionAttempts=1
+    "$destination"
+  )
+
+  log "Waiting for SSH handshake on 127.0.0.1:${ssh_port}"
+  while (( SECONDS < deadline )); do
+    if timeout 5 "${probe_args[@]}" true >/dev/null 2>&1; then
+      log "SSH handshake succeeded on 127.0.0.1:${ssh_port}"
+      return 0
+    fi
+    sleep 1
+  done
+
+  die "SSH handshake did not succeed on 127.0.0.1:${ssh_port} within ${timeout_seconds}s"
+}
+
+quote_remote() {
+  printf '%q' "$1"
+}
+
+remote_prepare_payload() {
+  local sudo_prefix="$1"
+
+  cat <<EOF
+set -euo pipefail
+
+remote_runtime=$(quote_remote "$remote_runtime")
+legacy_tmp_runtime=/tmp/margine-os-user-app-runtime
+remote_user=$(quote_remote "$ssh_user")
+
+log() {
+  printf '%s\n' "\$*"
+}
+
+run_sudo() {
+  ${sudo_prefix} "\$@"
+}
+
+log '==> Prepare guest-local user config runtime directory'
+run_sudo rm -rf "\$remote_runtime" "\$legacy_tmp_runtime"
+run_sudo mkdir -p "\$remote_runtime"
+run_sudo chown "\$remote_user:" "\$remote_runtime"
+if ! command -v tar >/dev/null 2>&1; then
+  log 'error: tar is required in the guest to stage the runtime repository'
+  exit 1
+fi
+EOF
+}
+
+remote_apply_payload() {
+  local sudo_prefix="$1"
+
+  cat <<EOF
+set -euo pipefail
+
+remote_runtime=$(quote_remote "$remote_runtime")
+target_user=$(quote_remote "$target_user")
+
+log() {
+  printf '%s\n' "\$*"
+}
+
+run_sudo() {
+  ${sudo_prefix} "\$@"
+}
+
+run_as_target_user() {
+  local uid=""
+
+  uid="\$(id -u "\$target_user")"
+  if [[ ! -d "/run/user/\$uid" ]]; then
+    log "warning: /run/user/\$uid missing; installed files are updated, live session reload skipped"
+    return 0
+  fi
+
+  ${sudo_prefix} -u "\$target_user" env \\
+    XDG_RUNTIME_DIR="/run/user/\$uid" \\
+    DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/\$uid/bus" \\
+    bash -lc '
+      set -euo pipefail
+
+      printf "==> Check selected font availability\\n"
+      if command -v fc-match >/dev/null 2>&1; then
+        fc-match "Ioskeley Mono" || true
+        fc-match "Iosevka Etoile" || true
+        fc-match "Iosevka Aile" || true
+      fi
+
+      printf "==> Apply live desktop defaults\\n"
+      if [[ -x "\$HOME/.local/bin/margine-apply-desktop-defaults" ]]; then
+        "\$HOME/.local/bin/margine-apply-desktop-defaults" || true
+      fi
+
+      systemctl --user daemon-reload >/dev/null 2>&1 || true
+
+      printf "==> Reload session surfaces\\n"
+      if [[ -x "\$HOME/.config/waybar/launch.sh" ]]; then
+        "\$HOME/.config/waybar/launch.sh" || true
+      fi
+      if [[ -x "\$HOME/.config/swaync/launch.sh" ]]; then
+        "\$HOME/.config/swaync/launch.sh" || true
+      fi
+      systemctl --user restart walker.service >/dev/null 2>&1 || true
+    '
+}
+
+log '==> Install current user runtime tools'
+run_sudo "\$remote_runtime/scripts/provision-user-runtime-tools" --username "\$target_user"
+
+log '==> Install current user application config'
+run_sudo "\$remote_runtime/scripts/provision-user-app-config" --username "\$target_user"
+
+run_as_target_user
+
+log
+log '=== DONE ==='
+EOF
+}
+
+run_remote_command() {
+  local remote_command="$1"
+  local -a tty_arg=()
+
+  if (( prompt_sudo )); then
+    tty_arg=(-tt)
+  fi
+
+  "${ssh_args[@]:0:1}" "${tty_arg[@]}" "${ssh_args[@]:1}" "$remote_command"
+}
+
+run_remote_prepare() {
+  local remote_command=""
+  local sudo_prefix=""
+
+  if (( prompt_sudo )); then
+    sudo_prefix="sudo"
+    remote_command="sudo -v && $(remote_prepare_payload "$sudo_prefix")"
+  else
+    sudo_prefix="sudo -n"
+    remote_command="$(remote_prepare_payload "$sudo_prefix")"
+  fi
+
+  run_remote_command "$remote_command"
+}
+
+upload_runtime_repository() {
+  local destination=""
+
+  destination="${ssh_args[$((${#ssh_args[@]} - 1))]}"
+
+  log "==> Upload filtered repository snapshot over SSH"
+  (
+    cd "$repo_root"
+    tar \
+      --exclude='./.git' \
+      --exclude='./.github' \
+      --exclude='./build' \
+      --exclude='./docs' \
+      --exclude='./*.iso' \
+      --exclude='./*.img' \
+      --exclude='./*.raw' \
+      --exclude='./*.qcow2' \
+      -cf - .
+  ) | "${ssh_args[@]:0:$((${#ssh_args[@]} - 1))}" "$destination" \
+    "cd $(quote_remote "$remote_runtime") && tar -xf -"
+}
+
+run_remote_apply() {
+  local remote_command=""
+  local sudo_prefix=""
+
+  if (( prompt_sudo )); then
+    sudo_prefix="sudo"
+    remote_command="sudo -v && $(remote_apply_payload "$sudo_prefix")"
+  else
+    sudo_prefix="sudo -n"
+    remote_command="$(remote_apply_payload "$sudo_prefix")"
+  fi
+
+  run_remote_command "$remote_command"
+}
+
+main() {
+  parse_args "$@"
+  ensure_prereqs
+  init_defaults
+
+  log "=== Apply QEMU user app config ==="
+  log "Build dir: $build_dir"
+  log "SSH: ${ssh_user}@127.0.0.1:${ssh_port}"
+  log "Target user: ${target_user}"
+  wait_for_ssh
+  run_remote_prepare
+  upload_runtime_repository
+  run_remote_apply
+}
+
+main "$@"

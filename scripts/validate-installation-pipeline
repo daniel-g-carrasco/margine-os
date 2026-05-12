@@ -142,6 +142,7 @@ check_bash_syntax() {
     scripts/enable-qemu-validation-ssh
     scripts/enable-qemu-validation-inhibit
     scripts/enable-qemu-validation-inhibit-over-ssh
+    scripts/apply-qemu-user-app-config-over-ssh
     scripts/apply-qemu-branding-assets-over-ssh
     scripts/collect-qemu-root-zfs-validation-logs
     scripts/qemu-root-zfs-rollback-canary-over-ssh
@@ -358,6 +359,7 @@ check_identity_defaults() {
   require_literal files/home/.config/waybar/config.jsonc '"custom/tray-open"' "Waybar visually brackets the tray opening edge"
   require_literal files/home/.config/waybar/config.jsonc '"custom/tray-close"' "Waybar visually brackets the tray closing edge"
   require_literal files/home/.local/bin/network-status 'text="$wifi_icon_connected"' "Wi-Fi status keeps signal strength in the tooltip instead of the bar"
+  require_literal files/home/.local/bin/network-status "connection show --active" "Wi-Fi status cross-checks active NetworkManager connections before reporting disconnected"
   require_file files/etc/NetworkManager/dispatcher.d/90-margine-waybar-network "NetworkManager Waybar refresh dispatcher exists"
   require_literal scripts/provision-connectivity-config "90-margine-waybar-network" "connectivity provisioner installs the Waybar network dispatcher"
   require_literal files/home/.config/waybar/config.jsonc '"signal": 11' "Waybar battery module accepts power-supply refresh signals"
@@ -636,6 +638,11 @@ check_root_zfs_path() {
   require_literal scripts/enable-qemu-validation-inhibit-over-ssh "SSH handshake succeeded" "QEMU idle inhibition SSH helper waits for a real SSH handshake"
   require_literal scripts/apply-qemu-root-zfs-update-runtime-over-ssh "Upload filtered repository snapshot over SSH" "QEMU root-ZFS runtime refresh avoids guest 9p mounts"
   require_literal scripts/apply-qemu-root-zfs-update-runtime-over-ssh "--exclude='./build'" "QEMU root-ZFS runtime refresh excludes build artifacts"
+  require_literal scripts/apply-qemu-user-app-config-over-ssh "Upload filtered repository snapshot over SSH" "QEMU user app config refresh avoids guest 9p mounts"
+  require_literal scripts/apply-qemu-user-app-config-over-ssh "run_sudo rm -rf" "QEMU user app config refresh can clean root-owned stale runtime payloads"
+  require_literal scripts/apply-qemu-user-app-config-over-ssh "run_sudo chown" "QEMU user app config refresh restores SSH-user ownership before upload"
+  require_literal scripts/apply-qemu-user-app-config-over-ssh "provision-user-app-config" "QEMU user app config refresh applies current desktop/app defaults"
+  require_literal scripts/apply-qemu-user-app-config-over-ssh "margine-apply-desktop-defaults" "QEMU user app config refresh reapplies live desktop defaults when possible"
   require_literal scripts/apply-qemu-branding-assets-over-ssh "Upload filtered repository snapshot over SSH" "QEMU branding refresh avoids guest 9p mounts"
   require_literal scripts/apply-qemu-branding-assets-over-ssh "provision-branding-assets" "QEMU branding refresh applies Margine logo assets"
   require_literal scripts/apply-qemu-branding-assets-over-ssh "provision-initial-boot-chain-zfs" "QEMU branding refresh uses the root-on-ZFS boot-chain provisioner when needed"

@@ -105,6 +105,13 @@ Refresh branding in an installed QEMU guest over SSH:
 ./scripts/apply-qemu-branding-assets-over-ssh --user USERNAME --prompt-sudo
 ```
 
+Refresh the desktop/app configuration and current font theme in an installed
+QEMU guest over SSH:
+
+```bash
+./scripts/apply-qemu-user-app-config-over-ssh --user USERNAME --prompt-sudo
+```
+
 ## Validation
 
 Before treating installation changes as safe, run:

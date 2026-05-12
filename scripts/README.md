@@ -123,6 +123,14 @@ Operational scripts:
   user wrapper, and writes `~/update-all-zfs-rollback-dryrun.log`. This path
   avoids guest-side 9p mounts because a stuck kernel 9p mount can become
   unkillable during validation.
+- `apply-qemu-user-app-config-over-ssh`: host-side helper for applying the
+  current repository user runtime tools and desktop/application configuration
+  to an installed QEMU guest. It uploads a filtered repository snapshot over
+  SSH into guest-local `/var/tmp`, runs `provision-user-runtime-tools` and
+  `provision-user-app-config`, then refreshes live session defaults, Waybar,
+  SwayNC, and Walker when a user session bus is available. Use this to align a
+  validation VM with current host font/theme changes without hand-copying a
+  9p-mounted repository.
 - `qemu-root-zfs-rollback-canary-over-ssh`: host-side VM validation helper for
   the root-on-ZFS rollback flow. It seeds root-dataset canaries before
   `update-all`, mutates root plus `/home` and `/games` canaries after the
