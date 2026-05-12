@@ -13,14 +13,27 @@ These are not currently completed by the same phase.
 
 ## 1. Current truth table
 
-Today, the installer does:
+Margine currently has two install families.
+
+The public Arch path does:
 
 - partition and encrypt the target disk with `LUKS2`
 - create the `Btrfs` layout
 - install the base system and desktop stack
 - build the initial boot chain with `UKI` + `Limine`
-- install recovery and snapshot baseline
+- install the Btrfs/Snapper recovery baseline
 - install the SSH package and the on-demand SSH helper scripts
+
+The CachyOS/personal root-on-ZFS path does:
+
+- partition and encrypt the target disk with `LUKS2`
+- create `rpool`, `rpool/ROOT/default`, `/home`, `/games`, and the other
+  dedicated ZFS datasets
+- keep `/games` as its own dataset so snapshot policy can treat it differently
+- build the root-on-ZFS `UKI` + `Limine` boot chain
+- validate root-on-ZFS storage, boot artifacts, rollback clones, and frozen
+  rollback UKIs with dedicated validators
+- skip the Btrfs Snapper and Timeshift defaults
 
 Today, the installer does **not** automatically do:
 
@@ -34,13 +47,36 @@ That distinction must stay explicit.
 
 ## 2. Guided installation
 
-From the live environment:
+For the public Arch/Btrfs path, from the live environment:
 
 ```bash
 mkdir -p /root/margine-repo
 mount -t 9p -o trans=virtio,version=9p2000.L margine /root/margine-repo
 /root/margine-repo/scripts/install-live-iso-guided --product margine-public
 ```
+
+For the CachyOS/root-on-ZFS path, first prepare ZFS storage, then run the guided
+root-on-ZFS bootstrap. On CachyOS live media, use `sudo -i` or prefix the mount
+and helper commands with `sudo` when the live user is not root:
+
+```bash
+sudo -i
+mkdir -p /root/margine-repo
+mountpoint -q /root/margine-repo || mount -t 9p -o trans=virtio,version=9p2000.L margine /root/margine-repo
+
+# Replace /dev/vda with the selected target disk. This destroys that disk.
+/root/margine-repo/scripts/provision-storage-zfs-root \
+  --disk /dev/vda \
+  --yes-really-destroy-disk
+
+/root/margine-repo/scripts/bootstrap-live-zfs-root-guided \
+  --product PRODUCT \
+  --flavor cachyos \
+  --yes
+```
+
+In the personal repo, `PRODUCT` is normally `margine-cachyos`; keep it explicit
+instead of relying on repo defaults.
 
 The guided installer is now expected to:
 
@@ -102,7 +138,7 @@ sudo margine-disable-ssh-server
 QEMU validation VM connection example:
 
 ```bash
-ssh -p 2222 daniel@127.0.0.1
+ssh -p 2222 USERNAME@127.0.0.1
 ```
 
 Full SSH notes:

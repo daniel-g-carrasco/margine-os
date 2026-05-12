@@ -10,7 +10,8 @@ This document describes two different things that must not be confused:
 The target architecture is:
 
 - `LUKS2` for the root disk
-- `Btrfs` + `Snapper` for rollback and recovery
+- `Btrfs` + `Snapper` for the public Arch rollback path, or root-on-ZFS
+  rollback clones for the CachyOS/personal path
 - `Limine` + `UKI` for the boot path
 - `Secure Boot` controlled by our own keys with `sbctl`
 - automatic `LUKS` unlock with `TPM2` on the normal production boot path

@@ -14,7 +14,8 @@ Only what is included in the project:
 
 ## Included immediately
 
-- Minimal and playable Arch Linux
+- Minimal and playable Arch Linux for the public product
+- CachyOS-compatible product layering for the personal/root-on-ZFS path
 - `Hyprland` and connected components
 - `waybar`
 - `hyprlock`
@@ -26,7 +27,8 @@ Only what is included in the project:
 - stack screenshot / screen recording
 - `EasyEffects`
 - `update-all` as operational entrypoint
-- `Btrfs` + `LUKS2`
+- `LUKS2` + `Btrfs/Snapper` for the public Arch install path
+- `LUKS2` + root-on-ZFS for the validated CachyOS/personal install path
 - `Secure Boot` + `TPM2`
 - `greetd + tuigreet` as the default login path, without initial autologin
 - educational documentation
@@ -60,7 +62,7 @@ AUR (`koofr-desktop-bin`);
 
 ## Elements to be decided later
 
-- snapshot manager (`Snapper` as base, possible compact layer)
+- snapshot manager policy for non-root datasets and future retention automation
 - final choice of bootloader
 - non-GNOME replacements for some current apps
 - color workflow / ICC / viewer for photography

@@ -111,6 +111,12 @@ Edit:
 For hardware-specific overrides, prefer a `device { ... }` block instead of
 changing the global `input` defaults.
 
+Palm rejection is intentionally explicit in the global touchpad block:
+`disable_while_typing = true`. This covers the common accidental-touch case
+while typing. If the touchpad still accepts palm input while the keyboard is not
+active, collect `hyprctl devices` and tune the exact device with a dedicated
+`device { ... }` block instead of guessing globally.
+
 ### Add a new workspace shortcut
 
 Edit:

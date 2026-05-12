@@ -83,9 +83,9 @@ From the host:
 ```bash
 rsync -a --delete --exclude build/ -e "ssh -p 2222" \
   /home/daniel/dev/margine-os-personal/ \
-  daniel@127.0.0.1:/tmp/margine-os/
+  USERNAME@127.0.0.1:/tmp/margine-os/
 
-ssh -p 2222 daniel@127.0.0.1
+ssh -p 2222 USERNAME@127.0.0.1
 ```
 
 Inside the VM:

@@ -1,6 +1,11 @@
-# Permanent Rollback From a Booted Snapshot
+# Permanent Rollback From a Btrfs Snapper Snapshot
 
-This document describes the **current v1** rollback model in `Margine`.
+This document describes the Btrfs/Snapper rollback model in `Margine`.
+
+It does not describe the root-on-ZFS rollback model. For root-on-ZFS use
+[Root-on-ZFS update snapshots and rollback](runbooks/root-on-zfs-update-rollback.md):
+that path creates a bootable ZFS clone and a clone-specific rollback UKI before
+the update mutates the primary root dataset.
 
 ## Short answer
 

@@ -230,7 +230,7 @@ sudo /root/margine-repo/scripts/enable-qemu-validation-ssh --user "$USER"
 If you are already inside `sudo -i`, use the real guest username explicitly:
 
 ```bash
-/root/margine-repo/scripts/enable-qemu-validation-ssh --user danielitivov
+/root/margine-repo/scripts/enable-qemu-validation-ssh --user USERNAME
 ```
 
 The SSH helper also starts the validation idle inhibitor from a temporary local

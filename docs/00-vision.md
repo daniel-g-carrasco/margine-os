@@ -28,10 +28,12 @@ That means:
 
 ## Technical identity
 
-- Base: `Arch Linux`
+- Base: `Arch Linux` for the public product; CachyOS is validated in the
+  personal product line
 - Primary Desktop: `Hyprland`
 - Target machine: `Framework Laptop 13 AMD`
-- Filesystem: `Btrfs`
+- Storage: `LUKS2 + Btrfs/Snapper` for the public Arch path; `LUKS2 +
+  root-on-ZFS` for the validated CachyOS/personal path
 - Encryption: `LUKS2`
 - Target security: `Secure Boot` under our own keys + `TPM2` for automatic
   `LUKS` unlock on the normal boot path

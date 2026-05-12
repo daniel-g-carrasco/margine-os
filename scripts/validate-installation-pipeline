@@ -309,6 +309,7 @@ check_identity_defaults() {
   require_literal files/home/.config/hypr/conf.d/20-autostart.conf "wsf apply" "Hyprland reapplies WSF scroll tuning at session startup"
   require_literal files/home/.config/hypr/conf.d/50-input.conf "Touchpad scroll speed is managed by Wayland Scroll Factor" "Hyprland input config documents WSF as the scroll tuning control"
   require_literal files/home/.config/hypr/conf.d/50-input.conf "# scroll_factor = 0.3" "Hyprland static touchpad scroll factor remains commented"
+  require_literal files/home/.config/hypr/conf.d/50-input.conf "disable_while_typing = true" "Hyprland touchpad suppresses touchpad events while typing"
   require_literal files/home/.config/hypr/conf.d/70-rules.conf 'name = float-modal-dialogs' "Hyprland floats modal toolkit dialogs"
   require_literal files/home/.config/hypr/conf.d/70-rules.conf 'name = float-file-dialogs' "Hyprland floats file chooser dialogs"
   require_literal files/home/.config/hypr/conf.d/70-rules.conf 'name = float-network-editor' "Hyprland floats NetworkManager GTK editor"

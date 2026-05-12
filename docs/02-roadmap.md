@@ -22,8 +22,8 @@ Topics:
 - Secure Boot;
 - TPM2;
 - LUKS2;
-- layout Btrfs;
-- snapshot/rollback strategy;
+- public `Btrfs/Snapper` layout;
+- personal/root-on-ZFS layout and rollback strategy;
 - session manager;
 - policy AUR.
 
@@ -62,7 +62,8 @@ Objective:
 Topics:
 - partitioning;
 - encryption;
-- subvolumes;
+- subvolumes for the Btrfs path;
+- ZFS datasets for the root-on-ZFS path;
 - `pacstrap`;
 - chroot;
 - boot;

@@ -35,7 +35,7 @@ non-redistributable state into this public repository.
 | Desktop | Hyprland-first Wayland session, Walker launcher, Fuzzel fallback, tuned window rules |
 | Updates | `update-all` orchestration with explicit official/AUR/Flatpak boundaries |
 | Recovery | Limine boot entries, UKIs, diagnostics, rollback-oriented update flow |
-| Storage | Btrfs/Snapper baseline plus active root-on-ZFS validation work |
+| Storage | LUKS2 + Btrfs/Snapper for the public Arch path; validated LUKS2 + root-on-ZFS flow for CachyOS/personal products |
 | Hardware | Framework Laptop 13 AMD as reference hardware, with generic paths kept explicit |
 | Gaming | Compatibility runtime by default; launchers and heavier app choices stay optional |
 | Operations | Shell scripts, ADRs, runbooks, and validation gates instead of hidden installer magic |
@@ -135,7 +135,8 @@ Installed-system validation starts from:
 
 ## Status
 
-Margine is in active system-integration work. The public Arch product is the
-redistributable baseline; root-on-ZFS, CachyOS personal integration, and deeper
-rollback automation are being validated through the product model and mirrored
-only when the generic behavior belongs in public.
+Margine is in active system-integration work. The public Arch product remains
+the redistributable baseline. Root-on-ZFS is now a validated product path for
+the CachyOS/personal line, with generic validators and rollback tooling kept in
+this public repository. Treat Btrfs/Snapper documents as the public/legacy host
+path unless a page explicitly says root-on-ZFS.

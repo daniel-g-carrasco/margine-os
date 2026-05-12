@@ -75,7 +75,7 @@ guest:
 
 ```bash
 cd /home/daniel/dev/margine-os-personal
-./scripts/apply-qemu-branding-assets-over-ssh --user danielitivov --prompt-sudo
+./scripts/apply-qemu-branding-assets-over-ssh --user USERNAME --prompt-sudo
 ```
 
 For public Arch validation guests, pass the public product explicitly if the

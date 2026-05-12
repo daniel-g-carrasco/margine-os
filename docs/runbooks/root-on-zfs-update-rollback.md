@@ -425,7 +425,7 @@ guest:
 
 ```bash
 cd /home/daniel/dev/margine-os-personal
-./scripts/qemu-root-zfs-rollback-canary-over-ssh --user danielitivov --seed --prompt-sudo
+./scripts/qemu-root-zfs-rollback-canary-over-ssh --user USERNAME --seed --prompt-sudo
 ```
 
 Then run the real update path from the host or from inside the guest:
@@ -437,14 +437,14 @@ ssh -t margine-zfs 'update-all --no-aur --no-flatpak --no-fwupd |& tee ~/update-
 Before rebooting, mutate the canaries on the updated primary root:
 
 ```bash
-./scripts/qemu-root-zfs-rollback-canary-over-ssh --user danielitivov --mutate --prompt-sudo
+./scripts/qemu-root-zfs-rollback-canary-over-ssh --user USERNAME --mutate --prompt-sudo
 ```
 
 Reboot the VM and select the newest Limine `/Rollback/Pre-update ...` entry.
 After logging into that rollback boot, run:
 
 ```bash
-./scripts/qemu-root-zfs-rollback-canary-over-ssh --user danielitivov --verify-rollback --prompt-sudo
+./scripts/qemu-root-zfs-rollback-canary-over-ssh --user USERNAME --verify-rollback --prompt-sudo
 ```
 
 Expected result:
@@ -475,14 +475,14 @@ After the rollback boot has been validated, reboot back into the primary entry
 and confirm that the system is again running from `rpool/ROOT/default`:
 
 ```bash
-./scripts/qemu-root-zfs-rollback-canary-over-ssh --user danielitivov --status --prompt-sudo
+./scripts/qemu-root-zfs-rollback-canary-over-ssh --user USERNAME --status --prompt-sudo
 ```
 
 Then remove the validation canaries from the active root and from the persistent
 datasets:
 
 ```bash
-./scripts/qemu-root-zfs-rollback-canary-over-ssh --user danielitivov --cleanup --prompt-sudo
+./scripts/qemu-root-zfs-rollback-canary-over-ssh --user USERNAME --cleanup --prompt-sudo
 ```
 
 The cleanup phase intentionally removes only canary files from the currently

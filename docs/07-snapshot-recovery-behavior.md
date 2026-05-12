@@ -1,7 +1,14 @@
-# Snapshot Recovery Behavior
+# Btrfs Snapper Snapshot Recovery Behavior
 
-This is the operational behavior of `Margine` when booting a `Snapper` snapshot
-from `Limine`.
+This page documents the Btrfs/Snapper recovery behavior used by the public Arch
+path and by Daniel's current Btrfs host path.
+
+It is not the root-on-ZFS rollback model. For root-on-ZFS, use:
+
+- [Root-on-ZFS update snapshots and rollback](runbooks/root-on-zfs-update-rollback.md)
+
+The root-on-ZFS path publishes a bootable ZFS clone plus a frozen rollback UKI,
+then validates that pair before package updates are allowed to proceed.
 
 ## What a snapshot entry does
 

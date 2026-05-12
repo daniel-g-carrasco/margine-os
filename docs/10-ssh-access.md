@@ -62,7 +62,7 @@ The current QEMU harness forwards:
 So, after enabling SSH inside the VM, connect from the host with:
 
 ```bash
-ssh -p 2222 daniel@127.0.0.1
+ssh -p 2222 USERNAME@127.0.0.1
 ```
 
 If the VM was recreated and you get the classic host-key mismatch warning, clean
@@ -75,7 +75,7 @@ ssh-keygen -R '[127.0.0.1]:2222'
 Then connect again:
 
 ```bash
-ssh -p 2222 daniel@127.0.0.1
+ssh -p 2222 USERNAME@127.0.0.1
 ```
 
 Once SSH is enabled, the preferred development sync loop for the VM is
@@ -111,13 +111,13 @@ ss -ltnp | grep ':22'
 And from the client side:
 
 ```bash
-ssh -v -p 2222 daniel@127.0.0.1
+ssh -v -p 2222 USERNAME@127.0.0.1
 ```
 
 for the QEMU VM, or:
 
 ```bash
-ssh -v daniel@<machine-ip-or-hostname>
+ssh -v USERNAME@<machine-ip-or-hostname>
 ```
 
 for real hardware.

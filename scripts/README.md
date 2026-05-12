@@ -93,11 +93,12 @@ Operational scripts:
   module package, currently the `linux-cachyos*` family. On the official Arch
   ISO it fails explicitly and points to a ZFS-capable installer medium instead
   of attempting a fragile DKMS build in RAM.
-- `provision-storage`: prepares disk, `LUKS2`, `Btrfs`, and subvolumes from the live ISO.
-- `provision-storage-zfs-root`: prepares the experimental root-on-ZFS storage
-  layout from the live ISO. It is intentionally storage-only: it creates the
-  ESP, `LUKS2`, `rpool`, root dataset, desktop datasets and mount layout, but
-  does not pretend that the boot chain is root-on-ZFS-ready yet.
+- `provision-storage`: prepares the public Arch disk layout with `LUKS2`,
+  `Btrfs`, and subvolumes from the live ISO.
+- `provision-storage-zfs-root`: prepares the root-on-ZFS storage layout from
+  the live ISO. It creates the ESP, `LUKS2`, `rpool`, root dataset, desktop
+  datasets and mount layout, then writes the install-state manifest consumed by
+  the root-on-ZFS bootstrap and validators.
 - `bootstrap-live-zfs-root-guided`: short root-on-ZFS bootstrap wrapper for an
   already prepared target. It validates `/mnt`, `/mnt/boot`, restrictive ESP
   permissions, `rpool` bootfs, the root dataset, and the LUKS mapper, then calls

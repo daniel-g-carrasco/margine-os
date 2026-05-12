@@ -627,9 +627,11 @@ Manual checks:
 
 ## 14. Snapper and rollback
 
-Skip this section on root-on-ZFS. The initial root-on-ZFS path deliberately skips
-the Btrfs Snapper baseline; use the root-on-ZFS checks above until Margine's ZFS
-pre-update snapshot and rollback boot-environment flow is implemented.
+Run this section only on Btrfs/Snapper installs. Root-on-ZFS deliberately skips
+the Btrfs Snapper baseline; use the root-on-ZFS checks in section 2 and the
+dedicated runbook instead:
+
+- [Root-on-ZFS update snapshots and rollback](runbooks/root-on-zfs-update-rollback.md)
 
 ```bash
 snapper --no-dbus list-configs
@@ -656,7 +658,7 @@ Check:
 
 - `sshd` is enabled/running when intentionally enabled
 - firewall state is coherent
-- in QEMU, `ssh -p 2222 daniel@127.0.0.1` works after explicit enablement
+- in QEMU, `ssh -p 2222 USERNAME@127.0.0.1` works after explicit enablement
 
 ## 16. Secure Boot and TPM2 rollout checks
 
@@ -791,7 +793,7 @@ sudo /root/margine-repo/scripts/enable-qemu-validation-ssh --user "$USER"
 ```
 
 If you are already inside `sudo -i`, pass the real guest username explicitly,
-for example `--user danielitivov`; in a root shell `$USER` is `root`.
+for example `--user USERNAME`; in a root shell `$USER` is `root`.
 
 The SSH helper starts the validation idle inhibitor from a temporary local
 guest copy before the host collector is used. This avoids the broken ordering
