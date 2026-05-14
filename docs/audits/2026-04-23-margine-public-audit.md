@@ -239,10 +239,10 @@ security baseline complete.
 
 The public gaming manifests contain:
 
-- runtime: `obs-studio`, `lact`, Wine/Proton compatibility packages, Vulkan
-  tools, GameMode, multilib runtime packages
-- AUR runtime: `vkbasalt`, `obs-vkcapture`
-- apps/launchers: `gamescope`, `goverlay`, `lutris`, `mangohud`, `steam`
+- runtime: `steam`, `obs-studio`, `lact`, Wine/Proton compatibility packages,
+  Vulkan tools, GameMode, multilib runtime packages
+- AUR runtime: `proton-ge-custom-bin`, `vkbasalt`, `obs-vkcapture`
+- apps/launchers: `gamescope`, `goverlay`, `lutris`, `mangohud`
 
 GNOME Camera is represented by `snapshot` in `apps-photo-audio-video.txt`.
 

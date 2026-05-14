@@ -1,5 +1,5 @@
 # Default gaming runtime compatibility stack for the public Arch product.
-# This stays focused on official-repo compatibility packages, not launchers.
+# Steam is part of the base runtime; alternate launchers stay optional.
 alsa-plugins
 gamemode
 giflib
@@ -23,6 +23,7 @@ libxslt
 mpg123
 openal
 protontricks
+steam
 ttf-liberation
 vulkan-tools
 wine

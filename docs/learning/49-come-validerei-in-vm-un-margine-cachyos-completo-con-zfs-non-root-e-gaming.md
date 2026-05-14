@@ -114,9 +114,11 @@ Serve provare:
 
 Per questo la VM deve avere un secondo disco dedicato, separato dal disco root.
 
-### 5. Game stack completo
+### 5. Game runtime e stack completo
 
-Se vogliamo una VM "completa", dobbiamo installare anche:
+Il runtime gaming di default include gia' Steam e la compatibilita'
+Proton/Wine. Se vogliamo una VM "completa" con launcher alternativi e overlay,
+dobbiamo installare anche:
 
 - `gaming-runtime-compat`
 - `gaming-apps-launchers`
@@ -136,6 +138,7 @@ Il test corretto e`:
 Quindi il minimo serio da verificare e`:
 
 - `steam`
+- `proton-ge-custom-bin`
 - `gamescope`
 - `mangohud`
 - `umu-launcher`

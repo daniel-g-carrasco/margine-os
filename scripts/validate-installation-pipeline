@@ -88,6 +88,30 @@ require_not_both_literals() {
   fi
 }
 
+require_manifest_package() {
+  local path="$1"
+  local package="$2"
+  local description="$3"
+
+  if grep -Fxq -- "$package" "${repo_root}/${path}"; then
+    pass "$description"
+  else
+    fail "$description not found in ${path}: ${package}"
+  fi
+}
+
+require_absent_manifest_package() {
+  local path="$1"
+  local package="$2"
+  local description="$3"
+
+  if grep -Fxq -- "$package" "${repo_root}/${path}"; then
+    fail "$description unexpectedly found in ${path}: ${package}"
+  else
+    pass "$description"
+  fi
+}
+
 require_absent_install_literal() {
   local needle="$1"
   local description="$2"
@@ -306,6 +330,9 @@ check_identity_defaults() {
   require_literal files/home/.local/bin/margine-launcher-service 'systemctl --user start walker.service' "Hyprland session bootstrap warms Walker after environment import"
   require_literal files/home/.local/bin/margine-launcher-service 'margine-walker-healthcheck" --repair' "Hyprland session bootstrap validates Walker immediately after warming it"
   require_literal files/home/.config/hypr/conf.d/20-autostart.conf 'exec-once = $menusvc' "Hyprland starts the launcher service after session environment import"
+  require_absent_literal files/home/.config/hypr/conf.d/40-look-and-feel.conf "pseudotile =" "Hyprland look-and-feel avoids removed global pseudotile option"
+  require_literal files/home/.config/hypr/conf.d/40-look-and-feel.conf "no_update_news = true" "Hyprland update-news popup is disabled"
+  require_literal files/home/.config/hypr/conf.d/40-look-and-feel.conf "no_donation_nag = true" "Hyprland donation popup is disabled"
   require_literal files/home/.config/hypr/conf.d/20-autostart.conf "wsf apply" "Hyprland reapplies WSF scroll tuning at session startup"
   require_literal files/home/.config/hypr/conf.d/50-input.conf "Touchpad scroll speed is managed by Wayland Scroll Factor" "Hyprland input config documents WSF as the scroll tuning control"
   require_literal files/home/.config/hypr/conf.d/50-input.conf "# scroll_factor = 0.3" "Hyprland static touchpad scroll factor remains commented"
@@ -349,7 +376,7 @@ check_identity_defaults() {
   require_literal files/home/.local/bin/margine-import-session-environment "refresh_portal_backends" "session environment import refreshes portal backend routing"
   require_literal files/home/.local/bin/margine-import-session-environment "xdg-desktop-portal-gnome.service" "session environment import starts GNOME Settings portal backend"
   require_literal files/home/.local/bin/margine-import-session-environment "restart xdg-desktop-portal.service" "session environment import restarts portal after Hyprland env import"
-  require_literal files/home/.config/hypr/conf.d/20-autostart.conf "gtk-dark-exec easyeffects --service-mode --hide-window" "EasyEffects service-mode launch is forced through the dark GTK wrapper"
+  require_literal files/home/.config/hypr/conf.d/20-autostart.conf "systemctl --user start margine-framework-audio.service" "Hyprland starts the Framework audio service instead of launching EasyEffects directly"
   require_absent_literal files/home/.config/waybar/config.jsonc '"custom/easyeffects"' "Waybar no longer keeps a persistent EasyEffects status item"
   require_file files/home/.local/bin/easyeffects-toggle "EasyEffects toggle helper exists"
   require_literal files/home/.local/bin/easyeffects-toggle "easyeffects --bypass-toggle" "EasyEffects toggle uses bypass instead of killing the service"
@@ -359,6 +386,18 @@ check_identity_defaults() {
   require_literal files/home/.local/bin/open-network-settings "nm-connection-editor" "Waybar network click opens the GTK NetworkManager editor by default"
   require_literal files/home/.config/waybar/config.jsonc '"custom/tray-open"' "Waybar visually brackets the tray opening edge"
   require_literal files/home/.config/waybar/config.jsonc '"custom/tray-close"' "Waybar visually brackets the tray closing edge"
+  require_literal files/home/.config/waybar/config.jsonc '"custom/privacy-devices"' "Waybar includes a microphone/camera privacy device indicator"
+  require_file files/home/.local/bin/privacy-device-status "privacy device status helper exists"
+  require_file files/home/.local/bin/privacy-device-waybar-watch "privacy device Waybar watcher exists"
+  require_literal files/home/.local/bin/privacy-device-status "pw-dump" "privacy device status checks PipeWire streams"
+  require_literal files/home/.local/bin/privacy-device-status "lsof -w -n /dev/video" "privacy device status avoids slow full /proc fd scans"
+  require_literal files/home/.local/bin/privacy-device-status "/dev/video*" "privacy device status detects direct camera device access"
+  require_literal files/home/.local/bin/privacy-device-status "Framework" "privacy device status includes Framework hardware privacy inference"
+  require_literal files/home/.local/bin/privacy-device-status "Keep microphone left of camera" "privacy device status renders microphone before camera when both are visible"
+  require_literal files/home/.local/bin/privacy-device-waybar-watch "pw-mon" "privacy device watcher refreshes Waybar from PipeWire events"
+  require_literal files/home/.config/hypr/conf.d/20-autostart.conf "privacy-device-waybar-watch" "Hyprland starts the privacy device Waybar watcher"
+  require_literal scripts/provision-hyprland-desktop ".local/bin/privacy-device-waybar-watch" "desktop provisioner installs the privacy device Waybar watcher"
+  require_literal files/home/.config/waybar/config.jsonc '"signal": 12' "Waybar privacy module accepts immediate refresh signals"
   require_literal files/home/.local/bin/network-status 'text="$wifi_icon_connected"' "Wi-Fi status keeps signal strength in the tooltip instead of the bar"
   require_literal files/home/.local/bin/network-status "connection show --active" "Wi-Fi status cross-checks active NetworkManager connections before reporting disconnected"
   require_file files/etc/NetworkManager/dispatcher.d/90-margine-waybar-network "NetworkManager Waybar refresh dispatcher exists"
@@ -369,8 +408,30 @@ check_identity_defaults() {
   require_literal scripts/provision-framework-power "90-margine-waybar-power.rules" "power provisioner installs the Waybar power refresh rule"
   require_file files/usr/local/bin/margine-waybar-signal "Waybar signal helper exists"
   require_file files/home/.local/share/applications/com.github.wwmm.easyeffects.desktop "EasyEffects desktop override exists"
-  require_literal files/home/.local/share/applications/com.github.wwmm.easyeffects.desktop 'Exec=sh -lc "exec \"\\$HOME/.local/bin/gtk-dark-exec\" easyeffects --service-mode"' "Walker opens EasyEffects through the dark wrapper in service mode"
-  require_literal files/home/.local/bin/margine-framework-audio-service "gtk-dark-exec" "Framework audio service starts EasyEffects through the dark wrapper when available"
+  require_literal files/home/.local/share/applications/com.github.wwmm.easyeffects.desktop 'Exec=sh -lc "exec \"\\$HOME/.local/bin/gtk-dark-exec\" easyeffects"' "Walker opens the EasyEffects GUI through the dark wrapper"
+  require_file files/home/.local/share/applications/audacity.desktop "Audacity desktop override exists"
+  require_literal files/home/.local/share/applications/audacity.desktop "GDK_SCALE=2" "Audacity XWayland launcher opts into 2x toolkit scaling"
+  require_file files/home/.local/bin/open-reaper "REAPER launcher wrapper exists"
+  require_file files/home/.local/share/applications/cockos-reaper.desktop "REAPER desktop override exists"
+  require_literal files/home/.local/bin/open-reaper "-u GDK_BACKEND" "REAPER launcher clears the session-wide GTK Wayland backend"
+  require_literal files/home/.local/bin/open-reaper "QT_QPA_PLATFORM=xcb" "REAPER launcher forces the XWayland-compatible Qt/XCB path"
+  require_literal files/home/.local/bin/open-reaper "XCURSOR_SIZE=" "REAPER launcher normalizes XWayland cursor scaling"
+  require_literal files/home/.local/bin/open-reaper "pkill -TERM -x reaper" "REAPER launcher cleans stale headless REAPER before relaunch"
+  require_literal files/home/.local/share/applications/cockos-reaper.desktop 'Exec=sh -lc "exec \"\\$HOME/.local/bin/open-reaper\"' "Walker opens REAPER through the Margine wrapper"
+  require_literal scripts/provision-user-app-config '".local/bin/open-reaper"' "user app config installs the REAPER launcher wrapper"
+  require_manifest_package manifests/packages/apps-photo-audio-video.txt "audacity" "audio/video baseline installs Audacity explicitly"
+  require_manifest_package manifests/packages/apps-photo-audio-video.txt "lsp-plugins-ladspa" "audio/video baseline installs Audacity-compatible LADSPA plugins"
+  require_manifest_package manifests/packages/apps-photo-audio-video.txt "lsp-plugins-lv2" "audio/video baseline installs Audacity-compatible LV2 plugins"
+  require_manifest_package manifests/packages/apps-photo-audio-video.txt "lsp-plugins-standalone" "audio/video baseline installs standalone LSP tools"
+  require_absent_manifest_package manifests/packages/apps-photo-audio-video.txt "lsp-plugins" "audio/video baseline avoids the broad LSP meta package"
+  require_absent_manifest_package manifests/packages/apps-photo-audio-video.txt "lsp-plugins-vst" "audio/video baseline avoids Audacity-incompatible LSP VST2 plugins"
+  require_manifest_package manifests/packages/apps-photo-audio-video.txt "lsp-plugins-vst3" "audio/video baseline installs VST3 LSP plugins for REAPER compatibility"
+  require_manifest_package manifests/packages/apps-photo-audio-video.txt "reaper" "audio/video baseline installs REAPER from official repositories"
+  require_manifest_package manifests/packages/apps-photo-audio-video.txt "reapack" "audio/video baseline installs ReaPack for REAPER extensions"
+  require_manifest_package manifests/packages/apps-photo-audio-video.txt "sws" "audio/video baseline installs SWS REAPER extensions"
+  require_manifest_package manifests/packages/apps-photo-audio-video.txt "carla" "audio/video baseline keeps Carla for REAPER plugin hosting even if Audacity disables its VST plugins"
+  require_literal files/home/.local/bin/margine-framework-audio-service "easyeffects --load-preset" "Framework audio service explicitly loads the Margine preset after startup"
+  require_literal files/home/.local/bin/margine-framework-audio-service "kernel-path" "Framework audio service normalizes EasyEffects convolver IR paths for current EasyEffects releases"
   require_literal manifests/packages/fonts.txt "ttc-iosevka-etoile" "Default font baseline installs Iosevka Etoile for UI text"
   require_literal manifests/packages/fonts.txt "ttc-iosevka-aile" "Default font baseline installs Iosevka Aile as a neutral fallback"
   require_literal manifests/packages/aur-baseline.txt "ttf-ioskeley-mono" "AUR baseline installs Ioskeley Mono for terminal/code/compact text"
@@ -429,6 +490,10 @@ check_default_runtime_layers() {
   require_literal scripts/bootstrap-in-chroot "gaming-runtime-compat" "chroot default includes gaming runtime compatibility"
   require_literal scripts/install-from-manifests "gaming-runtime-compat" "manifest default includes gaming runtime compatibility"
   require_file manifests/packages/gaming-runtime-compat.txt "gaming runtime compatibility package layer exists"
+  require_file manifests/aur/gaming-runtime-compat.txt "gaming runtime compatibility AUR layer exists"
+  require_literal manifests/packages/gaming-runtime-compat.txt "steam" "gaming runtime installs Steam by default"
+  require_literal manifests/aur/gaming-runtime-compat.txt "proton-ge-custom-bin" "gaming runtime includes Proton GE from AUR"
+  require_absent_literal manifests/packages/gaming-apps-launchers.txt "steam" "Steam is not in the optional launcher layer"
   require_not_both_literals manifests/packages/gaming-runtime-compat.txt "lib32-ocl-icd" "lib32-opencl-icd-loader" "gaming runtime avoids conflicting 32-bit OpenCL ICD loaders"
   require_literal scripts/validate-runtime-baseline "Gaming split-lock policy" "runtime validation checks split-lock policy"
   require_literal scripts/validate-runtime-baseline "kernel.split_lock_mitigate is 0" "runtime validation fails when gaming split-lock override is active by default"
@@ -479,6 +544,7 @@ check_local_aur_overrides() {
   require_literal scripts/install-from-manifests "Defer local override package until first boot" "manifest installer defers unbuilt local overrides to first boot"
   require_absent_literal scripts/install-from-manifests "wayland-scroll-factor-git" "manifest installer does not defer WSF as a local package"
   require_literal scripts/build-local-package-repo "gaming-runtime-compat" "local package repo builder includes default gaming runtime compatibility AUR layer"
+  require_literal manifests/aur/gaming-runtime-compat.txt "proton-ge-custom-bin" "local package repo builder sees Proton GE in the default gaming runtime AUR layer"
   require_literal scripts/build-local-package-repo "install-aur-packages" "local package repo builder delegates package builds to the hardened AUR installer"
   require_literal .gitignore "/local-pacman-repo/" "local package repo artifacts are ignored by git"
   require_executable files/usr/local/bin/margine-build-local-overrides "first-boot local override builder is executable"

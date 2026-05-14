@@ -944,11 +944,12 @@ cat /etc/sanoid/sanoid.conf
 cat /etc/margine/zfs-pre-update-datasets.conf
 ```
 
-Optional checks if you also installed the gaming stack:
+Checks for the default gaming runtime:
 
 ```bash
-pacman -Q steam gamescope mangohud umu-launcher obs-studio lact vkbasalt obs-vkcapture
-which steam gamescope mangohud obs obs-gamecapture
+pacman -Q steam proton-ge-custom-bin obs-studio lact vkbasalt obs-vkcapture vulkan-tools
+pacman -Q umu-launcher || true
+which steam obs obs-gamecapture
 which lact
 ```
 
@@ -1279,11 +1280,11 @@ Use this only if you want to leave the guest in a clean post-test state.
 
 ## 6. Optional gaming stack presence
 
-Run this block only if you installed both `gaming-runtime-compat` and
-`gaming-apps-launchers`.
+Run this block when you want to validate the optional launcher/overlay layer on
+top of the default `gaming-runtime-compat` baseline.
 
 ```bash
-pacman -Q steam gamescope mangohud umu-launcher obs-studio lact vkbasalt obs-vkcapture vulkan-tools
+pacman -Q gamescope mangohud lutris goverlay
 command -v steam
 command -v gamescope
 command -v mangohud
@@ -1291,6 +1292,7 @@ command -v obs
 command -v obs-gamecapture
 command -v lact
 command -v umu-run || command -v umu-launcher || true
+command -v lutris
 steam_help_file="$(mktemp)"
 steam --help >"$steam_help_file" 2>&1 || true
 head -n 20 "$steam_help_file"

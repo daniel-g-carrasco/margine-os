@@ -35,6 +35,7 @@ declare -a home_payload=(
   ".local/bin/margine-apply-theme"
   ".local/bin/margine-color-picker"
   ".local/bin/margine-fetch"
+  ".local/bin/open-reaper"
   ".local/bin/update-all"
   ".local/bin/update-all-launcher"
   ".local/share/applications"

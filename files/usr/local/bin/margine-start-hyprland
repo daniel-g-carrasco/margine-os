@@ -4,6 +4,13 @@ set -euo pipefail
 config_root="${XDG_CONFIG_HOME:-${HOME}/.config}"
 config_path="${config_root}/hypr/hyprland.conf"
 
+clear_login_vt() {
+  [[ -t 1 ]] || return 0
+  printf '\033[2J\033[3J\033[H'
+}
+
+clear_login_vt
+
 if [[ ! -r "$config_path" ]]; then
   printf 'margine-start-hyprland: missing Hyprland config: %s\n' "$config_path" >&2
   printf 'margine-start-hyprland: check that /home is mounted and the Margine user payload was provisioned.\n' >&2

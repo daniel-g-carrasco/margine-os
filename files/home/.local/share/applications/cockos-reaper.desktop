@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=REAPER
+GenericName=Digital audio workstation
+Comment=Record, edit, and mix audio
+Categories=Audio;Video;AudioVideo;AudioVideoEditing;Recorder;
+Exec=sh -lc "exec \"\\$HOME/.local/bin/open-reaper\" \"\\$@\"" sh %F
+Icon=cockos-reaper
+MimeType=application/x-reaper-project;application/x-reaper-project-backup;application/x-reaper-theme
+StartupWMClass=REAPER
+StartupNotify=true
+Terminal=false

@@ -1,4 +1,5 @@
 # Optional gaming runtime compatibility packages that are only available via
 # AUR, but still belong to the runtime/tooling side rather than launcher UX.
+proton-ge-custom-bin
 vkbasalt
 obs-vkcapture

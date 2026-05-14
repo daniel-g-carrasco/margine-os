@@ -35,6 +35,7 @@
     "tray",
     "custom/tray-close",
     "custom/recording",
+    "custom/privacy-devices",
     "custom/vpn",
     "custom/gaming-split-lock",
     "custom/network",
@@ -153,6 +154,16 @@
     "interval": 2,
     "signal": 8,
     "on-click": "~/.local/bin/screenrecord-stop",
+    "escape": true
+  },
+
+  // Right: microphone / camera privacy indicator
+  "custom/privacy-devices": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.local/bin/privacy-device-status",
+    "interval": 1,
+    "signal": 12,
     "escape": true
   },
 

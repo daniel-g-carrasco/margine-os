@@ -57,9 +57,11 @@ The public Arch product exposes gaming layers under `packages/*.txt` and
 - `gaming-runtime-compat`
 - `gaming-apps-launchers`
 
-`gaming-runtime-compat` is part of the default baseline. `gaming-apps-launchers`
-remains optional. They are intentionally split so compatibility packages do not
-automatically force launchers, overlays, or `gamescope`.
+`gaming-runtime-compat` is part of the default baseline and includes Steam plus
+the core Proton/Wine/Vulkan/multilib compatibility substrate. Proton GE is
+tracked in the matching AUR runtime layer as `proton-ge-custom-bin` because it is
+not an official-repository package. `gaming-apps-launchers` remains optional for
+alternate launchers, overlays, and per-game tools such as `gamescope`.
 
 When a layer exists under both `packages/` and `aur/` with the same name, they
 are treated as one operator-facing layer: official-repo packages are installed

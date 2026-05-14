@@ -31,7 +31,7 @@ This directory owns the top bar for the Hyprland desktop.
 - Center:
   `clock`
 - Right:
-  `tray`, recording, VPN, split-lock, network, bluetooth, keep-awake, audio, battery, notifications
+  `tray`, recording, privacy devices, VPN, split-lock, network, bluetooth, keep-awake, audio, battery, notifications
 
 ## Common edit recipes
 
@@ -77,6 +77,23 @@ The `custom/network` module deliberately exposes two different entry points:
 The left-click path opens `nm-connection-editor` through the GTK dark wrapper
 when available. The middle-click path is reserved for operators who explicitly
 want the older `nmtui` terminal UI.
+
+### Privacy device indicator
+
+The `custom/privacy-devices` module is intentionally hidden during normal idle
+use. It appears only when there is something actionable:
+
+- camera stream, running camera source, camera source link, or direct
+  `/dev/video*` / `/dev/media*` access detected
+- microphone capture stream, running microphone source, or microphone source
+  link detected through PipeWire
+- on Framework hardware, the internal camera appears unavailable or the default
+  microphone source appears muted
+
+The active-use path is authoritative only for software that exposes PipeWire
+streams or opens kernel video devices. Framework hardware switch state is an
+inference from the devices and source mute state exposed by the kernel/session.
+The tooltip names detected clients where that information is available.
 
 ### Change colors, spacing, or typography
 

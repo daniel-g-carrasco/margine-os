@@ -1,0 +1,278 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+camera_icon=""
+camera_blocked_icon=""
+microphone_icon=""
+microphone_muted_icon=""
+
+camera_active=0
+camera_present=0
+microphone_active=0
+microphone_present=0
+microphone_muted=0
+framework_hardware=0
+camera_clients=""
+microphone_clients=""
+
+json_escape() {
+  local value="${1:-}"
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  value=${value//$'\n'/\\n}
+  printf '%s' "$value"
+}
+
+append_unique_client() {
+  local current="$1"
+  local next="$2"
+
+  [[ -n "$next" ]] || {
+    printf '%s' "$current"
+    return 0
+  }
+
+  case ",${current}," in
+    *",${next},"*) printf '%s' "$current" ;;
+    *)
+      if [[ -n "$current" ]]; then
+        printf '%s, %s' "$current" "$next"
+      else
+        printf '%s' "$next"
+      fi
+      ;;
+  esac
+}
+
+read_pipewire_state() {
+  command -v pw-dump >/dev/null 2>&1 || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+
+  local dump_file=""
+  dump_file="$(mktemp -t margine-pw-dump.XXXXXX)"
+  trap 'rm -f "$dump_file"' RETURN
+
+  pw-dump >"$dump_file" 2>/dev/null || return 0
+
+  while IFS='=' read -r key value; do
+    case "$key" in
+      camera_active) camera_active="$value" ;;
+      camera_present) camera_present="$value" ;;
+      camera_clients) camera_clients="$value" ;;
+      microphone_active) microphone_active="$value" ;;
+      microphone_present) microphone_present="$value" ;;
+      microphone_clients) microphone_clients="$value" ;;
+    esac
+  done < <(python3 - "$dump_file" <<'PY'
+import json
+import re
+import sys
+
+def clean(value):
+    value = "" if value is None else str(value)
+    return re.sub(r"\s+", " ", value).strip()[:120]
+
+def node_label(props):
+    for key in ("application.name", "node.description", "node.name", "media.name"):
+        label = clean(props.get(key))
+        if label:
+            return label
+    return "unknown"
+
+try:
+    with open(sys.argv[1], "r", encoding="utf-8") as handle:
+        data = json.load(handle)
+except Exception:
+    data = []
+
+camera_active = False
+camera_present = False
+microphone_active = False
+microphone_present = False
+camera_clients = []
+microphone_clients = []
+nodes = {}
+
+for item in data:
+    info = item.get("info") or {}
+    props = info.get("props") or {}
+    media_class = props.get("media.class", "")
+    object_id = item.get("id")
+
+    if object_id is not None:
+        nodes[str(object_id)] = {
+            "props": props,
+            "media_class": media_class,
+            "state": info.get("state", ""),
+        }
+
+    if media_class in ("Video/Source", "Video/Source/Virtual"):
+        camera_present = True
+        if info.get("state") == "running":
+            camera_active = True
+            camera_clients.append(node_label(props))
+    elif media_class in ("Stream/Input/Video", "Stream/Output/Video"):
+        camera_active = True
+        camera_clients.append(node_label(props))
+
+    if media_class in ("Audio/Source", "Audio/Source/Virtual"):
+        microphone_present = True
+        if info.get("state") == "running":
+            microphone_active = True
+            microphone_clients.append(node_label(props))
+    elif media_class == "Stream/Input/Audio":
+        microphone_active = True
+        microphone_clients.append(node_label(props))
+
+for item in data:
+    if item.get("type") != "PipeWire:Interface:Link":
+        continue
+
+    info = item.get("info") or {}
+    props = info.get("props") or {}
+    link_state = info.get("state", "")
+    if link_state not in ("active", "running", ""):
+        continue
+
+    output_node = nodes.get(str(props.get("link.output.node"))) or {}
+    input_node = nodes.get(str(props.get("link.input.node"))) or {}
+    output_class = output_node.get("media_class", "")
+    input_props = input_node.get("props") or {}
+
+    if output_class in ("Video/Source", "Video/Source/Virtual"):
+        camera_active = True
+        camera_clients.append(node_label(input_props))
+    elif output_class in ("Audio/Source", "Audio/Source/Virtual"):
+        microphone_active = True
+        microphone_clients.append(node_label(input_props))
+
+print(f"camera_active={int(camera_active)}")
+print(f"camera_present={int(camera_present)}")
+print("camera_clients=" + ", ".join(dict.fromkeys(camera_clients)))
+print(f"microphone_active={int(microphone_active)}")
+print(f"microphone_present={int(microphone_present)}")
+print("microphone_clients=" + ", ".join(dict.fromkeys(microphone_clients)))
+PY
+  )
+}
+
+detect_framework_hardware() {
+  local value=""
+  local path=""
+
+  for path in \
+    /sys/devices/virtual/dmi/id/sys_vendor \
+    /sys/devices/virtual/dmi/id/product_name \
+    /sys/devices/virtual/dmi/id/board_vendor; do
+    [[ -r "$path" ]] || continue
+    value="$(cat "$path" 2>/dev/null || true)"
+    if [[ "$value" == *Framework* || "$value" == *framework* ]]; then
+      framework_hardware=1
+      return 0
+    fi
+  done
+}
+
+detect_video_devices_and_users() {
+  local dev=""
+  local line=""
+  local command=""
+
+  shopt -s nullglob
+  for dev in /dev/video* /dev/media*; do
+    [[ -e "$dev" ]] || continue
+    camera_present=1
+    break
+  done
+
+  command -v lsof >/dev/null 2>&1 || {
+    shopt -u nullglob
+    return 0
+  }
+
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    command="${line%% *}"
+    [[ -n "$command" ]] || continue
+    [[ "$command" == "COMMAND" ]] && continue
+    [[ "$command" == "privacy-device-"* ]] && continue
+    camera_active=1
+    camera_clients="$(append_unique_client "$camera_clients" "$command")"
+  done < <(lsof -w -n /dev/video* /dev/media* 2>/dev/null || true)
+
+  shopt -u nullglob
+}
+
+detect_default_microphone_mute() {
+  local volume=""
+
+  command -v wpctl >/dev/null 2>&1 || return 0
+  volume="$(wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null || true)"
+  [[ -n "$volume" ]] || return 0
+
+  microphone_present=1
+  if [[ "$volume" == *"[MUTED]"* ]]; then
+    microphone_muted=1
+  fi
+}
+
+read_pipewire_state
+detect_framework_hardware
+detect_video_devices_and_users
+detect_default_microphone_mute
+
+icons=()
+classes=()
+tooltip_lines=("Privacy devices")
+
+# Keep microphone left of camera when both indicators are visible.
+if (( microphone_active )); then
+  icons+=("$microphone_icon")
+  classes+=("microphone-active")
+  if [[ -n "$microphone_clients" ]]; then
+    tooltip_lines+=("Microphone: active (${microphone_clients})")
+  else
+    tooltip_lines+=("Microphone: active")
+  fi
+elif (( framework_hardware && microphone_muted )); then
+  icons+=("$microphone_muted_icon")
+  classes+=("microphone-muted")
+  tooltip_lines+=("Microphone: muted or hardware-disabled")
+fi
+
+if (( camera_active )); then
+  icons+=("$camera_icon")
+  classes+=("camera-active")
+  if [[ -n "$camera_clients" ]]; then
+    tooltip_lines+=("Camera: active (${camera_clients})")
+  else
+    tooltip_lines+=("Camera: active")
+  fi
+elif (( framework_hardware && ! camera_present )); then
+  icons+=("$camera_blocked_icon")
+  classes+=("camera-blocked")
+  tooltip_lines+=("Camera: unavailable or hardware-disabled")
+fi
+
+if (( ${#icons[@]} == 0 )); then
+  exit 1
+fi
+
+class="privacy-devices"
+if (( ${#classes[@]} > 0 )); then
+  printf -v class '%s ' "${classes[@]}"
+  class="privacy-devices ${class% }"
+fi
+
+text=""
+printf -v text '%s  ' "${icons[@]}"
+text="${text%  }"
+
+tooltip=""
+printf -v tooltip '%s\n' "${tooltip_lines[@]}"
+tooltip="${tooltip%$'\n'}"
+
+printf '{"text":"%s","class":"%s","tooltip":"%s"}\n' \
+  "$(json_escape "$text")" \
+  "$(json_escape "$class")" \
+  "$(json_escape "$tooltip")"

@@ -5,4 +5,3 @@ goverlay
 lib32-mangohud
 lutris
 mangohud
-steam

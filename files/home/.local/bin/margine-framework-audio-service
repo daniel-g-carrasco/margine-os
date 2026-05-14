@@ -7,6 +7,7 @@ preset_name="fw13-easy-effects"
 ir_name="IR_22ms_27dB_5t_15s_0c.irs"
 
 data_root="${XDG_DATA_HOME:-${HOME}/.local/share}/easyeffects"
+config_root="${XDG_CONFIG_HOME:-${HOME}/.config}/easyeffects"
 autoload_dir="${data_root}/autoload/output"
 output_dir="${data_root}/output"
 irs_dir="${data_root}/irs"
@@ -146,6 +147,66 @@ ensure_payload_present() {
   }
 }
 
+normalize_preset_runtime_paths() {
+  local preset_file="${output_dir}/${preset_name}.json"
+  local legacy_preset_file="${config_root}/${preset_name}.json"
+  local ir_path="${irs_dir}/${ir_name}"
+
+  if (( dry_run )); then
+    printf '[dry-run] normalize EasyEffects convolver kernel path in %s -> %s\n' \
+      "$preset_file" "$ir_path"
+    if [[ -f "$legacy_preset_file" ]]; then
+      printf '[dry-run] normalize EasyEffects legacy convolver kernel path in %s -> %s\n' \
+        "$legacy_preset_file" "$ir_path"
+    fi
+    return 0
+  fi
+
+  python - "$ir_path" "$preset_file" "$legacy_preset_file" <<'PY'
+import json
+import os
+import sys
+import tempfile
+
+ir_path = sys.argv[1]
+preset_files = sys.argv[2:]
+
+for preset_file in preset_files:
+    if not os.path.exists(preset_file):
+        continue
+
+    with open(preset_file, "r", encoding="utf-8") as handle:
+        data = json.load(handle)
+
+    convolver = data.get("output", {}).get("convolver#0")
+    if not isinstance(convolver, dict):
+        continue
+
+    changed = False
+    if convolver.get("kernel-path") != ir_path:
+        convolver["kernel-path"] = ir_path
+        changed = True
+
+    if "kernel-name" in convolver:
+        del convolver["kernel-name"]
+        changed = True
+
+    if not changed:
+        continue
+
+    directory = os.path.dirname(preset_file)
+    fd, tmp_path = tempfile.mkstemp(prefix=".fw13-easy-effects.", suffix=".json", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=4)
+            handle.write("\n")
+        os.replace(tmp_path, preset_file)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+PY
+}
+
 write_autoload_profile() {
   local device_name="$1"
   local device_description="$2"
@@ -196,6 +257,7 @@ main() {
   fi
 
   ensure_payload_present || exit 0
+  normalize_preset_runtime_paths
   wait_for_pactl || exit 0
 
   if ! mapfile -t sink_data < <(resolve_speaker_target); then
@@ -221,22 +283,27 @@ main() {
     exit 0
   fi
 
-  if command -v gtk-dark-exec >/dev/null 2>&1; then
-    easyeffects_launcher=(gtk-dark-exec easyeffects --service-mode --hide-window)
-  elif [[ -x "${HOME}/.local/bin/gtk-dark-exec" ]]; then
-    easyeffects_launcher=("${HOME}/.local/bin/gtk-dark-exec" easyeffects --service-mode --hide-window)
-  else
-    easyeffects_launcher=(easyeffects --service-mode --hide-window)
-  fi
+  easyeffects_launcher=(easyeffects --service-mode --hide-window)
 
   if (( dry_run )); then
     printf '[dry-run]'
     printf ' %q' "${easyeffects_launcher[@]}"
     printf '\n'
+    printf '[dry-run] easyeffects --load-preset %q\n' "$preset_name"
     exit 0
   fi
 
-  exec "${easyeffects_launcher[@]}"
+  "${easyeffects_launcher[@]}" &
+  easyeffects_pid=$!
+
+  for _ in $(seq 1 20); do
+    sleep 0.5
+    if easyeffects --load-preset "$preset_name" >/dev/null 2>&1; then
+      break
+    fi
+  done
+
+  wait "$easyeffects_pid"
 }
 
 main "$@"

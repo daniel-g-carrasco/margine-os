@@ -4,6 +4,8 @@
 
 argyllcms
 aom
+audacity
+carla
 calf
 colord
 darktable
@@ -32,8 +34,14 @@ libdvdread
 libheif
 libmad
 libmpeg2
+lsp-plugins-ladspa
 lsp-plugins-lv2
+lsp-plugins-standalone
+lsp-plugins-vst3
 mesa-utils
 openh264
 opus-tools
+reaper
+reapack
+sws
 vulkan-tools

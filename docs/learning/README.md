@@ -51,6 +51,8 @@ Planned topics:
 - ZFS tooling choice on Arch for Margine
 - full VM validation of `Margine CachyOS` with `ZFS` non-root and gaming stack
 - root-on-ZFS storage, boot, snapshot and update program
+- Hyprland option audit for Margine
+- desktop, boot and login theme control
 
 Rule:
 - each note must explain the "what", the "why" and the "how to change it".

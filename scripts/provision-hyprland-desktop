@@ -75,6 +75,8 @@ declare -a home_payload=(
   ".local/bin/open-power-settings"
   ".local/bin/polkit-agent-launch"
   ".local/bin/polkit-agent-restart"
+  ".local/bin/privacy-device-status"
+  ".local/bin/privacy-device-waybar-watch"
   ".local/bin/screenrecord-region-toggle"
   ".local/bin/screenrecord-menu"
   ".local/bin/screenrecord-status"

@@ -186,15 +186,21 @@ After review, the current project direction is to place these helpers inside the
 existing `gaming-runtime-compat` layer rather than in the generic baseline:
 
 - `obs-studio`
+- `proton-ge-custom-bin`
+- `steam`
 - `vkBasalt`
 - `obs-vkcapture`
 - `LACT`
 
 The reasoning is explicit:
 
+- `steam` is the default client entry point for the runtime, while alternate
+  launchers stay optional
+- `proton-ge-custom-bin` adds the expected Proton GE compatibility tool without
+  pretending it is an official-repository package
 - `obs-studio` belongs naturally to the creator/media workflow, but it is still
-  most coherent when grouped under the optional gaming/runtime story chosen by
-  the operator
+  most coherent when grouped under the gaming/runtime story chosen by the
+  product
 - `vkBasalt` and `obs-vkcapture` add concrete gaming/recording value without
   changing the operating model of the system
 - `LACT` is a real AMD-side GPU control and diagnostics tool, which fits the
@@ -384,6 +390,7 @@ Arch-native packages such as:
 - `wine`
 - `winetricks`
 - `steam`
+- `proton-ge-custom-bin`
 - `lutris`
 - `gamescope`
 - `mangohud`

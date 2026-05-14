@@ -8,6 +8,7 @@
  * - `custom/vpn`                -> `#custom-vpn`
  * - `custom/gaming-split-lock`  -> `#custom-gaming-split-lock`
  * - `custom/recording`          -> `#custom-recording`
+ * - `custom/privacy-devices`    -> `#custom-privacy-devices`
  * - `custom/battery`            -> `#custom-battery`
  * - `custom/notification-count` -> `#custom-notification-count`
  * - `custom/notification`       -> `#custom-notification`
@@ -128,6 +129,23 @@ window#waybar {
   min-width: 30px;
   padding: 0 8px;
   font-weight: 600;
+}
+
+/* Right cluster: microphone / camera privacy */
+
+#custom-privacy-devices {
+  background: transparent;
+  color: @critical;
+  margin: 0;
+  min-width: 22px;
+  padding: 0 7px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#custom-privacy-devices.camera-blocked,
+#custom-privacy-devices.microphone-muted {
+  color: @warning;
 }
 
 /* Right cluster: VPN */

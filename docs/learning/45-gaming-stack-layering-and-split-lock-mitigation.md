@@ -59,26 +59,26 @@ opaque package boundary.
 
 ## The `Margine` model
 
-`Margine` uses two optional layers:
+`Margine` uses two gaming layers:
 
 - `gaming-runtime-compat`
 - `gaming-apps-launchers`
 
 The split is intentional:
 
-- `gaming-runtime-compat` is the technical substrate needed by Steam,
-  Proton/Wine, and related game runtimes
+- `gaming-runtime-compat` is the default technical substrate: Steam,
+  Proton/Wine, Proton GE, and related game runtimes
 - `gaming-apps-launchers` is the user-facing layer that installs launchers,
-  overlays, and tools
+  overlays, and tools beyond Steam
 
 This gives operators three deployment shapes:
 
-1. no gaming stack at all
-2. compatibility/runtime only
-3. full gaming workstation
+1. default runtime with Steam and compatibility tooling
+2. runtime plus alternate launchers and overlays
+3. no gaming stack only for deliberately stripped/custom products
 
 The important consequence is that gaming compatibility can be installed without
-automatically forcing launchers or changing kernel mitigation policy.
+automatically forcing alternate launchers or changing kernel mitigation policy.
 
 The product-specific detail is in the package choice:
 
@@ -86,8 +86,9 @@ The product-specific detail is in the package choice:
   Cachy-oriented packages such as `proton-cachyos-slr`, `wine-cachyos-opt`,
   and `heroic-games-launcher`
 - `Margine Public / Arch` exposes the same two optional layers with
-  Arch-native packages from the official repositories, such as `wine`,
-  `winetricks`, `steam`, `lutris`, `gamescope`, and `mangohud`
+  Arch-native packages from the official repositories and AUR, such as `steam`,
+  `proton-ge-custom-bin`, `wine`, `winetricks`, `lutris`, `gamescope`, and
+  `mangohud`
 
 This keeps the operator model stable across products even when the package
 composition differs underneath.
@@ -249,7 +250,7 @@ and other high-impact settings: explicit, versioned, and reversible.
 
 ## How to change it safely
 
-### Install the runtime only
+### Reapply the default runtime
 
 ```bash
 sudo /root/margine-os/scripts/install-from-manifests \
@@ -258,7 +259,7 @@ sudo /root/margine-os/scripts/install-from-manifests \
   --layer gaming-runtime-compat
 ```
 
-### Install the full gaming stack
+### Install alternate launchers and overlays
 
 ```bash
 sudo /root/margine-os/scripts/install-from-manifests \
