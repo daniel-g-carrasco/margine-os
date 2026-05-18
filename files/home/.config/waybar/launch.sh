@@ -39,17 +39,16 @@ refresh_hyprland_runtime_env() {
 }
 
 wait_for_hyprland_runtime_env() {
-  local attempt=0
   local runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
   export XDG_RUNTIME_DIR="$runtime_dir"
-  export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-Hyprland}"
-  export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}"
-  export XDG_SESSION_DESKTOP="${XDG_SESSION_DESKTOP:-hyprland}"
-  export DESKTOP_SESSION="${DESKTOP_SESSION:-hyprland}"
-  export GDK_BACKEND="${GDK_BACKEND:-wayland}"
+  export XDG_CURRENT_DESKTOP=Hyprland
+  export XDG_SESSION_TYPE=wayland
+  export XDG_SESSION_DESKTOP=hyprland
+  export DESKTOP_SESSION=hyprland
+  export GDK_BACKEND=wayland
 
-  for attempt in {1..40}; do
+  for _ in {1..40}; do
     refresh_hyprland_runtime_env
 
     if [[ -n "${WAYLAND_DISPLAY:-}" && -S "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" ]]; then

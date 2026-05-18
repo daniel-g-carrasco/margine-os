@@ -49,8 +49,21 @@ Decisione:
 
 Scelti per `Margine`:
 
+- `FW13_D65_GNOME_COLORS.icc`
 - `FW13_140cd_D65_2.2_S.icc`
 - `DELL_P2415Q_D65_high.icc`
+
+Default Hyprland per il pannello Framework 13 BOE:
+
+- `FW13_D65_GNOME_COLORS.icc`, titolo profilo `FW13 D65`;
+- profilo GNOME Colors / `colord-session`, display RGB ICC v2.2,
+  matrix/TRC semplice, TRC gamma `2.06640625`;
+- `vcgt` presente, 3 canali, 256 entry, 16 bit.
+
+Profilo conservato ma non usato come default Hyprland:
+
+- `FW13_140cd_D65_2.2_S.icc`, profilo DisplayCAL/Argyll diverso,
+  `XYZLUT+MTX`, circa 1.1 MB.
 
 Esclusi:
 
@@ -68,8 +81,8 @@ Decisione:
 
 ## Nota Wayland
 
-La baseline non forza una applicazione automatica del profilo display a livello
-compositor.
+La baseline forza il profilo display a livello compositor solo per match
+espliciti e validati.
 
 La parte sicura da portare in `Margine` e':
 
@@ -77,7 +90,10 @@ La parte sicura da portare in `Margine` e':
 - asset ICC corretti;
 - applicazioni color-managed.
 
-Scelta aggiuntiva:
+Scelta aggiornata:
 
-- su `Hyprland` l'ICC compositor-level resta opzionale e non attivo di default;
-- la `v1` privilegia `colord + app-first`.
+- su `Hyprland` 0.55 il profilo `FW13_D65_GNOME_COLORS.icc` viene applicato
+  solo al pannello `desc:BOE NE135A1M-NY1`;
+- il profilo viene installato anche come asset di sistema in
+  `/usr/share/margine/icc`;
+- la `v1` continua a usare `colord + app-first` per monitor non validati.

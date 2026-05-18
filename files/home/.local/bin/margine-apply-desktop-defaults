@@ -25,6 +25,10 @@ gsettings set org.gnome.desktop.interface monospace-font-name "${MARGINE_THEME_T
 gsettings set org.gnome.desktop.interface gtk-theme "${MARGINE_THEME_GSETTINGS_GTK_THEME}" >/dev/null 2>&1 || true
 gsettings set org.gnome.desktop.interface icon-theme "${MARGINE_THEME_ICON_THEME}" >/dev/null 2>&1 || true
 
+if [[ -x "${HOME}/.local/bin/margine-home-configure-folder-icons" ]]; then
+  "${HOME}/.local/bin/margine-home-configure-folder-icons" --home "$HOME" --apply >/dev/null 2>&1 || true
+fi
+
 gsettings set org.gnome.TextEditor style-scheme Adwaita-dark >/dev/null 2>&1 || true
 gsettings set org.gnome.TextEditor style-variant follow >/dev/null 2>&1 || true
 gsettings set org.gnome.TextEditor recolor-window true >/dev/null 2>&1 || true

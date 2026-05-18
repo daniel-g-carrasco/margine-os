@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd "${script_dir}/.." && pwd)"
-
 dry_run=0
 show_next_step=1
 confirm_destroy=0
@@ -306,6 +303,15 @@ close_existing_mapper() {
   fi
 }
 
+prepare_private_live_mount_namespace() {
+  log
+  log "==> Prepare private live mount namespace"
+
+  run_cmd install -d "$target_root"
+  run_cmd mount --make-rprivate /
+  log "  live mount namespace is private before target storage mount"
+}
+
 ensure_disk_not_in_use() {
   local row=""
   local mountpoints=""
@@ -466,6 +472,7 @@ main() {
 
   ensure_zfs_available
   ensure_pool_name_free
+  prepare_private_live_mount_namespace
   unmount_target_tree
   close_existing_mapper
   ensure_disk_not_in_use

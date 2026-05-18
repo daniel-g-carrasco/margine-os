@@ -25,8 +25,11 @@ refresh_hyprland_runtime_env() {
 
   [[ -n "$instance" ]] && export HYPRLAND_INSTANCE_SIGNATURE="$instance"
   [[ -n "$wl_socket" ]] && export WAYLAND_DISPLAY="$wl_socket"
-  export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-Hyprland}"
-  export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}"
+  export XDG_CURRENT_DESKTOP=Hyprland
+  export XDG_SESSION_TYPE=wayland
+  export XDG_SESSION_DESKTOP=hyprland
+  export DESKTOP_SESSION=hyprland
+  export GDK_BACKEND=wayland
 }
 
 if [[ "${MARGINE_LAUNCHER_IMPORT_ENV:-0}" == "1" || -z "${WAYLAND_DISPLAY:-}" ]]; then
@@ -76,11 +79,9 @@ fi
 runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 walker_socket="${MARGINE_WALKER_SOCKET:-${runtime_dir}/walker/walker.sock}"
 if [[ $# -eq 0 && -S "$walker_socket" ]]; then
-  if pgrep -xu "$(id -u)" -x walker >/dev/null 2>&1 && command -v nc >/dev/null 2>&1; then
-    exec nc -U "$walker_socket"
+  if ! pgrep -xu "$(id -u)" -x walker >/dev/null 2>&1; then
+    rm -f "$walker_socket"
   fi
-
-  rm -f "$walker_socket"
 fi
 
 exec "$walker_bin" "$@"

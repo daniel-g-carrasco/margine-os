@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OUTDIR="${XDG_SCREENRECORDINGS_DIR:-${XDG_VIDEOS_DIR:-$HOME/data/media/video}/screen-recordings}"
+OUTDIR="${XDG_SCREENRECORDINGS_DIR:-$HOME/data/media/captures/screen-recordings}"
 runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
 PIDFILE="${runtime_dir}/wf-recorder.pid"
 

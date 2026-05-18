@@ -10,6 +10,12 @@ if ! command -v swaync >/dev/null 2>&1; then
   exit 1
 fi
 
+export XDG_CURRENT_DESKTOP=Hyprland
+export XDG_SESSION_TYPE=wayland
+export XDG_SESSION_DESKTOP=hyprland
+export DESKTOP_SESSION=hyprland
+export GDK_BACKEND=wayland
+
 if command -v systemctl >/dev/null 2>&1 && systemctl --user cat swaync.service >/dev/null 2>&1; then
   systemctl --user import-environment \
     WAYLAND_DISPLAY \

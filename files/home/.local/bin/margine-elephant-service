@@ -24,8 +24,11 @@ refresh_hyprland_runtime_env() {
 
   [[ -n "$instance" ]] && export HYPRLAND_INSTANCE_SIGNATURE="$instance"
   [[ -n "$wl_socket" ]] && export WAYLAND_DISPLAY="$wl_socket"
-  export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-Hyprland}"
-  export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}"
+  export XDG_CURRENT_DESKTOP=Hyprland
+  export XDG_SESSION_TYPE=wayland
+  export XDG_SESSION_DESKTOP=hyprland
+  export DESKTOP_SESSION=hyprland
+  export GDK_BACKEND=wayland
 }
 
 refresh_hyprland_runtime_env

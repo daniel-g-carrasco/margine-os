@@ -29,21 +29,36 @@ declare -a xdg_order=(
 )
 
 declare -a gtk_bookmarks=(
-  "data|Data"
-  "data/inbox|Inbox"
+  "data/personal|Documents"
   "data/inbox/10-downloads|Downloads"
-  "data/personal|Personal"
-  "data/work|Work"
-  "data/community|Community"
-  "data/media/photos|Photos"
-  "data/media/audio|Audio"
-  "data/media/video|Video"
-  "data/library|Library"
-  "data/technology|Technology"
-  "data/projects|Projects"
+  "data/media/photos|Pictures"
+  "data/media/audio|Music"
+  "data/media/video|Videos"
   "data/shared|Shared"
+  "data/projects|Projects"
   "dev|Development"
   "scratch|Scratch"
+)
+
+declare -a legacy_xdg_dirs=(
+  Desktop
+  Downloads
+  Templates
+  Public
+  Documents
+  Music
+  Pictures
+  Videos
+  Projects
+  Scrivania
+  Scaricati
+  Modelli
+  Pubblici
+  Documenti
+  Musica
+  Immagini
+  Video
+  Progetti
 )
 
 usage() {
@@ -161,6 +176,31 @@ write_bookmarks_file() {
   done
 }
 
+directory_is_empty() {
+  local path="$1"
+
+  [[ -d "$path" && ! -L "$path" ]] || return 1
+  ! find "$path" -mindepth 1 -maxdepth 1 -print -quit | grep -q .
+}
+
+remove_empty_legacy_xdg_dirs() {
+  local name=""
+  local path=""
+
+  for name in "${legacy_xdg_dirs[@]}"; do
+    path="${home_dir}/${name}"
+    [[ -d "$path" && ! -L "$path" ]] || continue
+
+    if directory_is_empty "$path"; then
+      log_action "rmdir empty legacy XDG dir ${path}"
+      (( apply )) || continue
+      rmdir "$path"
+    else
+      log_action "keep non-empty legacy XDG dir ${path}"
+    fi
+  done
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --home)
@@ -199,3 +239,4 @@ xdg_dirs=(
 refresh_with_xdg_user_dirs_update
 write_user_dirs_file
 write_bookmarks_file
+remove_empty_legacy_xdg_dirs

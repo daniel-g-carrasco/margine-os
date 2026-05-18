@@ -45,6 +45,12 @@ icons="${repo_root}/files/home/.local/bin/margine-home-configure-folder-icons"
 app_paths="${repo_root}/files/home/.local/bin/margine-home-configure-app-paths"
 audit="${repo_root}/files/home/.local/bin/margine-home-audit-application-paths"
 readmes="${repo_root}/files/home/.local/bin/margine-home-install-folder-readmes"
+desktop_defaults="${repo_root}/files/home/.local/bin/margine-apply-desktop-defaults"
+satty_config="${repo_root}/files/home/.config/satty/config.toml"
+screenshot_menu="${repo_root}/files/home/.local/bin/screenshot-menu"
+screenrecord_menu="${repo_root}/files/home/.local/bin/screenrecord-menu"
+screenrecord_toggle="${repo_root}/files/home/.local/bin/screenrecord-toggle"
+screenrecord_region_toggle="${repo_root}/files/home/.local/bin/screenrecord-region-toggle"
 
 require_executable "$bootstrap"
 require_executable "$xdg_config"
@@ -52,8 +58,25 @@ require_executable "$icons"
 require_executable "$app_paths"
 require_executable "$audit"
 require_executable "$readmes"
+require_executable "$desktop_defaults"
+require_executable "$screenshot_menu"
+require_executable "$screenrecord_menu"
+require_executable "$screenrecord_toggle"
+require_executable "$screenrecord_region_toggle"
 require_executable "${repo_root}/scripts/provision-home-organization"
+require_file "$satty_config"
 require_file "${repo_root}/files/home/.config/margine/home-organization/backup-exclude.example"
+
+expect_line "$satty_config" 'output-filename = "~/data/media/captures/screenshots/%Y-%m-%d_%H-%M-%S.png"'
+grep -Fq "\$HOME/data/media/captures/screenshots" "$screenshot_menu" || fail "screenshot-menu does not use the capture screenshot path"
+grep -Fq "\$HOME/data/media/captures/screen-recordings" "$screenrecord_menu" || fail "screenrecord-menu does not use the capture recording path"
+grep -Fq "\$HOME/data/media/captures/screen-recordings" "$screenrecord_toggle" || fail "screenrecord-toggle does not use the capture recording path"
+grep -Fq "\$HOME/data/media/captures/screen-recordings" "$screenrecord_region_toggle" || fail "screenrecord-region-toggle does not use the capture recording path"
+grep -Fq "margine-home-configure-folder-icons" "$desktop_defaults" || fail "desktop defaults do not refresh folder icon metadata from the graphical session"
+
+if grep -En 'Immagini/Schermate|00\. Screen|photos/screenshots|video/screen-recordings' "$satty_config" "$screenshot_menu" "$screenrecord_menu" "$screenrecord_toggle" "$screenrecord_region_toggle" >/dev/null; then
+  fail "desktop capture tooling still contains legacy capture paths"
+fi
 
 "$bootstrap" --home "$tmp_home"
 
@@ -62,13 +85,20 @@ for directory in \
   data/inbox/10-downloads \
   data/personal \
   data/media/photos/raw \
-  data/media/photos/screenshots \
-  data/media/video/screen-recordings \
+  data/media/captures/screenshots \
+  data/media/captures/screen-recordings \
   data/projects \
   dev/project-repositories \
   scratch/downloads; do
   [[ -d "${tmp_home}/${directory}" ]] || fail "missing bootstrapped directory: ${directory}"
 done
+
+mkdir -p \
+  "${tmp_home}/Documenti" \
+  "${tmp_home}/Scaricati" \
+  "${tmp_home}/Pictures" \
+  "${tmp_home}/Documents"
+printf 'keep me\n' > "${tmp_home}/Documents/keep.txt"
 
 "$xdg_config" --home "$tmp_home" --apply >/dev/null
 
@@ -81,11 +111,17 @@ expect_line "${tmp_home}/.config/user-dirs.dirs" "XDG_TEMPLATES_DIR=\"\$HOME/dat
 expect_line "${tmp_home}/.config/user-dirs.dirs" "XDG_PUBLICSHARE_DIR=\"\$HOME/data/shared\""
 expect_line "${tmp_home}/.config/user-dirs.dirs" "XDG_PROJECTS_DIR=\"\$HOME/data/projects\""
 
-expect_line "${tmp_home}/.config/gtk-3.0/bookmarks" "file://${tmp_home}/data Data"
+expect_line "${tmp_home}/.config/gtk-3.0/bookmarks" "file://${tmp_home}/data/personal Documents"
 expect_line "${tmp_home}/.config/gtk-3.0/bookmarks" "file://${tmp_home}/data/inbox/10-downloads Downloads"
+expect_line "${tmp_home}/.config/gtk-3.0/bookmarks" "file://${tmp_home}/data/media/photos Pictures"
 expect_line "${tmp_home}/.config/gtk-3.0/bookmarks" "file://${tmp_home}/scratch Scratch"
-expect_line "${tmp_home}/.config/gtk-4.0/bookmarks" "file://${tmp_home}/data Data"
+expect_line "${tmp_home}/.config/gtk-4.0/bookmarks" "file://${tmp_home}/data/personal Documents"
 expect_line "${tmp_home}/.config/gtk-4.0/bookmarks" "file://${tmp_home}/dev Development"
+
+for removed_directory in Documenti Scaricati Pictures; do
+  [[ ! -e "${tmp_home}/${removed_directory}" ]] || fail "empty legacy XDG directory was not removed: ${removed_directory}"
+done
+[[ -f "${tmp_home}/Documents/keep.txt" ]] || fail "non-empty legacy XDG directory was not preserved"
 
 icon_output="$("$icons" --home "$tmp_home" --theme Adwaita-yellow 2>&1)"
 if grep -Fq "SKIP missing theme icon" <<<"$icon_output"; then
@@ -96,6 +132,15 @@ if grep -Fq "SKIP missing directory" <<<"$icon_output"; then
   printf '%s\n' "$icon_output" >&2
   fail "folder icon resolver found missing directories"
 fi
+if grep -Eq 'OK .* -> .*(/MoreWaita/|/Adwaita/|/AdwaitaLegacy/|/hicolor/|\.png|/[0-9]+x[0-9]+/)' <<<"$icon_output"; then
+  printf '%s\n' "$icon_output" >&2
+  fail "folder icon resolver selected blue or raster fallback icons"
+fi
+grep -Fq "/Adwaita-yellow/scalable/" <<<"$icon_output" || fail "folder icon resolver did not select scalable Adwaita-yellow icons"
+grep -Fq "OK data/library -> /usr/share/icons/Adwaita-yellow/scalable/places/folder-books.svg" <<<"$icon_output" || fail "library folder icon does not match the host reference"
+grep -Fq "OK data/work -> /usr/share/icons/Adwaita-yellow/scalable/places/folder-work.svg" <<<"$icon_output" || fail "work folder icon does not match the host reference"
+grep -Fq "OK data/media -> /usr/share/icons/Adwaita-yellow/scalable/places/folder-camera.svg" <<<"$icon_output" || fail "media folder icon does not match the host reference"
+grep -Fq "OK data/library/software -> /usr/share/icons/Adwaita-yellow/scalable/places/folder-appimage.svg" <<<"$icon_output" || fail "library/software folder icon does not match the host reference"
 
 mkdir -p "${tmp_home}/.mozilla/firefox/test.default" "${tmp_home}/.thunderbird/test.default"
 : > "${tmp_home}/.mozilla/firefox/test.default/prefs.js"

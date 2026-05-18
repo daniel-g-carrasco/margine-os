@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+target_user="${SUDO_USER:-${USER:-}}"
+
+if [[ -z "$target_user" || "$target_user" == "root" ]]; then
+  target_user="$(
+    awk -F: '$3 >= 1000 && $3 < 60000 && $1 != "nobody" { print $1; exit }' /etc/passwd
+  )"
+fi
+
+[[ -n "$target_user" && "$target_user" != "root" ]] \
+  || { printf 'error: unable to infer guest user; run with sudo from the guest user session\n' >&2; exit 1; }
+
+exec "${repo_root}/scripts/enable-qemu-validation-ssh" \
+  --repo-root "$repo_root" \
+  --user "$target_user"

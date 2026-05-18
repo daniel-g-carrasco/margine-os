@@ -78,6 +78,22 @@ run_as_user() {
   fi
 }
 
+chown_existing() {
+  local path=""
+  local -a existing=()
+
+  for path in "$@"; do
+    [[ -e "$path" ]] || continue
+    existing+=("$path")
+  done
+
+  if [[ "${#existing[@]}" -eq 0 ]]; then
+    return 0
+  fi
+
+  run_cmd chown -R "${username}:${username}" "${existing[@]}"
+}
+
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -155,6 +171,29 @@ install_backup_policy() {
   run_cmd install -Dm644 "$source" "$target"
 }
 
+prepare_user_writable_paths() {
+  log
+  log "==> Prepare writable home organization paths"
+
+  run_cmd install -d -m755 \
+    "${home_dir}/.config" \
+    "${home_dir}/.config/gtk-3.0" \
+    "${home_dir}/.config/gtk-4.0" \
+    "${home_dir}/.config/margine" \
+    "${home_dir}/.config/margine/home-organization" \
+    "${home_dir}/.local" \
+    "${home_dir}/.local/bin"
+
+  chown_existing \
+    "${home_dir}/.config" \
+    "${home_dir}/.config/gtk-3.0" \
+    "${home_dir}/.config/gtk-4.0" \
+    "${home_dir}/.config/margine" \
+    "${home_dir}/.config/margine/home-organization" \
+    "${home_dir}/.local" \
+    "${home_dir}/.local/bin"
+}
+
 apply_home_layout() {
   local bin_dir="${home_dir}/.local/bin"
 
@@ -191,8 +230,7 @@ fix_ownership() {
   log
   log "==> Fix home organization ownership"
 
-  run_cmd chown -R \
-    "${username}:${username}" \
+  chown_existing \
     "${home_dir}/data" \
     "${home_dir}/dev" \
     "${home_dir}/scratch" \
@@ -209,6 +247,7 @@ main() {
   resolve_home_dir
   install_helpers
   install_backup_policy
+  prepare_user_writable_paths
   apply_home_layout
   fix_ownership
 

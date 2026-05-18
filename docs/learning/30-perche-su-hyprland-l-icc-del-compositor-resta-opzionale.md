@@ -1,5 +1,12 @@
 # Because on Hyprland the composer's ICC remains optional
 
+Update 2026-05-16: this note records the original conservative rule. It is now
+superseded for one explicit case: Hyprland 0.55 on Daniel's Framework 13 BOE
+panel can use the validated `FW13_D65_GNOME_COLORS.icc` profile through a
+descriptor-scoped monitor rule. The general rule still stands for unknown or
+unvalidated displays: keep ICC assets and `colord`, then enable compositor ICC
+only after validating the exact monitor/profile pair.
+
 The point is not whether `Hyprland` supports ICCs or not.
 
 He supports them.
@@ -39,18 +46,20 @@ The chosen strategy is this:
 1. preserve good ICC profiles;
 2. install and hold `colord`;
 3. use applications that really support color management first;
-4. Leave the ICC of `Hyprland` as the next, conscious step.
+4. enable the ICC of `Hyprland` only after the exact monitor/profile pair is
+   validated.
 
 ## What this means in practice
 
-Per ora:
+Baseline attuale:
 
 - `darktable` is the main point where the display profile really matters;
 - the browser does not receive aggressive ICC tweaks;
-- `Hyprland` does not enforce a global ICC by default.
+- `Hyprland` applies compositor ICC only to `desc:BOE NE135A1M-NY1` with the
+  `FW13 D65` GNOME Colors / `colord-session` profile.
 
-Then, when the flow is validated well on the real monitor, we can add
-the `icc` line in the monitor configuration of `Hyprland`.
+The former `FW13_140cd_D65_2.2_S.icc` DisplayCAL/Argyll profile is preserved as
+an asset, but it is not the default Hyprland profile.
 
 ## Right mental rule
 

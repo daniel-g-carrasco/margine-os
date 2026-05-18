@@ -43,7 +43,10 @@ Se li separi, ottieni:
 In your case:
 
 - `Darktable` and `ArgyllCMS` are part of the stack;
-- the `FW13_140cd_D65_2.2_S.icc` profile is an asset;
+- the `FW13_D65_GNOME_COLORS.icc` profile is the Framework 13 BOE Hyprland
+  baseline asset;
+- the `FW13_140cd_D65_2.2_S.icc` DisplayCAL/Argyll profile is preserved only as
+  a non-default asset;
 - `DisplayCAL` logs are not an asset and are not stacks: they are historical noise.
 
 ## The rule of thumb
@@ -53,4 +56,3 @@ When in doubt:
 - the packages are reinstalled;
 - good ICC profiles are preserved;
 - the logs are thrown away.
-

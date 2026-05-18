@@ -1,0 +1,245 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+unit_name="margine-ssh-day-inhibit"
+unit="${unit_name}.service"
+state_dir="${XDG_STATE_HOME:-${HOME}/.local/state}/margine-ssh-day-inhibit"
+state_file="${state_dir}/state"
+waybar_signal=9
+
+usage() {
+  cat <<'EOF'
+Usage:
+  margine-ssh-day-inhibit --enable-today
+  margine-ssh-day-inhibit --disable
+  margine-ssh-day-inhibit --status
+
+Keeps the current laptop reachable over SSH until local midnight by blocking
+system sleep, idle sleep, and lid-close suspend. The command also starts the
+Margine keep-awake user service while the daily SSH inhibit is active.
+EOF
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+notify_user() {
+  local title="$1"
+  local body="$2"
+
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send -a "Margine SSH Access" "$title" "$body" >/dev/null 2>&1 || true
+  fi
+}
+
+state_value() {
+  local key="$1"
+  [[ -f "$state_file" ]] || return 1
+  awk -F= -v key="$key" '$1 == key { print substr($0, length(key) + 2); exit }' "$state_file"
+}
+
+seconds_until_midnight() {
+  local now=""
+  local end=""
+
+  now="$(date +%s)"
+  end="$(date -d 'tomorrow 00:00:00' +%s)"
+  printf '%s\n' "$((end - now))"
+}
+
+format_duration() {
+  local seconds="$1"
+  local hours=$((seconds / 3600))
+  local minutes=$(((seconds % 3600) / 60))
+
+  if (( hours > 0 )); then
+    printf '%dh %02dm' "$hours" "$minutes"
+  else
+    printf '%dm' "$minutes"
+  fi
+}
+
+stop_existing_unit() {
+  local _=""
+
+  if systemctl --user --quiet is-active "$unit"; then
+    systemctl --user stop "$unit" >/dev/null 2>&1 || true
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      systemctl --user --quiet is-active "$unit" || break
+      sleep 0.1
+    done
+  fi
+
+  systemctl --user reset-failed "$unit" >/dev/null 2>&1 || true
+}
+
+start_keep_awake_if_needed() {
+  if systemctl --user --quiet is-active keep-awake.service; then
+    printf '0\n'
+    return 0
+  fi
+
+  if systemctl --user start keep-awake.service >/dev/null 2>&1; then
+    printf '1\n'
+    return 0
+  fi
+
+  printf '0\n'
+}
+
+refresh_keep_awake_indicator() {
+  pkill "-RTMIN+${waybar_signal}" -x waybar 2>/dev/null || true
+}
+
+write_state() {
+  local end_epoch="$1"
+  local started_keep_awake="$2"
+  local end_iso=""
+
+  end_iso="$(date -d "@${end_epoch}" '+%Y-%m-%d %H:%M:%S %Z')"
+  install -d -m 700 "$state_dir"
+  {
+    printf 'end_epoch=%s\n' "$end_epoch"
+    printf 'end_iso=%s\n' "$end_iso"
+    printf 'started_keep_awake=%s\n' "$started_keep_awake"
+  } >"$state_file"
+}
+
+run_inhibitor() {
+  local seconds="$1"
+  local active_state_file="$2"
+  local started_keep_awake="${3:-0}"
+  local child_pid=""
+
+  cleanup() {
+    rm -f "$active_state_file"
+    if [[ "$started_keep_awake" == "1" ]]; then
+      systemctl --user stop keep-awake.service >/dev/null 2>&1 || true
+      refresh_keep_awake_indicator
+    fi
+  }
+
+  trap cleanup EXIT
+  trap 'exit 143' TERM
+  trap 'exit 130' INT
+
+  systemd-inhibit \
+    --what=sleep:idle:handle-lid-switch \
+    --mode=block \
+    --who="Margine SSH day access" \
+    --why="Keep SSH reachable until local midnight" \
+    /usr/bin/sleep "$seconds" &
+
+  child_pid="$!"
+  wait "$child_pid"
+}
+
+enable_today() {
+  local script_path=""
+  local seconds=""
+  local end_epoch=""
+  local duration=""
+  local started_keep_awake="0"
+  local ssh_state="inactive"
+
+  command -v systemd-run >/dev/null 2>&1 || die "systemd-run is not available"
+  command -v systemd-inhibit >/dev/null 2>&1 || die "systemd-inhibit is not available"
+  systemctl --user show-environment >/dev/null 2>&1 || die "systemd user manager is not available"
+
+  stop_existing_unit
+
+  seconds="$(seconds_until_midnight)"
+  (( seconds > 0 )) || die "could not compute a positive duration until local midnight"
+  if (( seconds < 60 )); then
+    seconds=60
+  fi
+  end_epoch="$(($(date +%s) + seconds))"
+  duration="$(format_duration "$seconds")"
+
+  started_keep_awake="$(start_keep_awake_if_needed)"
+  refresh_keep_awake_indicator
+  write_state "$end_epoch" "$started_keep_awake"
+
+  script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+  if ! systemd-run \
+    --user \
+    --unit="$unit_name" \
+    --description="Margine SSH day access inhibit" \
+    --collect \
+    "$script_path" --run-inhibitor "$seconds" "$state_file" "$started_keep_awake" >/dev/null; then
+    rm -f "$state_file"
+    if [[ "$started_keep_awake" == "1" ]]; then
+      systemctl --user stop keep-awake.service >/dev/null 2>&1 || true
+      refresh_keep_awake_indicator
+    fi
+    die "could not start ${unit}"
+  fi
+
+  if systemctl --quiet is-active sshd.service; then
+    ssh_state="active"
+  fi
+
+  printf 'SSH day access inhibit enabled until %s (%s).\n' "$(state_value end_iso)" "$duration"
+  if [[ "$ssh_state" != "active" ]]; then
+    printf 'warning: sshd.service is not active; power inhibit is active, but SSH may still be unavailable.\n' >&2
+    notify_user "SSH day access active" "Power saving is paused until $(state_value end_iso). sshd.service is not active."
+  else
+    notify_user "SSH day access active" "Sleep, idle sleep, and lid-close suspend are blocked until $(state_value end_iso)."
+  fi
+}
+
+disable_today() {
+  local started_keep_awake=""
+
+  started_keep_awake="$(state_value started_keep_awake 2>/dev/null || true)"
+  systemctl --user stop "$unit" >/dev/null 2>&1 || true
+  systemctl --user reset-failed "$unit" >/dev/null 2>&1 || true
+
+  if [[ "$started_keep_awake" == "1" ]]; then
+    systemctl --user stop keep-awake.service >/dev/null 2>&1 || true
+    refresh_keep_awake_indicator
+  fi
+  rm -f "$state_file"
+
+  printf 'SSH day access inhibit disabled.\n'
+  notify_user "SSH day access disabled" "Daily sleep and lid-close inhibit stopped."
+}
+
+show_status() {
+  local end_iso=""
+
+  if systemctl --user --quiet is-active "$unit"; then
+    end_iso="$(state_value end_iso 2>/dev/null || true)"
+    printf 'active'
+    [[ -n "$end_iso" ]] && printf ' until %s' "$end_iso"
+    printf '\n'
+  else
+    printf 'inactive\n'
+  fi
+}
+
+case "${1:---enable-today}" in
+  --enable-today)
+    enable_today
+    ;;
+  --disable)
+    disable_today
+    ;;
+  --status)
+    show_status
+    ;;
+  --run-inhibitor)
+    shift
+    [[ $# -ge 2 ]] || die "--run-inhibitor requires SECONDS STATE_FILE [STARTED_KEEP_AWAKE]"
+    run_inhibitor "$@"
+    ;;
+  --help|-h)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac

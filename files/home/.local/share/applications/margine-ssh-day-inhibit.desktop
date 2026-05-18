@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=SSH Access Today
+Comment=Keep this laptop reachable over SSH until local midnight
+Exec=sh -lc "exec \"\\$HOME/.local/bin/margine-ssh-day-inhibit\" --enable-today"
+Icon=network-server
+Categories=System;
+Keywords=ssh;remote;network;sleep;lid;inhibit;awake;
+Terminal=false
+NoDisplay=false

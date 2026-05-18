@@ -532,6 +532,9 @@ Check:
 
 ```bash
 ls -l /usr/share/margine/wallpapers/default.jpg
+ls -l /usr/share/margine/icc/FW13_D65_GNOME_COLORS.icc
+hyprctl monitors all | sed -n '/Monitor eDP-1/,/^$/p'
+grep -n 'desc:BOE NE135A1M-NY1.*icc.*FW13_D65_GNOME_COLORS.icc' ~/.config/hypr/monitors.conf
 pgrep -af 'hyprpaper|koofr'
 gsettings get org.gnome.desktop.interface accent-color
 gsettings get org.gnome.desktop.interface color-scheme
@@ -562,6 +565,10 @@ systemctl --user status xdg-desktop-portal.service xdg-desktop-portal-gnome.serv
 Check:
 
 - the default wallpaper asset exists at `/usr/share/margine/wallpapers/default.jpg`
+- the validated Framework 13 ICC asset exists at `/usr/share/margine/icc/FW13_D65_GNOME_COLORS.icc`
+- the internal Framework 13 panel is reported as `BOE NE135A1M-NY1`
+- `~/.config/hypr/monitors.conf` applies the FW13 ICC profile only through the
+  descriptor-scoped `desc:BOE NE135A1M-NY1` monitor rule
 - `hyprpaper` is running in the session
 - `~/.config/margine/theme.env` reflects the intended single source of truth for the visual baseline
 - GTK applications are on the intended dark theme

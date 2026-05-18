@@ -2,8 +2,7 @@
 
 set -euo pipefail
 
-videos_dir="${XDG_VIDEOS_DIR:-$HOME/data/media/video}"
-output_dir="${XDG_SCREENRECORDINGS_DIR:-${videos_dir}/screen-recordings}"
+output_dir="${XDG_SCREENRECORDINGS_DIR:-$HOME/data/media/captures/screen-recordings}"
 
 mkdir -p "$output_dir"
 

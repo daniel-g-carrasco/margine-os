@@ -16,6 +16,10 @@ cleanly detaching a Margine root-on-ZFS target.
   can have long-running services in separate mount namespaces; the Margine mount
   helper makes the current live mount namespace recursively private before
   importing ZFS so target mounts do not propagate into those services.
+- The destructive storage helper must apply the same protection before creating
+  the pool. `provision-storage-zfs-root` makes `/` recursively private before
+  mounting the new target, because a first install can otherwise leak `/mnt`
+  into live services before the later mount helper ever runs.
 - After importing the pool with an altroot such as `/mnt`, mount root datasets
   with `zfs mount DATASET`. Do not manually mount a root dataset at `/mnt` with
   `mount -t zfs`; the live altroot can make `zfs get mountpoint` report `/mnt`
@@ -105,6 +109,12 @@ The helper:
 - validates the target with `validate-root-zfs-target --target-root / --mode boot-chain`;
 - detaches the target with `unmount-zfs-root-target --live-iso-recovery`.
 
+The boot-chain validator inspects the generated primary and fallback UKIs with
+`lsinitcpio -a`. A target must fail validation before reboot if the embedded
+initramfs lacks root-critical storage modules such as `virtio_blk`,
+`virtio_pci`, `nvme`, `ahci`, `sd_mod`, ZFS or dm-crypt support, unless that
+support is built into the target kernel.
+
 Use `--leave-mounted` instead of `--live-iso-recovery` only when you intend to
 continue inspecting the mounted target.
 
@@ -181,12 +191,40 @@ It is intended for the exact disposable-live-media case where services have
 retained the target ZFS mount in separate mount namespaces and normal export is
 therefore blocked even though no direct file references are visible.
 
-If even `--live-iso-recovery` reports `cannot export 'rpool': pool is busy`
-after diagnostics show no direct processes and no retained mount namespaces, do
-not keep touching the target from that live session. Reboot the live ISO and
-rerun the mount or repair helper. A previous early lazy detach can leave kernel
-references alive but invisible to user-space diagnostics until the live session
-ends.
+If even `--live-iso-recovery` fails after a successful
+`validate-root-zfs-target --mode boot-chain` in a disposable validation VM, do
+not treat the detach as clean, but do stop touching the target from that live
+session. Powering off the live ISO is acceptable as the final recovery action
+for that already-validated disposable VM. Record the failure as a cleanup defect
+and validate the next build from a fresh boot. Do not rerun bootstrap, mount, or
+repair helpers after a failed final lazy/force detach attempt.
+
+If `--live-iso-recovery` reports `cannot export 'rpool': pool is busy` after
+diagnostics show no direct processes and no retained mount namespaces, reboot
+the live ISO before touching the target again. A previous early lazy detach can
+leave kernel references alive but invisible to user-space diagnostics until the
+live session ends.
+
+2026-05-18 validation note: one CachyOS graphical live ISO run completed install
+and boot-chain validation, but final detach still failed after live recovery.
+Diagnostics showed live services retaining `rpool/ROOT/default` at `/mnt` in
+separate mount namespaces. The install was powered off after successful
+boot-chain validation. The follow-up fix moved the same private-namespace guard
+used by `mount-zfs-root-target` into `provision-storage-zfs-root`, so future
+storage provisioning should prevent this inherited-mount class before it starts.
+
+The same validation also exposed a separate installed-boot failure: the UKI
+command line was correct, but the generated initramfs was missing the VirtIO
+block modules required to see the QEMU root disk. `provision-initial-boot-chain-zfs`
+now disables live-ISO autodetect for the primary root-on-ZFS UKI and preloads
+common root disk drivers explicitly. The boot-chain validator checks the actual
+UKI module inventory and also accepts drivers that are built into the target
+kernel instead of only checking that UKI files exist.
+
+The follow-up repair of that VM passed `validate-root-zfs-target --mode
+boot-chain`, reported `UKI initramfs root modules: OK`, exported `rpool`, closed
+`cryptroot`, and ended with `=== DONE ===`. Future fresh installs and repairs
+must reach the same clean-detach state before the live ISO is powered off.
 
 ## Manual Diagnostics
 

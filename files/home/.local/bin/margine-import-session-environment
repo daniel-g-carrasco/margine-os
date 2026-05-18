@@ -15,11 +15,14 @@ declare -a candidate_vars=(
   XDG_RUNTIME_DIR
 )
 
-export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-Hyprland}"
-export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}"
-export XDG_SESSION_DESKTOP="${XDG_SESSION_DESKTOP:-hyprland}"
-export DESKTOP_SESSION="${DESKTOP_SESSION:-hyprland}"
-export GDK_BACKEND="${GDK_BACKEND:-wayland}"
+# This helper is only used for the Margine Hyprland session. It is also useful
+# from SSH during QEMU validation, so do not preserve transport values such as
+# XDG_SESSION_TYPE=tty when importing the graphical session environment.
+export XDG_CURRENT_DESKTOP=Hyprland
+export XDG_SESSION_TYPE=wayland
+export XDG_SESSION_DESKTOP=hyprland
+export DESKTOP_SESSION=hyprland
+export GDK_BACKEND=wayland
 export MOZ_ENABLE_WAYLAND="${MOZ_ENABLE_WAYLAND:-1}"
 export _JAVA_AWT_WM_NONREPARENTING="${_JAVA_AWT_WM_NONREPARENTING:-1}"
 

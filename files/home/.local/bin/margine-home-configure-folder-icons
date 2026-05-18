@@ -6,12 +6,20 @@ apply=0
 clear=0
 theme_name=""
 
-declare -a fallback_themes=(
+declare -a preferred_folder_themes=(
   "Adwaita-yellow"
+)
+
+declare -a fallback_themes=(
   "MoreWaita"
   "Adwaita"
   "AdwaitaLegacy"
   "hicolor"
+)
+
+declare -a icon_search_directories=(
+  "scalable/places"
+  "scalable/status"
 )
 
 declare -a icon_rules=(
@@ -48,38 +56,39 @@ declare -a icon_rules=(
   "data/personal/people/friends|folder-publicshare"
   "data/personal/places|folder-earth"
   "data/personal/records|folder-documents"
-  "data/work|folder-remote"
+  "data/work|folder-work"
   "data/work/admin|folder-documents"
-  "data/work/clients|folder-publicshare"
+  "data/work/clients|folder-work"
   "data/work/projects|folder-projects"
-  "data/work/reference|folder-documents"
+  "data/work/reference|folder-books"
   "data/work/archive|folder-backup"
   "data/community|folder-globe"
-  "data/media|folder-pictures"
+  "data/media|folder-camera"
   "data/media/photos|folder-pictures"
   "data/media/photos/raw|folder-camera"
   "data/media/photos/albums|folder-pictures"
   "data/media/photos/exports|folder-drag-accept"
   "data/media/photos/camera-roll|folder-camera"
-  "data/media/photos/screenshots|folder-camera"
   "data/media/audio|folder-music"
   "data/media/audio/music-projects|folder-music"
   "data/media/video|folder-videos"
   "data/media/video/projects|folder-videos"
   "data/media/video/exports|folder-drag-accept"
-  "data/media/video/screen-recordings|folder-videos"
   "data/media/recordings|folder-music"
-  "data/library|folder-documents"
-  "data/library/books|folder-documents"
-  "data/library/books/managed-library|folder-documents"
+  "data/media/captures|folder-screenshot"
+  "data/media/captures/screenshots|folder-screenshot"
+  "data/media/captures/screen-recordings|folder-screencast"
+  "data/library|folder-books"
+  "data/library/books|folder-books"
+  "data/library/books/managed-library|folder-books"
   "data/library/books/inbox|folder-download"
-  "data/library/books/manuals|folder-documents"
-  "data/library/books/periodicals|folder-documents"
+  "data/library/books/manuals|folder-books"
+  "data/library/books/periodicals|folder-books"
   "data/library/fonts|folder-documents"
   "data/library/fonts/families|folder-documents"
   "data/library/fonts/archives|folder-backup"
   "data/library/fonts/license-review|folder-documents"
-  "data/library/software|folder-shell"
+  "data/library/software|folder-appimage"
   "data/library/software/installers|folder-download"
   "data/library/software/packages|folder-appimage"
   "data/library/games|folder-games"
@@ -93,7 +102,7 @@ declare -a icon_rules=(
   "data/technology/20-network|folder-remote"
   "data/technology/30-servers|folder-remote"
   "data/technology/40-services|folder-nextcloud"
-  "data/technology/50-reference|folder-documents"
+  "data/technology/50-reference|folder-books"
   "data/technology/90-archive|folder-backup"
   "data/projects|folder-projects"
   "data/shared|folder-publicshare"
@@ -158,14 +167,18 @@ theme_file() {
   local icon="$2"
   local base=""
   local candidate=""
+  local icon_dir=""
 
   for base in /usr/share/icons "${home_dir}/.local/share/icons"; do
     [[ -d "${base}/${theme}" ]] || continue
 
-    while IFS= read -r -d '' candidate; do
-      printf '%s\n' "$candidate"
-      return 0
-    done < <(find "${base}/${theme}" -type f \( -name "${icon}.svg" -o -name "${icon}.png" -o -name "${icon}.symbolic.svg" \) -print0 2>/dev/null | sort -z)
+    for icon_dir in "${icon_search_directories[@]}"; do
+      candidate="${base}/${theme}/${icon_dir}/${icon}.svg"
+      if [[ -f "$candidate" ]]; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+    done
   done
 
   return 1
@@ -188,11 +201,26 @@ theme_inherits() {
 resolve_icon() {
   local icon="$1"
   local theme=""
+  local preferred_theme=""
   local inherited=""
   local seen=":"
   local candidate=""
   local active_theme=""
   local -a search_themes=()
+
+  for preferred_theme in "${preferred_folder_themes[@]}"; do
+    if candidate="$(theme_file "$preferred_theme" "$icon")"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  for preferred_theme in "${preferred_folder_themes[@]}"; do
+    if candidate="$(theme_file "$preferred_theme" "folder")"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
 
   active_theme="$(detect_theme || true)"
   if [[ -n "$active_theme" ]]; then
@@ -216,6 +244,14 @@ resolve_icon() {
     fi
   done
 
+  for theme in "${search_themes[@]}"; do
+    [[ -n "$theme" ]] || continue
+    if candidate="$(theme_file "$theme" "folder")"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
   return 1
 }
 
@@ -233,7 +269,7 @@ set_icon() {
   fi
 
   if (( apply )); then
-    gio set "$path" metadata::custom-icon "file://${icon_file}"
+    gio set -t string "$path" metadata::custom-icon "file://${icon_file}"
   else
     printf '[dry-run] gio set %q metadata::custom-icon %q\n' "$path" "file://${icon_file}"
   fi
@@ -290,7 +326,7 @@ for rule in "${icon_rules[@]}"; do
 
   if icon_file="$(resolve_icon "$icon")"; then
     set_icon "$path" "$icon_file"
-    printf 'OK %s -> %s\n' "$relative" "$icon"
+    printf 'OK %s -> %s\n' "$relative" "$icon_file"
   else
     printf 'SKIP missing theme icon: %s -> %s\n' "$relative" "$icon" >&2
   fi

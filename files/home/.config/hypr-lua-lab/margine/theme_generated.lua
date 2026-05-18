@@ -1,0 +1,16 @@
+hl.config({
+    general = {
+        border_size = 3,
+        col = {
+            active_border = "rgba(eae7dbeb) rgba(eae7dbe0) 45deg",
+            inactive_border = "rgba(423a3ecc)",
+        },
+    },
+
+    decoration = {
+        rounding = 0,
+        shadow = {
+            color = "rgba(1a1a1ab8)",
+        },
+    },
+})

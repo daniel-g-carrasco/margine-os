@@ -9,8 +9,15 @@ username=""
 home_dir=""
 
 declare -a home_payload=(
+  ".local/share/icc/margine/FW13_D65_GNOME_COLORS.icc"
   ".local/share/icc/margine/FW13_140cd_D65_2.2_S.icc"
   ".local/share/icc/margine/DELL_P2415Q_D65_high.icc"
+)
+
+declare -a system_payload=(
+  "usr/share/margine/icc/FW13_D65_GNOME_COLORS.icc"
+  "usr/share/margine/icc/FW13_140cd_D65_2.2_S.icc"
+  "usr/share/margine/icc/DELL_P2415Q_D65_high.icc"
 )
 
 usage() {
@@ -84,11 +91,22 @@ copy_payload() {
   local target=""
 
   log
-  log "==> Install ICC assets"
+  log "==> Install user ICC assets"
 
   for relative in "${home_payload[@]}"; do
     source="${repo_root}/files/home/${relative}"
     target="${home_dir}/${relative}"
+
+    [[ -f "$source" ]] || die "required source not found: $source"
+    run_cmd install -Dm644 "$source" "$target"
+  done
+
+  log
+  log "==> Install system ICC assets"
+
+  for relative in "${system_payload[@]}"; do
+    source="${repo_root}/files/${relative}"
+    target="/${relative}"
 
     [[ -f "$source" ]] || die "required source not found: $source"
     run_cmd install -Dm644 "$source" "$target"

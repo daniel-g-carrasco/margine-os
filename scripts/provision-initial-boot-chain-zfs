@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -305,16 +306,20 @@ install_zfs_mkinitcpio_conf() {
   log "==> Install root-on-ZFS mkinitcpio configuration"
 
   if (( dry_run )); then
-    printf '[dry-run] write /etc/mkinitcpio.conf with encrypt + zfs hooks\n'
+    printf '[dry-run] write /etc/mkinitcpio.conf with portable encrypt + zfs hooks\n'
     return 0
   fi
 
   cat >/etc/mkinitcpio.conf <<'EOF'
 # vim:set ft=sh:
-MODULES=(zfs)
+# Keep root-critical storage drivers explicit. This file is generated from a
+# live chroot, where autodetect reflects the live ISO rather than the target
+# VM/bare-metal boot device. Do not use autodetect for the primary root-on-ZFS
+# UKI.
+MODULES=(zfs virtio_pci virtio_blk virtio_scsi virtio_ring virtio nvme ahci sd_mod)
 BINARIES=()
 FILES=(/etc/hostid /etc/zfs/zpool.cache)
-HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block encrypt zfs filesystems)
+HOOKS=(base udev microcode modconf kms keyboard keymap consolefont block encrypt zfs filesystems)
 EOF
 }
 

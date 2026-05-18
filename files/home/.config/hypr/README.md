@@ -2,6 +2,11 @@
 
 This directory is intentionally split into small files.
 
+Production config mode: Hyprlang. Margine starts
+`~/.config/hypr/hyprland.conf` explicitly and does not install
+`hyprland.lua` until the Lua migration switch and VM validation are in place.
+The inactive Lua translation workbench lives in `~/.config/hypr-lua-lab/`.
+
 The goal is:
 
 - keep `hyprland.conf` short
@@ -49,6 +54,9 @@ The goal is:
   All Hyprland binds in one file: apps, session, windows, workspaces, media.
 - `conf.d/70-rules.conf`
   `layerrule`, `windowrule`, and placement policy.
+- `~/.config/hypr-lua-lab/`
+  Inactive Hyprland 0.55 Lua translation workbench. Do not move it to
+  `~/.config/hypr/hyprland.lua` without the documented migration switch.
 
 ## Common edit recipes
 

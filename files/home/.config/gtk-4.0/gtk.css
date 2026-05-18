@@ -4,9 +4,9 @@
 @define-color window_backdrop_color #1f1f1f;
 @define-color window_backdrop_fg_color #ffffff;
 
-@define-color view_bg_color #1d1d20;
+@define-color view_bg_color #202020;
 @define-color view_fg_color #ffffff;
-@define-color view_backdrop_color #1d1d20;
+@define-color view_backdrop_color #202020;
 @define-color view_backdrop_fg_color #ffffff;
 
 @define-color success_color #78e9ab;
@@ -32,14 +32,14 @@
 @define-color headerbar_border_color #343438;
 @define-color headerbar_shade_color #343438;
 
-@define-color popover_bg_color #1d1d20;
+@define-color popover_bg_color #202020;
 @define-color popover_fg_color #ffffff;
-@define-color popover_backdrop_color #1d1d20;
+@define-color popover_backdrop_color #202020;
 @define-color popover_backdrop_fg_color #ffffff;
 
-@define-color dialog_bg_color #1d1d20;
+@define-color dialog_bg_color #202020;
 @define-color dialog_fg_color #ffffff;
-@define-color dialog_backdrop_color #1d1d20;
+@define-color dialog_backdrop_color #202020;
 @define-color dialog_backdrop_fg_color #ffffff;
 
 @define-color card_bg_color #252525;
@@ -47,9 +47,9 @@
 @define-color card_backdrop_color #252525;
 @define-color card_backdrop_fg_color #ffffff;
 
-@define-color sidebar_bg_color #1d1d20;
+@define-color sidebar_bg_color #202020;
 @define-color sidebar_fg_color #ffffff;
-@define-color sidebar_backdrop_color #1d1d20;
+@define-color sidebar_backdrop_color #202020;
 @define-color sidebar_border_color #252525;
 
 @define-color secondary_sidebar_bg_color @sidebar_bg_color;

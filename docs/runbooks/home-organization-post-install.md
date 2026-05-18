@@ -26,6 +26,25 @@ The provisioner creates:
 It does not move existing files from `~/Downloads`, `~/Documents`,
 `~/Pictures`, Italian legacy folders, or any other personal path.
 
+After writing the XDG mapping, the helper may remove empty legacy XDG folders
+left behind by `xdg-user-dirs-update`, including localized names such as
+`~/Documenti`, `~/Scaricati`, `~/Immagini`, and `~/Scrivania`. Non-empty legacy
+folders are left in place for manual migration.
+
+The expected GTK/Nautilus bookmarks are intentionally compact:
+
+```text
+~/data/personal              Documents
+~/data/inbox/10-downloads    Downloads
+~/data/media/photos          Pictures
+~/data/media/audio           Music
+~/data/media/video           Videos
+~/data/shared                Shared
+~/data/projects              Projects
+~/dev                        Development
+~/scratch                    Scratch
+```
+
 ## Validation
 
 Repository validation:
@@ -80,6 +99,13 @@ local RAW:    ~/data/media/photos/raw
 Do not edit darktable SQLite databases while darktable is running. Back them up
 before manual database changes.
 
+Desktop capture tooling uses dedicated media capture paths:
+
+```text
+screenshots:       ~/data/media/captures/screenshots
+screen recordings: ~/data/media/captures/screen-recordings
+```
+
 ## Folder icons
 
 Folder icons are set with:
@@ -91,8 +117,21 @@ Folder icons are set with:
 The script resolves `folder-*` icon names from installed themes and writes GIO
 `metadata::custom-icon` values. It does not generate icons.
 
+For Margine's managed home layout, the resolver prefers `Adwaita-yellow`
+scalable SVG folder icons. If a semantic icon is missing there, it falls back to
+the generic yellow folder before trying blue-prone fallback themes. It must not
+write 16x16 PNG folder icons into metadata, because Nautilus will upscale them
+poorly in icon view.
+
+The baseline keeps the host-reference semantic icons for the visible roots:
+`~/data/library` is `folder-books`, `~/data/work` is `folder-work`,
+`~/data/media` is `folder-camera`, and `~/data/library/software` is
+`folder-appimage`.
+
 If provisioning ran in a chroot or non-graphical environment and GIO metadata
 was not available, rerun the command from the user's graphical session.
+`margine-apply-desktop-defaults` also refreshes this metadata at graphical
+login so first-boot sessions recover from chroot-only provisioning.
 
 ## Manual migration
 

@@ -40,7 +40,8 @@ Furthermore, `Margine v1` adopts an explicit profile enforcement model:
 
 - `colord` as source of truth for display profiles;
 - color-managed applications as the first point of real profile application;
-- `Hyprland` ICC composer-level left optional and not activated by default.
+- `Hyprland` compositor-level ICC enabled only for explicitly validated monitor
+  descriptors and profiles.
 
 ## Specific choices
 
@@ -101,13 +102,34 @@ However, they are not versioned:
 
 ### 5. Hyprland ICC
 
-`Hyprland` supports loading a per-monitor ICC, but `Margine v1` DOES NOT
-active by default.
+`Hyprland` 0.55 has a usable per-monitor ICC path. `Margine` enables it only
+when the rule is pinned to a validated monitor descriptor and a versioned
+profile asset.
 
-Reason:
+Current default:
+
+```conf
+monitor = desc:BOE NE135A1M-NY1, preferred, 0x0, 2.0, icc, /usr/share/margine/icc/FW13_D65_GNOME_COLORS.icc
+```
+
+Reason for descriptor scoping:
+
+- the `FW13_D65_GNOME_COLORS.icc` profile is the selected GNOME Colors /
+  `colord-session` profile for this Framework 13 BOE panel, title `FW13 D65`;
+- it is a display RGB ICC v2.2 profile with simple matrix/TRC structure, TRC
+  gamma `2.06640625`, and a 3-channel, 256-entry, 16-bit `vcgt`;
+- connector names such as `eDP-1` are less safe than the EDID description for
+  applying calibration profiles;
+- a future machine with a different internal panel must fall back to the generic
+  monitor rule until its own profile is validated.
+
+The `FW13_140cd_D65_2.2_S.icc` DisplayCAL/Argyll profile remains a preserved
+asset, but it is not the Hyprland default: it is a different, complex
+`XYZLUT+MTX` profile and weighs about 1.1 MB.
+
+Reason for still being conservative:
 
 - it's a powerful lever, but it changes the behavior of the entire graphics session;
-- can confuse debugging if activated too early;
 - on `Hyprland` the ICC composer-level forces `sRGB` for `sdr_eotf` and overwrites
 the CM preset of the monitor;
 - the same documentation `Hyprland` reports that ICC and HDR/gaming are not one
@@ -116,7 +138,7 @@ peaceful combination.
 For this reason the `v1` rule is:
 
 - system and app first;
-- then, only after validation, any ICC in the composer.
+- then compositor ICC only for validated `desc:` monitor matches.
 
 ### 6. Browsers and other graphical applications
 
@@ -137,16 +159,16 @@ specials dedicated to the ICC in `v1`.
 
 ## Limite explicit
 
-`Margine v1` DOES NOT promise a composer-level application of the color profile
-on Wayland as part of the standard bootstrap.
+`Margine v1` promises compositor-level ICC only for the validated Framework 13
+BOE panel rule above. It does not promise automatic ICC assignment for every
+monitor, external display, HDR path, or gaming/fullscreen path.
 
 The baseline instead focuses on:
 
 - ICC assets preserved;
 - correctly installed color-managed apps;
 - base solida per usare `darktable`, soft-proof e profiling;
-- a clean future path to enable `Hyprland`'s ICC so
-aware.
+- a validated, descriptor-scoped path for `Hyprland` ICC.
 
 ## Consequences
 
@@ -155,13 +177,14 @@ aware.
 - the system is already born with the correct photographic stack;
 - good ICC profiles are not lost;
 - the project avoids fragile or opaque color automations;
-- the composer does not become a source of confusion in `v1`.
+- the compositor profile is applied where we have validated hardware identity.
 
 ### Negative
 
-- the final assignment of the profile to the display remains a conscious phase;
+- the final assignment of profiles for new displays remains a conscious phase;
 - some calibrations remain linked to the real hardware context;
-- the composer-level ICC on `Hyprland` remains to be validated at a later stage.
+- HDR, screencopy, fullscreen and direct-scanout behavior still need dedicated
+  regression checks after Hyprland upgrades.
 
 ## For a student
 
@@ -176,4 +199,5 @@ The crucial difference here is:
 - preserve valid assets;
 - prepare the correct stack;
 - starting from applications that really support color management;
-- postpone the composer's ICC until it can be properly validated.
+- enable the composer's ICC only after the profile and monitor match have been
+  properly validated.

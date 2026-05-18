@@ -17,7 +17,7 @@ Usage:
 Validates a mounted Margine root-on-ZFS target. In storage mode it checks the
 mounted target, ZFS dataset properties, LUKS mapper, ESP mount policy and fstab
 policy. In boot-chain mode it also checks hostid, zpool cache, mkinitcpio, UKI
-command line and Limine artifacts.
+command line, UKI initramfs module inventory and Limine artifacts.
 
 Options:
   --target-root PATH       Mounted target root (default: /mnt)
@@ -55,6 +55,48 @@ target_path() {
   else
     printf '%s/%s\n' "${target_root%/}" "$relative"
   fi
+}
+
+mkinitcpio_modules_contains() {
+  local modules_line="$1"
+  local module="$2"
+  local modules="${modules_line#MODULES=(}"
+
+  modules="${modules%)}"
+  [[ " ${modules} " == *" ${module} "* ]]
+}
+
+initrd_inventory_contains_module() {
+  local inventory="$1"
+  local module="$2"
+  local module_dash="${module//_/-}"
+
+  grep -Eq "(^|[[:space:]])${module}([[:space:]]|$)" <<<"$inventory" && return 0
+  [[ "$module_dash" != "$module" ]] \
+    && grep -Eq "(^|[[:space:]])${module_dash}([[:space:]]|$)" <<<"$inventory"
+}
+
+module_filename_for_target_kernel() {
+  local kernel_version="$1"
+  local module="$2"
+  local module_dash="${module//_/-}"
+  local filename=""
+
+  filename="$(modinfo -b "$target_root" -k "$kernel_version" -F filename "$module" 2>/dev/null || true)"
+  if [[ -z "$filename" && "$module_dash" != "$module" ]]; then
+    filename="$(modinfo -b "$target_root" -k "$kernel_version" -F filename "$module_dash" 2>/dev/null || true)"
+  fi
+
+  printf '%s\n' "$filename"
+}
+
+target_kernel_has_builtin_module() {
+  local kernel_version="$1"
+  local module="$2"
+  local filename=""
+
+  filename="$(module_filename_for_target_kernel "$kernel_version" "$module")"
+  [[ "$filename" == "(builtin)" ]]
 }
 
 current_pool_altroot() {
@@ -194,6 +236,20 @@ ensure_prereqs() {
       die "required command not found: $cmd"
     fi
   done
+
+  if [[ "$mode" == "boot-chain" ]]; then
+    for cmd in lsinitcpio modinfo; do
+      if have_cmd "$cmd"; then
+        continue
+      fi
+
+      if (( dry_run )); then
+        warn "command not found during dry-run: $cmd"
+      else
+        die "required command not found for boot-chain validation: $cmd"
+      fi
+    done
+  fi
 }
 
 validate_inputs() {
@@ -375,6 +431,55 @@ check_fstab_policy() {
   log "  no ZFS dataset entries in ${fstab_path}"
 }
 
+check_uki_initrd_inventory() {
+  local uki_path="$1"
+  local label="$2"
+  local inventory=""
+  local kernel_version=""
+  local module=""
+  local -a required_modules=(
+    zfs
+    dm_crypt
+    dm_mod
+    virtio_pci
+    virtio_blk
+    virtio_scsi
+    virtio_ring
+    virtio
+    nvme
+    ahci
+    sd_mod
+  )
+  local -a missing_modules=()
+
+  [[ -f "$uki_path" ]] || die "${label} UKI missing: ${uki_path}"
+
+  inventory="$(lsinitcpio -a "$uki_path" 2>/dev/null)" \
+    || die "unable to inspect ${label} UKI initramfs: ${uki_path}"
+  kernel_version="$(sed -n 's/^==> Kernel: //p' <<<"$inventory" | head -n 1)"
+  [[ -n "$kernel_version" ]] \
+    || die "unable to read ${label} UKI kernel version: ${uki_path}"
+
+  grep -Fq "root=ZFS=${zfs_root_dataset}" <<<"$inventory" \
+    || die "${label} UKI embedded cmdline missing root=ZFS=${zfs_root_dataset}: ${uki_path}"
+  grep -Fq ":${crypt_name}" <<<"$inventory" \
+    || die "${label} UKI embedded cmdline missing LUKS mapper ${crypt_name}: ${uki_path}"
+
+  for module in "${required_modules[@]}"; do
+    if initrd_inventory_contains_module "$inventory" "$module"; then
+      continue
+    fi
+    if target_kernel_has_builtin_module "$kernel_version" "$module"; then
+      continue
+    fi
+
+    missing_modules+=("$module")
+  done
+
+  ((${#missing_modules[@]} == 0)) \
+    || die "${label} UKI initramfs missing root-critical modules: ${missing_modules[*]} (${uki_path})"
+}
+
 check_boot_chain_artifacts() {
   local hostid_path=""
   local zpool_cache_path=""
@@ -382,15 +487,31 @@ check_boot_chain_artifacts() {
   local cmdline_path=""
   local limine_path=""
   local uki_dir=""
+  local modules_line=""
+  local module=""
   local hooks_line=""
   local root_parent=""
   local boot_environment_dataset=""
   local boot_environment_marker=""
+  # shellcheck disable=SC2016
   local efi_linux_prefix='${EFI_LINUX}/'
   local rollback_uki_path=""
   local rollback_uki_file=""
   local rollback_uki_tail=""
   local boot_environment_count=0
+  local uki_path=""
+  local -a required_mkinitcpio_modules=(
+    zfs
+    virtio_pci
+    virtio_blk
+    virtio_scsi
+    virtio_ring
+    virtio
+    nvme
+    ahci
+    sd_mod
+  )
+  local -a boot_ukis=()
 
   [[ "$mode" == "boot-chain" ]] || return 0
 
@@ -416,8 +537,11 @@ check_boot_chain_artifacts() {
   [[ -f "$limine_path" ]] || die "Limine config missing: ${limine_path}"
   [[ -d "$uki_dir" ]] || die "UKI directory missing: ${uki_dir}"
 
-  grep -Fq 'MODULES=(zfs)' "$mkinitcpio_path" \
-    || die "mkinitcpio MODULES must preload zfs: ${mkinitcpio_path}"
+  modules_line="$(grep -E '^MODULES=' "$mkinitcpio_path" | tail -n 1)"
+  for module in "${required_mkinitcpio_modules[@]}"; do
+    mkinitcpio_modules_contains "$modules_line" "$module" \
+      || die "mkinitcpio MODULES must preload ${module}: ${mkinitcpio_path}"
+  done
   grep -Fq 'FILES=(/etc/hostid /etc/zfs/zpool.cache)' "$mkinitcpio_path" \
     || die "mkinitcpio FILES must embed hostid and zpool cache: ${mkinitcpio_path}"
   hooks_line="$(grep -E '^HOOKS=' "$mkinitcpio_path" | tail -n 1)"
@@ -480,10 +604,19 @@ check_boot_chain_artifacts() {
   compgen -G "${uki_dir}/*.efi" >/dev/null \
     || die "no UKI artifacts found in ${uki_dir}"
 
+  boot_ukis=(
+    "${uki_dir}/margine-linux.efi"
+    "${uki_dir}/margine-linux-fallback.efi"
+  )
+  for uki_path in "${boot_ukis[@]}"; do
+    check_uki_initrd_inventory "$uki_path" "${uki_path##*/}"
+  done
+
   log "  hostid: ${hostid_path}"
   log "  zpool cache: ${zpool_cache_path}"
   log "  cmdline: root=ZFS=${zfs_root_dataset}, crypt mapper=${crypt_name}"
   log "  rollback boot environments: ${boot_environment_count}"
+  log "  UKI initramfs root modules: OK"
   log "  UKIs: ${uki_dir}/*.efi"
 }
 

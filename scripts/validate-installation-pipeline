@@ -180,6 +180,7 @@ check_bash_syntax() {
     files/home/.local/bin/open-host-health-menu
     files/home/.local/bin/open-network-settings
     files/home/.local/bin/open-network-tui
+    files/home/.local/bin/margine-ssh-day-inhibit
     files/usr/local/bin/margine-build-local-overrides
     files/home/.local/bin/margine-fetch
   )
@@ -242,6 +243,53 @@ check_repo_copy_guards() {
   require_literal scripts/bootstrap-live-iso "--exclude='*.iso'" "repo copy excludes ISO images"
   require_literal scripts/bootstrap-live-iso "--exclude='*.img'" "repo copy excludes raw image files"
   require_absent_literal scripts/bootstrap-live-iso 'rsync -a "$repo_source/" "$destination/"' "repo copy no longer uses unfiltered rsync"
+}
+
+check_hyprland_config_migration_guard() {
+  local lua_config="files/home/.config/hypr/hyprland.lua"
+  local lua_lab="files/home/.config/hypr-lua-lab"
+  local migration_switch="files/home/.config/hypr/margine-hyprland-config-mode.env"
+  local path=""
+
+  log
+  log "==> Hyprland config migration guard"
+  require_file files/home/.config/hypr/hyprland.conf "Hyprland production Hyprlang entrypoint exists"
+  require_literal files/home/.config/hypr/README.md "Production config mode: Hyprlang" "Hyprland README documents the production config mode"
+  require_file docs/audits/2026-05-14-hyprland-lua-migration-plan.md "Hyprland Lua migration audit exists"
+  require_literal docs/audits/2026-05-14-hyprland-lua-migration-plan.md "MARGINE_HYPRLAND_CONFIG_MODE=lua" "Hyprland Lua migration audit defines the explicit migration switch"
+  require_file "${lua_lab}/hyprland.lua" "Hyprland Lua lab entrypoint exists outside the active config path"
+  require_literal "${lua_lab}/README.md" 'not installed as `~/.config/hypr/hyprland.lua`' "Hyprland Lua lab documents inactive status"
+  require_literal "${lua_lab}/margine/monitors.lua" "FW13_D65_GNOME_COLORS.icc" "Hyprland Lua lab preserves the Framework 13 ICC monitor rule"
+  require_absent_literal "${lua_lab}/margine/monitors.lua" "FW13_140cd_D65_2.2_S.icc" "Hyprland Lua lab no longer uses the DisplayCAL FW13 profile as default"
+  require_literal "${lua_lab}/margine/rules.lua" "reaper-opaque-xwayland" "Hyprland Lua lab preserves the REAPER opacity rule"
+  require_literal "${lua_lab}/margine/binds.lua" "Open Walker launcher" "Hyprland Lua lab preserves descriptive bind metadata"
+
+  if command -v luac >/dev/null 2>&1; then
+    while IFS= read -r -d '' path; do
+      if luac -p "$path"; then
+        pass "${path#${repo_root}/} syntax"
+      else
+        fail "${path#${repo_root}/} syntax"
+      fi
+    done < <(find "${repo_root}/${lua_lab}" -type f -name '*.lua' -print0 | sort -z)
+  else
+    fail "luac is required to syntax-check the Hyprland Lua lab"
+  fi
+
+  if [[ -e "${repo_root}/${lua_config}" ]]; then
+    if [[ -f "${repo_root}/${migration_switch}" ]] \
+      && grep -Fxq "MARGINE_HYPRLAND_CONFIG_MODE=lua" "${repo_root}/${migration_switch}"; then
+      pass "Hyprland Lua config is guarded by the explicit migration switch"
+      require_literal files/usr/local/bin/margine-start-hyprland "MARGINE_HYPRLAND_CONFIG_MODE" "Hyprland session wrapper supports config-mode selection"
+      require_literal scripts/bootstrap-in-chroot "hyprland.lua" "bootstrap verification handles the Lua config path"
+      require_literal scripts/repair-zfs-root-desktop-session "hyprland.lua" "desktop repair verification handles the Lua config path"
+      require_literal scripts/validate-runtime-baseline "hyprland.lua" "runtime validation handles the Lua config path"
+    else
+      fail "Hyprland Lua config requires ${migration_switch} with MARGINE_HYPRLAND_CONFIG_MODE=lua"
+    fi
+  else
+    pass "Hyprland Lua config is absent until an explicit migration switch is added"
+  fi
 }
 
 check_identity_defaults() {
@@ -329,6 +377,9 @@ check_identity_defaults() {
   require_literal files/home/.config/systemd/user/walker.service 'Environment=MARGINE_LAUNCHER_IMPORT_ENV=1' "Walker service imports session environment before launch"
   require_literal files/home/.local/bin/margine-launcher-service 'systemctl --user start walker.service' "Hyprland session bootstrap warms Walker after environment import"
   require_literal files/home/.local/bin/margine-launcher-service 'margine-walker-healthcheck" --repair' "Hyprland session bootstrap validates Walker immediately after warming it"
+  require_literal files/home/.local/bin/margine-import-session-environment 'export XDG_SESSION_TYPE=wayland' "session environment import cannot preserve SSH XDG_SESSION_TYPE=tty"
+  require_literal files/home/.local/bin/margine-launcher-walker 'export XDG_SESSION_TYPE=wayland' "Walker launcher forces the Hyprland Wayland session type"
+  require_literal files/home/.config/waybar/launch.sh 'export XDG_SESSION_TYPE=wayland' "Waybar launcher forces the Hyprland Wayland session type"
   require_literal files/home/.config/hypr/conf.d/20-autostart.conf 'exec-once = $menusvc' "Hyprland starts the launcher service after session environment import"
   require_absent_literal files/home/.config/hypr/conf.d/40-look-and-feel.conf "pseudotile =" "Hyprland look-and-feel avoids removed global pseudotile option"
   require_literal files/home/.config/hypr/conf.d/40-look-and-feel.conf "no_update_news = true" "Hyprland update-news popup is disabled"
@@ -365,7 +416,11 @@ check_identity_defaults() {
   require_literal files/home/.local/share/icons/Margine-Adwaita/index.theme "MinSize=8" "Margine icon overlay scales small place icons instead of clipping them"
   require_literal files/home/.local/share/icons/Margine-Adwaita/index.theme "MaxSize=512" "Margine icon overlay keeps scalable icons available across GTK sizes"
   require_literal files/home/.config/margine/theme.env "MARGINE_THEME_ACCENT_COLOR='yellow'" "Default GNOME/libadwaita named accent is aligned with Margine yellow baseline"
+  require_literal files/home/.config/margine/theme.env "MARGINE_THEME_SURFACE_ALT='#202020'" "Default GTK view/sidebar surface is neutral graphite instead of blue-tinted"
   require_literal files/home/.config/margine/themes/default.env "MARGINE_THEME_ACCENT_COLOR='yellow'" "Default theme preset keeps GNOME/libadwaita accent aligned"
+  require_literal files/home/.config/gtk-4.0/gtk.css "@define-color view_bg_color #202020;" "Generated GTK4 view background follows the neutral graphite surface"
+  require_literal files/home/.config/gtk-4.0/gtk.css "@define-color sidebar_bg_color #202020;" "Generated GTK4 sidebar background follows the neutral graphite surface"
+  require_absent_literal files/home/.config/gtk-4.0/gtk.css "#1d1d20" "Generated GTK4 CSS no longer uses the blue-tinted dark surface"
   require_literal files/home/.config/margine/theme.env "MARGINE_THEME_THUNDERBIRD_ACCENT_COLOR='accent-color'" "Thunderbird follows the same named accent channel as Firefox/libadwaita"
   require_literal files/usr/lib/thunderbird/distribution/policies.json '"Value": "accent-color"' "Generated Thunderbird policy follows the OS accent channel"
   require_literal scripts/render-theme-artifacts '"__BORDER__": border' "theme renderer substitutes border tokens in GTK4 CSS"
@@ -382,6 +437,14 @@ check_identity_defaults() {
   require_literal files/home/.local/bin/easyeffects-toggle "easyeffects --bypass-toggle" "EasyEffects toggle uses bypass instead of killing the service"
   require_literal files/home/.config/waybar/config.jsonc '"signal": 9' "Waybar keep-awake module accepts immediate refresh signals"
   require_literal files/home/.local/bin/keep-awake-toggle 'pkill "-RTMIN+${waybar_signal}" -x waybar' "keep-awake toggle refreshes Waybar immediately"
+  require_file files/home/.local/bin/margine-ssh-day-inhibit "SSH day access inhibit helper exists"
+  require_literal files/home/.local/bin/margine-ssh-day-inhibit "systemd-inhibit" "SSH day access helper uses systemd inhibitors"
+  require_literal files/home/.local/bin/margine-ssh-day-inhibit "handle-lid-switch" "SSH day access helper blocks lid-close suspend"
+  require_literal files/home/.local/bin/margine-ssh-day-inhibit "tomorrow 00:00:00" "SSH day access helper expires at local midnight"
+  require_literal scripts/provision-user-runtime-tools ".local/bin/margine-ssh-day-inhibit" "runtime provisioning installs the SSH day access helper"
+  require_file files/home/.local/share/applications/margine-ssh-day-inhibit.desktop "Walker desktop entry exists for SSH day access"
+  require_literal files/home/.local/share/applications/margine-ssh-day-inhibit.desktop "margine-ssh-day-inhibit" "Walker desktop entry launches the SSH day access helper"
+  require_literal files/home/.local/share/applications/margine-ssh-day-inhibit.desktop "--enable-today" "Walker desktop entry enables SSH day access for today"
   require_literal files/home/.config/waybar/config.jsonc '"signal": 10' "Waybar network module accepts NetworkManager refresh signals"
   require_literal files/home/.local/bin/open-network-settings "nm-connection-editor" "Waybar network click opens the GTK NetworkManager editor by default"
   require_literal files/home/.config/waybar/config.jsonc '"custom/tray-open"' "Waybar visually brackets the tray opening edge"
@@ -390,7 +453,11 @@ check_identity_defaults() {
   require_file files/home/.local/bin/privacy-device-status "privacy device status helper exists"
   require_file files/home/.local/bin/privacy-device-waybar-watch "privacy device Waybar watcher exists"
   require_literal files/home/.local/bin/privacy-device-status "pw-dump" "privacy device status checks PipeWire streams"
-  require_literal files/home/.local/bin/privacy-device-status "lsof -w -n /dev/video" "privacy device status avoids slow full /proc fd scans"
+  require_literal files/home/.local/bin/privacy-device-status "video_devices=()" "privacy device status builds an explicit video device list"
+  require_literal files/home/.local/bin/privacy-device-status '${#video_devices[@]} == 0' "privacy device status skips lsof when no video devices exist"
+  require_literal files/home/.local/bin/privacy-device-status 'timeout 2 lsof -w -n "${video_devices[@]}"' "privacy device status bounds direct device lsof checks"
+  require_absent_literal files/home/.local/bin/privacy-device-status "lsof -w -n /dev/video" "privacy device status avoids slow full /proc fd scans"
+  require_literal files/home/.local/bin/privacy-device-status "timeout 2 wpctl get-volume" "privacy device status bounds default microphone checks"
   require_literal files/home/.local/bin/privacy-device-status "/dev/video*" "privacy device status detects direct camera device access"
   require_literal files/home/.local/bin/privacy-device-status "Framework" "privacy device status includes Framework hardware privacy inference"
   require_literal files/home/.local/bin/privacy-device-status "Keep microphone left of camera" "privacy device status renders microphone before camera when both are visible"
@@ -398,6 +465,17 @@ check_identity_defaults() {
   require_literal files/home/.config/hypr/conf.d/20-autostart.conf "privacy-device-waybar-watch" "Hyprland starts the privacy device Waybar watcher"
   require_literal scripts/provision-hyprland-desktop ".local/bin/privacy-device-waybar-watch" "desktop provisioner installs the privacy device Waybar watcher"
   require_literal files/home/.config/waybar/config.jsonc '"signal": 12' "Waybar privacy module accepts immediate refresh signals"
+  require_literal files/home/.local/bin/margine-home-configure-folder-icons "preferred_folder_themes" "home folder icon resolver has a preferred folder theme policy"
+  require_literal files/home/.local/bin/margine-home-configure-folder-icons "Adwaita-yellow" "home folder icon resolver prefers Adwaita-yellow"
+  require_literal files/home/.local/bin/margine-home-configure-folder-icons "icon_search_directories" "home folder icon resolver uses ordered scalable icon directories"
+  require_literal files/home/.local/bin/margine-home-configure-folder-icons "scalable/places" "home folder icon resolver searches scalable place icons first"
+  require_literal files/home/.local/bin/margine-home-configure-folder-icons 'theme_file "$preferred_theme" "folder"' "home folder icon resolver falls back to generic yellow folders before blue themes"
+  require_literal files/home/.local/bin/margine-home-configure-folder-icons "gio set -t string" "home folder icon resolver writes explicit string GIO metadata"
+  require_absent_literal files/home/.local/bin/margine-home-configure-folder-icons '.png' "home folder icon resolver must not pin raster folder icons"
+  require_literal files/home/.local/bin/margine-home-configure-folder-icons '"data/library|folder-books"' "home folder icon mapping keeps the host library icon"
+  require_literal files/home/.local/bin/margine-home-configure-folder-icons '"data/work|folder-work"' "home folder icon mapping keeps the host work icon"
+  require_literal files/home/.local/bin/margine-home-configure-folder-icons '"data/media|folder-camera"' "home folder icon mapping keeps the host media icon"
+  require_literal files/home/.local/bin/margine-home-configure-folder-icons '"data/library/software|folder-appimage"' "home folder icon mapping keeps the host software library icon"
   require_literal files/home/.local/bin/network-status 'text="$wifi_icon_connected"' "Wi-Fi status keeps signal strength in the tooltip instead of the bar"
   require_literal files/home/.local/bin/network-status "connection show --active" "Wi-Fi status cross-checks active NetworkManager connections before reporting disconnected"
   require_file files/etc/NetworkManager/dispatcher.d/90-margine-waybar-network "NetworkManager Waybar refresh dispatcher exists"
@@ -417,6 +495,8 @@ check_identity_defaults() {
   require_literal files/home/.local/bin/open-reaper "QT_QPA_PLATFORM=xcb" "REAPER launcher forces the XWayland-compatible Qt/XCB path"
   require_literal files/home/.local/bin/open-reaper "XCURSOR_SIZE=" "REAPER launcher normalizes XWayland cursor scaling"
   require_literal files/home/.local/bin/open-reaper "pkill -TERM -x reaper" "REAPER launcher cleans stale headless REAPER before relaunch"
+  require_literal files/home/.config/hypr/conf.d/70-rules.conf "name = reaper-opaque-xwayland" "Hyprland keeps REAPER opaque when tooltip windows take focus"
+  require_literal files/home/.config/hypr/conf.d/70-rules.conf "opacity = 1.0 1.0" "Hyprland disables inactive transparency for REAPER"
   require_literal files/home/.local/share/applications/cockos-reaper.desktop 'Exec=sh -lc "exec \"\\$HOME/.local/bin/open-reaper\"' "Walker opens REAPER through the Margine wrapper"
   require_literal scripts/provision-user-app-config '".local/bin/open-reaper"' "user app config installs the REAPER launcher wrapper"
   require_manifest_package manifests/packages/apps-photo-audio-video.txt "audacity" "audio/video baseline installs Audacity explicitly"
@@ -430,6 +510,14 @@ check_identity_defaults() {
   require_manifest_package manifests/packages/apps-photo-audio-video.txt "reapack" "audio/video baseline installs ReaPack for REAPER extensions"
   require_manifest_package manifests/packages/apps-photo-audio-video.txt "sws" "audio/video baseline installs SWS REAPER extensions"
   require_manifest_package manifests/packages/apps-photo-audio-video.txt "carla" "audio/video baseline keeps Carla for REAPER plugin hosting even if Audacity disables its VST plugins"
+  require_file files/usr/share/margine/icc/FW13_D65_GNOME_COLORS.icc "Framework 13 GNOME Colors system ICC asset exists"
+  require_file files/home/.local/share/icc/margine/FW13_D65_GNOME_COLORS.icc "Framework 13 GNOME Colors user ICC asset exists"
+  require_file files/usr/share/margine/icc/FW13_140cd_D65_2.2_S.icc "Framework 13 DisplayCAL ICC asset remains available as non-default"
+  require_file files/usr/share/margine/icc/DELL_P2415Q_D65_high.icc "Dell P2415Q system ICC asset exists"
+  require_literal scripts/provision-photo-color-assets "==> Install system ICC assets" "photo color provisioner installs system ICC assets"
+  require_literal files/home/.config/hypr/monitors.conf "desc:BOE NE135A1M-NY1" "Hyprland ICC rule is scoped to the Framework 13 BOE panel description"
+  require_literal files/home/.config/hypr/monitors.conf "/usr/share/margine/icc/FW13_D65_GNOME_COLORS.icc" "Hyprland ICC rule uses the system Framework 13 GNOME Colors profile asset"
+  require_absent_literal files/home/.config/hypr/monitors.conf "/usr/share/margine/icc/FW13_140cd_D65_2.2_S.icc" "Hyprland does not use the DisplayCAL FW13 profile as default"
   require_literal files/home/.local/bin/margine-framework-audio-service "easyeffects --load-preset" "Framework audio service explicitly loads the Margine preset after startup"
   require_literal files/home/.local/bin/margine-framework-audio-service "kernel-path" "Framework audio service normalizes EasyEffects convolver IR paths for current EasyEffects releases"
   require_literal manifests/packages/fonts.txt "ttc-iosevka-etoile" "Default font baseline installs Iosevka Etoile for UI text"
@@ -462,7 +550,8 @@ check_identity_defaults() {
   require_literal files/home/.local/bin/open-bluetooth-tui "MARGINE_THEME_TERMINAL_FONT_NAME" "bluetooth TUI inherits the centralized terminal font"
   require_literal files/home/.local/bin/open-gaming-split-lock-menu "MARGINE_THEME_TERMINAL_FONT_NAME" "split-lock TUI inherits the centralized terminal font"
   require_literal files/home/.local/bin/open-host-health-menu "MARGINE_THEME_TERMINAL_FONT_NAME" "host-health TUI inherits the centralized terminal font"
-  require_literal files/home/.local/bin/margine-launcher-walker 'rm -f "$walker_socket"' "Walker launcher removes stale sockets before fresh launch"
+  require_literal files/home/.local/bin/margine-launcher-walker "if ! pgrep -xu \"\$(id -u)\" -x walker" "Walker launcher removes sockets only when the service process is gone"
+  require_absent_literal files/home/.local/bin/margine-launcher-walker 'command -v nc' "Walker launcher does not depend on netcat for socket reuse"
   require_literal files/home/.local/bin/margine-launcher-walker 'margine-walker-healthcheck" --repair' "Walker hotkey path repairs stale launcher state before socket reuse"
   require_literal files/home/.config/systemd/user/margine-walker-healthcheck.service 'ExecStart=%h/.local/bin/margine-walker-healthcheck --repair' "Walker healthcheck runs in repair mode"
   require_literal scripts/provision-user-runtime-tools 'margine-walker-healthcheck.timer' "runtime provisioning enables Walker health monitoring"
@@ -621,9 +710,10 @@ check_root_zfs_path() {
   require_literal scripts/provision-initial-boot-chain-zfs 'zpool set cachefile=/etc/zfs/zpool.cache "$pool_name"' "ZFS boot chain persists zpool cachefile"
   require_literal scripts/provision-initial-boot-chain-zfs '[[ -s /etc/zfs/zpool.cache ]]' "ZFS boot chain verifies zpool cachefile creation"
   require_literal scripts/provision-initial-boot-chain-zfs 'zgenhostid' "ZFS boot chain generates hostid"
-  require_literal scripts/provision-initial-boot-chain-zfs 'MODULES=(zfs)' "ZFS boot chain preloads the ZFS module"
+  require_literal scripts/provision-initial-boot-chain-zfs 'MODULES=(zfs virtio_pci' "ZFS boot chain preloads ZFS and storage modules"
   require_literal scripts/provision-initial-boot-chain-zfs 'FILES=(/etc/hostid /etc/zfs/zpool.cache)' "ZFS boot chain embeds hostid and zpool cache"
-  require_literal scripts/provision-initial-boot-chain-zfs 'HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block encrypt zfs filesystems)' "ZFS boot chain uses root-on-ZFS mkinitcpio hooks"
+  require_literal scripts/provision-initial-boot-chain-zfs "Do not use autodetect for the primary root-on-ZFS" "ZFS boot chain documents why live autodetect is disabled"
+  require_literal scripts/provision-initial-boot-chain-zfs 'HOOKS=(base udev microcode modconf kms keyboard keymap consolefont block encrypt zfs filesystems)' "ZFS boot chain uses portable root-on-ZFS mkinitcpio hooks"
   require_literal scripts/provision-initial-boot-chain-zfs 'RequiresMountsFor=/home' "ZFS boot chain orders greetd after /home"
   require_literal scripts/provision-initial-boot-chain-zfs 'load_install_manifest_defaults' "ZFS boot chain reads the install-state manifest"
   require_literal scripts/provision-initial-boot-chain-zfs 'validate_kernel_zfs_abi_gate' "ZFS boot chain gates UKI generation on kernel/ZFS ABI"
@@ -676,6 +766,11 @@ check_root_zfs_path() {
   require_literal files/home/.local/bin/update-all "zfs_capable_update_all" "user update wrapper refuses stale root-on-ZFS runtimes"
   require_literal scripts/provision-user-app-config "run_root_zfs_update" "global update wrapper verifies installed root-on-ZFS support"
   require_literal scripts/provision-user-app-config "--install-global-update-only" "app provisioner can refresh only installed update runtime"
+  require_literal scripts/provision-initial-boot-chain-zfs "MODULES=(zfs virtio_pci virtio_blk virtio_scsi virtio_ring virtio nvme ahci sd_mod)" "ZFS boot initramfs preloads root-critical storage modules"
+  require_literal scripts/validate-root-zfs-target 'lsinitcpio -a "$uki_path"' "ZFS boot-chain validator inspects UKI initramfs contents"
+  require_literal scripts/validate-root-zfs-target 'modinfo -b "$target_root" -k "$kernel_version"' "ZFS boot-chain validator accepts target-kernel built-in root drivers"
+  require_literal scripts/validate-root-zfs-target "virtio_blk" "ZFS boot-chain validator rejects UKIs missing QEMU root disk drivers"
+  require_literal scripts/validate-root-zfs-target "UKI initramfs root modules: OK" "ZFS boot-chain validator reports root module inventory"
   require_literal scripts/repair-zfs-root-boot-chain 'arch-chroot "$target_root" "${repo_dest}/scripts/provision-initial-boot-chain-zfs"' "ZFS boot-chain repair reruns the ZFS boot provisioner in target"
   require_literal scripts/repair-zfs-root-boot-chain 'provision-user-app-config" --install-global-update-only' "ZFS boot-chain repair refreshes installed update runtime"
   require_literal scripts/repair-zfs-root-boot-chain 'validate-root-zfs-target" --target-root / --mode boot-chain' "ZFS boot-chain repair validates repaired target in chroot"
@@ -691,6 +786,10 @@ check_root_zfs_path() {
   require_literal scripts/bootstrap-live-zfs-root-guided "--qemu-validation-inhibit" "ZFS guided bootstrap exposes validation-only QEMU inhibitor flag"
   require_literal scripts/bootstrap-live-iso "--qemu-validation-inhibit" "live bootstrap forwards validation-only QEMU inhibitor flag"
   require_literal scripts/bootstrap-in-chroot "install_qemu_validation_inhibit" "chroot bootstrap can install validation-only QEMU inhibitor"
+  require_literal scripts/provision-storage-zfs-root "prepare_private_live_mount_namespace" "ZFS storage path prepares a private live mount namespace"
+  require_literal scripts/provision-storage-zfs-root "mount --make-rprivate /" "ZFS storage path prevents live service namespace mount retention"
+  require_executable enable-vm-ssh "QEMU validation 9p SSH shortcut is executable"
+  require_literal enable-vm-ssh "scripts/enable-qemu-validation-ssh" "QEMU validation 9p SSH shortcut delegates to the supported helper"
   require_literal scripts/enable-qemu-validation-inhibit "systemd-inhibit --what=sleep:idle" "QEMU idle inhibition helper blocks sleep and idle during validation"
   require_literal scripts/enable-qemu-validation-inhibit "margine-qemu-validation-inhibit" "QEMU idle inhibition helper uses a dedicated transient systemd unit"
   require_literal scripts/enable-qemu-validation-inhibit "reexec_from_local_filesystem" "QEMU idle inhibition helper re-execs from local storage when called from 9p"
@@ -795,6 +894,7 @@ main() {
   check_bash_syntax
   check_destructive_storage_guards
   check_repo_copy_guards
+  check_hyprland_config_migration_guard
   check_identity_defaults
   check_default_runtime_layers
   check_live_package_retry_policy
