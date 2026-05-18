@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+home_dir="${HOME}"
+dry_run=0
+
+declare -a directories=(
+  "data"
+  "data/inbox"
+  "data/inbox/00-review"
+  "data/inbox/10-downloads"
+  "data/inbox/20-scans"
+  "data/inbox/30-mobile-imports"
+  "data/inbox/99-migration-conflicts"
+  "data/personal"
+  "data/personal/admin"
+  "data/personal/admin/identity"
+  "data/personal/admin/taxes"
+  "data/personal/admin/health"
+  "data/personal/admin/residence"
+  "data/personal/admin/legal"
+  "data/personal/admin/social-security"
+  "data/personal/admin/insurance"
+  "data/personal/admin/vehicles"
+  "data/personal/admin/banking"
+  "data/personal/admin/telecom"
+  "data/personal/admin/transport"
+  "data/personal/admin/travel"
+  "data/personal/admin/career"
+  "data/personal/admin/education"
+  "data/personal/admin/warranties"
+  "data/personal/admin/purchases"
+  "data/personal/admin/scans"
+  "data/personal/finance"
+  "data/personal/health-fitness"
+  "data/personal/people"
+  "data/personal/people/family"
+  "data/personal/people/friends"
+  "data/personal/places"
+  "data/personal/records"
+  "data/work"
+  "data/work/admin"
+  "data/work/clients"
+  "data/work/projects"
+  "data/work/reference"
+  "data/work/archive"
+  "data/community"
+  "data/media"
+  "data/media/photos"
+  "data/media/photos/raw"
+  "data/media/photos/albums"
+  "data/media/photos/exports"
+  "data/media/photos/camera-roll"
+  "data/media/photos/screenshots"
+  "data/media/audio"
+  "data/media/audio/music-projects"
+  "data/media/video"
+  "data/media/video/projects"
+  "data/media/video/exports"
+  "data/media/video/screen-recordings"
+  "data/media/recordings"
+  "data/library"
+  "data/library/books"
+  "data/library/books/managed-library"
+  "data/library/books/inbox"
+  "data/library/books/manuals"
+  "data/library/books/periodicals"
+  "data/library/fonts"
+  "data/library/fonts/families"
+  "data/library/fonts/archives"
+  "data/library/fonts/license-review"
+  "data/library/software"
+  "data/library/software/installers"
+  "data/library/software/packages"
+  "data/library/games"
+  "data/technology"
+  "data/technology/00-admin"
+  "data/technology/00-admin/licenses"
+  "data/technology/00-admin/licenses/proof-of-purchase"
+  "data/technology/00-admin/licenses/raw-secrets"
+  "data/technology/00-admin/security"
+  "data/technology/10-devices"
+  "data/technology/20-network"
+  "data/technology/30-servers"
+  "data/technology/40-services"
+  "data/technology/50-reference"
+  "data/technology/90-archive"
+  "data/projects"
+  "data/shared"
+  "data/shared/10-outgoing"
+  "data/shared/20-published"
+  "data/shared/90-archive"
+  "data/archive"
+  "data/archive/personal"
+  "data/archive/work"
+  "data/archive/education"
+  "data/archive/family"
+  "data/imports"
+  "data/templates"
+  "dev"
+  "dev/project-repositories"
+  "scratch"
+  "scratch/downloads"
+  "scratch/mobile"
+  "scratch/mobile/phone"
+  "scratch/mobile/tablet"
+  "scratch/media-cache"
+)
+
+usage() {
+  cat <<'EOF'
+Usage:
+  margine-home-bootstrap-layout [options]
+
+Options:
+  --home PATH  Home directory to prepare. Defaults to $HOME.
+  --dry-run    Print the directories that would be created.
+  --help       Show this help.
+EOF
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+run_mkdir() {
+  local path="$1"
+
+  if (( dry_run )); then
+    printf '[dry-run] mkdir -p %q\n' "$path"
+  else
+    mkdir -p "$path"
+  fi
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --home)
+      [[ $# -ge 2 ]] || die "missing value for --home"
+      home_dir="$2"
+      shift 2
+      ;;
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+  esac
+done
+
+[[ -n "$home_dir" ]] || die "empty home directory"
+
+for relative in "${directories[@]}"; do
+  run_mkdir "${home_dir}/${relative}"
+done

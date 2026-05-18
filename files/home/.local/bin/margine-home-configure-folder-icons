@@ -1,0 +1,297 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+home_dir="${HOME}"
+apply=0
+clear=0
+theme_name=""
+
+declare -a fallback_themes=(
+  "Adwaita-yellow"
+  "MoreWaita"
+  "Adwaita"
+  "AdwaitaLegacy"
+  "hicolor"
+)
+
+declare -a icon_rules=(
+  "data|folder-earth"
+  "data/inbox|folder-download"
+  "data/inbox/00-review|folder-open"
+  "data/inbox/10-downloads|folder-download"
+  "data/inbox/20-scans|folder-documents"
+  "data/inbox/30-mobile-imports|folder-android"
+  "data/inbox/99-migration-conflicts|folder-private"
+  "data/personal|folder-user"
+  "data/personal/admin|folder-documents"
+  "data/personal/admin/identity|folder-private"
+  "data/personal/admin/taxes|folder-documents"
+  "data/personal/admin/health|folder-private"
+  "data/personal/admin/residence|folder-user"
+  "data/personal/admin/legal|folder-documents"
+  "data/personal/admin/social-security|folder-private"
+  "data/personal/admin/insurance|folder-private"
+  "data/personal/admin/vehicles|folder-remote"
+  "data/personal/admin/banking|folder-private"
+  "data/personal/admin/telecom|folder-remote"
+  "data/personal/admin/transport|folder-remote"
+  "data/personal/admin/travel|folder-publicshare"
+  "data/personal/admin/career|folder-documents"
+  "data/personal/admin/education|folder-documents"
+  "data/personal/admin/warranties|folder-documents"
+  "data/personal/admin/purchases|folder-download"
+  "data/personal/admin/scans|folder-documents"
+  "data/personal/finance|folder-private"
+  "data/personal/health-fitness|folder-private"
+  "data/personal/people|folder-publicshare"
+  "data/personal/people/family|folder-user"
+  "data/personal/people/friends|folder-publicshare"
+  "data/personal/places|folder-earth"
+  "data/personal/records|folder-documents"
+  "data/work|folder-remote"
+  "data/work/admin|folder-documents"
+  "data/work/clients|folder-publicshare"
+  "data/work/projects|folder-projects"
+  "data/work/reference|folder-documents"
+  "data/work/archive|folder-backup"
+  "data/community|folder-globe"
+  "data/media|folder-pictures"
+  "data/media/photos|folder-pictures"
+  "data/media/photos/raw|folder-camera"
+  "data/media/photos/albums|folder-pictures"
+  "data/media/photos/exports|folder-drag-accept"
+  "data/media/photos/camera-roll|folder-camera"
+  "data/media/photos/screenshots|folder-camera"
+  "data/media/audio|folder-music"
+  "data/media/audio/music-projects|folder-music"
+  "data/media/video|folder-videos"
+  "data/media/video/projects|folder-videos"
+  "data/media/video/exports|folder-drag-accept"
+  "data/media/video/screen-recordings|folder-videos"
+  "data/media/recordings|folder-music"
+  "data/library|folder-documents"
+  "data/library/books|folder-documents"
+  "data/library/books/managed-library|folder-documents"
+  "data/library/books/inbox|folder-download"
+  "data/library/books/manuals|folder-documents"
+  "data/library/books/periodicals|folder-documents"
+  "data/library/fonts|folder-documents"
+  "data/library/fonts/families|folder-documents"
+  "data/library/fonts/archives|folder-backup"
+  "data/library/fonts/license-review|folder-documents"
+  "data/library/software|folder-shell"
+  "data/library/software/installers|folder-download"
+  "data/library/software/packages|folder-appimage"
+  "data/library/games|folder-games"
+  "data/technology|folder-shell"
+  "data/technology/00-admin|folder-private"
+  "data/technology/00-admin/licenses|folder-documents"
+  "data/technology/00-admin/licenses/proof-of-purchase|folder-documents"
+  "data/technology/00-admin/licenses/raw-secrets|folder-private"
+  "data/technology/00-admin/security|folder-private"
+  "data/technology/10-devices|folder-remote"
+  "data/technology/20-network|folder-remote"
+  "data/technology/30-servers|folder-remote"
+  "data/technology/40-services|folder-nextcloud"
+  "data/technology/50-reference|folder-documents"
+  "data/technology/90-archive|folder-backup"
+  "data/projects|folder-projects"
+  "data/shared|folder-publicshare"
+  "data/shared/10-outgoing|folder-drag-accept"
+  "data/shared/20-published|folder-publicshare"
+  "data/shared/90-archive|folder-backup"
+  "data/archive|folder-backup"
+  "data/archive/personal|folder-backup"
+  "data/archive/work|folder-backup"
+  "data/archive/education|folder-backup"
+  "data/archive/family|folder-backup"
+  "data/imports|folder-download"
+  "data/templates|folder-templates"
+  "dev|folder-code"
+  "dev/project-repositories|folder-git"
+  "scratch|folder-temp"
+  "scratch/downloads|folder-download"
+  "scratch/mobile|folder-android"
+  "scratch/mobile/phone|folder-android"
+  "scratch/mobile/tablet|folder-android"
+  "scratch/media-cache|folder-drag-accept"
+)
+
+usage() {
+  cat <<'EOF'
+Usage:
+  margine-home-configure-folder-icons [options]
+
+Options:
+  --home PATH    Home directory to configure. Defaults to $HOME.
+  --theme NAME   Resolve icons against this icon theme first.
+  --apply        Write GIO metadata. Without this, dry-run.
+  --clear        Remove custom folder icon metadata instead of applying it.
+  --help         Show this help.
+EOF
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+detect_theme() {
+  local theme=""
+
+  if [[ -n "$theme_name" ]]; then
+    printf '%s\n' "$theme_name"
+    return 0
+  fi
+
+  theme="$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null || true)"
+  theme="${theme#\'}"
+  theme="${theme%\'}"
+
+  if [[ -n "$theme" ]]; then
+    printf '%s\n' "$theme"
+  fi
+}
+
+theme_file() {
+  local theme="$1"
+  local icon="$2"
+  local base=""
+  local candidate=""
+
+  for base in /usr/share/icons "${home_dir}/.local/share/icons"; do
+    [[ -d "${base}/${theme}" ]] || continue
+
+    while IFS= read -r -d '' candidate; do
+      printf '%s\n' "$candidate"
+      return 0
+    done < <(find "${base}/${theme}" -type f \( -name "${icon}.svg" -o -name "${icon}.png" -o -name "${icon}.symbolic.svg" \) -print0 2>/dev/null | sort -z)
+  done
+
+  return 1
+}
+
+theme_inherits() {
+  local theme="$1"
+  local index=""
+  local line=""
+
+  for index in "/usr/share/icons/${theme}/index.theme" "${home_dir}/.local/share/icons/${theme}/index.theme"; do
+    [[ -r "$index" ]] || continue
+    line="$(awk -F= '$1 == "Inherits" { print $2; exit }' "$index")"
+    [[ -n "$line" ]] || continue
+    printf '%s\n' "$line" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+    return 0
+  done
+}
+
+resolve_icon() {
+  local icon="$1"
+  local theme=""
+  local inherited=""
+  local seen=":"
+  local candidate=""
+  local active_theme=""
+  local -a search_themes=()
+
+  active_theme="$(detect_theme || true)"
+  if [[ -n "$active_theme" ]]; then
+    search_themes+=("$active_theme")
+    while IFS= read -r inherited; do
+      [[ -n "$inherited" ]] || continue
+      search_themes+=("$inherited")
+    done < <(theme_inherits "$active_theme" || true)
+  fi
+
+  search_themes+=("${fallback_themes[@]}")
+
+  for theme in "${search_themes[@]}"; do
+    [[ -n "$theme" ]] || continue
+    [[ "$seen" != *":${theme}:"* ]] || continue
+    seen="${seen}${theme}:"
+
+    if candidate="$(theme_file "$theme" "$icon")"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+set_icon() {
+  local path="$1"
+  local icon_file="$2"
+
+  if (( clear )); then
+    if (( apply )); then
+      gio set -t unset "$path" metadata::custom-icon || true
+    else
+      printf '[dry-run] gio set -t unset %q metadata::custom-icon\n' "$path"
+    fi
+    return 0
+  fi
+
+  if (( apply )); then
+    gio set "$path" metadata::custom-icon "file://${icon_file}"
+  else
+    printf '[dry-run] gio set %q metadata::custom-icon %q\n' "$path" "file://${icon_file}"
+  fi
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --home)
+      [[ $# -ge 2 ]] || die "missing value for --home"
+      home_dir="$2"
+      shift 2
+      ;;
+    --theme)
+      [[ $# -ge 2 ]] || die "missing value for --theme"
+      theme_name="$2"
+      shift 2
+      ;;
+    --apply)
+      apply=1
+      shift
+      ;;
+    --clear)
+      clear=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+  esac
+done
+
+if (( apply )); then
+  command -v gio >/dev/null 2>&1 || die "gio is required to write folder icon metadata"
+fi
+
+for rule in "${icon_rules[@]}"; do
+  relative="${rule%%|*}"
+  icon="${rule#*|}"
+  path="${home_dir}/${relative}"
+
+  if [[ ! -d "$path" ]]; then
+    printf 'SKIP missing directory: %s\n' "$path"
+    continue
+  fi
+
+  if (( clear )); then
+    set_icon "$path" ""
+    continue
+  fi
+
+  if icon_file="$(resolve_icon "$icon")"; then
+    set_icon "$path" "$icon_file"
+    printf 'OK %s -> %s\n' "$relative" "$icon"
+  else
+    printf 'SKIP missing theme icon: %s -> %s\n' "$relative" "$icon" >&2
+  fi
+done

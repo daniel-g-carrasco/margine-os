@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+tmp_home=""
+
+fail() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+cleanup() {
+  if [[ -n "$tmp_home" && -d "$tmp_home" ]]; then
+    rm -rf "$tmp_home"
+  fi
+}
+
+require_file() {
+  local path="$1"
+
+  [[ -e "$path" ]] || fail "missing required file: $path"
+}
+
+require_executable() {
+  local path="$1"
+
+  [[ -x "$path" ]] || fail "missing executable file: $path"
+}
+
+expect_line() {
+  local file="$1"
+  local line="$2"
+
+  grep -Fxq "$line" "$file" || fail "missing expected line in ${file}: ${line}"
+}
+
+trap cleanup EXIT
+
+tmp_home="$(mktemp -d)"
+
+bootstrap="${repo_root}/files/home/.local/bin/margine-home-bootstrap-layout"
+xdg_config="${repo_root}/files/home/.local/bin/margine-home-configure-xdg-user-dirs"
+icons="${repo_root}/files/home/.local/bin/margine-home-configure-folder-icons"
+app_paths="${repo_root}/files/home/.local/bin/margine-home-configure-app-paths"
+audit="${repo_root}/files/home/.local/bin/margine-home-audit-application-paths"
+readmes="${repo_root}/files/home/.local/bin/margine-home-install-folder-readmes"
+
+require_executable "$bootstrap"
+require_executable "$xdg_config"
+require_executable "$icons"
+require_executable "$app_paths"
+require_executable "$audit"
+require_executable "$readmes"
+require_executable "${repo_root}/scripts/provision-home-organization"
+require_file "${repo_root}/files/home/.config/margine/home-organization/backup-exclude.example"
+
+"$bootstrap" --home "$tmp_home"
+
+for directory in \
+  data \
+  data/inbox/10-downloads \
+  data/personal \
+  data/media/photos/raw \
+  data/media/photos/screenshots \
+  data/media/video/screen-recordings \
+  data/projects \
+  dev/project-repositories \
+  scratch/downloads; do
+  [[ -d "${tmp_home}/${directory}" ]] || fail "missing bootstrapped directory: ${directory}"
+done
+
+"$xdg_config" --home "$tmp_home" --apply >/dev/null
+
+expect_line "${tmp_home}/.config/user-dirs.dirs" "XDG_DOWNLOAD_DIR=\"\$HOME/data/inbox/10-downloads\""
+expect_line "${tmp_home}/.config/user-dirs.dirs" "XDG_DOCUMENTS_DIR=\"\$HOME/data/personal\""
+expect_line "${tmp_home}/.config/user-dirs.dirs" "XDG_PICTURES_DIR=\"\$HOME/data/media/photos\""
+expect_line "${tmp_home}/.config/user-dirs.dirs" "XDG_MUSIC_DIR=\"\$HOME/data/media/audio\""
+expect_line "${tmp_home}/.config/user-dirs.dirs" "XDG_VIDEOS_DIR=\"\$HOME/data/media/video\""
+expect_line "${tmp_home}/.config/user-dirs.dirs" "XDG_TEMPLATES_DIR=\"\$HOME/data/templates\""
+expect_line "${tmp_home}/.config/user-dirs.dirs" "XDG_PUBLICSHARE_DIR=\"\$HOME/data/shared\""
+expect_line "${tmp_home}/.config/user-dirs.dirs" "XDG_PROJECTS_DIR=\"\$HOME/data/projects\""
+
+expect_line "${tmp_home}/.config/gtk-3.0/bookmarks" "file://${tmp_home}/data Data"
+expect_line "${tmp_home}/.config/gtk-3.0/bookmarks" "file://${tmp_home}/data/inbox/10-downloads Downloads"
+expect_line "${tmp_home}/.config/gtk-3.0/bookmarks" "file://${tmp_home}/scratch Scratch"
+expect_line "${tmp_home}/.config/gtk-4.0/bookmarks" "file://${tmp_home}/data Data"
+expect_line "${tmp_home}/.config/gtk-4.0/bookmarks" "file://${tmp_home}/dev Development"
+
+icon_output="$("$icons" --home "$tmp_home" --theme Adwaita-yellow 2>&1)"
+if grep -Fq "SKIP missing theme icon" <<<"$icon_output"; then
+  printf '%s\n' "$icon_output" >&2
+  fail "folder icon resolver found missing icons"
+fi
+if grep -Fq "SKIP missing directory" <<<"$icon_output"; then
+  printf '%s\n' "$icon_output" >&2
+  fail "folder icon resolver found missing directories"
+fi
+
+mkdir -p "${tmp_home}/.mozilla/firefox/test.default" "${tmp_home}/.thunderbird/test.default"
+: > "${tmp_home}/.mozilla/firefox/test.default/prefs.js"
+: > "${tmp_home}/.thunderbird/test.default/prefs.js"
+"$app_paths" --home "$tmp_home" --apply >/dev/null
+
+expect_line "${tmp_home}/.mozilla/firefox/test.default/user.js" 'user_pref("browser.download.folderList", 2);'
+expect_line "${tmp_home}/.mozilla/firefox/test.default/user.js" "user_pref(\"browser.download.dir\", \"${tmp_home}/data/inbox/10-downloads\");"
+expect_line "${tmp_home}/.thunderbird/test.default/user.js" "user_pref(\"messenger.save.dir\", \"${tmp_home}/data/inbox/10-downloads\");"
+
+"$readmes" --home "$tmp_home" --apply --update-managed >/dev/null
+require_file "${tmp_home}/data/00-readme.md"
+require_file "${tmp_home}/scratch/00-readme.md"
+
+printf '%s\n' "${tmp_home}/Documents/legacy-example" > "${tmp_home}/.config/gtk-3.0/bookmarks"
+audit_output="$("$audit" --home "$tmp_home")"
+grep -Fq "Result: stale legacy paths found." <<<"$audit_output" || {
+  printf '%s\n' "$audit_output" >&2
+  fail "application path audit did not report seeded stale paths"
+}
+
+printf 'Home organization baseline validation passed.\n'

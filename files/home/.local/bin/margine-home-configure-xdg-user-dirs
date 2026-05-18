@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+home_dir="${HOME}"
+apply=0
+
+declare -A xdg_dirs=(
+  [DESKTOP]="$HOME/"
+  [DOWNLOAD]="$HOME/data/inbox/10-downloads"
+  [TEMPLATES]="$HOME/data/templates"
+  [PUBLICSHARE]="$HOME/data/shared"
+  [DOCUMENTS]="$HOME/data/personal"
+  [MUSIC]="$HOME/data/media/audio"
+  [PICTURES]="$HOME/data/media/photos"
+  [VIDEOS]="$HOME/data/media/video"
+  [PROJECTS]="$HOME/data/projects"
+)
+
+declare -a xdg_order=(
+  DESKTOP
+  DOWNLOAD
+  TEMPLATES
+  PUBLICSHARE
+  DOCUMENTS
+  MUSIC
+  PICTURES
+  VIDEOS
+  PROJECTS
+)
+
+declare -a gtk_bookmarks=(
+  "data|Data"
+  "data/inbox|Inbox"
+  "data/inbox/10-downloads|Downloads"
+  "data/personal|Personal"
+  "data/work|Work"
+  "data/community|Community"
+  "data/media/photos|Photos"
+  "data/media/audio|Audio"
+  "data/media/video|Video"
+  "data/library|Library"
+  "data/technology|Technology"
+  "data/projects|Projects"
+  "data/shared|Shared"
+  "dev|Development"
+  "scratch|Scratch"
+)
+
+usage() {
+  cat <<'EOF'
+Usage:
+  margine-home-configure-xdg-user-dirs [options]
+
+Options:
+  --home PATH  Home directory to configure. Defaults to $HOME.
+  --apply      Write XDG user dirs and GTK bookmarks. Without this, dry-run.
+  --help       Show this help.
+EOF
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+log_action() {
+  if (( apply )); then
+    printf '%s\n' "$*"
+  else
+    printf '[dry-run] %s\n' "$*"
+  fi
+}
+
+escape_path_for_user_dirs() {
+  local path="$1"
+  local relative=""
+
+  if [[ "$path" == "${home_dir}" ]]; then
+    printf '%s' "\$HOME/"
+    return 0
+  fi
+
+  if [[ "$path" == "${home_dir}/"* ]]; then
+    relative="${path#"${home_dir}/"}"
+    printf '%s%s' "\$HOME/" "$relative"
+    return 0
+  fi
+
+  printf '%s' "$path"
+}
+
+write_user_dirs_file() {
+  local config_dir="${home_dir}/.config"
+  local target="${config_dir}/user-dirs.dirs"
+  local key=""
+  local value=""
+  local rendered=""
+
+  log_action "write ${target}"
+  (( apply )) || return 0
+
+  mkdir -p "$config_dir"
+  if [[ -e "$target" ]]; then
+    cp -a "$target" "${target}.bak.$(date +%Y%m%d-%H%M%S)"
+  fi
+
+  {
+    cat <<'EOF'
+# This file is managed by Margine OS home organization provisioning.
+# Format is XDG_xxx_DIR="$HOME/yyy".
+EOF
+    for key in "${xdg_order[@]}"; do
+      value="${xdg_dirs[$key]}"
+      rendered="$(escape_path_for_user_dirs "$value")"
+      printf 'XDG_%s_DIR="%s"\n' "$key" "$rendered"
+    done
+  } > "$target"
+}
+
+refresh_with_xdg_user_dirs_update() {
+  local key=""
+  local value=""
+
+  command -v xdg-user-dirs-update >/dev/null 2>&1 || return 0
+
+  for key in DOWNLOAD TEMPLATES PUBLICSHARE DOCUMENTS MUSIC PICTURES VIDEOS; do
+    value="${xdg_dirs[$key]}"
+    log_action "xdg-user-dirs-update --set ${key} ${value}"
+    (( apply )) || continue
+    HOME="$home_dir" xdg-user-dirs-update --set "$key" "$value" >/dev/null
+  done
+}
+
+write_bookmarks_file() {
+  local target=""
+  local relative=""
+  local label=""
+  local uri=""
+  local bookmark=""
+  local bookmark_dir=""
+
+  for target in \
+    "${home_dir}/.config/gtk-3.0/bookmarks" \
+    "${home_dir}/.config/gtk-4.0/bookmarks"; do
+    log_action "write ${target}"
+    (( apply )) || continue
+
+    bookmark_dir="$(dirname "$target")"
+    mkdir -p "$bookmark_dir"
+    if [[ -e "$target" ]]; then
+      cp -a "$target" "${target}.bak.$(date +%Y%m%d-%H%M%S)"
+    fi
+
+    : > "$target"
+    for bookmark in "${gtk_bookmarks[@]}"; do
+      relative="${bookmark%%|*}"
+      label="${bookmark#*|}"
+      uri="file://${home_dir}/${relative}"
+      printf '%s %s\n' "$uri" "$label" >> "$target"
+    done
+  done
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --home)
+      [[ $# -ge 2 ]] || die "missing value for --home"
+      home_dir="$2"
+      shift 2
+      ;;
+    --apply)
+      apply=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+  esac
+done
+
+[[ -n "$home_dir" ]] || die "empty home directory"
+
+xdg_dirs=(
+  [DESKTOP]="${home_dir}/"
+  [DOWNLOAD]="${home_dir}/data/inbox/10-downloads"
+  [TEMPLATES]="${home_dir}/data/templates"
+  [PUBLICSHARE]="${home_dir}/data/shared"
+  [DOCUMENTS]="${home_dir}/data/personal"
+  [MUSIC]="${home_dir}/data/media/audio"
+  [PICTURES]="${home_dir}/data/media/photos"
+  [VIDEOS]="${home_dir}/data/media/video"
+  [PROJECTS]="${home_dir}/data/projects"
+)
+
+refresh_with_xdg_user_dirs_update
+write_user_dirs_file
+write_bookmarks_file

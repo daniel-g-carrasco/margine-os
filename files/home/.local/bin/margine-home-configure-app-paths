@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+home_dir="${HOME}"
+apply=0
+marker_begin="/* BEGIN Margine OS home organization */"
+marker_end="/* END Margine OS home organization */"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  margine-home-configure-app-paths [options]
+
+Options:
+  --home PATH  Home directory to inspect. Defaults to $HOME.
+  --apply      Write managed user.js blocks. Without this, dry-run.
+  --help       Show this help.
+
+The script configures existing Gecko and Thunderbird profiles only. It does
+not create browser profiles, move data, rewrite Chromium state, or edit
+darktable SQLite databases.
+EOF
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+json_escape() {
+  local value="$1"
+
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '%s' "$value"
+}
+
+remove_managed_block() {
+  local file="$1"
+
+  awk -v begin="$marker_begin" -v end="$marker_end" '
+    $0 == begin { skip = 1; next }
+    $0 == end { skip = 0; next }
+    skip != 1 { print }
+  ' "$file"
+}
+
+write_user_js() {
+  local profile_dir="$1"
+  local kind="$2"
+  local target="${profile_dir}/user.js"
+  local download_dir="${home_dir}/data/inbox/10-downloads"
+  local escaped_download_dir=""
+  local tmp=""
+
+  escaped_download_dir="$(json_escape "$download_dir")"
+
+  if (( ! apply )); then
+    printf '[dry-run] update %s profile: %s\n' "$kind" "$target"
+    return 0
+  fi
+
+  mkdir -p "$profile_dir"
+  tmp="$(mktemp)"
+
+  if [[ -f "$target" ]]; then
+    remove_managed_block "$target" > "$tmp"
+  else
+    : > "$tmp"
+  fi
+
+  {
+    cat "$tmp"
+    if [[ -s "$tmp" ]]; then
+      printf '\n'
+    fi
+    printf '%s\n' "$marker_begin"
+    printf 'user_pref("browser.download.folderList", 2);\n'
+    printf 'user_pref("browser.download.dir", "%s");\n' "$escaped_download_dir"
+    printf 'user_pref("browser.download.lastDir", "%s");\n' "$escaped_download_dir"
+    if [[ "$kind" == "thunderbird" ]]; then
+      printf 'user_pref("messenger.save.dir", "%s");\n' "$escaped_download_dir"
+    fi
+    printf '%s\n' "$marker_end"
+  } > "$target"
+
+  rm -f "$tmp"
+}
+
+discover_profiles() {
+  local root="$1"
+
+  [[ -d "$root" ]] || return 0
+
+  find "$root" -mindepth 1 -maxdepth 2 -type f \( -name prefs.js -o -name user.js \) -printf '%h\n' |
+    sort -u
+}
+
+configure_gecko_roots() {
+  local root=""
+  local profile=""
+  local found=0
+
+  for root in \
+    "${home_dir}/.mozilla/firefox" \
+    "${home_dir}/.floorp" \
+    "${home_dir}/.librewolf" \
+    "${home_dir}/.waterfox"; do
+    while IFS= read -r profile; do
+      [[ -n "$profile" ]] || continue
+      write_user_js "$profile" "gecko"
+      found=1
+    done < <(discover_profiles "$root")
+  done
+
+  if (( ! found )); then
+    printf 'No existing Gecko browser profiles found; nothing written.\n'
+  fi
+}
+
+configure_thunderbird() {
+  local profile=""
+  local found=0
+
+  while IFS= read -r profile; do
+    [[ -n "$profile" ]] || continue
+    write_user_js "$profile" "thunderbird"
+    found=1
+  done < <(discover_profiles "${home_dir}/.thunderbird")
+
+  if (( ! found )); then
+    printf 'No existing Thunderbird profiles found; nothing written.\n'
+  fi
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --home)
+      [[ $# -ge 2 ]] || die "missing value for --home"
+      home_dir="$2"
+      shift 2
+      ;;
+    --apply)
+      apply=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+  esac
+done
+
+[[ -n "$home_dir" ]] || die "empty home directory"
+
+configure_gecko_roots
+configure_thunderbird
+
+cat <<EOF
+Application path notes:
+- Chromium-based browsers are intentionally left for user policy or settings.
+- darktable should use ${home_dir}/data/media/photos and ${home_dir}/data/media/photos/raw for local RAW imports; this script does not edit darktable SQLite databases.
+- Download clients should use ${home_dir}/data/inbox/10-downloads for complete downloads and ${home_dir}/scratch/downloads for incomplete downloads.
+- LibreOffice, VLC, and recent-files stores can keep historical old paths; those are application history, not active storage policy.
+EOF

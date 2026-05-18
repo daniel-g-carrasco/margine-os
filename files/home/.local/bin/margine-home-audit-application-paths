@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+home_dir="${HOME}"
+exit_on_findings=0
+findings=0
+
+declare -a stale_patterns=(
+  "\$HOME/Downloads"
+  "\$HOME/Documents"
+  "\$HOME/Pictures"
+  "\$HOME/Music"
+  "\$HOME/Videos"
+  "\$HOME/Templates"
+  "\$HOME/Public"
+  "\$HOME/Desktop"
+  "\$HOME/Scaricati"
+  "\$HOME/Documenti"
+  "\$HOME/Immagini"
+  "\$HOME/Musica"
+  "\$HOME/Video"
+  "\$HOME/Modelli"
+  "\$HOME/Pubblici"
+  "\$HOME/Scrivania"
+)
+
+declare -a audit_files=(
+  ".config/user-dirs.dirs"
+  ".config/gtk-3.0/bookmarks"
+  ".config/gtk-4.0/bookmarks"
+  ".config/mimeapps.list"
+  ".config/darktable/darktablerc"
+  ".config/libreoffice/4/user/registrymodifications.xcu"
+  ".config/vlc/vlcrc"
+  ".local/share/recently-used.xbel"
+  ".mozilla/firefox"
+  ".floorp"
+  ".librewolf"
+  ".waterfox"
+  ".thunderbird"
+)
+
+usage() {
+  cat <<'EOF'
+Usage:
+  margine-home-audit-application-paths [options]
+
+Options:
+  --home PATH          Home directory to inspect. Defaults to $HOME.
+  --exit-on-findings   Return exit 1 when stale paths are found.
+  --help               Show this help.
+EOF
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+mark_finding() {
+  findings=1
+}
+
+scan_path() {
+  local path="$1"
+  local pattern=""
+  local grep_pattern=""
+  local matched=0
+
+  [[ -e "$path" ]] || return 0
+
+  for pattern in "${stale_patterns[@]}"; do
+    grep_pattern="${pattern//\$HOME/${home_dir}}"
+    if grep -RIl --exclude='*.sqlite' --exclude='*.sqlite-*' --exclude='places.sqlite' -- "$grep_pattern" "$path" >/dev/null 2>&1; then
+      if (( ! matched )); then
+        printf 'Stale path references in %s:\n' "$path"
+        matched=1
+      fi
+      grep -RIn --exclude='*.sqlite' --exclude='*.sqlite-*' --exclude='places.sqlite' -- "$grep_pattern" "$path" 2>/dev/null | sed 's/^/  /'
+      mark_finding
+    fi
+
+    if grep -RIl --exclude='*.sqlite' --exclude='*.sqlite-*' --exclude='places.sqlite' -- "$pattern" "$path" >/dev/null 2>&1; then
+      if (( ! matched )); then
+        printf 'Stale path references in %s:\n' "$path"
+        matched=1
+      fi
+      grep -RIn --exclude='*.sqlite' --exclude='*.sqlite-*' --exclude='places.sqlite' -- "$pattern" "$path" 2>/dev/null | sed 's/^/  /'
+      mark_finding
+    fi
+  done
+}
+
+check_xdg_user_dirs() {
+  local target="${home_dir}/.config/user-dirs.dirs"
+  local expected=(
+    "XDG_DOWNLOAD_DIR=\"\$HOME/data/inbox/10-downloads\""
+    "XDG_DOCUMENTS_DIR=\"\$HOME/data/personal\""
+    "XDG_PICTURES_DIR=\"\$HOME/data/media/photos\""
+    "XDG_MUSIC_DIR=\"\$HOME/data/media/audio\""
+    "XDG_VIDEOS_DIR=\"\$HOME/data/media/video\""
+    "XDG_TEMPLATES_DIR=\"\$HOME/data/templates\""
+    "XDG_PUBLICSHARE_DIR=\"\$HOME/data/shared\""
+    "XDG_PROJECTS_DIR=\"\$HOME/data/projects\""
+  )
+  local line=""
+
+  if [[ ! -f "$target" ]]; then
+    printf 'Missing XDG user dirs file: %s\n' "$target"
+    mark_finding
+    return 0
+  fi
+
+  for line in "${expected[@]}"; do
+    if ! grep -Fxq "$line" "$target"; then
+      printf 'XDG mismatch: expected %s in %s\n' "$line" "$target"
+      mark_finding
+    fi
+  done
+}
+
+check_gtk_bookmarks() {
+  local target=""
+  local expected=(
+    "file://${home_dir}/data Data"
+    "file://${home_dir}/data/inbox/10-downloads Downloads"
+    "file://${home_dir}/data/media/photos Photos"
+    "file://${home_dir}/dev Development"
+    "file://${home_dir}/scratch Scratch"
+  )
+  local line=""
+
+  for target in "${home_dir}/.config/gtk-3.0/bookmarks" "${home_dir}/.config/gtk-4.0/bookmarks"; do
+    if [[ ! -f "$target" ]]; then
+      printf 'Missing GTK bookmarks file: %s\n' "$target"
+      mark_finding
+      continue
+    fi
+
+    for line in "${expected[@]}"; do
+      if ! grep -Fxq "$line" "$target"; then
+        printf 'GTK bookmark mismatch: expected %s in %s\n' "$line" "$target"
+        mark_finding
+      fi
+    done
+  done
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --home)
+      [[ $# -ge 2 ]] || die "missing value for --home"
+      home_dir="$2"
+      shift 2
+      ;;
+    --exit-on-findings)
+      exit_on_findings=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+  esac
+done
+
+[[ -n "$home_dir" ]] || die "empty home directory"
+
+check_xdg_user_dirs
+check_gtk_bookmarks
+
+for relative in "${audit_files[@]}"; do
+  scan_path "${home_dir}/${relative}"
+done
+
+cat <<EOF
+Audit notes:
+- Old paths in LibreOffice, VLC, and recently-used files can be harmless history.
+- darktable databases are not edited by Margine OS; close darktable and back up before manual database work.
+- Complete downloads should point to ${home_dir}/data/inbox/10-downloads; incomplete downloads should point to ${home_dir}/scratch/downloads.
+EOF
+
+if (( findings )); then
+  printf 'Result: stale legacy paths found.\n'
+  if (( exit_on_findings )); then
+    exit 1
+  fi
+else
+  printf 'Result: no stale legacy paths found in audited files.\n'
+fi

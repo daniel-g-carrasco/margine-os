@@ -50,6 +50,7 @@ darktable_baseline_source="${repo_root}/files/home/.config/darktable/darktablerc
 libreoffice_baseline_source="${repo_root}/files/home/.config/libreoffice/4/user/registrymodifications.xcu"
 theme_renderer_source="${repo_root}/scripts/render-theme-artifacts"
 theme_file_source="${repo_root}/files/home/.config/margine/theme.env"
+home_organization_provisioner="${repo_root}/scripts/provision-home-organization"
 
 usage() {
   cat <<'EOF'
@@ -367,6 +368,19 @@ EOF
   install -Dm755 "$host_health_wrapper_source" /usr/local/bin/margine-validate-host-health
 }
 
+provision_home_organization() {
+  log
+  log "==> Provision home organization baseline"
+
+  [[ -x "$home_organization_provisioner" ]] || die "required source not found: $home_organization_provisioner"
+
+  if (( dry_run )); then
+    "$home_organization_provisioner" --username "$username" --dry-run
+  else
+    "$home_organization_provisioner" --username "$username"
+  fi
+}
+
 fix_ownership() {
   log
   log "==> Fix ownership"
@@ -419,6 +433,7 @@ main() {
   cleanup_legacy_theme_overrides
   apply_legacy_icon_overrides
   install_global_update_all
+  provision_home_organization
   cleanup_legacy_desktop_entries
   fix_ownership
 

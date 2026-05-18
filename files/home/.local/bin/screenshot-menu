@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-pictures_dir="${XDG_PICTURES_DIR:-$HOME/Immagini}"
-output_dir="${pictures_dir}/Schermate"
+pictures_dir="${XDG_PICTURES_DIR:-$HOME/data/media/photos}"
+output_dir="${XDG_SCREENSHOTS_DIR:-${pictures_dir}/screenshots}"
 
 mkdir -p "$output_dir"
 

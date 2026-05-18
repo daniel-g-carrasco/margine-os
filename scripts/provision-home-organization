@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+dry_run=0
+username=""
+home_dir=""
+skip_folder_icons=0
+
+declare -a helper_scripts=(
+  "margine-home-bootstrap-layout"
+  "margine-home-configure-xdg-user-dirs"
+  "margine-home-configure-folder-icons"
+  "margine-home-configure-app-paths"
+  "margine-home-audit-application-paths"
+  "margine-home-install-folder-readmes"
+)
+
+usage() {
+  cat <<'EOF'
+Usage:
+  provision-home-organization --username NAME [options]
+
+Options:
+  --username NAME       Target user.
+  --home PATH           Override the target home directory.
+  --skip-folder-icons   Do not write GIO custom folder icon metadata.
+  --dry-run             Print the plan without executing it.
+  --help                Show this help.
+
+This provisioner creates the Margine OS home layout, XDG user dirs, GTK
+bookmarks, folder readmes, application path hints for existing profiles, and
+the backup exclusion policy. It does not move existing personal data.
+EOF
+}
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+quote_cmd() {
+  local arg=""
+
+  printf '%q' "$1"
+  shift
+  for arg in "$@"; do
+    printf ' %q' "$arg"
+  done
+  printf '\n'
+}
+
+run_cmd() {
+  if (( dry_run )); then
+    printf '[dry-run] '
+    quote_cmd "$@"
+  else
+    "$@"
+  fi
+}
+
+run_as_user() {
+  if (( dry_run )); then
+    printf '[dry-run] runuser -u %q -- env HOME=%q XDG_CONFIG_HOME=%q ' "$username" "$home_dir" "${home_dir}/.config"
+    quote_cmd "$@"
+  else
+    runuser -u "$username" -- env HOME="$home_dir" XDG_CONFIG_HOME="${home_dir}/.config" "$@"
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --username)
+        [[ $# -ge 2 ]] || die "missing value for --username"
+        username="$2"
+        shift 2
+        ;;
+      --home)
+        [[ $# -ge 2 ]] || die "missing value for --home"
+        home_dir="$2"
+        shift 2
+        ;;
+      --skip-folder-icons)
+        skip_folder_icons=1
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
+
+require_root() {
+  if (( dry_run )); then
+    return 0
+  fi
+
+  [[ "$(id -u)" -eq 0 ]] || die "provision-home-organization must run as root"
+}
+
+resolve_home_dir() {
+  [[ -n "$username" ]] || die "--username is required"
+
+  if [[ -z "$home_dir" ]]; then
+    home_dir="$(getent passwd "$username" | cut -d: -f6)"
+  fi
+
+  [[ -n "$home_dir" ]] || die "could not resolve home for user: $username"
+}
+
+install_helpers() {
+  local helper=""
+  local source=""
+  local target=""
+
+  log
+  log "==> Install home organization helpers"
+
+  for helper in "${helper_scripts[@]}"; do
+    source="${repo_root}/files/home/.local/bin/${helper}"
+    target="${home_dir}/.local/bin/${helper}"
+    [[ -f "$source" ]] || die "required source not found: $source"
+    run_cmd install -Dm755 "$source" "$target"
+  done
+}
+
+install_backup_policy() {
+  local source="${repo_root}/files/home/.config/margine/home-organization/backup-exclude.example"
+  local target="${home_dir}/.config/margine/home-organization/backup-exclude.example"
+
+  log
+  log "==> Install backup exclusion example"
+
+  [[ -f "$source" ]] || die "required source not found: $source"
+  run_cmd install -Dm644 "$source" "$target"
+}
+
+apply_home_layout() {
+  local bin_dir="${home_dir}/.local/bin"
+
+  log
+  log "==> Create home organization layout"
+  run_as_user "${bin_dir}/margine-home-bootstrap-layout" --home "$home_dir"
+
+  log
+  log "==> Configure XDG user dirs and GTK bookmarks"
+  run_as_user "${bin_dir}/margine-home-configure-xdg-user-dirs" --home "$home_dir" --apply
+
+  log
+  log "==> Install managed folder notes"
+  run_as_user "${bin_dir}/margine-home-install-folder-readmes" --home "$home_dir" --apply --update-managed
+
+  log
+  log "==> Configure application download path hints"
+  run_as_user "${bin_dir}/margine-home-configure-app-paths" --home "$home_dir" --apply
+
+  if (( skip_folder_icons )); then
+    log
+    log "==> Skip folder icon metadata"
+    return 0
+  fi
+
+  log
+  log "==> Configure GIO folder icon metadata"
+  if ! run_as_user "${bin_dir}/margine-home-configure-folder-icons" --home "$home_dir" --apply; then
+    warn "folder icon metadata was not fully applied; rerun margine-home-configure-folder-icons from the graphical session"
+  fi
+}
+
+fix_ownership() {
+  log
+  log "==> Fix home organization ownership"
+
+  run_cmd chown -R \
+    "${username}:${username}" \
+    "${home_dir}/data" \
+    "${home_dir}/dev" \
+    "${home_dir}/scratch" \
+    "${home_dir}/.config/margine/home-organization" \
+    "${home_dir}/.config/gtk-3.0" \
+    "${home_dir}/.config/gtk-4.0" \
+    "${home_dir}/.config/user-dirs.dirs" \
+    "${home_dir}/.local/bin"
+}
+
+main() {
+  parse_args "$@"
+  require_root
+  resolve_home_dir
+  install_helpers
+  install_backup_policy
+  apply_home_layout
+  fix_ownership
+
+  log
+  log "Home organization layer installed."
+}
+
+main "$@"

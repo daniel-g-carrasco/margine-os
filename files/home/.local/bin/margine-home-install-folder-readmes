@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+MARKER_BEGIN = "<!-- BEGIN Margine OS managed folder note -->"
+MARKER_END = "<!-- END Margine OS managed folder note -->"
+
+NOTES = {
+    "data": "Durable, human-meaningful files live here. Do not use this as a cache or staging area.",
+    "data/inbox": "Short-lived intake queues. Review and move files into durable contexts.",
+    "data/inbox/10-downloads": "Completed browser and client downloads. Keep this reviewable, not archival.",
+    "data/personal": "Personal durable records, organized by domain rather than by application.",
+    "data/work": "Work material that is not a source repository. Keep active client and project context here.",
+    "data/community": "Community, associations, public groups, and shared civic contexts.",
+    "data/media/photos": "Photo library root. Local RAW imports belong in raw when they are intentionally kept.",
+    "data/media/photos/raw": "Large RAW originals. Consider a separate backup policy when this grows too large.",
+    "data/media/photos/screenshots": "Screenshot output from the Margine desktop tooling.",
+    "data/media/audio": "Durable audio and music material.",
+    "data/media/video": "Durable video material.",
+    "data/media/video/screen-recordings": "Screen recording output from the Margine desktop tooling.",
+    "data/library": "Reusable reference material: books, fonts, installers, packages, and games.",
+    "data/technology": "Ownership, operations, and reference records for technical systems.",
+    "data/technology/00-admin/security": "Temporary raw security exports only. Keep this excluded from normal sync.",
+    "data/technology/00-admin/licenses/raw-secrets": "Temporary raw license secrets only. Keep this excluded from normal sync.",
+    "data/projects": "Non-repository project files when managed locally.",
+    "data/shared": "Files prepared for other people or publication.",
+    "data/archive": "Closed contexts retained for reference.",
+    "data/imports": "Explicit imports before review and placement.",
+    "data/templates": "Reusable templates exposed through XDG_TEMPLATES_DIR.",
+    "dev": "Source repositories and development sandboxes. Durable personal documents belong under data.",
+    "dev/project-repositories": "Default place for cloned or created source repositories.",
+    "scratch": "Disposable working area. Exclude this from backups.",
+    "scratch/downloads": "Incomplete or temporary downloads.",
+    "scratch/mobile": "Transient phone and tablet exchange area.",
+    "scratch/media-cache": "Regenerable media cache and temporary render material.",
+}
+
+
+def managed_body(relative: str, text: str) -> str:
+    return (
+        f"{MARKER_BEGIN}\n"
+        f"# {relative}\n\n"
+        f"{text}\n"
+        f"{MARKER_END}\n"
+    )
+
+
+def should_update(path: Path, update_managed: bool) -> bool:
+    if not path.exists():
+        return True
+    if not update_managed:
+        return False
+    content = path.read_text(encoding="utf-8")
+    return MARKER_BEGIN in content and MARKER_END in content
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--home", default=str(Path.home()))
+    parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--update-managed", action="store_true")
+    args = parser.parse_args()
+
+    home = Path(args.home).expanduser()
+
+    for relative, text in NOTES.items():
+        directory = home / relative
+        readme = directory / "00-readme.md"
+        body = managed_body(relative, text)
+
+        if not directory.is_dir():
+            print(f"SKIP missing directory: {directory}")
+            continue
+
+        if not should_update(readme, args.update_managed):
+            print(f"SKIP existing unmanaged note: {readme}")
+            continue
+
+        if args.apply:
+            readme.write_text(body, encoding="utf-8")
+            print(f"WROTE {readme}")
+        else:
+            print(f"[dry-run] write {readme}")
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

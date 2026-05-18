@@ -1,0 +1,39 @@
+# Margine OS home organization backup exclusions.
+#
+# This file is an example policy, not a backup tool configuration by itself.
+# Adapt it to borg, restic, rsync, Syncthing, or the chosen backup backend.
+
+# Disposable roots.
+/home/*/scratch/
+/home/*/scratch/**
+
+# Common caches and rebuildable local state.
+/home/*/.cache/
+/home/*/.cache/**
+/home/*/.local/share/Trash/
+/home/*/.local/share/Trash/**
+/home/*/.npm/
+/home/*/.npm/**
+/home/*/.cargo/registry/
+/home/*/.cargo/registry/**
+/home/*/.cargo/git/
+/home/*/.cargo/git/**
+
+# Temporary downloads and transfer staging.
+/home/*/scratch/downloads/
+/home/*/scratch/downloads/**
+/home/*/scratch/mobile/
+/home/*/scratch/mobile/**
+/home/*/scratch/media-cache/
+/home/*/scratch/media-cache/**
+
+# Raw secrets must not drift into routine sync or broad backup scopes.
+/home/*/data/technology/00-admin/security/
+/home/*/data/technology/00-admin/security/**
+/home/*/data/technology/00-admin/licenses/raw-secrets/
+/home/*/data/technology/00-admin/licenses/raw-secrets/**
+
+# Optional high-volume photo originals.
+# Enable only when RAW originals are covered by a dedicated backup policy.
+# /home/*/data/media/photos/raw/
+# /home/*/data/media/photos/raw/**
